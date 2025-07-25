@@ -22,21 +22,21 @@ jobs:
         uses: nuget/setup-nuget@v1
 
       - name: Restore NuGet packages
-        run: nuget restore ysoserial.sln
+        run: nuget restore ysonet.sln
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.3.1
 
       - name: Build solution
-        run: msbuild ysoserial.sln -p:Configuration=Release
+        run: msbuild ysonet.sln -p:Configuration=Release
 
       - name: Create artifact directory
         run: |
           mkdir release
-          move .\ysoserial\bin\Release .\release
+          move .\ysonet\bin\Release .\release
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ysoserial-${{ github.sha }}
+          name: ysonet-${{ github.sha }}
           path: .\release

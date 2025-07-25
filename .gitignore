@@ -242,9 +242,9 @@ ModelManifest.xml
 .fake/
 
 # Tests
-ysoserial/Helpers/TestingArena/
+ysonet/Helpers/TestingArena/
 
 # Rider
 .idea
-ysoserial/Helpers/TestingArena/TestingArenaHome.cs
+ysonet/Helpers/TestingArena/TestingArenaHome.cs
 /ExploitClass/ExploitSamples
