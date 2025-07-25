@@ -1,4 +1,4 @@
-<img src="/logo.png" alt="logo" width="120" />
+<img src="/logo.png" alt="logo" width="200" />
 
 **YSoNet** is a fork of the original [YSoSerial.Net](https://github.com/pwntester/ysoserial.net), currently maintained by [@irsdl](https://github.com/irsdl).
 
