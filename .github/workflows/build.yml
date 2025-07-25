@@ -1,26 +1,42 @@
-on: [push, pull_request]
-
 name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: Build on Windows
     runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@v1
-      - name: Setup Nuget.exe
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup NuGet
         uses: nuget/setup-nuget@v1
-      - name: Restore packages
+
+      - name: Restore NuGet packages
         run: nuget restore ysoserial.sln
-      - name: Setup MSBuild.exe
-        uses: microsoft/setup-msbuild@v1.1
-      - name: Build with MSBuild
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.3.1
+
+      - name: Build solution
         run: msbuild ysoserial.sln -p:Configuration=Release
-      - name: Prepare build artifact for stashing
+
+      - name: Create artifact directory
         run: |
           mkdir release
-          move D:\a\ysoserial.net\ysoserial.net\ysoserial\bin\Release .\release
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4.0.0
+          move .\ysoserial\bin\Release .\release
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
         with:
           name: ysoserial-${{ github.sha }}
           path: .\release

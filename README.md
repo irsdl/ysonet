@@ -1,11 +1,15 @@
-![logo](/logo.png)
+<img src="/logo.png" alt="logo" width="120" />
+
+**YSoNet** is a fork of the original [YSoSerial.Net](https://github.com/pwntester/ysoserial.net), currently maintained by [@irsdl](https://github.com/irsdl).
+
+🔗 Visit: [https://ysonet.net](https://ysonet.net)
+
+⚠️ This is the **initial version**. The README, links, and build process will gradually evolve to distinguish it from the original project.
+
 ---
-![GitHub CI](https://github.com/pwntester/ysoserial.net/workflows/Build/badge.svg?branch=master)
-[![v2](https://img.shields.io/azure-devops/build/alvaro0002/ysoserial.net/1/v2.svg?label=v2%20branch)](https://dev.azure.com/alvaro0002/ysoserial.net/_build/latest?definitionId=1&branchName=v2)
-[![download](https://img.shields.io/badge/download-latest-blue.svg)](https://github.com/pwntester/ysoserial.net/releases/latest)
-[![license](https://img.shields.io/github/license/pwntester/ysoserial.net.svg)](LICENSE.txt)
-![stars](https://img.shields.io/github/stars/pwntester/ysoserial.net.svg?style=social)
-![forks](https://img.shields.io/github/forks/pwntester/ysoserial.net.svg?style=social)
+![Build](https://github.com/irsdl/ysonet/actions/workflows/dotnet.yml/badge.svg)
+[![License](https://img.shields.io/github/license/irsdl/ysonet)](https://github.com/irsdl/ysonet/blob/master/LICENSE)
+[![Download](https://img.shields.io/github/v/release/irsdl/ysonet?label=download)](https://github.com/irsdl/ysonet/releases/latest)
 
 A proof-of-concept tool for generating payloads that exploit unsafe .NET object deserialization.
 
@@ -22,7 +26,7 @@ This software has been created purely for the purposes of academic research and 
 This software is a personal project and not related with any companies, including Project owner and contributors employers.
 
 ## Installation
-In order to obtain the latest version, it is recommended to download it from [the Actions page](https://github.com/pwntester/ysoserial.net/actions).
+In order to obtain the latest version, it is recommended to download it from [the Actions page](https://github.com/irsdl/ysonet/actions).
 
 You can install the previous releases of YSoSerial.NET from [the releases page](https://github.com/pwntester/ysoserial.net/releases)
 
@@ -37,7 +41,7 @@ choco install choco install msbuild.communitytasks --yes
 choco install nuget.commandline --yes
 choco install git --yes
 
-git clone https://github.com/pwntester/ysoserial.net
+git clone https://github.com/irsdl/ysonet
 cd ysoserial.net
 nuget restore ysoserial.sln
 msbuild ysoserial.sln -p:Configuration=Release
