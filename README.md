@@ -7,7 +7,7 @@
 ⚠️ This is the **initial version**. The README, links, and build process will gradually evolve to distinguish it from the original project.
 
 ---
-![Build](https://github.com/irsdl/ysonet/actions/workflows/dotnet.yml/badge.svg)
+[![Build](https://github.com/irsdl/ysonet/actions/workflows/build.yml/badge.svg)](https://github.com/irsdl/ysonet/actions/workflows/build.yml)
 [![License](https://img.shields.io/github/license/irsdl/ysonet)](https://github.com/irsdl/ysonet/blob/master/LICENSE)
 [![Download](https://img.shields.io/github/v/release/irsdl/ysonet?label=download)](https://github.com/irsdl/ysonet/releases/latest)
 
