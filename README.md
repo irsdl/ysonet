@@ -2,9 +2,8 @@
 
 **YSoNet** is a fork of the original [YSoSerial.Net](https://github.com/pwntester/ysoserial.net), currently maintained by [@irsdl](https://github.com/irsdl).
 
-🔗 Visit: [https://ysonet.net](https://ysonet.net)
-
-⚠️ This is the **initial version**. The README, links, and build process will gradually evolve to distinguish it from the original project.
+* Visit: [https://ysonet.net](https://ysonet.net)
+* This is the **initial version**. The README, links, and build process will gradually evolve to distinguish it from the original project.
 
 ---
 [![Build](https://github.com/irsdl/ysonet/actions/workflows/build.yml/badge.svg)](https://github.com/irsdl/ysonet/actions/workflows/build.yml)
@@ -866,5 +865,3 @@ Please see https://github.com/pwntester/ysoserial.net/graphs/contributors to fin
 ### CTF write-ups:
 - https://cyku.tw/ctf-hitcon-2018-why-so-serials/
 - https://xz.aliyun.com/t/3019
- 
- 
