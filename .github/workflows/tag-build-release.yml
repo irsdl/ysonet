@@ -59,8 +59,13 @@ jobs:
 
       - name: Create annotated tag
         if: |
-          (github.event_name == 'push') ||
-          (github.event_name == 'workflow_dispatch' && inputs.create_tag == true && steps.tagcheck.outputs.exists == 'false')
+          # Define conditions for better readability
+          ${{ github.event_name == 'push' }} ||
+          ${{ 
+            github.event_name == 'workflow_dispatch' && 
+            inputs.create_tag == true && 
+            steps.tagcheck.outputs.exists == 'false' 
+          }}
         shell: pwsh
         run: |
           git config user.name  "github-actions[bot]"
