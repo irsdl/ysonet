@@ -1,0 +1,86 @@
+name: Prepare Major Release PR
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [ master ]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check for `major` label
+        id: gate
+        run: |
+          labels='${{ toJson(github.event.pull_request.labels) }}'
+          echo "is_major=false" >> $GITHUB_OUTPUT
+          echo "$labels" | grep -qi '"name":"major"' && echo "is_major=true" >> $GITHUB_OUTPUT || true
+
+      - name: Stop if not major
+        if: steps.gate.outputs.is_major != 'true'
+        run: echo "Merged PR is not labeled 'major' - skipping."
+
+      - name: Checkout
+        if: steps.gate.outputs.is_major == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump VERSION and update projects
+        if: steps.gate.outputs.is_major == 'true'
+        shell: pwsh
+        run: |
+          $versionPath = Join-Path $PWD "VERSION"
+          if (-not (Test-Path $versionPath)) { throw "VERSION file not found" }
+          $cur = (Get-Content $versionPath -Raw).Trim()
+          if ($cur -notmatch '^v(\d+)\.(\d+)$') { throw "VERSION must be vN.NN, got '$cur'" }
+          $nextMaj = [int]$Matches[1] + 1
+          $new = "v{0}.00" -f $nextMaj
+          Set-Content -NoNewline -Path $versionPath -Value $new
+          Write-Host "VERSION: $cur -> $new"
+
+          $info = "$new+ysonet"
+
+          # Update all .csproj files
+          Get-ChildItem -Recurse -Filter *.csproj | ForEach-Object {
+            [xml]$xml = Get-Content $_.FullName
+            $pg = $xml.Project.PropertyGroup | Select-Object -First 1
+            if (-not $pg) { $pg = $xml.CreateElement('PropertyGroup'); $xml.Project.AppendChild($pg) | Out-Null }
+
+            # AssemblyInformationalVersion = vN.NN+ysonet
+            $ainf = $pg.AssemblyInformationalVersion | Select-Object -First 1
+            if ($ainf) { $ainf.InnerText = $info } else {
+              $n = $xml.CreateElement('AssemblyInformationalVersion'); $n.InnerText = $info; $pg.AppendChild($n) | Out-Null
+            }
+
+            # Optional numeric Version (safe if you don't publish to NuGet)
+            $numeric = ($new.TrimStart('v') -replace '\.00$', '.0.0')  # v2.00 -> 2.0.0
+            $verNode = $pg.Version | Select-Object -First 1
+            if ($verNode) { $verNode.InnerText = $numeric } else {
+              $vn = $xml.CreateElement('Version'); $vn.InnerText = $numeric; $pg.AppendChild($vn) | Out-Null
+            }
+
+            $xml.Save($_.FullName)
+            Write-Host "Updated $($_.FullName)"
+          }
+
+      - name: Create Release PR
+        if: steps.gate.outputs.is_major == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore(release): prepare $(cat VERSION)"
+          title: "Release $(cat VERSION)"
+          body: |
+            Prepare **$(cat VERSION)**.
+            - Bump `VERSION`
+            - Stamp `.csproj` `AssemblyInformationalVersion` to `$(cat VERSION)+ysonet`
+          branch: release/$(cat VERSION)
+          labels: release
+          signoff: true
+          delete-branch: true

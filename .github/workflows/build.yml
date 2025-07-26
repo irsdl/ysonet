@@ -1,4 +1,4 @@
-name: Build
+name: CI Build
 
 on:
   workflow_dispatch:
@@ -15,14 +15,28 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: nuget/setup-nuget@v1
-      - run: nuget restore ysonet.sln
-      - uses: microsoft/setup-msbuild@v1.3.1
-      - run: msbuild ysonet.sln -p:Configuration=Release
-      - run: |
-          mkdir release
-          move .\ysonet\bin\Release .\release
-      - uses: actions/upload-artifact@v4
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore
+        run: nuget restore ysonet.sln
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build (Release)
+        run: msbuild ysonet.sln -p:Configuration=Release
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release | Out-Null
+          Move-Item .\ysonet\bin\Release\* .\release\ -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: ysonet-${{ github.sha }}
-          path: .\release
+          path: release
+          if-no-files-found: error

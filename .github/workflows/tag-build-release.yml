@@ -1,0 +1,66 @@
+name: Tag, Build & Publish Release
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - "VERSION"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        id: v
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          if ($v -notmatch '^v\d+\.\d+$') { throw "Unexpected VERSION format: $v" }
+          $tag = "ysonet/$v"
+          "value=$v"  >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $v"
+          Write-Host "Tag: $tag"
+
+      - name: Create annotated tag
+        shell: pwsh
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.value }} (ysonet)"
+          git push origin "${{ steps.v.outputs.tag }}"
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore
+        run: nuget restore ysonet.sln
+
+      - name: Build (Release)
+        run: msbuild ysonet.sln -p:Configuration=Release -m
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist | Out-Null
+          Compress-Archive -Path ".\ysonet\bin\Release\*" -DestinationPath "dist\ysonet-${{ steps.v.outputs.value }}.zip" -Force
+
+      - name: Publish GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag:  ${{ steps.v.outputs.tag }}
+          name: "[ysonet] ${{ steps.v.outputs.value }}"
+          generateReleaseNotes: true
+          artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip"
