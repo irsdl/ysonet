@@ -14,7 +14,7 @@
 A proof-of-concept tool for generating payloads that exploit unsafe .NET object deserialization.
 
 ## Description
-YSoNet (previously ysoserial.net) is a collection of utilities and property-oriented programming "gadget chains" discovered in common .NET libraries that can, under the right conditions, exploit .NET applications performing unsafe deserialization of objects. The main driver program takes a user-specified command and wraps it in the user-specified gadget chain, then serializes these objects to stdout. When an application with the required gadgets on the classpath unsafely deserializes this data, the chain will automatically be invoked and cause the command to be executed on the application host.
+YSoNet (previously known as ysoserial.net) is a collection of utilities and property-oriented programming "gadget chains" discovered in common .NET libraries that can, under the right conditions, exploit .NET applications performing unsafe deserialization of objects. The main driver program takes a user-specified command and wraps it in the user-specified gadget chain, then serializes these objects to stdout. When an application with the required gadgets on the classpath unsafely deserializes this data, the chain will automatically be invoked and cause the command to be executed on the application host.
 
 It should be noted that the vulnerability lies in the application performing unsafe deserialization and NOT in having gadgets on the classpath.
 
@@ -48,7 +48,6 @@ msbuild ysonet.sln -p:Configuration=Release
 
 .\ysonet\bin\Release\ysonet.exe -h
 ```
-
 
 ## Usage
 ```
@@ -651,12 +650,17 @@ AAEAAAD/////AQAAAAAAAAAEAQAAACZTeXN0ZW0uU2VjdXJpdHkuQ2xhaW1zLkNsYWltc1ByaW5jaXBh
 ## v2 Branch
 v2 branch is a copy of ysoserial.net (15/03/2018) that has been changed to work with .NET Framework 2.0 by [irsdl](https://github.com/irsdl). Although this project can be used with applications that use .NET Framework v2.0, it also requires .NET Framework 3.5 to be installed on the target box as the gadgets depend on it. This problem will be resolved if new gadgets in .NET Framework 2.0 become identified in the future.
 
-## Contributing
-- Fork it
-- Create your feature branch (`git checkout -b my-new-feature`)
-- Commit your changes (`git commit -am 'Add some feature'`)
-- Push to the branch (`git push origin my-new-feature`)
-- Create new Pull Request
+## Contributing to ysonet
+
+**Canonical repository:** `https://github.com/irsdl/ysonet`
+1. Fork **this** repo (irsdl/ysonet) to your account.
+2. Create a branch from `master`.
+3. Push your branch to *your fork*.
+4. Open a PR to **irsdl/ysonet:master** using this link (replace `YOUR_USER` and `YOUR_BRANCH`):
+
+   https://github.com/irsdl/ysonet/compare/master...YOUR_USER:ysonet:YOUR_BRANCH
+
+5. For breaking changes, add the label **`major`** to the PR.
 
 ## Thanks
 Special thanks to all contributors:
