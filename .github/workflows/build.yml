@@ -2,41 +2,28 @@ name: Build
 
 on:
   push:
-    branches: [master]
+    branches:
+      - master
   pull_request:
-    branches: [master]
+    branches:
+      - master
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build on Windows
     runs-on: windows-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup NuGet
-        uses: nuget/setup-nuget@v1
-
-      - name: Restore NuGet packages
-        run: nuget restore ysonet.sln
-
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v1.3.1
-
-      - name: Build solution
-        run: msbuild ysonet.sln -p:Configuration=Release
-
-      - name: Create artifact directory
-        run: |
+      - uses: actions/checkout@v4
+      - uses: nuget/setup-nuget@v1
+      - run: nuget restore ysonet.sln
+      - uses: microsoft/setup-msbuild@v1.3.1
+      - run: msbuild ysonet.sln -p:Configuration=Release
+      - run: |
           mkdir release
           move .\ysonet\bin\Release .\release
-
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ysonet-${{ github.sha }}
           path: .\release
