@@ -5,6 +5,18 @@ on:
     branches: [ master ]
     paths:
       - "VERSION"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version string like v1.00"
+        required: true
+        default: "v1.00"
+        type: string
+      create_tag:
+        description: "Create tag if it doesn't exist"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -19,11 +31,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Read version
+      - name: Determine version
         id: v
         shell: pwsh
         run: |
-          $v = (Get-Content VERSION -Raw).Trim()
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $v = "${{ inputs.version }}".Trim()
+          } else {
+            $v = (Get-Content VERSION -Raw).Trim()
+          }
           if ($v -notmatch '^v\d+\.\d+$') { throw "Unexpected VERSION format: $v" }
           $tag = "ysonet/$v"
           "value=$v"  >> $env:GITHUB_OUTPUT
@@ -31,7 +47,25 @@ jobs:
           Write-Host "Version: $v"
           Write-Host "Tag: $tag"
 
+      - name: Check if tag already exists
+        id: tagcheck
+        shell: bash
+        run: |
+          if git rev-parse -q --verify "refs/tags/${{ steps.v.outputs.tag }}" >/dev/null; then
+            echo "exists=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create annotated tag
+        if: |
+          # Define conditions for better readability
+          ${{ github.event_name == 'push' }} ||
+          ${{ 
+            github.event_name == 'workflow_dispatch' && 
+            inputs.create_tag == true && 
+            steps.tagcheck.outputs.exists == 'false' 
+          }}
         shell: pwsh
         run: |
           git config user.name  "github-actions[bot]"
