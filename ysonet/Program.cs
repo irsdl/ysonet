@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -724,46 +724,52 @@ namespace ysonet
                                     continue;
                                 }
 
-                                Console.Write("\t(*) ");
-                                if (string.IsNullOrEmpty(gg.AdditionalInfo()))
-                                {
-                                    Console.Write(gg.Name());
-                                }
-                                else
-                                {
-                                    // we have additional info to add!
-                                    Console.Write(gg.Name() + " [" + gg.AdditionalInfo() + "]");
-                                }
-
-                                OptionSet extraOptions = gg.Options();
-
-                                if (extraOptions != null && !show_fullhelp)
-                                {
-                                    Console.Write(" (supports extra options: use the '--fullhelp' argument to view)");
-                                }
-
-                                Console.WriteLine();
-                                Console.Write("\t\tFormatters: ");
-                                Console.WriteLine(string.Join(", ", gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)) + "");
-
                                 if (show_fullhelp)
                                 {
+                                    // Full help mode - show all details as before
+                                    Console.Write("\t(*) ");
+                                    if (string.IsNullOrEmpty(gg.AdditionalInfo()))
+                                    {
+                                        Console.Write(gg.Name());
+                                    }
+                                    else
+                                    {
+                                        // we have additional info to add!
+                                        Console.Write(gg.Name() + " [" + gg.AdditionalInfo() + "]");
+                                    }
+
+                                    OptionSet extraOptions = gg.Options();
+
+                                    if (extraOptions != null)
+                                    {
+                                        Console.Write(" (supports extra options: use the '--fullhelp' argument to view)");
+                                    }
+
+                                    Console.WriteLine();
+                                    Console.Write("\t\tFormatters: ");
+                                    Console.WriteLine(string.Join(", ", gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)) + "");
+
                                     Console.WriteLine("\t\t\tLabels: " + string.Join(", ", gg.Labels()));
 
                                     if (gg.Labels().Contains(GadgetTags.Bridged) && !string.IsNullOrEmpty(gg.SupportedBridgedFormatter()))
                                     {
                                         Console.WriteLine("\t\t\tSupported formatter for the bridge: " + gg.SupportedBridgedFormatter());
                                     }
-                                }
 
-                                if (extraOptions != null && show_fullhelp)
+                                    if (extraOptions != null)
+                                    {
+                                        StringWriter baseTextWriter = new StringWriter();
+                                        baseTextWriter.NewLine = "\r\n\t\t\t"; // this is easier than using string builder and adding spacing to each line!
+                                        Console.WriteLine("\t\t\tExtra options:");
+                                        extraOptions.WriteOptionDescriptions(baseTextWriter);
+                                        Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
+                                        Console.WriteLine(baseTextWriter.ToString());
+                                    }
+                                }
+                                else
                                 {
-                                    StringWriter baseTextWriter = new StringWriter();
-                                    baseTextWriter.NewLine = "\r\n\t\t\t"; // this is easier than using string builder and adding spacing to each line!
-                                    Console.WriteLine("\t\t\tExtra options:");
-                                    extraOptions.WriteOptionDescriptions(baseTextWriter);
-                                    Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
-                                    Console.WriteLine(baseTextWriter.ToString());
+                                    // Normal help mode - concise format: name (formatters)
+                                    Console.WriteLine("\t(*) " + gg.Name() + " (" + string.Join(", ", gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)) + ")");
                                 }
                             }
                         }
@@ -790,18 +796,27 @@ namespace ysonet
                             IPlugin pp = PluginHelper.CreatePluginInstance(pluginInfo.Name);
                             if (pp != null)
                             {
-                                Console.WriteLine("\t(*) " + pp.Name() + " (" + pp.Description() + ")");
-
-                                OptionSet options = pp.Options();
-
-                                if (options != null && show_fullhelp)
+                                if (show_fullhelp)
                                 {
-                                    StringWriter baseTextWriter = new StringWriter();
-                                    baseTextWriter.NewLine = "\r\n\t\t"; // this is easier than using string builder and adding spacing to each line!
-                                    Console.WriteLine("\t\tOptions:");
-                                    options.WriteOptionDescriptions(baseTextWriter);
-                                    Console.Write("\t\t"); // this is easier than using string builder and adding spacing to each line!
-                                    Console.WriteLine(baseTextWriter.ToString());
+                                    // Full help mode - show all details
+                                    Console.WriteLine("\t(*) " + pp.Name() + " (" + pp.Description() + ")");
+
+                                    OptionSet options = pp.Options();
+
+                                    if (options != null)
+                                    {
+                                        StringWriter baseTextWriter = new StringWriter();
+                                        baseTextWriter.NewLine = "\r\n\t\t"; // this is easier than using string builder and adding spacing to each line!
+                                        Console.WriteLine("\t\tOptions:");
+                                        options.WriteOptionDescriptions(baseTextWriter);
+                                        Console.Write("\t\t"); // this is easier than using string builder and adding spacing to each line!
+                                        Console.WriteLine(baseTextWriter.ToString());
+                                    }
+                                }
+                                else
+                                {
+                                    // Normal help mode - concise format: name (description)
+                                    Console.WriteLine("\t(*) " + pp.Name() + " (" + pp.Description() + ")");
                                 }
                             }
                         }
