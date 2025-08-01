@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections;
 using System.Collections.Generic;
