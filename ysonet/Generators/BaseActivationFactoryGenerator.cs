@@ -1,13 +1,5 @@
-﻿using NDesk.Options;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.Diagnostics;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Data;
 using ysonet.Helpers;
 
 namespace ysonet.Generators
@@ -24,11 +16,6 @@ namespace ysonet.Generators
             return new List<string> { "Json.NET" }; // MessagePack should work too
         }
 
-        public override string Name()
-        {
-            return "BaseActivationFactory";
-        }
-
         public override string Finders()
         {
             return "Piotr Bazydlo";
@@ -41,12 +28,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.NotBridgeNotDerived, ".NET 5/6/7", "Requires WPF enabled or PresentationFramework.dll" };
-        }
-
-        public override string SupportedBridgedFormatter()
-        {
-            return Formatters.BinaryFormatter;
+            return new List<string> { GadgetTags.Independent, ".NET 5/6/7", "Requires WPF enabled or PresentationFramework.dll" };
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)

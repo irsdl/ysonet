@@ -17,21 +17,17 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 {
 
     using System;
+    using System.Diagnostics;
+    using System.Diagnostics.Contracts;
     using System.Globalization;
     using System.IO;
     using System.Reflection;
-    using System.Collections;
-    using System.Text;
-    using System.Runtime.Remoting;
+    using System.Runtime.CompilerServices;
     using System.Runtime.Remoting.Messaging;
     using System.Runtime.Serialization;
-    using System.Security.Permissions;
-    using System.Security;
-    using System.Diagnostics;
-    using System.Resources;
-    using System.Runtime.CompilerServices;
-    using System.Diagnostics.Contracts;
     using System.Runtime.Serialization.Formatters;
+    using System.Security;
+    using System.Security.Permissions;
     using System.Security.Policy;
 
     [Serializable]
@@ -75,13 +71,13 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
         //MethodCall and MethodReturn are handled special for perf reasons
         private bool bFullDeserialization;
-//#if FEATURE_REMOTING        
+        //#if FEATURE_REMOTING        
         private bool bMethodCall;
         private bool bMethodReturn;
         private BinaryMethodCall binaryMethodCall;
         private BinaryMethodReturn binaryMethodReturn;
         private bool bIsCrossAppDomain;
-//#endif        
+        //#endif        
 
         private static FileIOPermission sfileIOPermission = new FileIOPermission(PermissionState.Unrestricted);
 
@@ -118,7 +114,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
             }
         }
-//#if FEATURE_REMOTING        
+        //#if FEATURE_REMOTING        
         internal void SetMethodCall(BinaryMethodCall binaryMethodCall)
         {
             bMethodCall = true;
@@ -130,7 +126,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             bMethodReturn = true;
             this.binaryMethodReturn = binaryMethodReturn;
         }
-//#endif
+        //#endif
 
         internal ObjectReader(Stream stream, ISurrogateSelector selector, StreamingContext context, InternalFE formatterEnums, SerializationBinder binder)
         {
@@ -151,7 +147,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             // This is a hack to allow us to write a type-limiting deserializer
             // when we know exactly what type to expect at the head of the 
             // object graph.
-            if (m_binder != null) {
+            if (m_binder != null)
+            {
                 Assembly mscorlibAsm = Assembly.Load("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
                 Type TypeLimitingDeserializationBinderRef = mscorlibAsm.GetType("System.Resources.ResourceReader+TypeLimitingDeserializationBinder");
                 var tldBinder = m_binder;
@@ -161,7 +158,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                     var objectReader = TypeLimitingDeserializationBinderRef.GetProperty("ObjectReader", BindingFlags.NonPublic | BindingFlags.Instance);
                     objectReader.SetValue(tldBinder, this);
                 }
-                    //tldBinder.ObjectReader = this;
+                //tldBinder.ObjectReader = this;
             }
 #endif // !FEATURE_PAL && FEATURE_SERIALIZATION
 
@@ -294,11 +291,11 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 Assembly mscorlibAsm = Assembly.Load("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
                 var ObjectManagerRef = mscorlibAsm.GetType("System.Runtime.Serialization.ObjectManager");
 
-                Type[] types = new Type[] { typeof(ISurrogateSelector), typeof(StreamingContext), typeof(bool), typeof(bool)};
+                Type[] types = new Type[] { typeof(ISurrogateSelector), typeof(StreamingContext), typeof(bool), typeof(bool) };
 
                 var ObjectManagerRefConstructor = ObjectManagerRef.GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, types, null);
 
-                m_objectManager= (ObjectManager) ObjectManagerRefConstructor.Invoke(new object[] { m_surrogates, m_context, false, false });
+                m_objectManager = (ObjectManager)ObjectManagerRefConstructor.Invoke(new object[] { m_surrogates, m_context, false, false });
 
                 //m_objectManager = new ObjectManager(m_surrogates, m_context, false, false);
 #endif
@@ -334,7 +331,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 }
             }
 
-            SerTrace.Log( this, "Deserialize Exit ",TopObject);
+            SerTrace.Log(this, "Deserialize Exit ", TopObject);
 
             if (bFullDeserialization)
             {
@@ -395,7 +392,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
             var ObjectManagerRefConstructor = ObjectManagerRef.GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, types, null);
 
-            m_objectManager = (ObjectManager) ObjectManagerRefConstructor.Invoke(new object[] { m_surrogates, m_context, false, false });
+            m_objectManager = (ObjectManager)ObjectManagerRefConstructor.Invoke(new object[] { m_surrogates, m_context, false, false });
 
             //m_objectManager = new ObjectManager(m_surrogates, m_context, false, false);
 #endif
@@ -720,13 +717,13 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         [System.Security.SecurityCritical]  // auto-generated
         private void ParseArray(ParseRecord pr)
         {
-            SerTrace.Log( this, "ParseArray Entry");
+            SerTrace.Log(this, "ParseArray Entry");
 
             long genId = pr.PRobjectId;
 
             if (pr.PRarrayTypeEnum == InternalArrayTypeE.Base64)
             {
-                SerTrace.Log( this, "ParseArray bin.base64 ",pr.PRvalue.Length," ",pr.PRvalue);
+                SerTrace.Log(this, "ParseArray bin.base64 ", pr.PRvalue.Length, " ", pr.PRvalue);
                 // ByteArray
                 if (pr.PRvalue.Length > 0)
                     pr.PRnewObj = Convert.FromBase64String(pr.PRvalue);
@@ -735,7 +732,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
                 if (stack.Peek() == pr)
                 {
-                    SerTrace.Log( this, "ParseArray, bin.base64 has been stacked");
+                    SerTrace.Log(this, "ParseArray, bin.base64 has been stacked");
                     stack.Pop();
                 }
                 if (pr.PRobjectPositionEnum == InternalObjectPositionE.Top)
@@ -746,7 +743,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 ParseRecord parentPr = (ParseRecord)stack.Peek();
 
                 // Base64 can be registered at this point because it is populated
-                SerTrace.Log( this, "ParseArray  RegisterObject ",pr.PRobjectId," ",pr.PRnewObj.GetType());
+                SerTrace.Log(this, "ParseArray  RegisterObject ", pr.PRobjectId, " ", pr.PRnewObj.GetType());
                 RegisterObject(pr.PRnewObj, pr, parentPr);
 
             }
@@ -761,13 +758,13 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 ParseRecord parentPr = (ParseRecord)stack.Peek();
 
                 // Primitive typed array can be registered at this point because it is populated
-                SerTrace.Log( this, "ParseArray  RegisterObject ",pr.PRobjectId," ",pr.PRnewObj.GetType());
+                SerTrace.Log(this, "ParseArray  RegisterObject ", pr.PRobjectId, " ", pr.PRnewObj.GetType());
                 RegisterObject(pr.PRnewObj, pr, parentPr);
             }
             else if ((pr.PRarrayTypeEnum == InternalArrayTypeE.Jagged) || (pr.PRarrayTypeEnum == InternalArrayTypeE.Single))
             {
                 // Multidimensional jagged array or single array
-                SerTrace.Log( this, "ParseArray Before Jagged,Simple create ",pr.PRarrayElementType," ",pr.PRlengthA[0]);
+                SerTrace.Log(this, "ParseArray Before Jagged,Simple create ", pr.PRarrayElementType, " ", pr.PRlengthA[0]);
                 bool bCouldBeValueType = true;
                 if ((pr.PRlowerBoundA == null) || (pr.PRlowerBoundA[0] == 0))
                 {
@@ -823,12 +820,12 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                     }
                 }
 
-                SerTrace.Log( this, "ParseArray Jagged,Simple Array ",pr.PRnewObj.GetType());
+                SerTrace.Log(this, "ParseArray Jagged,Simple Array ", pr.PRnewObj.GetType());
 
                 // For binary, headers comes in as an array of header objects
                 if (pr.PRobjectPositionEnum == InternalObjectPositionE.Headers)
                 {
-                    SerTrace.Log( this, "ParseArray header array");
+                    SerTrace.Log(this, "ParseArray header array");
                     headers = (Header[])pr.PRnewObj;
                 }
 
@@ -865,7 +862,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                     //pr.PRnewObj = Array.UnsafeCreateInstance(pr.PRarrayElementType, pr.PRlengthA, pr.PRlowerBoundA);
                 }
 
-                SerTrace.Log( this, "ParseArray Rectangle Array ",pr.PRnewObj.GetType()," lower Bound ",pr.PRisLowerBound);
+                SerTrace.Log(this, "ParseArray Rectangle Array ", pr.PRnewObj.GetType(), " lower Bound ", pr.PRisLowerBound);
 
                 // Calculate number of items
                 int sum = 1;
@@ -883,7 +880,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 #if FEATURE_REMOTING
             CheckSecurity(pr);
 #endif
-            SerTrace.Log( this, "ParseArray Exit");     
+            SerTrace.Log(this, "ParseArray Exit");
         }
 
 
@@ -923,7 +920,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         [System.Security.SecurityCritical]  // auto-generated
         private void ParseArrayMember(ParseRecord pr)
         {
-            SerTrace.Log( this, "ParseArrayMember Entry");
+            SerTrace.Log(this, "ParseArrayMember Entry");
             ParseRecord objectPr = (ParseRecord)stack.Peek();
 
 
@@ -968,7 +965,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                     int[] fixupIndex = new int[objectPr.PRrank];
                     Array.Copy(objectPr.PRindexMap, 0, fixupIndex, 0, objectPr.PRrank);
 
-                    SerTrace.Log( this, "ParseArrayMember RecordArrayElementFixup objectId ",objectPr.PRobjectId," idRef ",pr.PRidRef);                                                         
+                    SerTrace.Log(this, "ParseArrayMember RecordArrayElementFixup objectId ", objectPr.PRobjectId, " idRef ", pr.PRidRef);
                     m_objectManager.RecordArrayElementFixup(objectPr.PRobjectId, fixupIndex, pr.PRidRef);
                 }
                 else
@@ -983,7 +980,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             else if (pr.PRmemberValueEnum == InternalMemberValueE.Nested)
             {
                 //Set up dtType for ParseObject
-                SerTrace.Log( this, "ParseArrayMember Nested ");
+                SerTrace.Log(this, "ParseArrayMember Nested ");
                 if ((object)pr.PRdtType == null)
                 {
                     pr.PRdtType = objectPr.PRarrayElementType;
@@ -1084,22 +1081,22 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                             var = pr.PRvarValue;
                         else
                             var = Converter.FromString(pr.PRvalue, objectPr.PRarrayElementTypeCode);
-                        SerTrace.Log( this, "ParseArrayMember SetValue Primitive pr.PRvalue "+var," elementTypeCode ",((Enum)objectPr.PRdtTypeCode));
+                        SerTrace.Log(this, "ParseArrayMember SetValue Primitive pr.PRvalue " + var, " elementTypeCode ", ((Enum)objectPr.PRdtTypeCode));
                         IndexTraceMessage("ParseArrayMember SetValue Primitive " + objectPr.PRnewObj.GetType() + " var: " + var + " varType " + var.GetType(), objectPr.PRindexMap);
                         if (objectPr.PRobjectA != null)
                         {
-                            SerTrace.Log( this, "ParseArrayMember SetValue Primitive predefined array "+objectPr.PRobjectA.GetType());
+                            SerTrace.Log(this, "ParseArrayMember SetValue Primitive predefined array " + objectPr.PRobjectA.GetType());
                             objectPr.PRobjectA[objectPr.PRindexMap[0]] = var;
                         }
                         else
                             ((Array)objectPr.PRnewObj).SetValue(var, objectPr.PRindexMap); // Primitive type   
-                        SerTrace.Log( this, "ParseArrayMember SetValue Primitive after");
+                        SerTrace.Log(this, "ParseArrayMember SetValue Primitive after");
                     }
                 }
             }
             else if (pr.PRmemberValueEnum == InternalMemberValueE.Null)
             {
-                SerTrace.Log( "ParseArrayMember Null item ",pr.PRmemberIndex," nullCount ",pr.PRnullCount);
+                SerTrace.Log("ParseArrayMember Null item ", pr.PRmemberIndex, " nullCount ", pr.PRnullCount);
                 objectPr.PRmemberIndex += pr.PRnullCount - 1; //also incremented again below
             }
             else
@@ -1109,13 +1106,13 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             SerTrace.Log( "ParseArrayMember increment memberIndex ",objectPr.PRmemberIndex," ",objectPr.Trace());               
 #endif
             objectPr.PRmemberIndex++;
-            SerTrace.Log( "ParseArrayMember Exit");     
+            SerTrace.Log("ParseArrayMember Exit");
         }
 
         [System.Security.SecurityCritical]  // auto-generated
         private void ParseArrayMemberEnd(ParseRecord pr)
         {
-            SerTrace.Log( this, "ParseArrayMemberEnd");
+            SerTrace.Log(this, "ParseArrayMemberEnd");
             // If this is a nested array object, then pop the stack
             if (pr.PRmemberValueEnum == InternalMemberValueE.Nested)
             {
@@ -1128,7 +1125,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         [System.Security.SecurityCritical]  // auto-generated
         private void ParseMember(ParseRecord pr)
         {
-            SerTrace.Log( this, "ParseMember Entry ");
+            SerTrace.Log(this, "ParseMember Entry ");
 
 
             ParseRecord objectPr = (ParseRecord)stack.Peek();
@@ -1154,7 +1151,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             //if ((pr.PRdtType == null) && !objectPr.PRobjectInfo.isSi)
             if (((object)pr.PRdtType == null) && objectPr.PRobjectInfo.isTyped)
             {
-                SerTrace.Log( this, "ParseMember pr.PRdtType null and not isSi");
+                SerTrace.Log(this, "ParseMember pr.PRdtType null and not isSi");
                 pr.PRdtType = objectPr.PRobjectInfo.GetType(pr.PRname);
 
                 if ((object)pr.PRdtType != null)
@@ -1164,45 +1161,45 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             if (pr.PRmemberValueEnum == InternalMemberValueE.Null)
             {
                 // Value is Null
-                SerTrace.Log( this, "ParseMember null member: ",pr.PRname);
-                SerTrace.Log( this, "AddValue 1");
+                SerTrace.Log(this, "ParseMember null member: ", pr.PRname);
+                SerTrace.Log(this, "AddValue 1");
                 objectPr.PRobjectInfo.AddValue(pr.PRname, null, ref objectPr.PRsi, ref objectPr.PRmemberData);
             }
             else if (pr.PRmemberValueEnum == InternalMemberValueE.Nested)
             {
-                SerTrace.Log( this, "ParseMember Nested Type member: ",pr.PRname," objectPr.PRnewObj ",objectPr.PRnewObj);
+                SerTrace.Log(this, "ParseMember Nested Type member: ", pr.PRname, " objectPr.PRnewObj ", objectPr.PRnewObj);
                 ParseObject(pr);
                 stack.Push(pr);
-                SerTrace.Log( this, "AddValue 2 ",pr.PRnewObj," is value type ",pr.PRnewObj.GetType().IsValueType);
+                SerTrace.Log(this, "AddValue 2 ", pr.PRnewObj, " is value type ", pr.PRnewObj.GetType().IsValueType);
 
                 if ((pr.PRobjectInfo != null) && ((object)pr.PRobjectInfo.objectType != null) && (pr.PRobjectInfo.objectType.IsValueType))
                 {
-                    SerTrace.Log( "ParseMember ValueType ObjectPr ",objectPr.PRnewObj," memberName  ",pr.PRname," nested object ",pr.PRnewObj);
+                    SerTrace.Log("ParseMember ValueType ObjectPr ", objectPr.PRnewObj, " memberName  ", pr.PRname, " nested object ", pr.PRnewObj);
                     pr.PRisValueTypeFixup = true; //Valuefixup
                     ValueFixupStack.Push(new ValueFixup(objectPr.PRnewObj, pr.PRname, objectPr.PRobjectInfo));//valuefixup
                 }
                 else
                 {
-                    SerTrace.Log( this, "AddValue 2A ");
+                    SerTrace.Log(this, "AddValue 2A ");
                     objectPr.PRobjectInfo.AddValue(pr.PRname, pr.PRnewObj, ref objectPr.PRsi, ref objectPr.PRmemberData);
                 }
             }
             else if (pr.PRmemberValueEnum == InternalMemberValueE.Reference)
             {
-                SerTrace.Log( this, "ParseMember Reference Type member: ",pr.PRname);           
+                SerTrace.Log(this, "ParseMember Reference Type member: ", pr.PRname);
                 // See if object has already been instantiated
                 Object refObj = m_objectManager.GetObject(pr.PRidRef);
                 if (refObj == null)
                 {
-                    SerTrace.Log( this, "ParseMember RecordFixup: ",pr.PRname);
-                    SerTrace.Log( this, "AddValue 3");                  
+                    SerTrace.Log(this, "ParseMember RecordFixup: ", pr.PRname);
+                    SerTrace.Log(this, "AddValue 3");
                     objectPr.PRobjectInfo.AddValue(pr.PRname, null, ref objectPr.PRsi, ref objectPr.PRmemberData);
                     objectPr.PRobjectInfo.RecordFixup(objectPr.PRobjectId, pr.PRname, pr.PRidRef); // Object not instantiated
                 }
                 else
                 {
-                    SerTrace.Log( this, "ParseMember Referenced Object Known ",pr.PRname," ",refObj);
-                    SerTrace.Log( this, "AddValue 5");              
+                    SerTrace.Log(this, "ParseMember Referenced Object Known ", pr.PRname, " ", refObj);
+                    SerTrace.Log(this, "AddValue 5");
                     objectPr.PRobjectInfo.AddValue(pr.PRname, refObj, ref objectPr.PRsi, ref objectPr.PRmemberData);
                 }
             }
@@ -1210,12 +1207,12 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             else if (pr.PRmemberValueEnum == InternalMemberValueE.InlineValue)
             {
                 // Primitive type or String
-                SerTrace.Log( this, "ParseMember primitive or String member: ",pr.PRname);
+                SerTrace.Log(this, "ParseMember primitive or String member: ", pr.PRname);
 
                 if (Object.ReferenceEquals(pr.PRdtType, Converter.typeofString))
                 {
                     ParseString(pr, objectPr);
-                    SerTrace.Log( this, "AddValue 6");              
+                    SerTrace.Log(this, "AddValue 6");
                     objectPr.PRobjectInfo.AddValue(pr.PRname, pr.PRvalue, ref objectPr.PRsi, ref objectPr.PRmemberData);
                 }
                 else if (pr.PRdtTypeCode == InternalPrimitiveTypeE.Invalid)
@@ -1223,28 +1220,28 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                     // The member field was an object put the value is Inline either  bin.Base64 or invalid
                     if (pr.PRarrayTypeEnum == InternalArrayTypeE.Base64)
                     {
-                        SerTrace.Log( this, "AddValue 7");                  
+                        SerTrace.Log(this, "AddValue 7");
                         objectPr.PRobjectInfo.AddValue(pr.PRname, Convert.FromBase64String(pr.PRvalue), ref objectPr.PRsi, ref objectPr.PRmemberData);
                     }
                     else if (Object.ReferenceEquals(pr.PRdtType, Converter.typeofObject))
                         throw new SerializationException(Environment.GetResourceString("Serialization_TypeMissing", pr.PRname));
                     else
                     {
-                        SerTrace.Log( this, "Object Class with no memberInfo data  Member "+pr.PRname+" type "+pr.PRdtType);
+                        SerTrace.Log(this, "Object Class with no memberInfo data  Member " + pr.PRname + " type " + pr.PRdtType);
 
                         ParseString(pr, objectPr); // Register the object if it has an objectId
                         // Object Class with no memberInfo data
                         // only special case where AddValue is needed?
                         if (Object.ReferenceEquals(pr.PRdtType, Converter.typeofSystemVoid))
                         {
-                            SerTrace.Log( this, "AddValue 9");
+                            SerTrace.Log(this, "AddValue 9");
                             objectPr.PRobjectInfo.AddValue(pr.PRname, pr.PRdtType, ref objectPr.PRsi, ref objectPr.PRmemberData);
                         }
                         else if (objectPr.PRobjectInfo.isSi)
                         {
                             // ISerializable are added as strings, the conversion to type is done by the
                             // ISerializable object
-                            SerTrace.Log( this, "AddValue 10");
+                            SerTrace.Log(this, "AddValue 10");
                             objectPr.PRobjectInfo.AddValue(pr.PRname, pr.PRvalue, ref objectPr.PRsi, ref objectPr.PRmemberData);
                         }
                     }
@@ -1276,7 +1273,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         [System.Security.SecurityCritical]  // auto-generated
         private void ParseMemberEnd(ParseRecord pr)
         {
-            SerTrace.Log( this, "ParseMemberEnd");
+            SerTrace.Log(this, "ParseMemberEnd");
             switch (pr.PRmemberTypeEnum)
             {
                 case InternalMemberTypeE.Item:
@@ -1296,11 +1293,11 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         [System.Security.SecurityCritical]  // auto-generated
         private void ParseString(ParseRecord pr, ParseRecord parentPr)
         {
-            SerTrace.Log( this, "ParseString Entry ",pr.PRobjectId," ",pr.PRvalue," ",pr.PRisRegistered);
+            SerTrace.Log(this, "ParseString Entry ", pr.PRobjectId, " ", pr.PRvalue, " ", pr.PRisRegistered);
             // Process String class
             if ((!pr.PRisRegistered) && (pr.PRobjectId > 0))
             {
-                SerTrace.Log( this, "ParseString  RegisterObject ",pr.PRvalue," ",pr.PRobjectId);                           
+                SerTrace.Log(this, "ParseString  RegisterObject ", pr.PRvalue, " ", pr.PRobjectId);
                 // String is treated as an object if it has an id
                 //m_objectManager.RegisterObject(pr.PRvalue, pr.PRobjectId);
                 RegisterObject(pr.PRvalue, pr, parentPr, true);
@@ -1344,7 +1341,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 // SerializationInfo is always needed for ISerialization                        
                 si = pr.PRsi;
 
-                SerTrace.Log( this, "RegisterObject 0bj ",obj," objectId ",pr.PRobjectId," si ", si," parentId ",parentId," memberInfo ",memberInfo, " indexMap "+indexMap);
+                SerTrace.Log(this, "RegisterObject 0bj ", obj, " objectId ", pr.PRobjectId, " si ", si, " parentId ", parentId, " memberInfo ", memberInfo, " indexMap " + indexMap);
 
 
 
@@ -1468,7 +1465,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                     }
                     catch (Exception e)
                     {
-                        SerTrace.Log( this, "FastBindTypeType ",e.ToString());
+                        SerTrace.Log(this, "FastBindTypeType ", e.ToString());
                     }
 
                     if (assm == null)
@@ -1492,7 +1489,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                     }
                     catch (Exception e)
                     {
-                        SerTrace.Log( this, "FastBindTypeType ",e.ToString());
+                        SerTrace.Log(this, "FastBindTypeType ", e.ToString());
                     }
 
                     if (assm == null)
@@ -1529,8 +1526,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
             object[] arguments = new object[] { assemblyName, null, null };
 
-            Assembly assm = (Assembly) loadWithPartialNameInternal.Invoke(null, arguments);
-            stackMark = (StackCrawlMark) arguments[2];
+            Assembly assm = (Assembly)loadWithPartialNameInternal.Invoke(null, arguments);
+            stackMark = (StackCrawlMark)arguments[2];
 
             if (assm == null && assemblyName != null)
             {
@@ -1542,7 +1539,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 assm = (Assembly)loadWithPartialNameInternal.Invoke(null, arguments);
                 stackMark = (StackCrawlMark)arguments[2];
             }
-                //assm = RuntimeAssembly.LoadWithPartialNameInternal(assemblyName.Name, null, ref stackMark);
+            //assm = RuntimeAssembly.LoadWithPartialNameInternal(assemblyName.Name, null, ref stackMark);
             return assm;
         }
 

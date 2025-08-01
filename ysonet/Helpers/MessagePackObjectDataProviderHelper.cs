@@ -1,14 +1,12 @@
 ﻿namespace ysonet.Helpers
 {
-    using System;
-    using System.Reflection;
-    using System.Collections.Generic;
-
+    using Helpers.SurrogateClasses;
     using MessagePack;
     using MessagePack.Formatters;
     using MessagePack.Resolvers;
-
-    using Helpers.SurrogateClasses;
+    using System;
+    using System.Collections.Generic;
+    using System.Reflection;
 
     /// <summary>
     /// Helper methods for generating an ObjectDataProvider gadget with MessagePack (Typeless)

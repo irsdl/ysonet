@@ -27,7 +27,8 @@ namespace ysonet.Helpers
             // replacing spaces between things like:
             // Microsoft.IdentityModel, Version=3.5.0.0, PublicKeyToken=31bf3856ad364e35
             // clr-namespace:System.Diagnostics; assembly=system
-            jsonString = Regex.Replace(jsonString, @"([a-zA-Z0-9\.\-\:=_\s]+[;,]\s*)+([a-zA-Z0-9\.\-\:=_\s]+)[""'\]\<]", delegate (Match m) {
+            jsonString = Regex.Replace(jsonString, @"([a-zA-Z0-9\.\-\:=_\s]+[;,]\s*)+([a-zA-Z0-9\.\-\:=_\s]+)[""'\]\<]", delegate (Match m)
+            {
                 // we do not want to remove spaces when two alphanumeric strings are next to each other
                 String finalVal = m.Value;
                 finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([\w])", "$1$2");

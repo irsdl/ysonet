@@ -91,7 +91,7 @@ namespace ysonet.Helpers
 
         public static string XmlStringAttributeEscape(string text)
         {
-            return XmlStringHTMLEscape(text).Replace(@"""",@"&#x22;");
+            return XmlStringHTMLEscape(text).Replace(@"""", @"&#x22;");
         }
 
         public static string JsonStringEscape(string text)

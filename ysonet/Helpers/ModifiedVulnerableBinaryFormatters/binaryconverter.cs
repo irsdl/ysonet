@@ -14,17 +14,12 @@
  ===========================================================*/
 
 
-namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
-
-    using System.Threading;
-    using System.Runtime.Remoting;
-    using System.Runtime.Serialization;
+namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
+{
     using System;
-    using System.Reflection;
     using System.Globalization;
-    using System.Text;
-    using System.Security.Permissions;
-    using System.Diagnostics.Contracts;
+    using System.Reflection;
+    using System.Runtime.Serialization;
 
     sealed internal class Converter
     {
@@ -39,7 +34,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
 
         internal static InternalPrimitiveTypeE ToCode(Type type)
         {
-            SerTrace.Log("Converter", "ToCode Type Entry ",type);           
+            SerTrace.Log("Converter", "ToCode Type Entry ", type);
             InternalPrimitiveTypeE code;
 
             if ((object)type != null && !type.IsPrimitive)
@@ -56,7 +51,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
             else
                 code = ToPrimitiveTypeEnum(Type.GetTypeCode(type));
 
-            SerTrace.Log("Converter", "ToCode Exit " , ((Enum)code).ToString());
+            SerTrace.Log("Converter", "ToCode Exit ", ((Enum)code).ToString());
             return code;
         }
 
@@ -89,7 +84,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
 
         internal static int TypeLength(InternalPrimitiveTypeE code)
         {
-            int length  = 0;
+            int length = 0;
 
             switch (code)
             {
@@ -98,37 +93,37 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
                     break;
                 case InternalPrimitiveTypeE.Char:
                     length = 2;
-                    break;                  
+                    break;
                 case InternalPrimitiveTypeE.Byte:
                     length = 1;
-                    break;                  
+                    break;
                 case InternalPrimitiveTypeE.Double:
                     length = 8;
-                    break;                  
+                    break;
                 case InternalPrimitiveTypeE.Int16:
                     length = 2;
-                    break;                  
+                    break;
                 case InternalPrimitiveTypeE.Int32:
                     length = 4;
-                    break;                  
+                    break;
                 case InternalPrimitiveTypeE.Int64:
                     length = 8;
-                    break;                  
+                    break;
                 case InternalPrimitiveTypeE.SByte:
                     length = 1;
-                    break;                  
+                    break;
                 case InternalPrimitiveTypeE.Single:
                     length = 4;
-                    break;                  
+                    break;
                 case InternalPrimitiveTypeE.UInt16:
                     length = 2;
-                    break;                  
+                    break;
                 case InternalPrimitiveTypeE.UInt32:
                     length = 4;
-                    break;                  
+                    break;
                 case InternalPrimitiveTypeE.UInt64:
                     length = 8;
-                    break;                  
+                    break;
             }
             return length;
         }
@@ -136,7 +131,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
 
         internal static InternalNameSpaceE GetNameSpaceEnum(InternalPrimitiveTypeE code, Type type, WriteObjectInfo objectInfo, out String typeName)
         {
-            SerTrace.Log("Converter", "GetNameSpaceEnum Entry ",((Enum)code).ToString()," type ",type);                 
+            SerTrace.Log("Converter", "GetNameSpaceEnum Entry ", ((Enum)code).ToString(), " type ", type);
             InternalNameSpaceE nameSpaceEnum = InternalNameSpaceE.None;
             typeName = null;
 
@@ -159,12 +154,12 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
                     case InternalPrimitiveTypeE.DateTime:
                     case InternalPrimitiveTypeE.TimeSpan:
                         nameSpaceEnum = InternalNameSpaceE.XdrPrimitive;
-                        typeName = "System."+ToComType(code);                       
+                        typeName = "System." + ToComType(code);
                         break;
 
                     case InternalPrimitiveTypeE.Decimal:
                         nameSpaceEnum = InternalNameSpaceE.UrtSystem;
-                        typeName = "System."+ToComType(code);
+                        typeName = "System." + ToComType(code);
                         break;
                 }
             }
@@ -181,7 +176,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
                         if (type.Assembly == urtAssembly)
                             nameSpaceEnum = InternalNameSpaceE.UrtSystem;
                         else
-                            nameSpaceEnum = InternalNameSpaceE.UrtUser;                     
+                            nameSpaceEnum = InternalNameSpaceE.UrtUser;
                     }
                     else
                     {
@@ -194,7 +189,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
                 }
             }
 
-            SerTrace.Log("Converter", "GetNameSpaceEnum Exit ", ((Enum)nameSpaceEnum).ToString()," typeName ",typeName);                                
+            SerTrace.Log("Converter", "GetNameSpaceEnum Exit ", ((Enum)nameSpaceEnum).ToString(), " typeName ", typeName);
             return nameSpaceEnum;
         }
 
@@ -205,7 +200,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
             SerTrace.Log("Converter", "ToType Entry ", ((Enum)code).ToString());
             if (arrayTypeA == null)
                 InitArrayTypeA();
-            SerTrace.Log("Converter", "ToType Exit ", (((object)arrayTypeA[(int)code] == null)?"null ":arrayTypeA[(int)code].Name));                
+            SerTrace.Log("Converter", "ToType Exit ", (((object)arrayTypeA[(int)code] == null) ? "null " : arrayTypeA[(int)code].Name));
             return arrayTypeA[(int)code];
         }
 
@@ -267,7 +262,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
             SerTrace.Log("Converter", "ToType Entry ", ((Enum)code).ToString());
             if (typeA == null)
                 InitTypeA();
-            SerTrace.Log("Converter", "ToType Exit ", (((object)typeA[(int)code] == null)?"null ":typeA[(int)code].Name));              
+            SerTrace.Log("Converter", "ToType Exit ", (((object)typeA[(int)code] == null) ? "null " : typeA[(int)code].Name));
             return typeA[(int)code];
         }
 
@@ -396,7 +391,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
             if (valueA == null)
                 InitValueA();
 
-            SerTrace.Log("Converter", "ToComType Exit ",((valueA[(int)code] == null)?"null":valueA[(int)code]));                
+            SerTrace.Log("Converter", "ToComType Exit ", ((valueA[(int)code] == null) ? "null" : valueA[(int)code]));
 
             return valueA[(int)code];
         }
@@ -442,8 +437,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
             codeATemp[(int)TypeCode.Empty] = InternalPrimitiveTypeE.Invalid;
             codeATemp[(int)TypeCode.Object] = InternalPrimitiveTypeE.Invalid;
 #if !FEATURE_CORECLR
-            codeATemp[(int)TypeCode.DBNull] = InternalPrimitiveTypeE.Invalid; 
-#endif      
+            codeATemp[(int)TypeCode.DBNull] = InternalPrimitiveTypeE.Invalid;
+#endif
             codeATemp[(int)TypeCode.Boolean] = InternalPrimitiveTypeE.Boolean;
             codeATemp[(int)TypeCode.Char] = InternalPrimitiveTypeE.Char;
             codeATemp[(int)TypeCode.SByte] = InternalPrimitiveTypeE.SByte;
@@ -459,8 +454,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
             codeATemp[(int)TypeCode.Decimal] = InternalPrimitiveTypeE.Decimal;
             codeATemp[(int)TypeCode.DateTime] = InternalPrimitiveTypeE.DateTime;
             codeATemp[17] = InternalPrimitiveTypeE.Invalid;
-            codeATemp[(int)TypeCode.String] = InternalPrimitiveTypeE.Invalid;  
-            codeA = codeATemp;                                     
+            codeATemp[(int)TypeCode.String] = InternalPrimitiveTypeE.Invalid;
+            codeA = codeATemp;
         }
 
         // Returns a InternalPrimitiveTypeE from a System.TypeCode
@@ -475,14 +470,14 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
         internal static Object FromString(String value, InternalPrimitiveTypeE code)
         {
             Object var;
-            SerTrace.Log( "Converter", "FromString Entry ",value," " , ((Enum)code).ToString());                
+            SerTrace.Log("Converter", "FromString Entry ", value, " ", ((Enum)code).ToString());
             // InternalPrimitiveTypeE needs to be a primitive type
             //Contract.Assert((code != InternalPrimitiveTypeE.Invalid), "[Converter.FromString]!InternalPrimitiveTypeE.Invalid ");
             if (code != InternalPrimitiveTypeE.Invalid)
                 var = Convert.ChangeType(value, ToTypeCode(code), CultureInfo.InvariantCulture);
             else
                 var = value;
-            SerTrace.Log( "Converter", "FromString Exit "+((var == null)?"null":var+" var type "+((var==null)?"<null>":var.GetType().ToString())));
+            SerTrace.Log("Converter", "FromString Exit " + ((var == null) ? "null" : var + " var type " + ((var == null) ? "<null>" : var.GetType().ToString())));
             return var;
         }
 
@@ -505,7 +500,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
         internal static Type typeofUInt32 = typeof(UInt32);
         internal static Type typeofUInt64 = typeof(UInt64);
         internal static Type typeofObject = typeof(Object);
- 
+
         internal static Type typeofSystemVoid = typeof(void);
         internal static Assembly urtAssembly = Assembly.GetAssembly(typeofString);
         internal static String urtAssemblyString = urtAssembly.FullName;

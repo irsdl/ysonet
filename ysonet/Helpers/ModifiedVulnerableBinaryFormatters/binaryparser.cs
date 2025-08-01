@@ -1,4 +1,3 @@
-using System.Diagnostics.Contracts;
 // ==++==
 // 
 //   Copyright (c) Microsoft Corporation.  All rights reserved.
@@ -14,21 +13,16 @@ using System.Diagnostics.Contracts;
  **
  ===========================================================*/
 
-
 namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 {
 
     using System;
-    using System.IO;
-    using System.Collections;
-    using System.Reflection;
+    using System.Collections.Generic;
     using System.Globalization;
-    using System.Runtime.Serialization.Formatters;
-    using System.Threading;
-    using System.Runtime.Remoting;
+    using System.IO;
+    using System.Reflection;
     using System.Runtime.Serialization;
     using System.Text;
-    using System.Collections.Generic;
 
     public sealed class __BinaryParser
     {
@@ -418,7 +412,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 crossAppDomainAssembly.Read(this);
                 crossAppDomainAssembly.Dump();
                 _currentAbfo.Data = crossAppDomainAssembly;
-                
+
                 record.assemId = crossAppDomainAssembly.assemId;
                 record.assemblyString = objectReader.CrossAppDomainArray(crossAppDomainAssembly.assemblyIndex) as String;
                 if (record.assemblyString == null)
@@ -731,8 +725,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 bowmt.binaryHeaderEnum = binaryHeaderEnum;
             bowmt.Read(this);
             _currentAbfo.Data = bowmt;
-            
-            if (assemIdToAssemblyTableModifiedHelper.IndexOf(_currentAbfo.Data.assemId) == -1 && _currentAbfo.Data.assemId !=0)
+
+            if (assemIdToAssemblyTableModifiedHelper.IndexOf(_currentAbfo.Data.assemId) == -1 && _currentAbfo.Data.assemId != 0)
             {
                 assemIdToAssemblyTableModifiedHelper.Add(_currentAbfo.Data.assemId);
             }
@@ -1012,9 +1006,9 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             BinaryAssemblyInfo assemblyInfo = null;
             SerTrace.Log(this, "ReadArray ");
             BinaryArray record = new BinaryArray(binaryHeaderEnum);
-            int beforeBinaryArrayRecord = (int) dataReader.BaseStream.Position;
+            int beforeBinaryArrayRecord = (int)dataReader.BaseStream.Position;
             record.Read(this);
-            int afterBinaryArrayRecord = (int) dataReader.BaseStream.Position;
+            int afterBinaryArrayRecord = (int)dataReader.BaseStream.Position;
             _currentAbfo.Data = record;
             _currentAbfo.ArrayBytesDataRecordLength = afterBinaryArrayRecord - beforeBinaryArrayRecord;
 #if _DEBUG
@@ -1581,7 +1575,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                                 case BinaryHeaderEnum.ArraySingleString:
                                     ReadArray(binaryHeaderEnum);
                                     // This is where we need to actually save the data separately as they will not be included in the objects
-                                    int currentDataPosition = (int) dataReader.BaseStream.Position;
+                                    int currentDataPosition = (int)dataReader.BaseStream.Position;
                                     int dataArraySize = currentDataPosition - dataPositionBeforeReadChild - _currentAbfo.ArrayBytesDataRecordLength;
                                     if (dataArraySize > 0)
                                     {

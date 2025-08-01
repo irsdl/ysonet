@@ -1,8 +1,8 @@
-﻿using System.Collections.Generic;
-using NDesk.Options;
+﻿using NDesk.Options;
 using System;
-using ysonet.Generators;
+using System.Collections.Generic;
 using System.IO;
+using ysonet.Generators;
 using ysonet.Helpers;
 
 /**
@@ -142,8 +142,9 @@ namespace ysonet.Plugins
                 if (test)
                 {
                     // PoC on how it works in practice
-                    try { 
-                        MemoryStream stream = new MemoryStream((byte[]) payload);
+                    try
+                    {
+                        MemoryStream stream = new MemoryStream((byte[])payload);
                         BinaryReader binReader = new BinaryReader(stream);
                         System.Web.HttpStaticObjectsCollection test = System.Web.HttpStaticObjectsCollection.Deserialize(binReader);
                     }

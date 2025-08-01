@@ -6,11 +6,6 @@ namespace ysonet.Generators
 {
     public class ActivitySurrogateDisableTypeCheckGenerator : GenericGenerator
     {
-        public override string Name()
-        {
-            return "ActivitySurrogateDisableTypeCheck";
-        }
-
         public override string AdditionalInfo()
         {
             return "Disables 4.8+ type protections for ActivitySurrogateSelector, command is ignored";
@@ -23,7 +18,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.NotBridgeButDervied };
+            return new List<string> { GadgetTags.Variant };
         }
 
         public override List<string> SupportedFormatters()
@@ -90,9 +85,9 @@ xmlns:r=""clr-namespace:System.Reflection;assembly=mscorlib"">
             {
                 payload = new TextFormattingRunPropertiesMarshal(xaml_payload);
             }
-            
+
             return Serialize(payload, formatter, inputArgs);
         }
-        
+
     }
 }

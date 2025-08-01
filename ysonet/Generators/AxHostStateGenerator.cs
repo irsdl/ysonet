@@ -9,11 +9,6 @@ namespace ysonet.Generators
 {
     public class AxHostStateGenerator : GenericGenerator
     {
-        public override string Name()
-        {
-            return "AxHostState";
-        }
-
         public override string Finders()
         {
             return "Soroush Dalili";
@@ -26,12 +21,12 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived };
+            return new List<string> { GadgetTags.Bridged };
         }
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "BinaryFormatter", "SoapFormatter", "LosFormatter", "NetDataContractSerializer"};
+            return new List<string> { "BinaryFormatter", "SoapFormatter", "LosFormatter", "NetDataContractSerializer" };
         }
 
         public override string SupportedBridgedFormatter()
@@ -62,7 +57,7 @@ namespace ysonet.Generators
             {
                 return Serialize(payloadAxHostMarshal, formatter, inputArgs);
             }
-            else if(formatter.Equals("NetDataContractSerializer", StringComparison.OrdinalIgnoreCase))
+            else if (formatter.Equals("NetDataContractSerializer", StringComparison.OrdinalIgnoreCase))
             {
                 string utfString = System.Text.Encoding.UTF8.GetString((byte[])SerializeWithNoTest(payloadAxHostMarshal, formatter, inputArgs));
 
@@ -72,7 +67,7 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = XmlHelper.Minify(payload, new string[] { "mscorlib", "Microsoft.PowerShell.Editor"}, null, FormatterType.NetDataContractXML, true);
+                        payload = XmlHelper.Minify(payload, new string[] { "mscorlib", "Microsoft.PowerShell.Editor" }, null, FormatterType.NetDataContractXML, true);
                     }
                     else
                     {
@@ -86,11 +81,11 @@ namespace ysonet.Generators
                     {
                         SerializersHelper.NetDataContractSerializer_deserialize(payload);
                     }
-                    catch(Exception err)
+                    catch (Exception err)
                     {
                         Debugging.ShowErrors(inputArgs, err);
                     }
-                    
+
                 }
 
                 return payload;
@@ -130,11 +125,11 @@ namespace ysonet.Generators
                 BinaryFormatter fmt = new BinaryFormatter();
                 fmt.Serialize(stm, fakePropertyBagBinary);
             }
-            
+
             SetFakePropertyBagBinary(stm.ToArray());
         }
 
-        public AxHostStateMarshal(object fakePropertyBagBinary):this(fakePropertyBagBinary, new InputArgs())
+        public AxHostStateMarshal(object fakePropertyBagBinary) : this(fakePropertyBagBinary, new InputArgs())
         {
             // This won't use anything we might have defined in ysonet.net BinaryFormatter process (such as minification)
         }

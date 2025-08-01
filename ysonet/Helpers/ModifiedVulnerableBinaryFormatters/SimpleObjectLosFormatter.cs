@@ -31,10 +31,10 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             newSerializedData[2] = 0x32; // type object
             // length here
             inputSize7Bit.CopyTo(newSerializedData, 3);
-            
+
             return Encoding.UTF8.GetBytes(Convert.ToBase64String(newSerializedData));
         }
 
-        
+
     }
 }

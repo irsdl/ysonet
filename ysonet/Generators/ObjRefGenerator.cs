@@ -33,7 +33,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.NotBridgeNotDerived };
+            return new List<string> { GadgetTags.Independent };
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)
@@ -68,11 +68,6 @@ namespace ysonet.Generators
             var exception = new ObjRefWrappingException(objRef);
 
             return Serialize(exception, formatter, inputArgs);
-        }
-
-        public override string Name()
-        {
-            return "ObjRef";
         }
 
         public override List<string> SupportedFormatters()

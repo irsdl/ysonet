@@ -1,15 +1,13 @@
-﻿using ysonet.Generators;
-using ysonet.Plugins;
+﻿using NDesk.Options;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using NDesk.Options;
-using System.Runtime.Remoting;
 using System.Text;
-using System.Collections.Generic;
-using ysonet.Helpers;
 using System.Text.RegularExpressions;
-using System.Reflection.Emit;
+using ysonet.Generators;
+using ysonet.Helpers;
+using ysonet.Plugins;
 
 namespace ysonet
 {
@@ -104,32 +102,113 @@ namespace ysonet
                 gadget_name = "<ignored>";
             }
 
+            // Populate list of available gadgets using GadgetHelper
+            generators = GadgetHelper.GetAllGadgetNames().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+
+            // Populate list of available plugins using PluginHelper
+            plugins = PluginHelper.GetAllPluginNames().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+
+            // Handle gadget-specific help when a valid gadget is provided with --help or --fullhelp
+            if (!string.IsNullOrEmpty(gadget_name) && (show_help || show_fullhelp) && plugin_name == "" && !show_credit && searchFormatter == "")
+            {
+                // Normalize gadget name and validate
+                gadget_name = GadgetHelper.NormalizeGadgetName(gadget_name);
+                string exactGadgetName = GadgetHelper.ValidateAndGetExactGadgetName(gadget_name);
+
+                if (!string.IsNullOrEmpty(exactGadgetName))
+                {
+                    ShowGadgetSpecificHelp(exactGadgetName);
+                    System.Environment.Exit(0);
+                }
+            }
+
+            // Handle plugin-specific help when a valid plugin is provided with --help or --fullhelp
+            if (!string.IsNullOrEmpty(plugin_name) && (show_help || show_fullhelp) && gadget_name == "" && !show_credit && searchFormatter == "")
+            {
+                // Normalize plugin name and validate
+                plugin_name = PluginHelper.NormalizePluginName(plugin_name);
+                string exactPluginName = PluginHelper.ValidateAndGetExactPluginName(plugin_name);
+
+                if (!string.IsNullOrEmpty(exactPluginName))
+                {
+                    ShowPluginSpecificHelp(exactPluginName);
+                    System.Environment.Exit(0);
+                }
+            }
+
+            // Check for missing arguments and decide when to show general help
             if (((cmd == "" && !cmdstdin) || formatter_name == "" || gadget_name == "") &&
                 plugin_name == "" && !show_credit && searchFormatter == "")
             {
-                if (!show_help)
+                // If a gadget name is provided but other params are missing (scenario A)
+                if (!string.IsNullOrEmpty(gadget_name) && !show_help && !show_fullhelp)
+                {
+                    // Validate gadget using GadgetHelper
+                    string exactGadgetName = GadgetHelper.ValidateAndGetExactGadgetName(gadget_name);
+
+                    if (!string.IsNullOrEmpty(exactGadgetName))
+                    {
+                        Console.WriteLine("Missing arguments. You may need to provide the command parameter even if it is being ignored.");
+                        ShowGadgetSpecificHelp(exactGadgetName);
+                        System.Environment.Exit(0);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Gadget '" + gadget_name + "' not supported.");
+                        Console.WriteLine();
+                        ShowAvailableGadgets(gadget_name, formatter_name);
+                        System.Environment.Exit(-1);
+                    }
+                }
+                // If a plugin name is provided but other params are missing (scenario B)
+                else if (!string.IsNullOrEmpty(plugin_name) && !show_help && !show_fullhelp)
+                {
+                    // Validate plugin using PluginHelper
+                    string exactPluginName = PluginHelper.ValidateAndGetExactPluginName(plugin_name);
+
+                    if (!string.IsNullOrEmpty(exactPluginName))
+                    {
+                        Console.WriteLine("Missing arguments. You may need to provide plugin-specific parameters.");
+                        ShowPluginSpecificHelp(exactPluginName);
+                        System.Environment.Exit(0);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Plugin '" + plugin_name + "' not supported.");
+                        Console.WriteLine();
+                        ShowAvailablePlugins(plugin_name);
+                        System.Environment.Exit(-1);
+                    }
+                }
+                else if (!show_help)
+                {
                     Console.WriteLine("Missing arguments. You may need to provide the command parameter even if it is being ignored.");
-                show_help = true;
+                    show_help = true;
+                }
             }
 
-            var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes());
-
-            // Populate list of available gadgets
-            var generatorTypes = types.Where(p => typeof(IGenerator).IsAssignableFrom(p) && !p.IsInterface && !p.AssemblyQualifiedName.Contains("Helpers.TestingArena"));
-            generators = generatorTypes.Select(x => x.Name.Replace("Generator", "")).ToList().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
-
-            // Populate list of available plugins
-            var pluginTypes = types.Where(p => typeof(IPlugin).IsAssignableFrom(p) && !p.IsInterface && !p.AssemblyQualifiedName.Contains("Helpers.TestingArena"));
-            plugins = pluginTypes.Select(x => x.Name.Replace("Plugin", "")).ToList().OrderBy(s => s, StringComparer.OrdinalIgnoreCase); ;
-
             // Early validation for gadget parameter - show available gadgets if invalid gadget is provided
-            if (!string.IsNullOrEmpty(gadget_name) && plugin_name == "" && !show_credit && searchFormatter == "")
+            if (!string.IsNullOrEmpty(gadget_name) && plugin_name == "" && !show_credit && searchFormatter == "" && !show_help && !show_fullhelp)
             {
-                if (!generators.Contains(gadget_name, StringComparer.OrdinalIgnoreCase))
+                // Use GadgetHelper to validate gadget exists
+                if (!GadgetHelper.GadgetExists(gadget_name))
                 {
                     Console.WriteLine("Gadget '" + gadget_name + "' not supported.");
                     Console.WriteLine();
                     ShowAvailableGadgets(gadget_name, formatter_name);
+                    System.Environment.Exit(-1);
+                }
+            }
+
+            // Early validation for plugin parameter - show available plugins if invalid plugin is provided
+            if (!string.IsNullOrEmpty(plugin_name) && gadget_name == "" && !show_credit && searchFormatter == "" && !show_help && !show_fullhelp)
+            {
+                // Use PluginHelper to validate plugin exists
+                if (!PluginHelper.PluginExists(plugin_name))
+                {
+                    Console.WriteLine("Plugin '" + plugin_name + "' not supported.");
+                    Console.WriteLine();
+                    ShowAvailablePlugins(plugin_name);
                     System.Environment.Exit(-1);
                 }
             }
@@ -157,22 +236,16 @@ namespace ysonet
             // Try to execute plugin first
             if (plugin_name != "")
             {
-                if (!plugins.Contains(plugin_name, StringComparer.OrdinalIgnoreCase))
+                // Use PluginHelper to validate plugin exists
+                if (!PluginHelper.PluginExists(plugin_name))
                 {
-                    Console.WriteLine("Plugin not supported. Supported plugins are: " + string.Join(" , ", plugins.OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
+                    Console.WriteLine("Plugin not supported. Supported plugins are: " + string.Join(" , ", plugins));
                     System.Environment.Exit(-1);
                 }
 
-                // Instantiate Plugin 
-                IPlugin plugin = null;
-                try
-                {
-                    plugin_name = plugins.Where(p => String.Equals(p, plugin_name, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
-                    var container = Activator.CreateInstance(null, "ysonet.Plugins." + plugin_name + "Plugin");
-
-                    plugin = (IPlugin)container.Unwrap();
-                }
-                catch
+                // Instantiate Plugin using PluginHelper
+                IPlugin plugin = PluginHelper.CreatePluginInstance(plugin_name);
+                if (plugin == null)
                 {
                     Console.WriteLine("Plugin not supported!");
                     System.Environment.Exit(-1);
@@ -234,23 +307,18 @@ namespace ysonet
                         current_formatter_name = formatter_name;
                     }
 
-                    if (!generators.Contains(current_gadget_name, StringComparer.CurrentCultureIgnoreCase))
+                    // Validate gadget exists using GadgetHelper
+                    if (!GadgetHelper.GadgetExists(current_gadget_name))
                     {
-                        Console.WriteLine("Gadget '" + current_gadget_name  + "' not supported.");
+                        Console.WriteLine("Gadget '" + current_gadget_name + "' not supported.");
                         Console.WriteLine();
                         ShowAvailableGadgets(current_gadget_name);
                         System.Environment.Exit(-1);
                     }
 
-                    // Instantiate Payload Generator
-                    IGenerator generator = null;
-                    try
-                    {
-                        current_gadget_name = generators.Where(p => String.Equals(p, current_gadget_name, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
-                        var container = Activator.CreateInstance(null, "ysonet.Generators." + current_gadget_name + "Generator");
-                        generator = (IGenerator)container.Unwrap();
-                    }
-                    catch
+                    // Instantiate Payload Generator using GadgetHelper
+                    IGenerator generator = GadgetHelper.CreateGadgetInstance(current_gadget_name);
+                    if (generator == null)
                     {
                         Console.WriteLine("Gadget " + current_gadget_name + " not supported!");
                         System.Environment.Exit(-1);
@@ -259,8 +327,8 @@ namespace ysonet
                     if (!string.IsNullOrEmpty(consumer_gadget_name))
                     {
                         // we have a consumer which has its own requirements and we need to check them to be satisfied
-                        // first we need to check whether we have a valid consumer
-                        if (!generators.Contains(consumer_gadget_name, StringComparer.CurrentCultureIgnoreCase))
+                        // first we need to check whether we have a valid consumer using GadgetHelper
+                        if (!GadgetHelper.GadgetExists(consumer_gadget_name))
                         {
                             Console.WriteLine("Bridged gadget '" + consumer_gadget_name + "' not supported.");
                             Console.WriteLine();
@@ -269,23 +337,16 @@ namespace ysonet
                             System.Environment.Exit(-1);
                         }
 
-                        // Instantiate The Bridged Gadget
-                        IGenerator consumer_gadget = null;
-                        try
-                        {
-                            consumer_gadget_name = generators.Where(p => String.Equals(p, consumer_gadget_name, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
-                            var container = Activator.CreateInstance(null, "ysonet.Generators." + consumer_gadget_name + "Generator");
-                            consumer_gadget = (IGenerator)container.Unwrap();
-                        }
-                        catch
+                        // Instantiate The Bridged Gadget using GadgetHelper
+                        IGenerator consumer_gadget = GadgetHelper.CreateGadgetInstance(consumer_gadget_name);
+                        if (consumer_gadget == null)
                         {
                             Console.WriteLine("Bridged gadget " + consumer_gadget_name + " not supported!");
                             Console.WriteLine("Current supplied gadget chain: " + string.Join(" -> ", gadgetsChain));
                             System.Environment.Exit(-1);
                         }
 
-
-                        if (!consumer_gadget.Labels().Contains(GadgetTypes.BridgeAndDerived))
+                        if (!consumer_gadget.Labels().Contains(GadgetTags.Bridged))
                         {
                             Console.WriteLine("The " + consumer_gadget.Name() + " gadget is not a bridge gadget and it cannot accept another gadget.");
                             Console.WriteLine("Current supplied gadget chain: " + string.Join(" -> ", gadgetsChain));
@@ -313,7 +374,7 @@ namespace ysonet
                         generator.BridgedPayload = raw;
                     }
 
-                    if(i == gadgetsChain.Count - 1)
+                    if (i == gadgetsChain.Count - 1)
                     {
                         raw = generator.GenerateWithInit(current_formatter_name, inputArgs);
                     }
@@ -323,10 +384,10 @@ namespace ysonet
                         raw = generator.GenerateWithNoTest(current_formatter_name, inputArgs);
                     }
 
-                    
+
                 }
 
-                
+
 
                 // LosFormatter is already base64 encoded
                 if (outputformat.ToLower().Equals("base64") && formatter_name.ToLower().Equals("losformatter"))
@@ -346,61 +407,66 @@ namespace ysonet
             {
                 Console.WriteLine("## Payloads with formatters contains \"" + formatter_name + "\" ##");
                 int counter = 0;
-                foreach (string g in generators)
+
+                // Use GadgetHelper to get all gadget names
+                var gadgetNames = GadgetHelper.GetAllGadgetNames();
+
+                foreach (string gadgetName in gadgetNames)
                 {
                     try
                     {
-                        if (g != "Generic")
+                        if (gadgetName != "Generic")
                         {
-                            ObjectHandle container = Activator.CreateInstance(null, "ysonet.Generators." + g + "Generator");
-                            IGenerator gg = (IGenerator)container.Unwrap();
-                            foreach (string formatter in gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase))
+                            // Use GadgetHelper to create instance
+                            IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                            if (gg != null)
                             {
-                                if (formatter.IndexOf(formatter_name, StringComparison.OrdinalIgnoreCase) >= 0)
+                                foreach (string formatter in gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase))
                                 {
-                                    // only keeping the first part of formatter that contains alphanumerical to ignore variants or other descriptions
-                                    string current_formatter_name = Regex.Split(formatter, @"[^\w$_\-.]")[0];
-                                    
-                                    String payloadTitle = "(*) Gadget: " + gg.Name() + " - Formatter: " + current_formatter_name;
-
-
-                                    outputformat = GetDefaultOutputFormat(current_formatter_name);
-                                    if (cmd == "" && cmdstdin)
+                                    if (formatter.IndexOf(formatter_name, StringComparison.OrdinalIgnoreCase) >= 0)
                                     {
-                                        Stream stdin = Console.OpenStandardInput(2050);
-                                        byte[] inBuffer = new byte[2050];
-                                        int outLen = stdin.Read(inBuffer, 0, inBuffer.Length);
-                                        char[] chars = Encoding.ASCII.GetChars(inBuffer, 0, outLen);
-                                        cmd = new string(chars);
-                                        if ((cmd[cmd.Length - 2] == '\r') && (cmd[cmd.Length - 1] == '\n'))
+                                        // only keeping the first part of formatter that contains alphanumerical to ignore variants or other descriptions
+                                        string current_formatter_name = Regex.Split(formatter, @"[^\w$_\-.]")[0];
+
+                                        String payloadTitle = "(*) Gadget: " + gg.Name() + " - Formatter: " + current_formatter_name;
+
+                                        outputformat = GetDefaultOutputFormat(current_formatter_name);
+                                        if (cmd == "" && cmdstdin)
                                         {
-                                            cmd = cmd.Substring(0, cmd.Length - 2);
+                                            Stream stdin = Console.OpenStandardInput(2050);
+                                            byte[] inBuffer = new byte[2050];
+                                            int outLen = stdin.Read(inBuffer, 0, inBuffer.Length);
+                                            char[] chars = Encoding.ASCII.GetChars(inBuffer, 0, outLen);
+                                            cmd = new string(chars);
+                                            if ((cmd[cmd.Length - 2] == '\r') && (cmd[cmd.Length - 1] == '\n'))
+                                            {
+                                                cmd = cmd.Substring(0, cmd.Length - 2);
+                                            }
+                                            inputArgs.Cmd = cmd;
                                         }
-                                        inputArgs.Cmd = cmd;
-                                    }
 
-                                    raw = gg.GenerateWithInit(current_formatter_name, inputArgs);
+                                        raw = gg.GenerateWithInit(current_formatter_name, inputArgs);
 
-                                    string rawPayloadString = "";
-                                    if (raw.GetType() == typeof(String))
-                                    {
-                                        rawPayloadString = (string)raw;
-                                    }
-                                    else if (raw.GetType() == typeof(byte[]))
-                                    {
-                                        rawPayloadString = BitConverter.ToString((byte[])raw);
-                                    }
+                                        string rawPayloadString = "";
+                                        if (raw.GetType() == typeof(String))
+                                        {
+                                            rawPayloadString = (string)raw;
+                                        }
+                                        else if (raw.GetType() == typeof(byte[]))
+                                        {
+                                            rawPayloadString = BitConverter.ToString((byte[])raw);
+                                        }
 
-                                    if (!String.IsNullOrEmpty(rawPayloadString))
-                                    {
-                                        ProcessOutput(outputformat, raw, true, outputpath, counter, payloadTitle, "\r\n");
-                                        counter++;
+                                        if (!String.IsNullOrEmpty(rawPayloadString))
+                                        {
+                                            ProcessOutput(outputformat, raw, true, outputpath, counter, payloadTitle, "\r\n");
+                                            counter++;
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine("\r\nError in generating this payload: " + payloadTitle);
+                                        }
                                     }
-                                    else
-                                    {
-                                        Console.WriteLine("\r\nError in generating this payload: " + payloadTitle);
-                                    }
-
                                 }
                             }
                         }
@@ -409,9 +475,7 @@ namespace ysonet
                     {
                         Debugging.ShowErrors(inputArgs, err);
                     }
-
                 }
-
             }
 
             if (isDebugMode)
@@ -455,7 +519,7 @@ namespace ysonet
             }
             else if (raw.GetType() == typeof(String))
             {
-                outputString = (String) raw;
+                outputString = (String)raw;
                 outputActualLength = outputString.Length;
 
                 if (outputformat.ToLower().Contains("urlencode"))
@@ -464,11 +528,12 @@ namespace ysonet
                                  .Replace("/", "%2F")
                                  .Replace("=", "%3D");
                 }
-                else if (outputformat.ToLower().Equals("hex")) {
+                else if (outputformat.ToLower().Equals("hex"))
+                {
                     outputBytes = Encoding.ASCII.GetBytes((String)outputString);
                     outputString = BitConverter.ToString(outputBytes).Replace("-", "");
                 }
-                outputBytes = Encoding.UTF8.GetBytes((String) outputString ?? "");
+                outputBytes = Encoding.UTF8.GetBytes((String)outputString ?? "");
             }
             else if (raw.GetType() == typeof(byte[]))
             {
@@ -482,7 +547,7 @@ namespace ysonet
                                  .Replace("=", "%3D");
                     outputBytes = Encoding.ASCII.GetBytes((String)outputString ?? "");
                 }
-                else if(outputformat.ToLower().Equals("hex"))
+                else if (outputformat.ToLower().Equals("hex"))
                 {
                     outputString = BitConverter.ToString((byte[])raw).Replace("-", "");
                     outputBytes = Encoding.ASCII.GetBytes((String)outputString ?? "");
@@ -593,26 +658,33 @@ namespace ysonet
         private static void SearchFormatters(string formatter_name, InputArgs inputArgs)
         {
             Console.WriteLine("Formatter search result for \"" + formatter_name + "\":\n");
-            foreach (string g in generators)
+
+            // Use GadgetHelper to get all gadget names
+            var gadgetNames = GadgetHelper.GetAllGadgetNames();
+
+            foreach (string gadgetName in gadgetNames)
             {
                 try
                 {
-                    if (g != "Generic")
+                    if (gadgetName != "Generic")
                     {
-                        ObjectHandle container = Activator.CreateInstance(null, "ysonet.Generators." + g + "Generator");
-                        IGenerator gg = (IGenerator)container.Unwrap();
-                        Boolean gadgetSelected = false;
-                        foreach (string formatter in gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase))
+                        // Use GadgetHelper to create instance
+                        IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                        if (gg != null)
                         {
-                            if (formatter.IndexOf(formatter_name, StringComparison.OrdinalIgnoreCase) >= 0)
+                            Boolean gadgetSelected = false;
+                            foreach (string formatter in gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase))
                             {
-                                if (gadgetSelected == false)
+                                if (formatter.IndexOf(formatter_name, StringComparison.OrdinalIgnoreCase) >= 0)
                                 {
-                                    Console.WriteLine("\t" + gg.Name());
-                                    Console.WriteLine("\t\tFound formatters:");
-                                    gadgetSelected = true;
+                                    if (gadgetSelected == false)
+                                    {
+                                        Console.WriteLine("\t" + gg.Name());
+                                        Console.WriteLine("\t\tFound formatters:");
+                                        gadgetSelected = true;
+                                    }
+                                    Console.WriteLine("\t\t\t" + formatter);
                                 }
-                                Console.WriteLine("\t\t\t" + formatter);
                             }
                         }
                     }
@@ -621,7 +693,6 @@ namespace ysonet
                 {
                     Debugging.ShowErrors(inputArgs, err);
                 }
-
             }
             System.Environment.Exit(-1);
         }
@@ -633,61 +704,67 @@ namespace ysonet
             if (plugin_name == "")
             {
                 Console.WriteLine("== GADGETS ==");
-                foreach (string g in generators)
+
+                // Use GadgetHelper to get all gadget names
+                var gadgetNames = GadgetHelper.GetAllGadgetNames();
+
+                foreach (string gadgetName in gadgetNames)
                 {
                     try
                     {
-                        if (g != "Generic")
+                        if (gadgetName != "Generic")
                         {
-                            ObjectHandle container = Activator.CreateInstance(null, "ysonet.Generators." + g + "Generator");
-                            IGenerator gg = (IGenerator)container.Unwrap();
-
-                            if (gg.Labels().Contains(GadgetTypes.Dummy) && !show_fullhelp)
+                            // Use GadgetHelper to create instance
+                            IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                            if (gg != null)
                             {
-                                // We hide the Mask gadgets in normal help as they are not that important!
-                                continue;
-                            }
-
-                            Console.Write("\t(*) ");
-                            if (string.IsNullOrEmpty(gg.AdditionalInfo()))
-                            {
-                                Console.Write(gg.Name());
-                            }
-                            else
-                            {
-                                // we have additional info to add!
-                                Console.Write(gg.Name() + " [" + gg.AdditionalInfo() + "]");
-                            }
-
-                            OptionSet extraOptions = gg.Options();
-
-                            if (extraOptions != null && !show_fullhelp)
-                            {
-                                Console.Write(" (supports extra options: use the '--fullhelp' argument to view)");
-                            }
-
-                            Console.WriteLine();
-                            Console.Write("\t\tFormatters: ");
-                            Console.WriteLine(string.Join(", ", gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)) + "");
-
-                            if (show_fullhelp)
-                            {
-                                Console.WriteLine("\t\t\tLabels: " + string.Join(", ", gg.Labels()));
-
-                                if (gg.Labels().Contains(GadgetTypes.BridgeAndDerived) && !string.IsNullOrEmpty(gg.SupportedBridgedFormatter()))
+                                if (gg.Labels().Contains(GadgetTags.Hidden) && !show_fullhelp)
                                 {
-                                    Console.WriteLine("\t\t\tSupported formatter for the bridge: " + gg.SupportedBridgedFormatter());
+                                    // We hide the Mask gadgets in normal help as they are not that important!
+                                    continue;
                                 }
-                            }
 
-                            if (extraOptions != null && show_fullhelp)
-                            {
-                                StringWriter baseTextWriter = new StringWriter();
-                                baseTextWriter.NewLine = "\r\n\t\t\t"; // this is easier than using string builder and adding spacing to each line!
-                                Console.WriteLine("\t\t\tExtra options:");
-                                extraOptions.WriteOptionDescriptions(baseTextWriter);
-                                Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
-                                Console.WriteLine(baseTextWriter.ToString());
+                                Console.Write("\t(*) ");
+                                if (string.IsNullOrEmpty(gg.AdditionalInfo()))
+                                {
+                                    Console.Write(gg.Name());
+                                }
+                                else
+                                {
+                                    // we have additional info to add!
+                                    Console.Write(gg.Name() + " [" + gg.AdditionalInfo() + "]");
+                                }
+
+                                OptionSet extraOptions = gg.Options();
+
+                                if (extraOptions != null && !show_fullhelp)
+                                {
+                                    Console.Write(" (supports extra options: use the '--fullhelp' argument to view)");
+                                }
+
+                                Console.WriteLine();
+                                Console.Write("\t\tFormatters: ");
+                                Console.WriteLine(string.Join(", ", gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)) + "");
+
+                                if (show_fullhelp)
+                                {
+                                    Console.WriteLine("\t\t\tLabels: " + string.Join(", ", gg.Labels()));
+
+                                    if (gg.Labels().Contains(GadgetTags.Bridged) && !string.IsNullOrEmpty(gg.SupportedBridgedFormatter()))
+                                    {
+                                        Console.WriteLine("\t\t\tSupported formatter for the bridge: " + gg.SupportedBridgedFormatter());
+                                    }
+                                }
+
+                                if (extraOptions != null && show_fullhelp)
+                                {
+                                    StringWriter baseTextWriter = new StringWriter();
+                                    baseTextWriter.NewLine = "\r\n\t\t\t"; // this is easier than using string builder and adding spacing to each line!
+                                    Console.WriteLine("\t\t\tExtra options:");
+                                    extraOptions.WriteOptionDescriptions(baseTextWriter);
+                                    Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
+                                    Console.WriteLine(baseTextWriter.ToString());
+                                }
                             }
                         }
                     }
@@ -696,30 +773,36 @@ namespace ysonet
                         Console.WriteLine("Gadget not supported");
                         System.Environment.Exit(-1);
                     }
-
                 }
                 Console.WriteLine("");
                 Console.WriteLine("== PLUGINS ==");
-                foreach (string p in plugins)
+
+                // Use PluginHelper to get all plugins with descriptions
+                var pluginsWithDescriptions = PluginHelper.GetAllPluginsWithDescriptions();
+
+                foreach (var pluginInfo in pluginsWithDescriptions)
                 {
                     try
                     {
-                        if (p != "Generic")
+                        if (pluginInfo.Name != "Generic")
                         {
-                            ObjectHandle container = Activator.CreateInstance(null, "ysonet.Plugins." + p + "Plugin");
-                            IPlugin pp = (IPlugin)container.Unwrap();
-                            Console.WriteLine("\t(*) " + pp.Name() + " (" + pp.Description() + ")");
-
-                            OptionSet options = pp.Options();
-
-                            if (options != null && show_fullhelp)
+                            // Use PluginHelper to create instance
+                            IPlugin pp = PluginHelper.CreatePluginInstance(pluginInfo.Name);
+                            if (pp != null)
                             {
-                                StringWriter baseTextWriter = new StringWriter();
-                                baseTextWriter.NewLine = "\r\n\t\t"; // this is easier than using string builder and adding spacing to each line!
-                                Console.WriteLine("\t\tOptions:");
-                                options.WriteOptionDescriptions(baseTextWriter);
-                                Console.Write("\t\t"); // this is easier than using string builder and adding spacing to each line!
-                                Console.WriteLine(baseTextWriter.ToString());
+                                Console.WriteLine("\t(*) " + pp.Name() + " (" + pp.Description() + ")");
+
+                                OptionSet options = pp.Options();
+
+                                if (options != null && show_fullhelp)
+                                {
+                                    StringWriter baseTextWriter = new StringWriter();
+                                    baseTextWriter.NewLine = "\r\n\t\t"; // this is easier than using string builder and adding spacing to each line!
+                                    Console.WriteLine("\t\tOptions:");
+                                    options.WriteOptionDescriptions(baseTextWriter);
+                                    Console.Write("\t\t"); // this is easier than using string builder and adding spacing to each line!
+                                    Console.WriteLine(baseTextWriter.ToString());
+                                }
                             }
                         }
                     }
@@ -728,8 +811,8 @@ namespace ysonet
                         Console.WriteLine("Plugin not supported");
                         System.Environment.Exit(-1);
                     }
-
                 }
+
                 Console.WriteLine("");
                 Console.WriteLine("Note: Machine authentication code (MAC) key modifier is not being used for LosFormatter in ysonet.net. Therefore, LosFormatter (base64 encoded) can be used to create ObjectStateFormatter payloads.");
                 Console.WriteLine("");
@@ -742,13 +825,19 @@ namespace ysonet
             {
                 try
                 {
-                    plugin_name = plugins.Where(p => String.Equals(p, plugin_name, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
-                    ObjectHandle container = Activator.CreateInstance(null, "ysonet.Plugins." + plugin_name + "Plugin");
-                    IPlugin pp = (IPlugin)container.Unwrap();
-                    Console.WriteLine("Plugin:\n");
-                    Console.WriteLine(pp.Name() + " (" + pp.Description() + ")");
-                    Console.WriteLine("\nOptions:\n");
-                    pp.Options().WriteOptionDescriptions(Console.Out);
+                    // Use PluginHelper to create plugin instance
+                    IPlugin pp = PluginHelper.CreatePluginInstance(plugin_name);
+                    if (pp != null)
+                    {
+                        Console.WriteLine("Plugin:\n");
+                        Console.WriteLine(pp.Name() + " (" + pp.Description() + ")");
+                        Console.WriteLine("\nOptions:\n");
+                        pp.Options().WriteOptionDescriptions(Console.Out);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Plugin not supported");
+                    }
                 }
                 catch
                 {
@@ -758,22 +847,150 @@ namespace ysonet
             }
         }
 
+        private static void ShowGadgetSpecificHelp(string specificGadgetName)
+        {
+            try
+            {
+                // Use GadgetHelper to create instance
+                IGenerator gg = GadgetHelper.CreateGadgetInstance(specificGadgetName);
+
+                if (gg == null)
+                {
+                    Console.WriteLine("Gadget '" + specificGadgetName + "' not found.");
+                    System.Environment.Exit(-1);
+                }
+
+                Console.Write("\t(*) ");
+                if (string.IsNullOrEmpty(gg.AdditionalInfo()))
+                {
+                    Console.Write(gg.Name());
+                }
+                else
+                {
+                    // we have additional info to add!
+                    Console.Write(gg.Name() + " [" + gg.AdditionalInfo() + "]");
+                }
+                Console.WriteLine();
+
+                Console.Write("\t\tFormatters: ");
+                Console.WriteLine(string.Join(", ", gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
+
+                Console.WriteLine("\t\t\tLabels: " + string.Join(", ", gg.Labels()));
+
+                if (gg.Labels().Contains(GadgetTags.Bridged) && !string.IsNullOrEmpty(gg.SupportedBridgedFormatter()))
+                {
+                    Console.WriteLine("\t\t\tSupported formatter for the bridge: " + gg.SupportedBridgedFormatter());
+                }
+
+                OptionSet extraOptions = gg.Options();
+                if (extraOptions != null)
+                {
+                    StringWriter baseTextWriter = new StringWriter();
+                    baseTextWriter.NewLine = "\r\n\t\t\t"; // this is easier than using string builder and adding spacing to each line!
+                    Console.WriteLine("\t\t\tExtra options:");
+                    extraOptions.WriteOptionDescriptions(baseTextWriter);
+                    Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
+                    Console.WriteLine(baseTextWriter.ToString());
+                }
+            }
+            catch
+            {
+                Console.WriteLine("Error loading gadget '" + specificGadgetName + "'");
+                System.Environment.Exit(-1);
+            }
+        }
+
+        /// <summary>
+        /// Adds support for plugin-specific help when a valid plugin is provided with --help or --fullhelp
+        /// </summary>
+        /// <param name="specificPluginName">The plugin name to show help for</param>
+        private static void ShowPluginSpecificHelp(string specificPluginName)
+        {
+            try
+            {
+                // Use PluginHelper to create instance
+                IPlugin pp = PluginHelper.CreatePluginInstance(specificPluginName);
+
+                if (pp == null)
+                {
+                    Console.WriteLine("Plugin '" + specificPluginName + "' not found.");
+                    System.Environment.Exit(-1);
+                }
+
+                Console.Write("\t(*) ");
+                Console.Write(pp.Name() + " (" + pp.Description() + ")");
+                Console.WriteLine();
+
+                OptionSet extraOptions = pp.Options();
+                if (extraOptions != null)
+                {
+                    StringWriter baseTextWriter = new StringWriter();
+                    baseTextWriter.NewLine = "\r\n\t\t\t"; // this is easier than using string builder and adding spacing to each line!
+                    Console.WriteLine("\t\t\tOptions:");
+                    extraOptions.WriteOptionDescriptions(baseTextWriter);
+                    Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
+                    Console.WriteLine(baseTextWriter.ToString());
+                }
+            }
+            catch
+            {
+                Console.WriteLine("Error loading plugin '" + specificPluginName + "'");
+                System.Environment.Exit(-1);
+            }
+        }
+
+        /// <summary>
+        /// Shows available plugins, optionally filtered by a search string
+        /// </summary>
+        /// <param name="partialPlugin">Partial plugin name to search for</param>
+        private static void ShowAvailablePlugins(string partialPlugin = "")
+        {
+            if (!string.IsNullOrEmpty(partialPlugin))
+            {
+                // Use PluginHelper to get plugins containing the search string
+                var filteredPlugins = PluginHelper.GetPluginsContaining(partialPlugin);
+
+                if (filteredPlugins.Any())
+                {
+                    Console.WriteLine($"Available plugins containing \"{partialPlugin}\":");
+                    Console.WriteLine(string.Join(", ", filteredPlugins));
+                }
+                else
+                {
+                    Console.WriteLine($"No plugins found containing \"{partialPlugin}\". All available plugins:");
+                    Console.WriteLine(string.Join(", ", PluginHelper.GetAllPluginNames()));
+                }
+            }
+            else
+            {
+                Console.WriteLine("Available plugins:");
+                Console.WriteLine(string.Join(", ", PluginHelper.GetAllPluginNames()));
+            }
+        }
+
         private static void ShowCredit()
         {
-            Console.WriteLine("ysonet.net has been originally developed by Alvaro Muñoz (@pwntester)");
-            Console.WriteLine("this tool is being maintained by Alvaro Muñoz (@pwntester) and Soroush Dalili (@irsdl)");
+            Console.WriteLine("YSoNet tool is being developed and maintained by Soroush Dalili (@irsdl)");
+            Console.WriteLine("YSoSerial.Net has been originally developed by Alvaro Muñoz (@pwntester)");
             Console.WriteLine("");
             Console.WriteLine("Credits for available gadgets:");
-            foreach (string g in generators)
+
+            // Use GadgetHelper to get all gadget names
+            var gadgetNames = GadgetHelper.GetAllGadgetNames();
+
+            foreach (string gadgetName in gadgetNames)
             {
                 try
                 {
-                    if (g != "Generic")
+                    if (gadgetName != "Generic")
                     {
-                        ObjectHandle container = Activator.CreateInstance(null, "ysonet.Generators." + g + "Generator");
-                        IGenerator gg = (IGenerator)container.Unwrap();
-                        Console.WriteLine("\t" + gg.Name());
-                        Console.WriteLine("\t\t" + gg.Credit());
+                        // Use GadgetHelper to create instance
+                        IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                        if (gg != null)
+                        {
+                            Console.WriteLine("\t" + gg.Name());
+                            Console.WriteLine("\t\t" + gg.Credit());
+                        }
                     }
                 }
                 catch
@@ -781,20 +998,21 @@ namespace ysonet
                     Console.WriteLine("Gadget not supported");
                     System.Environment.Exit(-1);
                 }
-
             }
             Console.WriteLine("");
             Console.WriteLine("Credits for available plugins:");
-            foreach (string p in plugins)
+
+            // Use PluginHelper to get all plugins with credits
+            var pluginsWithCredits = PluginHelper.GetAllPluginsWithCredits();
+
+            foreach (var pluginInfo in pluginsWithCredits)
             {
                 try
                 {
-                    if (p != "Generic")
+                    if (pluginInfo.Name != "Generic")
                     {
-                        ObjectHandle container = Activator.CreateInstance(null, "ysonet.Plugins." + p + "Plugin");
-                        IPlugin pp = (IPlugin)container.Unwrap();
-                        Console.WriteLine("\t" + pp.Name());
-                        Console.WriteLine("\t\t" + pp.Credit());
+                        Console.WriteLine("\t" + pluginInfo.Name);
+                        Console.WriteLine("\t\t" + pluginInfo.Credit);
                     }
                 }
                 catch
@@ -803,6 +1021,7 @@ namespace ysonet
                     System.Environment.Exit(-1);
                 }
             }
+
             Console.WriteLine("");
             Console.WriteLine("Various other people have also donated their time and contributed to this project.");
             Console.WriteLine("Please see https://github.com/pwntester/ysonet.net/graphs/contributors to find those who have helped developing more features or have fixed bugs.");
@@ -811,62 +1030,67 @@ namespace ysonet
 
         private static void ShowAvailableGadgets(string partialGadget = "", string formatter = "")
         {
-            var allGadgetGenerators = new List<IGenerator>();
-            foreach (var g in generators.OrderBy(s => s, StringComparer.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    if (g != "Generic")
-                    {
-                        var container = Activator.CreateInstance(null, "ysonet.Generators." + g + "Generator");
-                        allGadgetGenerators.Add((IGenerator)container.Unwrap());
-                    }
-                }
-                catch { /* Ignore gadgets that can't be instantiated */ }
-            }
-
-            var filteredGadgets = allGadgetGenerators.AsEnumerable();
-
-            if (!string.IsNullOrEmpty(partialGadget))
-            {
-                filteredGadgets = filteredGadgets.Where(g => g.Name().StartsWith(partialGadget, StringComparison.OrdinalIgnoreCase) || g.Name().IndexOf(partialGadget, StringComparison.OrdinalIgnoreCase) >= 0);
-            }
-
             if (!string.IsNullOrEmpty(formatter))
             {
-                var formatterFilteredGadgets = filteredGadgets.Where(g => g.SupportedFormatters().Any(f => f.Equals(formatter, StringComparison.OrdinalIgnoreCase))).ToList();
+                // Use GadgetHelper to get gadgets that support the specific formatter
+                var formatterFilteredGadgets = GadgetHelper.GetGadgetsSupportingFormatter(formatter);
+
+                if (!string.IsNullOrEmpty(partialGadget))
+                {
+                    // Filter by partial gadget name as well
+                    var gadgetsContaining = GadgetHelper.GetGadgetsContaining(partialGadget);
+                    formatterFilteredGadgets = formatterFilteredGadgets.Intersect(gadgetsContaining).ToArray();
+                }
+
                 if (formatterFilteredGadgets.Any())
                 {
-                    if (!string.IsNullOrEmpty(partialGadget) && filteredGadgets.Any())
+                    if (!string.IsNullOrEmpty(partialGadget))
                     {
-                        Console.WriteLine($"Available gadgets containing \"{partialGadget}\" containing \"{formatter}\" formatter:");
+                        Console.WriteLine($"Available gadgets containing \"{partialGadget}\" supporting \"{formatter}\" formatter:");
                     }
                     else
                     {
                         Console.WriteLine($"Available gadgets for formatter \"{formatter}\":");
                     }
-                    Console.WriteLine(string.Join(", ", formatterFilteredGadgets.Select(g => g.Name())));
+                    Console.WriteLine(string.Join(", ", formatterFilteredGadgets));
                 }
                 else
                 {
                     Console.WriteLine($"No gadgets found for the formatter \"{formatter}\". All available gadgets are:");
-                    foreach (var g in allGadgetGenerators)
+                    var allGadgets = GadgetHelper.GetAllGadgetNames();
+                    foreach (var gadgetName in allGadgets)
                     {
-                        Console.WriteLine($"{g.Name()} ({string.Join(", ", g.SupportedFormatters())})");
+                        var instance = GadgetHelper.CreateGadgetInstance(gadgetName);
+                        if (instance != null)
+                        {
+                            Console.WriteLine($"{instance.Name()} ({string.Join(", ", instance.SupportedFormatters())})");
+                        }
                     }
                 }
             }
             else
             {
-                if (!string.IsNullOrEmpty(partialGadget) && filteredGadgets.Any())
+                if (!string.IsNullOrEmpty(partialGadget))
                 {
-                    Console.WriteLine($"Available gadgets containing \"{partialGadget}\":");
+                    // Use GadgetHelper to get gadgets containing the search string
+                    var filteredGadgets = GadgetHelper.GetGadgetsContaining(partialGadget);
+
+                    if (filteredGadgets.Any())
+                    {
+                        Console.WriteLine($"Available gadgets containing \"{partialGadget}\":");
+                        Console.WriteLine(string.Join(", ", filteredGadgets));
+                    }
+                    else
+                    {
+                        Console.WriteLine($"No gadgets found containing \"{partialGadget}\". All available gadgets:");
+                        Console.WriteLine(string.Join(", ", GadgetHelper.GetAllGadgetNames()));
+                    }
                 }
                 else
                 {
                     Console.WriteLine("Available gadgets:");
+                    Console.WriteLine(string.Join(", ", GadgetHelper.GetAllGadgetNames()));
                 }
-                Console.WriteLine(string.Join(", ", filteredGadgets.Any() ? filteredGadgets.Select(g => g.Name()) : allGadgetGenerators.Select(g => g.Name())));
             }
         }
     }

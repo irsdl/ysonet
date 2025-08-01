@@ -1,6 +1,6 @@
-﻿using System.Collections.Generic;
-using NDesk.Options;
+﻿using NDesk.Options;
 using System;
+using System.Collections.Generic;
 using ysonet.Generators;
 using ysonet.Helpers;
 

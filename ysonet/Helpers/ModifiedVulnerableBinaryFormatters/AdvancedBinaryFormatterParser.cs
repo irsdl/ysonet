@@ -1,8 +1,8 @@
 ﻿using System;
-using System.IO;
 using System.Collections.Generic;
-using System.Runtime.Serialization.Formatters;
+using System.IO;
 using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -47,7 +47,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
             return serParser.RunModifiedAdvanced(ignoreErrors);
         }
-        
+
 
         public static MemoryStream AdvancedBinaryFormatterObjectToStream(List<AdvancedBinaryFormatterObject> abfoList)
         {
@@ -71,7 +71,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             foreach (AdvancedBinaryFormatterObject abfo in abfoList)
             {
                 var currentObjInfo = abfo.Data;
-                if(currentObjInfo.GetType() == typeof(BinaryObjectWithMapTyped))
+                if (currentObjInfo.GetType() == typeof(BinaryObjectWithMapTyped))
                 {
                     if (currentObjInfo.binaryHeaderEnum == BinaryHeaderEnum.ObjectWithMapTypedAssemId)
                     {
@@ -87,7 +87,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 }
 
                 currentObjInfo.Write(binaryWriter);
-                if(abfo.ArrayBytes != null)
+                if (abfo.ArrayBytes != null)
                 {
                     // this is for arrays when we have more data:
                     /*
@@ -110,7 +110,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             String mainAssembly = typeof(AdvancedBinaryFormatterParser).Assembly.GetName().Name;
 
             String pattern = @"([""']\$type[""']:\s*[""'])([^\""'\.\[\] ,=]+)([\""'])";
-            jsonNet_str = Regex.Replace(jsonNet_str, pattern, "$1"+ currentNameSpace + ".$2, " + mainAssembly + "$3");
+            jsonNet_str = Regex.Replace(jsonNet_str, pattern, "$1" + currentNameSpace + ".$2, " + mainAssembly + "$3");
 
             List<AdvancedBinaryFormatterObject> deserialized_obj = (List<AdvancedBinaryFormatterObject>)Newtonsoft.Json.JsonConvert.DeserializeObject(jsonNet_str, typeof(List<AdvancedBinaryFormatterObject>), new Newtonsoft.Json.JsonSerializerSettings
             {
@@ -135,7 +135,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
             if (!keepInfoFields)
             {
-                foreach(AdvancedBinaryFormatterObject abfo in abfoList)
+                foreach (AdvancedBinaryFormatterObject abfo in abfoList)
                 {
                     abfo.KeepInfoFieldsForJson = false;
                 }
@@ -146,7 +146,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Auto
             });
 
-            String currentNameSpace = typeof(AdvancedBinaryFormatterParser).Namespace.Replace(".",@"\.");
+            String currentNameSpace = typeof(AdvancedBinaryFormatterParser).Namespace.Replace(".", @"\.");
             String mainAssembly = typeof(AdvancedBinaryFormatterParser).Assembly.GetName().Name.Replace(".", @"\.");
 
             String pattern = @"(""\$type"":\s*"")" + currentNameSpace + @"\.([^,]+),\s*" + mainAssembly;
@@ -155,14 +155,16 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             if (enableIndent)
             {
                 // removing spaces between array items
-                jsonNetStr = Regex.Replace(jsonNetStr, @"\:\s*\[[a-z\sA-Z0-9\,\[\]""'\+\._`]+\],", delegate (Match m) {
+                jsonNetStr = Regex.Replace(jsonNetStr, @"\:\s*\[[a-z\sA-Z0-9\,\[\]""'\+\._`]+\],", delegate (Match m)
+                {
                     String finalVal = m.Value;
                     finalVal = Regex.Replace(finalVal, @"\s+", "");
                     return finalVal;
                 });
 
                 // removing spaces between non-alphanumerical characters at the beginning of each clause
-                jsonNetStr = Regex.Replace(jsonNetStr, @"^\s*([^\w""':. ][^\w""']+)+", delegate (Match m) {
+                jsonNetStr = Regex.Replace(jsonNetStr, @"^\s*([^\w""':. ][^\w""']+)+", delegate (Match m)
+                {
                     String finalVal = m.Value;
                     finalVal = Regex.Replace(finalVal, @"\s+", "");
                     return finalVal;
@@ -170,7 +172,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             }
             return jsonNetStr;
         }
-        
+
         public static byte[] Calculate7BitEncodedInt(int value)
         {
             // it cannot be more than 5 bytes according to [MS-NRBF]
@@ -212,14 +214,15 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             return result;
         }
     }
-    
+
     [Serializable]
     // The Data property is the only one that matters for serialization/deserialization
     public class AdvancedBinaryFormatterObject
     {
         public AdvancedBinaryFormatterObject() { }
 
-        public AdvancedBinaryFormatterObject(string strType) {
+        public AdvancedBinaryFormatterObject(string strType)
+        {
             expectedTypeName = strType;
         }
 
@@ -275,7 +278,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
                     obj = formatter.Deserialize(ms);
                 }
-                
+
                 _data = obj;
 
                 //*/

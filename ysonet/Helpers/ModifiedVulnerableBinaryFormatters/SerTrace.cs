@@ -3,7 +3,7 @@ using System.Text;
 
 namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 {
-    
+
     public static class SerTrace
     {
         internal static void InfoLog(params Object[] messages)

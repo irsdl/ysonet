@@ -13,23 +13,20 @@
  **
  ===========================================================*/
 
-namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
+namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
+{
 
     using System;
     using System.IO;
     using System.Reflection;
-    using System.Globalization;
-    using System.Collections;
     using System.Collections.Generic;
     using System.Runtime.Serialization.Formatters;
 #if FEATURE_REMOTING    
     using System.Runtime.Remoting.Proxies;
 #endif
-    using System.Runtime.Remoting;
     using System.Runtime.Remoting.Messaging;
 
     using System.Runtime.Serialization;
-    using System.Security.Permissions;
     using System.Diagnostics.Contracts;
     using System.Collections.Concurrent;
 
@@ -77,17 +74,20 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
             set { m_securityLevel = value; }
         }
 
-        public ISurrogateSelector SurrogateSelector {
+        public ISurrogateSelector SurrogateSelector
+        {
             get { return m_surrogates; }
             set { m_surrogates = value; }
         }
 
-        public SerializationBinder Binder {
+        public SerializationBinder Binder
+        {
             get { return m_binder; }
             set { m_binder = value; }
         }
 
-        public StreamingContext Context {
+        public StreamingContext Context
+        {
             get { return m_context; }
             set { m_context = value; }
         }
@@ -100,7 +100,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
         }
 
         // Constructor
-        public BinaryFormatter(ISurrogateSelector selector, StreamingContext context) {
+        public BinaryFormatter(ISurrogateSelector selector, StreamingContext context)
+        {
             m_surrogates = selector;
             m_context = context;
         }
@@ -147,7 +148,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
 
         // Deserialize the stream into an object graph.
         [System.Security.SecuritySafeCritical]  // auto-generated
-        public Object Deserialize(Stream serializationStream, HeaderHandler handler) {
+        public Object Deserialize(Stream serializationStream, HeaderHandler handler)
+        {
             return Deserialize(serializationStream, handler, true);
         }
 
@@ -159,7 +161,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
 #endif
         [System.Security.SecurityCritical]  // auto-generated_required
         [System.Runtime.InteropServices.ComVisible(false)]
-        public Object UnsafeDeserialize(Stream serializationStream, HeaderHandler handler) {
+        public Object UnsafeDeserialize(Stream serializationStream, HeaderHandler handler)
+        {
             return Deserialize(serializationStream, handler, false);
         }
 
@@ -258,7 +261,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters {
                     var FormatterServicesRef = mscorlibAsm.GetType("System.Runtime.Serialization.FormatterServices");
                     var getClrAssemblyName = FormatterServicesRef.GetMethod("GetClrAssemblyName", BindingFlags.Static | BindingFlags.NonPublic);
                     bool hasTypeForwardedFrom = true;
-                    var getClrAssemblyNameResult = (string)getClrAssemblyName.Invoke(null,new object[] { type, hasTypeForwardedFrom });
+                    var getClrAssemblyNameResult = (string)getClrAssemblyName.Invoke(null, new object[] { type, hasTypeForwardedFrom });
                     var getClrTypeFullName = FormatterServicesRef.GetMethod("GetClrTypeFullName", BindingFlags.Static | BindingFlags.NonPublic);
                     var getClrTypeFullNameResult = (string)getClrTypeFullName.Invoke(null, new object[] { type });
                     typeInformation = new TypeInformation(getClrTypeFullNameResult, getClrAssemblyNameResult, hasTypeForwardedFrom);

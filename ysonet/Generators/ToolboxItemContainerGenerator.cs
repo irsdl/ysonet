@@ -16,11 +16,6 @@ namespace ysonet.Generators
             return new List<string> { "BinaryFormatter", "LosFormatter", "SoapFormatter" };
         }
 
-        public override string Name()
-        {
-            return "ToolboxItemContainer";
-        }
-
         public override string Finders()
         {
             return "@frycos";
@@ -28,7 +23,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived };
+            return new List<string> { GadgetTags.Bridged };
         }
 
         public override string SupportedBridgedFormatter()

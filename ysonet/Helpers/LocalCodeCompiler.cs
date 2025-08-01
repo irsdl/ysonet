@@ -1,12 +1,7 @@
 ﻿using System;
 using System.CodeDom.Compiler;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Controls.Primitives;
 
 namespace ysonet.Helpers
 {
@@ -70,12 +65,12 @@ namespace ysonet.Helpers
                 assemblyBytes = File.ReadAllBytes(compilerResults.PathToAssembly);
                 File.Delete(compilerResults.PathToAssembly);
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 Console.Error.WriteLine(e.Message);
                 Environment.Exit(-1);
             }
-            
+
             return assemblyBytes;
         }
     }

