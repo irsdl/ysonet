@@ -1,15 +1,13 @@
-﻿using System;
+﻿using NDesk.Options;
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Runtime.Serialization.Formatters.Soap;
 using System.Web.UI;
-using System.Linq;
-using System.Configuration;
 using ysonet.Helpers;
-using NDesk.Options;
-using System.Reflection;
 
 namespace ysonet.Generators
 {
@@ -18,15 +16,28 @@ namespace ysonet.Generators
         public SerializationBinder serializationBinder = null;
         public abstract object Generate(string formatter, InputArgs inputArgs);
         public abstract string Finders();
-        public abstract string Name();
         public abstract List<string> SupportedFormatters();
-        
+
+        // This is used to return the name of the gadget
+        // It must be overridden especially in cases where a gadget inherits from another gadget
+        public virtual string Name()
+        {
+            // Return the name of the gadget by using the actual class name (remove "Generator" from the end of the class name if it exists)
+            // This ensures that derived classes automatically get unique names without requiring manual overrides
+            string name = this.GetType().Name;
+            if (name.EndsWith("Generator"))
+            {
+                name = name.Substring(0, name.Length - "Generator".Length);
+            }
+            return name;
+        }
+
         // This is used when we want a gadget to support incoming from another gadget
         public virtual string SupportedBridgedFormatter()
         {
             return Formatters.None;
         }
-        public object BridgedPayload { get; set ;}
+        public object BridgedPayload { get; set; }
 
         public virtual string AdditionalInfo()
         {
@@ -97,7 +108,7 @@ namespace ysonet.Generators
 
         public virtual List<string> Labels()
         {
-            return new List<string> {""};
+            return new List<string> { "" };
         }
 
         public virtual string Contributors()
@@ -115,7 +126,7 @@ namespace ysonet.Generators
             {
                 return "[Finders: " + Finders() + "] [Contributors: " + Contributors() + "]";
             }
-            
+
         }
 
         public Boolean IsSupported(string formatter)
@@ -129,7 +140,7 @@ namespace ysonet.Generators
         public object Serialize(object payloadObj, string formatter, InputArgs inputArgs)
         {
             MemoryStream stream = new MemoryStream();
-          
+
             if (formatter.ToLower().Equals("binaryformatter"))
             {
                 BinaryFormatter fmt = new BinaryFormatter();
@@ -143,8 +154,8 @@ namespace ysonet.Generators
                 {
                     fmt.Serialize(stream, payloadObj);
                 }
-                
-                
+
+
                 if (inputArgs.Test)
                 {
                     try
@@ -153,8 +164,9 @@ namespace ysonet.Generators
                         if (serializationBinder != null)
                             fmt.Binder = serializationBinder;
                         fmt.Deserialize(stream);
-                    } 
-                    catch(Exception err){
+                    }
+                    catch (Exception err)
+                    {
                         Debugging.ShowErrors(inputArgs, err);
                     }
                 }
@@ -261,7 +273,7 @@ namespace ysonet.Generators
                 {
                     lf.Serialize(stream, payloadObj);
                 }
-                
+
                 if (inputArgs.Test)
                 {
                     try
@@ -282,6 +294,6 @@ namespace ysonet.Generators
             }
         }
 
-        
+
     }
 }

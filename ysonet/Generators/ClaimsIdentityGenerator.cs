@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using ysonet.Helpers;
 using System.IO;
+using ysonet.Helpers;
 using ysonet.Helpers.ModifiedVulnerableBinaryFormatters;
 
 namespace ysonet.Generators
@@ -14,11 +14,6 @@ namespace ysonet.Generators
             return new List<string> { "BinaryFormatter", "SoapFormatter", "LosFormatter" };
         }
 
-        public override string Name()
-        {
-            return "ClaimsIdentity";
-        }
-
         public override string Finders()
         {
             return "Soroush Dalili";
@@ -26,7 +21,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived, "OnDeserialized" };
+            return new List<string> { GadgetTags.Bridged, GadgetTags.OnDeserialized };
         }
 
         public override string SupportedBridgedFormatter()
@@ -47,7 +42,7 @@ namespace ysonet.Generators
                 IGenerator generator = new TextFormattingRunPropertiesGenerator();
                 binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs);
             }
- 
+
             var b64encoded = Convert.ToBase64String(binaryFormatterPayload);
 
             if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase)

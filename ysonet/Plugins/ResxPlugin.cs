@@ -1,11 +1,11 @@
-﻿using System.Collections.Generic;
-using NDesk.Options;
+﻿using NDesk.Options;
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Resources;
 using ysonet.Generators;
 using ysonet.Helpers;
-using System.Linq;
-using System.IO;
-using System.Resources;
 
 /**
  * Author: Soroush Dalili (@irsdl)
@@ -219,7 +219,7 @@ namespace ysonet.Plugins
                             if (mode.ToLower() == "binaryformatter")
                             {
                                 mtype = @"mimetype=""application/x-microsoft.net.object.binary.base64""";
-                                
+
                                 payloadValue = Convert.ToBase64String(bfPayload);
                             }
                             else
@@ -238,7 +238,7 @@ namespace ysonet.Plugins
                                 payloadValue = "The Resources output file has been written: " + outputfile;
                                 payload = "The Resources output file has been written: " + outputfile;
                             }
-                            
+
                         }
                         else
                         {
@@ -247,7 +247,7 @@ namespace ysonet.Plugins
                         }
 
 
-                        
+
 
                     }
                     break;
@@ -255,7 +255,7 @@ namespace ysonet.Plugins
                     mtype = @"mimetype=""text/microsoft-urt/soap-serialized/base64""";
                     if (!String.IsNullOrWhiteSpace(inputArgs.CmdFullString))
                     {
-                        byte[] osf = (byte[]) new ActivitySurrogateSelectorFromFileGenerator().GenerateWithNoTest("SoapFormatter", inputArgs);
+                        byte[] osf = (byte[])new ActivitySurrogateSelectorFromFileGenerator().GenerateWithNoTest("SoapFormatter", inputArgs);
                         payloadValue = Convert.ToBase64String(osf);
                     }
                     else
@@ -304,7 +304,7 @@ namespace ysonet.Plugins
                 }
                 catch { }
             }
-            
+
             return payload;
         }
     }

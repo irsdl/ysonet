@@ -1,10 +1,6 @@
 ﻿using NDesk.Options;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
-using System.Security.Principal;
-using System.Windows.Markup;
 using ysonet.Helpers;
 
 namespace ysonet.Generators
@@ -29,12 +25,7 @@ namespace ysonet.Generators
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "Json.NET"}; // MessagePack should work too
-        }
-
-        public override string Name()
-        {
-            return "GetterCompilerResults";
+            return new List<string> { "Json.NET" }; // MessagePack should work too
         }
 
         public override string Finders()
@@ -62,12 +53,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.GetterChainNotDerived, "Remote DLL loading for .NET 5/6/7 with WPF Enabled, Local DLL loading for .NET Framework if System.CodeDom is available" };
-        }
-
-        public override string SupportedBridgedFormatter()
-        {
-            return Formatters.BinaryFormatter;
+            return new List<string> { GadgetTags.GetterChain, GadgetTags.Independent, "Remote DLL loading for .NET 5/6/7 with WPF Enabled, Local DLL loading for .NET Framework if System.CodeDom is available" };
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)

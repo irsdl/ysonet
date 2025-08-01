@@ -1,9 +1,9 @@
-﻿using System;
+﻿using Microsoft.IdentityModel.Claims;
+using NDesk.Options;
+using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
-using Microsoft.IdentityModel.Claims;
 using ysonet.Helpers;
-using NDesk.Options;
 
 namespace ysonet.Generators
 {
@@ -33,11 +33,6 @@ namespace ysonet.Generators
             return new List<string> { "BinaryFormatter (3)", "Json.NET (2)", "DataContractSerializer (2)", "NetDataContractSerializer (3)", "SoapFormatter (2)", "LosFormatter (3)" };
         }
 
-        public override string Name()
-        {
-            return "WindowsClaimsIdentity";
-        }
-
         public override string Finders()
         {
             return "Soroush Dalili";
@@ -45,7 +40,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived , "Not in GAC"};
+            return new List<string> { GadgetTags.Bridged, GadgetTags.NotInGAC };
         }
 
         public override string SupportedBridgedFormatter()
@@ -85,13 +80,13 @@ namespace ysonet.Generators
                 {
                     obj = new WindowsClaimsIdentityMarshal_var1(b64encoded);
                 }
-                 
+
                 return Serialize(obj, formatter, inputArgs);
             }
             else if (formatter.ToLower().Equals("json.net"))
             {
                 string payload = "";
-                
+
 
                 if (variant_number == 2)
                 {
@@ -110,7 +105,7 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    
+
                     if (inputArgs.UseSimpleType)
                     {
                         payload = JsonHelper.Minify(payload, new string[] { "Microsoft.IdentityModel" }, null);
@@ -184,7 +179,7 @@ namespace ysonet.Generators
             }
             else if (formatter.ToLower().Equals("netdatacontractserializer"))
             {
-                
+
                 string payload = "";
                 if (variant_number == 2)
                 {

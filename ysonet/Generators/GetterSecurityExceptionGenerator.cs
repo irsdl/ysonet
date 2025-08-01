@@ -1,10 +1,6 @@
 ﻿using NDesk.Options;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
-using System.Security.Principal;
-using System.Windows.Markup;
 using ysonet.Helpers;
 
 namespace ysonet.Generators
@@ -25,12 +21,7 @@ namespace ysonet.Generators
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "Json.NET" }; 
-        }
-
-        public override string Name()
-        {
-            return "GetterSecurityException";
+            return new List<string> { "Json.NET" };
         }
 
         public override string Finders()
@@ -53,7 +44,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.GetterChainAndDerived };
+            return new List<string> { GadgetTags.Bridged, GadgetTags.GetterChain };
         }
 
         public override string SupportedBridgedFormatter()

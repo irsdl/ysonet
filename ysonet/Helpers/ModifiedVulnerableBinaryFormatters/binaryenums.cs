@@ -13,13 +13,10 @@
  **
  ===========================================================*/
 
- // internal -> public
+// internal -> public
 
 namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 {
-    using System.Runtime.Serialization.Formatters;
-    using System.Runtime.Remoting;
-    using System.Runtime.Serialization;
     using System;
     // BinaryHeaderEnum is the first byte on binary records
     // (except for primitive types which do not have a header)
@@ -59,7 +56,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
     {
         Primitive = 0,
         String = 1,
-        Object = 2,    
+        Object = 2,
         ObjectUrt = 3,
         ObjectUser = 4,
         ObjectArray = 5,
@@ -75,7 +72,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         Rectangular = 2,
         SingleOffset = 3,
         JaggedOffset = 4,
-        RectangularOffset = 5,        
+        RectangularOffset = 5,
     }
 
     // Enums are for internal use by the XML and Binary Serializers
@@ -203,8 +200,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         String = 18,
     }
 
-[Serializable]
-[Flags]
+    [Serializable]
+    [Flags]
     public enum MessageEnum
     {
         NoArgs = 0x1,

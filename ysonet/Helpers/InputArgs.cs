@@ -23,7 +23,7 @@ namespace ysonet.Helpers
         private List<String> _extraArguments = new List<string>();
         private List<String> _extraInternalArguments = new List<string>(); // This is used as ExtraArguments when calling GenerateWithNoTest to stop passing unwanted extra options 
 
-        public InputArgs(){}
+        public InputArgs() { }
 
         public InputArgs(string cmd, bool rawcmd, bool test, bool minify, bool useSimpleType, bool isDebugMode, List<String> extraArguments)
         {
@@ -33,7 +33,7 @@ namespace ysonet.Helpers
             this.Minify = minify;
             this.UseSimpleType = useSimpleType;
             this.IsDebugMode = isDebugMode;
-            if(extraArguments != null)
+            if (extraArguments != null)
                 this.ExtraArguments = extraArguments;
         }
 
@@ -42,7 +42,7 @@ namespace ysonet.Helpers
             get
             {
                 string tempFullCmd;
-                
+
                 if (IsRawCmd)
                 {
                     tempFullCmd = this.Cmd;
@@ -83,7 +83,7 @@ namespace ysonet.Helpers
                 {
                     return "";
                 }
-                
+
             }
 
             private set
@@ -104,7 +104,7 @@ namespace ysonet.Helpers
                 {
                     return "";
                 }
-                
+
             }
 
             private set
@@ -228,7 +228,7 @@ namespace ysonet.Helpers
                 {
                     return false;
                 }
-                    
+
             }
 
             private set

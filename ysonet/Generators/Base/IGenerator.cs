@@ -27,17 +27,19 @@ namespace ysonet.Generators
         void Init(InputArgs inputArgs);
     }
 
-    // Discussion here: https://github.com/pwntester/ysonet.net/pull/57#discussion_r381159793
-    public static class GadgetTypes
+    public static class GadgetTags
     {
         public const string
-        NotBridgeNotDerived = "Not bridge or derived",
-        NotBridgeButDervied = "Not bridge but derived", // Bridge has dervied meaning in it too
-        BridgeAndDerived = "Bridge and derived",
-        GetterChainAndDerived = "Chain of arbitrary getter call and derived gadget",
-        GetterChainNotDerived = "Chain of arbitrary getter call and not derived gadget",
-        Dummy = "It relies on other gadgets and is not a real gadget on its own (not bridged or derived either)", // We hide these in normal help as they are only valuable for research purposes - example is ResourceSet
-        None = "";
+            Independent = "An independent gadget", // This is when removing other gadgets from the project does not affect this gadget
+            Bridged = "A bridged gadget", // This is when the gadget relies on another gadget to work and can accept a bridged payload
+            Subclass = "Subclass of another gadget", // This can be as a result of inheritance
+            Variant = "Variant of another gadget", // We should really have the variants inside the gadget itself, but this is a workaround for now
+            GetterChain = "Chain of arbitrary getter call",
+            OnDeserialized = "Uses OnDeserialized attribute",
+            SecondOrderDeserialization = "Second order deserialization",
+            NotInGAC = "Not in GAC", // This is when the gadget is not in GAC
+            Hidden = "Valuable for especial cases or research purposes but hidden from normal search",
+            None = "";
     }
 
     public static class Formatters

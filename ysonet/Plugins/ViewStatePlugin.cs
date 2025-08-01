@@ -1,6 +1,5 @@
 using NDesk.Options;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Globalization;
@@ -10,7 +9,6 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web.Configuration;
-using System.Web.UI;
 using ysonet.Generators;
 using ysonet.Helpers;
 
@@ -63,7 +61,7 @@ namespace ysonet.Plugins
         string formatter = "losformatter";
         string payloadString = "";
         string shortestViewStateString = "/wEPZGQ="; // not in use at the moment but good to know!!!
-        string dryRunViewStateString = "/wEPDwUKMDAwMDAwMDAwMGRk"; 
+        string dryRunViewStateString = "/wEPDwUKMDAwMDAwMDAwMGRk";
 
         static OptionSet options = new OptionSet()
         {
@@ -270,9 +268,11 @@ namespace ysonet.Plugins
             decryptionAlg = decryptionAlg.ToUpper(); // Except for Auto?
             validationAlg = validationAlg.ToUpper(); // Except for TripleDES and Custom
 
-            if (validationAlg.Equals("TRIPLEDES")) { 
+            if (validationAlg.Equals("TRIPLEDES"))
+            {
                 validationAlg = "TripleDES";
-            }else if (validationAlg.Equals("CUSTOM"))
+            }
+            else if (validationAlg.Equals("CUSTOM"))
             {
                 validationAlg = "Custom";
             }
@@ -307,8 +307,9 @@ namespace ysonet.Plugins
                 currentViewStateBytes = System.Convert.FromBase64String(currentViewStateStr);
             }
 
-            if (string.IsNullOrWhiteSpace(validationAlg)) { 
-                if(isLegacy)
+            if (string.IsNullOrWhiteSpace(validationAlg))
+            {
+                if (isLegacy)
                     validationAlg = "SHA1";
                 else
                     validationAlg = "HMACSHA256";
@@ -318,7 +319,7 @@ namespace ysonet.Plugins
             {
                 Console.WriteLine("Validation Algorithm: " + validationAlg);
                 Console.WriteLine("Validation Key: " + validationKey);
-                if(!string.IsNullOrEmpty(decryptionKey))
+                if (!string.IsNullOrEmpty(decryptionKey))
                 {
                     Console.WriteLine("Decryption Algorithm: " + decryptionAlg);
                     Console.WriteLine("Decryption Key: " + decryptionKey);
@@ -410,7 +411,7 @@ namespace ysonet.Plugins
             {
                 throw new ArgumentNullException("macEncodingKey should not be null! If it is null, just use LosFormatter!");
             }
-            
+
             // Not used in legacy when MAC encoding key is used with ObjectStateFormatter
             //var _purposeStr = "User.ObjectStateFormatter.Serialize";
 
@@ -441,9 +442,9 @@ namespace ysonet.Plugins
                 // This is where the path is important
                 var stsd = SimulateTemplateSourceDirectory(targetPagePath, pathIsClassName);
                 var sgtn = SimulateGetTypeName(targetPagePath, IISAppInPath, pathIsClassName);
-                int pageHashCodeTemp = (int)nonRandomizedHashCodeMethod.Invoke(null, new object[] { stsd , true });
+                int pageHashCodeTemp = (int)nonRandomizedHashCodeMethod.Invoke(null, new object[] { stsd, true });
                 pageHashCodeTemp += (int)nonRandomizedHashCodeMethod.Invoke(null, new object[] { sgtn, true });
-                
+
                 pageHashCode = (uint)pageHashCodeTemp;
 
                 if (isDebug)
@@ -534,7 +535,7 @@ namespace ysonet.Plugins
                 }
             }
 
-            
+
 
             string outputBase64 = System.Convert.ToBase64String(byteResult);
             return outputBase64;

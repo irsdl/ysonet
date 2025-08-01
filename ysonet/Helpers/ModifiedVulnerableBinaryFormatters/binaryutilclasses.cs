@@ -21,25 +21,21 @@
 namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 {
     using System;
-    using System.Collections;
-    using System.Reflection;
-    using System.Text;
-    using System.Globalization;
-    using System.Runtime.Serialization.Formatters;
-    using System.Runtime.Remoting;
-    using System.Runtime.Remoting.Messaging;
-    using System.Runtime.InteropServices;
-    using System.Runtime.Serialization;
     using System.Diagnostics;
+    using System.Globalization;
+    using System.Reflection;
+    using System.Runtime.Remoting.Messaging;
+    using System.Runtime.Serialization;
+    using System.Runtime.Serialization.Formatters;
 
     // The ParseRecord class holds the parsed XML information. There is a
     // ParsedRecord for each XML Element
-    public sealed class ParseRecord 
+    public sealed class ParseRecord
 #if _DEBUG
                                         : ITrace
-#endif                                        
+#endif
     {
-// disable csharp compiler warning #0414: field assigned unused value
+        // disable csharp compiler warning #0414: field assigned unused value
 #pragma warning disable 0414
         internal static int parseRecordIdCount = 1;
 
@@ -65,7 +61,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         internal String PRkeyDt;
         internal Type PRdtType;
         internal InternalPrimitiveTypeE PRdtTypeCode;
-// disable csharp compiler warning #0414: field assigned unused value
+        // disable csharp compiler warning #0414: field assigned unused value
 #pragma warning disable 0414
         internal bool PRisVariant = false; // Used by Binary
         internal bool PRisEnum = false;
@@ -88,7 +84,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         // Parsed array information
         internal int PRrank;
         internal int[] PRlengthA;
-// disable csharp compiler warning #0414: field assigned unused value
+        // disable csharp compiler warning #0414: field assigned unused value
 #pragma warning disable 0414
         internal int[] PRpositionA;
         internal int[] PRlowerBoundA;
@@ -100,10 +96,10 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         internal int PRmemberIndex;
         internal int PRlinearlength;
         internal int[] PRrectangularMap;
-        internal bool   PRisLowerBound;
+        internal bool PRisLowerBound;
 
         // SerializedStreamHeader information
-// disable csharp compiler warning #0414: field assigned unused value
+        // disable csharp compiler warning #0414: field assigned unused value
 #pragma warning disable 0414
         internal long PRtopId;
         internal long PRheaderId;
@@ -123,7 +119,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         internal PrimitiveArray PRprimitiveArray; // for Primitive Soap arrays, optimization
         internal bool PRisRegistered; // Used when registering nested classes
         internal Object[] PRmemberData; // member data is collected here before populating
-        internal SerializationInfo  PRsi;
+        internal SerializationInfo PRsi;
 
         internal int PRnullCount; // Count of consecutive nulls within an array
 
@@ -270,7 +266,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         internal Object[] objects = new Object[5];
         internal String stackId;
         internal int top = -1;
-// disable csharp compiler warning #0414: field assigned unused value
+        // disable csharp compiler warning #0414: field assigned unused value
 #pragma warning disable 0414
         internal int next = 0;
 #pragma warning restore 0414
@@ -280,16 +276,18 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             stackId = "System";
         }
 
-        internal SerStack(String stackId) {
+        internal SerStack(String stackId)
+        {
             this.stackId = stackId;
         }
 
         // Push the object onto the stack
-        internal void Push(Object obj) {
+        internal void Push(Object obj)
+        {
 #if _DEBUG        
             SerTrace.Log(this, "Push ",stackId," ",((obj is ITrace)?((ITrace)obj).Trace():""));
 #endif
-            if (top == (objects.Length -1))
+            if (top == (objects.Length - 1))
             {
                 IncreaseCapacity();
             }
@@ -297,7 +295,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         }
 
         // Pop the object from the stack
-        internal Object Pop() {
+        internal Object Pop()
+        {
             if (top < 0)
                 return null;
 
@@ -309,7 +308,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             return obj;
         }
 
-        internal void IncreaseCapacity() {
+        internal void IncreaseCapacity()
+        {
             int size = objects.Length * 2;
             Object[] newItems = new Object[size];
             Array.Copy(objects, 0, newItems, 0, objects.Length);
@@ -317,7 +317,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         }
 
         // Gets the object on the top of the stack
-        internal Object Peek() {
+        internal Object Peek()
+        {
             if (top < 0)
                 return null;
 #if _DEBUG        
@@ -327,7 +328,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         }
 
         // Gets the second entry in the stack.
-        internal Object PeekPeek() {
+        internal Object PeekPeek()
+        {
             if (top < 1)
                 return null;
 #if _DEBUG            
@@ -337,12 +339,14 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         }
 
         // The number of entries in the stack
-        internal int Count() {
+        internal int Count()
+        {
             return top + 1;
         }
 
         // The number of entries in the stack
-        internal bool IsEmpty() {
+        internal bool IsEmpty()
+        {
             if (top > 0)
                 return false;
             else
@@ -352,7 +356,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         [Conditional("SER_LOGGING")]
         internal void Dump()
         {
-            for (int i=0; i<Count(); i++)
+            for (int i = 0; i < Count(); i++)
             {
                 Object obj = objects[i];
 #if _DEBUG                
@@ -417,7 +421,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             {
                 if (index < 0)
                 {
-                    if (-index > negObjects.Length-1 )
+                    if (-index > negObjects.Length - 1)
                     {
                         IncreaseCapacity(index);
                     }
@@ -426,7 +430,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 }
                 else
                 {
-                    if (index > objects.Length-1 )
+                    if (index > objects.Length - 1)
                     {
                         IncreaseCapacity(index);
                     }
@@ -445,14 +449,14 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             {
                 if (index < 0)
                 {
-                    int size = Math.Max(negObjects.Length * 2, (-index)+1);
+                    int size = Math.Max(negObjects.Length * 2, (-index) + 1);
                     Object[] newItems = new Object[size];
                     Array.Copy(negObjects, 0, newItems, 0, negObjects.Length);
                     negObjects = newItems;
                 }
                 else
                 {
-                    int size = Math.Max(objects.Length * 2, index+1);
+                    int size = Math.Max(objects.Length * 2, index + 1);
                     Object[] newItems = new Object[size];
                     Array.Copy(objects, 0, newItems, 0, objects.Length);
                     objects = newItems;
@@ -496,13 +500,13 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             {
                 if (index < 0)
                 {
-                    if (-index > negObjects.Length-1 )
+                    if (-index > negObjects.Length - 1)
                         return 0;
                     return negObjects[-index];
                 }
                 else
                 {
-                    if (index > objects.Length-1 )
+                    if (index > objects.Length - 1)
                         return 0;
                     return objects[index];
                 }
@@ -511,7 +515,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             {
                 if (index < 0)
                 {
-                    if (-index > negObjects.Length-1 )
+                    if (-index > negObjects.Length - 1)
                     {
                         IncreaseCapacity(index);
                     }
@@ -520,7 +524,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 }
                 else
                 {
-                    if (index > objects.Length-1 )
+                    if (index > objects.Length - 1)
                     {
                         IncreaseCapacity(index);
                     }
@@ -535,14 +539,14 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             {
                 if (index < 0)
                 {
-                    int size = Math.Max(negObjects.Length * 2, (-index)+1);
+                    int size = Math.Max(negObjects.Length * 2, (-index) + 1);
                     int[] newItems = new int[size];
                     Array.Copy(negObjects, 0, newItems, 0, negObjects.Length);
                     negObjects = newItems;
                 }
                 else
                 {
-                    int size = Math.Max(objects.Length * 2, index+1);
+                    int size = Math.Max(objects.Length * 2, index + 1);
                     int[] newItems = new int[size];
                     Array.Copy(objects, 0, newItems, 0, objects.Length);
                     objects = newItems;
@@ -684,25 +688,26 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         }
 
         [System.Security.SecurityCritical]  // auto-generated
-        internal void Fixup(ParseRecord record, ParseRecord parent) {
+        internal void Fixup(ParseRecord record, ParseRecord parent)
+        {
             Object obj = record.PRnewObj;
 #if _DEBUG
             SerTrace.Log(this, "Fixup ",obj," ",((Enum)valueFixupEnum).ToString());
 #endif
             switch (valueFixupEnum)
             {
-            case ValueFixupEnum.Array:
-                arrayObj.SetValue(obj, indexMap);
-                break;
-            case ValueFixupEnum.Header:
-                Type type = typeof(Header);
-                if (valueInfo == null)
-                {
-                    MemberInfo[] valueInfos = type.GetMember("Value");
-                    if (valueInfos.Length != 1)
-                        throw new SerializationException(Environment.GetResourceString("Serialization_HeaderReflection",valueInfos.Length));
-                    valueInfo = valueInfos[0];
-                }
+                case ValueFixupEnum.Array:
+                    arrayObj.SetValue(obj, indexMap);
+                    break;
+                case ValueFixupEnum.Header:
+                    Type type = typeof(Header);
+                    if (valueInfo == null)
+                    {
+                        MemberInfo[] valueInfos = type.GetMember("Value");
+                        if (valueInfos.Length != 1)
+                            throw new SerializationException(Environment.GetResourceString("Serialization_HeaderReflection", valueInfos.Length));
+                        valueInfo = valueInfos[0];
+                    }
 
                     Assembly mscorlibAsm = Assembly.Load("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
                     var FormatterServicesRef = mscorlibAsm.GetType("System.Runtime.Serialization.FormatterServices");
@@ -710,30 +715,30 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                     serializationSetValue.Invoke(null, new object[] { valueInfo, header, obj });
 
                     //FormatterServices.SerializationSetValue(valueInfo, header, obj);
-                break;
-            case ValueFixupEnum.Member:
-                SerTrace.Log(this, "Fixup Member new object value ",obj," memberObject ",memberObject);
+                    break;
+                case ValueFixupEnum.Member:
+                    SerTrace.Log(this, "Fixup Member new object value ", obj, " memberObject ", memberObject);
 
-                if (objectInfo.isSi)
-                {
-                    /*SerTrace.Log(this, "Recording a fixup on member: ", memberName,
-                                 " in object id", parent.PRobjectId, " Required Object ", record.PRobjectId);*/
-                    objectInfo.objectManager.RecordDelayedFixup(parent.PRobjectId, memberName, record.PRobjectId);
-//                          Console.WriteLine("SerializationInfo: Main Object ({0}): {1}. SubObject ({2}): {3}", parent.PRobjectId,
-//                                            objectInfo.obj, record.PRobjectId, obj);
-                }
-                else
-                {
-                    MemberInfo memberInfo = objectInfo.GetMemberInfo(memberName);
-                    /*SerTrace.Log(this, "Recording a fixup on member:", memberInfo, " in object id ",
-                                 parent.PRobjectId," Required Object", record.PRobjectId);*/
-                    if (memberInfo != null)
-                        objectInfo.objectManager.RecordFixup(parent.PRobjectId, memberInfo, record.PRobjectId);
-//                          Console.WriteLine("MemberFixup: Main Object({0}): {1}. SubObject({2}): {3}", parent.PRobjectId,
-//                                            objectInfo.obj.GetType(), record.PRobjectId, obj.GetType());
+                    if (objectInfo.isSi)
+                    {
+                        /*SerTrace.Log(this, "Recording a fixup on member: ", memberName,
+                                     " in object id", parent.PRobjectId, " Required Object ", record.PRobjectId);*/
+                        objectInfo.objectManager.RecordDelayedFixup(parent.PRobjectId, memberName, record.PRobjectId);
+                        //                          Console.WriteLine("SerializationInfo: Main Object ({0}): {1}. SubObject ({2}): {3}", parent.PRobjectId,
+                        //                                            objectInfo.obj, record.PRobjectId, obj);
+                    }
+                    else
+                    {
+                        MemberInfo memberInfo = objectInfo.GetMemberInfo(memberName);
+                        /*SerTrace.Log(this, "Recording a fixup on member:", memberInfo, " in object id ",
+                                     parent.PRobjectId," Required Object", record.PRobjectId);*/
+                        if (memberInfo != null)
+                            objectInfo.objectManager.RecordFixup(parent.PRobjectId, memberInfo, record.PRobjectId);
+                        //                          Console.WriteLine("MemberFixup: Main Object({0}): {1}. SubObject({2}): {3}", parent.PRobjectId,
+                        //                                            objectInfo.obj.GetType(), record.PRobjectId, obj.GetType());
 
-                }
-                break;
+                    }
+                    break;
             }
         }
 
@@ -750,7 +755,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
     {
         internal FormatterTypeStyle FEtypeFormat;
         internal FormatterAssemblyStyle FEassemblyFormat;
-        internal TypeFilterLevel FEsecurityLevel;        
+        internal TypeFilterLevel FEsecurityLevel;
         internal InternalSerializerTypeE FEserializerTypeEnum;
     }
 
@@ -813,7 +818,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         private bool NIsealedStatusChecked = false;
         public bool IsSealed
         {
-            get {
+            get
+            {
                 if (!NIsealedStatusChecked)
                 {
                     NIisSealed = NItype.IsSealed;
@@ -825,13 +831,15 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
         public String NIname
         {
-            get {
+            get
+            {
                 if (this.NIFullName == null)
                     this.NIFullName = NItype.FullName;
 
                 return this.NIFullName;
             }
-            set {
+            set
+            {
 
                 this.NIFullName = value;
             }
@@ -864,82 +872,82 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             this.code = code;
             switch (code)
             {
-            case InternalPrimitiveTypeE.Boolean:
-                booleanA = (Boolean[])array;
-                break;
-            case InternalPrimitiveTypeE.Char:
-                charA = (Char[])array;
-                break;
-            case InternalPrimitiveTypeE.Double:
-                doubleA = (Double[])array;
-                break;
-            case InternalPrimitiveTypeE.Int16:
-                int16A = (Int16[])array;
-                break;
-            case InternalPrimitiveTypeE.Int32:
-                int32A = (Int32[])array;
-                break;
-            case InternalPrimitiveTypeE.Int64:
-                int64A = (Int64[])array;
-                break;
-            case InternalPrimitiveTypeE.SByte:
-                sbyteA = (SByte[])array;
-                break;
-            case InternalPrimitiveTypeE.Single:
-                singleA = (Single[])array;
-                break;
-            case InternalPrimitiveTypeE.UInt16:
-                uint16A = (UInt16[])array;
-                break;
-            case InternalPrimitiveTypeE.UInt32:
-                uint32A = (UInt32[])array;
-                break;
-            case InternalPrimitiveTypeE.UInt64:
-                uint64A = (UInt64[])array;
-                break;
+                case InternalPrimitiveTypeE.Boolean:
+                    booleanA = (Boolean[])array;
+                    break;
+                case InternalPrimitiveTypeE.Char:
+                    charA = (Char[])array;
+                    break;
+                case InternalPrimitiveTypeE.Double:
+                    doubleA = (Double[])array;
+                    break;
+                case InternalPrimitiveTypeE.Int16:
+                    int16A = (Int16[])array;
+                    break;
+                case InternalPrimitiveTypeE.Int32:
+                    int32A = (Int32[])array;
+                    break;
+                case InternalPrimitiveTypeE.Int64:
+                    int64A = (Int64[])array;
+                    break;
+                case InternalPrimitiveTypeE.SByte:
+                    sbyteA = (SByte[])array;
+                    break;
+                case InternalPrimitiveTypeE.Single:
+                    singleA = (Single[])array;
+                    break;
+                case InternalPrimitiveTypeE.UInt16:
+                    uint16A = (UInt16[])array;
+                    break;
+                case InternalPrimitiveTypeE.UInt32:
+                    uint32A = (UInt32[])array;
+                    break;
+                case InternalPrimitiveTypeE.UInt64:
+                    uint64A = (UInt64[])array;
+                    break;
             }
         }
-        
+
         internal void SetValue(String value, int index)
         {
             switch (code)
             {
-            case InternalPrimitiveTypeE.Boolean:
-                booleanA[index] = Boolean.Parse(value);
-                break;
-            case InternalPrimitiveTypeE.Char:
-                if ((value[0] == '_') && (value.Equals("_0x00_")))
-                    charA[index] = Char.MinValue;
-                else
-                    charA[index] = Char.Parse(value);
-                break;
-            case InternalPrimitiveTypeE.Double:
-                doubleA[index] = Double.Parse(value, CultureInfo.InvariantCulture);
-                break;
-            case InternalPrimitiveTypeE.Int16:
-                int16A[index] = Int16.Parse(value, CultureInfo.InvariantCulture);
-                break;
-            case InternalPrimitiveTypeE.Int32:
-                int32A[index] = Int32.Parse(value, CultureInfo.InvariantCulture);
-                break;
-            case InternalPrimitiveTypeE.Int64:
-                int64A[index] = Int64.Parse(value, CultureInfo.InvariantCulture);
-                break;
-            case InternalPrimitiveTypeE.SByte:
-                sbyteA[index] = SByte.Parse(value, CultureInfo.InvariantCulture);
-                break;
-            case InternalPrimitiveTypeE.Single:
-                singleA[index] = Single.Parse(value, CultureInfo.InvariantCulture);
-                break;
-            case InternalPrimitiveTypeE.UInt16:
-                uint16A[index] = UInt16.Parse(value, CultureInfo.InvariantCulture);
-                break;
-            case InternalPrimitiveTypeE.UInt32:
-                uint32A[index] = UInt32.Parse(value, CultureInfo.InvariantCulture);
-                break;
-            case InternalPrimitiveTypeE.UInt64:
-                uint64A[index] = UInt64.Parse(value, CultureInfo.InvariantCulture);
-                break;
+                case InternalPrimitiveTypeE.Boolean:
+                    booleanA[index] = Boolean.Parse(value);
+                    break;
+                case InternalPrimitiveTypeE.Char:
+                    if ((value[0] == '_') && (value.Equals("_0x00_")))
+                        charA[index] = Char.MinValue;
+                    else
+                        charA[index] = Char.Parse(value);
+                    break;
+                case InternalPrimitiveTypeE.Double:
+                    doubleA[index] = Double.Parse(value, CultureInfo.InvariantCulture);
+                    break;
+                case InternalPrimitiveTypeE.Int16:
+                    int16A[index] = Int16.Parse(value, CultureInfo.InvariantCulture);
+                    break;
+                case InternalPrimitiveTypeE.Int32:
+                    int32A[index] = Int32.Parse(value, CultureInfo.InvariantCulture);
+                    break;
+                case InternalPrimitiveTypeE.Int64:
+                    int64A[index] = Int64.Parse(value, CultureInfo.InvariantCulture);
+                    break;
+                case InternalPrimitiveTypeE.SByte:
+                    sbyteA[index] = SByte.Parse(value, CultureInfo.InvariantCulture);
+                    break;
+                case InternalPrimitiveTypeE.Single:
+                    singleA[index] = Single.Parse(value, CultureInfo.InvariantCulture);
+                    break;
+                case InternalPrimitiveTypeE.UInt16:
+                    uint16A[index] = UInt16.Parse(value, CultureInfo.InvariantCulture);
+                    break;
+                case InternalPrimitiveTypeE.UInt32:
+                    uint32A[index] = UInt32.Parse(value, CultureInfo.InvariantCulture);
+                    break;
+                case InternalPrimitiveTypeE.UInt64:
+                    uint64A[index] = UInt64.Parse(value, CultureInfo.InvariantCulture);
+                    break;
             }
         }
     }

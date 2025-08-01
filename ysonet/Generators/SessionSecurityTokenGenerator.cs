@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens;
 using System.IO;
 using System.Runtime.Serialization;
+using System.Text.RegularExpressions;
 using System.Xml;
 using ysonet.Helpers;
-using System.IdentityModel.Tokens;
-using System.Text.RegularExpressions;
 
 namespace ysonet.Generators
 {
@@ -18,11 +18,6 @@ namespace ysonet.Generators
             return new List<string> { "BinaryFormatter", "Json.NET", "DataContractSerializer", "NetDataContractSerializer", "SoapFormatter", "LosFormatter" };
         }
 
-        public override string Name()
-        {
-            return "SessionSecurityToken";
-        }
-
         public override string Finders()
         {
             return "@mufinnnnnnn, Soroush Dalili";
@@ -32,10 +27,10 @@ namespace ysonet.Generators
         {
             return "Soroush Dalili";
         }
-        
+
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived };
+            return new List<string> { GadgetTags.Bridged };
         }
 
         public override string SupportedBridgedFormatter()

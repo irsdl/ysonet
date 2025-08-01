@@ -12,11 +12,6 @@ namespace ysonet.Generators
             return new List<string> { "BinaryFormatter", "Json.NET", "DataContractSerializer", "NetDataContractSerializer", "SoapFormatter", "LosFormatter" };
         }
 
-        public override string Name()
-        {
-            return "RolePrincipal";
-        }
-
         public override string Finders()
         {
             return "Soroush Dalili";
@@ -24,7 +19,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived };
+            return new List<string> { GadgetTags.Bridged };
         }
 
         public override string SupportedBridgedFormatter()
@@ -46,9 +41,9 @@ namespace ysonet.Generators
             }
 
             string b64encoded = Convert.ToBase64String(binaryFormatterPayload);
-            
+
             var payloadClaimsPrincipalMarshal = new RolePrincipalMarshal(b64encoded);
-            
+
             if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase)
                 || formatter.Equals("losformatter", StringComparison.OrdinalIgnoreCase)
                 || formatter.Equals("SoapFormatter", StringComparison.OrdinalIgnoreCase))
@@ -123,13 +118,13 @@ namespace ysonet.Generators
             }
             else if (formatter.ToLower().Equals("netdatacontractserializer"))
             {
-                
+
 
                 string utfString = System.Text.Encoding.UTF8.GetString((byte[])SerializeWithNoTest(payloadClaimsPrincipalMarshal, formatter, inputArgs));
 
                 string payload = SerializersHelper.NetDataContractSerializer_Marshal_2_MainType(utfString);
-                
-                
+
+
                 if (inputArgs.Minify)
                 {
                     if (inputArgs.UseSimpleType)

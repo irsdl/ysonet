@@ -1,8 +1,8 @@
 ﻿using System;
-using System.IO;
 using System.Collections.Generic;
-using System.Runtime.Serialization.Formatters;
+using System.IO;
 using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters;
 using System.Text;
 
 namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
@@ -120,7 +120,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             bytes.Add((byte)num);
             return bytes.ToArray();
         }
-        
+
         public static byte[] Create7bitLengthObjectString(string strInput)
         {
             byte[] size = Calculate7BitEncodedInt(strInput.Length);

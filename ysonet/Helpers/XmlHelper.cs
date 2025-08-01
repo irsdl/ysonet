@@ -47,7 +47,8 @@ namespace ysonet.Helpers
             if (formatterType.Equals(FormatterType.SoapFormatter))
             {
                 xmlDocument = SoapRefIdMinifier(xmlDocument);
-            }else if (formatterType.Equals(FormatterType.NetDataContractXML))
+            }
+            else if (formatterType.Equals(FormatterType.NetDataContractXML))
             {
                 xmlDocument = NetDataContractorIdMinifier(xmlDocument);
             }
@@ -79,7 +80,7 @@ namespace ysonet.Helpers
                 if (isNotInternalRegEx.IsMatch(xmlDocument))
                 {
                     GroupCollection groups = match.Groups;
-                    String namespaceValue = groups[2].Value; 
+                    String namespaceValue = groups[2].Value;
                     if (Uri.UnescapeDataString(namespaceValue) != namespaceValue)
                     {
                         // URL decoding name spaces
@@ -182,10 +183,11 @@ namespace ysonet.Helpers
             // clr-namespace:System.Diagnostics; assembly=system
             // {         x:Type      Diag:Process   }
             // Int32 Compare(System.String, System.String)
-            xmlDocument = Regex.Replace(xmlDocument, @"([a-zA-Z0-9\.\-\:=_\s]+[;,]\s*)+([a-zA-Z0-9\.\-\:=_\s]+)[""'\]\<]", delegate (Match m) {
+            xmlDocument = Regex.Replace(xmlDocument, @"([a-zA-Z0-9\.\-\:=_\s]+[;,]\s*)+([a-zA-Z0-9\.\-\:=_\s]+)[""'\]\<]", delegate (Match m)
+            {
                 // we do not want to remove spaces when two alphanumeric strings are next to each other
                 String finalVal = m.Value;
-                finalVal= Regex.Replace(finalVal, @"([^\w])[\s]+([\w])", "$1$2");
+                finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([\w])", "$1$2");
                 finalVal = Regex.Replace(finalVal, @"([\w])[\s]+([^\w])", "$1$2");
                 finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([^\w])", "$1$2");
                 return finalVal;
@@ -229,7 +231,7 @@ namespace ysonet.Helpers
                 {
                     GroupCollection groups = match.Groups;
                     String htmlEncodedValue = groups[1].Value;
-                    String newValue =  System.Web.HttpUtility.HtmlDecode(htmlEncodedValue);
+                    String newValue = System.Web.HttpUtility.HtmlDecode(htmlEncodedValue);
 
                     // now we can also minify this probably
                     try
@@ -242,9 +244,9 @@ namespace ysonet.Helpers
                     }
 
                     xmlDocument = xmlDocument.Replace(htmlEncodedValue, "<![CDATA[" + newValue + "]]>");
-                    
+
                 }
-             
+
             }
 
             return xmlDocument;
@@ -458,7 +460,7 @@ Not sure why this one did not work so I had to change $vtheElem/descendant::* to
                     // remove
                     xmlDocument = xmlDocument.Replace(@"id=""" + refIdName + @"""", "");
                 }
-                
+
             }
 
             return xmlDocument;
@@ -503,7 +505,7 @@ Not sure why this one did not work so I had to change $vtheElem/descendant::* to
 
             }
 
-            xmlDocument = xmlDocument.Replace("NetDataContractorIdMinifier_","");
+            xmlDocument = xmlDocument.Replace("NetDataContractorIdMinifier_", "");
 
             return xmlDocument;
         }
@@ -551,7 +553,7 @@ Not sure why this one did not work so I had to change $vtheElem/descendant::* to
             result = Regex.Replace(result, @"<\?xml[^>]*>", header);
             result = Regex.Replace(result, @"</?ArrayOfUnsignedByte[^>]*>", footer);
             result = Regex.Replace(result, @"\s", "");
-            if(!string.IsNullOrEmpty(byteTag))
+            if (!string.IsNullOrEmpty(byteTag))
             {
                 result = result.Replace("unsignedByte", byteTag);
             }

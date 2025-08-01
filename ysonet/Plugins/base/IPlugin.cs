@@ -1,5 +1,5 @@
-﻿using System;
-using NDesk.Options;
+﻿using NDesk.Options;
+using System;
 
 namespace ysonet.Plugins
 {

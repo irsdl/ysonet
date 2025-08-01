@@ -1,8 +1,7 @@
-﻿using System;
+﻿using NDesk.Options;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
-using NDesk.Options;
 using ysonet.Helpers;
 
 namespace ysonet.Plugins
@@ -254,7 +253,7 @@ Exemplary usage:
                 catch (Exception err)
                 {
                     Debugging.ShowErrors(new InputArgs(), err);
-                }                
+                }
             }
 
             return payload;

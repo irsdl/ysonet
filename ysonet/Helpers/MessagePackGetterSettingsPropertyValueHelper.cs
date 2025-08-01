@@ -1,14 +1,12 @@
 ﻿namespace ysonet.Helpers
 {
-    using System;
-    using System.Reflection;
-    using System.Collections.Generic;
-
+    using Helpers.SurrogateClasses;
     using MessagePack;
     using MessagePack.Formatters;
     using MessagePack.Resolvers;
-
-    using Helpers.SurrogateClasses;
+    using System;
+    using System.Collections.Generic;
+    using System.Reflection;
 
     /// <summary>
     /// Helper methods for generating an GetterSettingsPropertyValue gadget with MessagePack (Typeless)
@@ -94,7 +92,7 @@
         /// <returns>The full GetterSettingsPropertyValue surrogate object graph.</returns>
         private static object CreateGetterSettingsPropertyValueSurrogateInstance(byte[] binaryFormatterGadget)
         {
-            
+
             return new PropertyGridSurrogate
             {
                 SelectedObjects = new object[]
@@ -102,10 +100,10 @@
                     new SettingsPropertyValueSurrogate
                     {
                         Deserialized = false,
-                        SerializedValue = binaryFormatterGadget   
+                        SerializedValue = binaryFormatterGadget
                     }
                 }
-            }; 
+            };
 
         }
     }

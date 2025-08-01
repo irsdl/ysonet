@@ -8,11 +8,6 @@ namespace ysonet.Generators
 {
     public class TypeConfuseDelegateMonoGenerator : GenericGenerator
     {
-        public override string Name()
-        {
-            return "TypeConfuseDelegateMono";
-        }
-
         public override string AdditionalInfo()
         {
             return "Tweaked TypeConfuseDelegate gadget to work with Mono";
@@ -22,7 +17,7 @@ namespace ysonet.Generators
         {
             return "James Forshaw";
         }
-        
+
         public override string Contributors()
         {
             return "Denis Andzakovic, Soroush Dalili";
@@ -30,7 +25,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.NotBridgeNotDerived };
+            return new List<string> { GadgetTags.Independent };
         }
 
         public override List<string> SupportedFormatters()

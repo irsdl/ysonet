@@ -31,11 +31,6 @@ namespace ysonet.Generators
             return new List<string> { "BinaryFormatter", "Json.NET", "DataContractSerializer", "NetDataContractSerializer", "SoapFormatter", "LosFormatter" };
         }
 
-        public override string Name()
-        {
-            return "WindowsIdentity";
-        }
-
         public override string Finders()
         {
             return "Levi Broderick";
@@ -48,7 +43,7 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            return new List<string> { GadgetTypes.BridgeAndDerived };
+            return new List<string> { GadgetTags.Bridged };
         }
 
         public override string SupportedBridgedFormatter()

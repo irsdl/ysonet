@@ -2,6 +2,9 @@
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
+    <Deterministic>false</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{6B40FDE7-14EA-4F57-8B7B-CC2EB4A25E6C}</ProjectGuid>
@@ -214,6 +217,7 @@
     <Compile Include="Generators\ClaimsIdentityGenerator.cs" />
     <Compile Include="Generators\ToolboxItemContainerGenerator.cs" />
     <Compile Include="Generators\WindowsPrincipalGenerator.cs" />
+    <Compile Include="Helpers\GadgetHelper.cs" />
     <Compile Include="Helpers\GadgetSurrogates\GetterSettingsPropertyValueSurrogates.cs" />
     <Compile Include="Helpers\LocalCodeCompiler.cs" />
     <Compile Include="Helpers\MachineKeyHelper.cs" />
@@ -241,15 +245,16 @@
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\SerTrace.cs" />
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\SimpleBinaryFormatterParser.cs" />
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\SimpleObjectLosFormatter.cs" />
+    <Compile Include="Helpers\PluginHelper.cs" />
     <Compile Include="Helpers\SerializersHelper.cs" />
     <Compile Include="Generators\ActivitySurrogateDisableTypeCheckGenerator.cs" />
     <Compile Include="Generators\ActivitySurrogateSelectorFromFileGenerator.cs" />
     <Compile Include="Generators\ActivitySurrogateSelectorGenerator.cs" />
-    <Compile Include="Generators\IGenerator.cs" />
-    <Compile Include="Generators\GenericGenerator.cs" />
+    <Compile Include="Generators\Base\IGenerator.cs" />
+    <Compile Include="Generators\Base\GenericGenerator.cs" />
     <Compile Include="Generators\ObjectDataProviderGenerator.cs" />
     <Compile Include="Generators\TextFormattingRunPropertiesGenerator.cs" />
-    <Compile Include="Generators\PSObjectGenerator.cs" />
+    <Compile Include="Generators\Patched\PSObjectGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateMonoGenerator.cs" />
     <Compile Include="Generators\WindowsClaimsIdentityGenerator.cs" />
@@ -268,7 +273,7 @@
     <Compile Include="Plugins\ApplicationTrustPlugin.cs" />
     <Compile Include="Plugins\ClipboardPlugin.cs" />
     <Compile Include="Plugins\DotNetNukePlugin.cs" />
-    <Compile Include="Plugins\IPlugin.cs" />
+    <Compile Include="Plugins\base\IPlugin.cs" />
     <Compile Include="Plugins\ResxPlugin.cs" />
     <Compile Include="Plugins\SessionSecurityTokenHandlerPlugin.cs" />
     <Compile Include="Plugins\SharePointPlugin.cs" />
@@ -300,7 +305,18 @@
     <None Include="dlls\System.Management.Automation.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Content Include="dlls\sharepoint\19\Microsoft.SharePoint.ApplicationPages.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="dlls\sharepoint\19\Microsoft.SharePoint.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Helpers\ModifiedVulnerableBinaryFormatters\info.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="dlls\private\" />
+    <Folder Include="Generators\Private\" />
+    <Folder Include="Plugins\Private\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
