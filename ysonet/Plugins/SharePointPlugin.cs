@@ -49,7 +49,7 @@ namespace ysonet.Plugins
 
         public string Description()
         {
-            return "Generates payloads for the following SharePoint CVEs: CVE-2024-38018, CVE-2025-49704, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421";
+            return "Generates payloads for the following SharePoint CVEs: CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421";
         }
 
         public string Credit()
