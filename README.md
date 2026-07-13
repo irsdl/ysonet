@@ -48,6 +48,8 @@ msbuild ysonet.sln -p:Configuration=Release
 .\ysonet\bin\Release\ysonet.exe -h
 ```
 
+The Release build string-encrypts `ysonet.exe` to reduce false antivirus detections. Payloads are not affected. To build without it, add `-p:ObfuscateRelease=false` to the `msbuild` command. Debug builds are never obfuscated.
+
 ## Usage
 Use `ysonet.exe --fullhelp` to see more details. You can also see different gadgets' or plugins' help using:
     * `ysonet.exe -g NameHere -help`

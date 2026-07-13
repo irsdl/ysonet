@@ -1,6 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <!-- Defines $(Obfuscar) = packages\Obfuscar.2.2.50\tools\Obfuscar.Console.exe (net472 build). Keep this version in sync with packages.config. -->
+  <Import Project="..\packages\Obfuscar.2.2.50\build\obfuscar.props" Condition="Exists('..\packages\Obfuscar.2.2.50\build\obfuscar.props')" />
   <PropertyGroup>
     <Deterministic>false</Deterministic>
   </PropertyGroup>
@@ -285,6 +287,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="obfuscar.xml" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -315,11 +318,36 @@
     <Content Include="Helpers\ModifiedVulnerableBinaryFormatters\info.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
+
+  <!--
+    String-encrypt the shipped binary to cut naive-signature antivirus false
+    positives on ysonet.exe. Encrypts string literals only; no renaming, so the
+    reflection-based gadget/plugin discovery keeps working, and generated
+    payloads stay byte-for-byte identical. See obfuscar.xml for the rationale.
+
+    Runs only for the shipping build (Release|AnyCPU), which is what CI packages.
+    Debug builds are never obfuscated, so day-to-day development is unaffected.
+    Opt out for a one-off Release build with:  -p:ObfuscateRelease=false
+
+    It obfuscates the PRISTINE compiler output (obj\Release\ysonet.exe, set as
+    InPath in obfuscar.xml) and copies the result over bin\Release\ysonet.exe.
+    Because the source is never obfuscated in place, the target is idempotent:
+    it runs on every Release build (including no-op rebuilds, where MSBuild may
+    re-copy the pristine exe into bin\Release) and always leaves an obfuscated
+    binary, with no risk of double-obfuscation. The cost is ~1s per Release build.
   -->
+  <PropertyGroup>
+    <ObfuscateRelease Condition="'$(ObfuscateRelease)' == ''">true</ObfuscateRelease>
+  </PropertyGroup>
+  <Target Name="ObfuscateOutput" AfterTargets="Build"
+          Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU' and '$(ObfuscateRelease)' != 'false'">
+    <Error Condition="!Exists('$(Obfuscar)')"
+           Text="Obfuscar not found. Run 'nuget restore ysonet.sln' first, or build with -p:ObfuscateRelease=false to skip string obfuscation." />
+    <Message Importance="high" Text="ObfuscateOutput: string-encrypting $(TargetPath)" />
+    <Exec Command="&quot;$(Obfuscar)&quot; obfuscar.xml" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\obj\obfuscated\ysonet.exe"
+          DestinationFiles="$(TargetPath)" OverwriteReadOnlyFiles="true" />
+    <!-- Drop the now-mismatched symbols; also removes an easy reverse-engineering aid. -->
+    <Delete Files="$(TargetDir)ysonet.pdb" />
+  </Target>
 </Project>

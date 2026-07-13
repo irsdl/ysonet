@@ -26,6 +26,20 @@ jobs:
       - name: Build (Release)
         run: msbuild ysonet.sln -p:Configuration=Release
 
+      # The Release build string-encrypts ysonet.exe (see ysonet/obfuscar.xml and the
+      # ObfuscateOutput target). Fail loudly if that did not happen, so we never ship a
+      # binary with plain-text signature strings that trip naive antivirus matching.
+      - name: Verify obfuscation
+        shell: pwsh
+        run: |
+          $exe = ".\ysonet\bin\Release\ysonet.exe"
+          $u = [Text.Encoding]::Unicode.GetString([IO.File]::ReadAllBytes($exe))
+          $markers = 'System.Windows.Data.ObjectDataProvider','MethodParameters','generates deserialization payloads'
+          $leaked = $markers | Where-Object { $u.Contains($_) }
+          if ($leaked) { throw "Obfuscation check failed: plain-text literals still present: $($leaked -join ', ')" }
+          if (Test-Path ".\ysonet\bin\Release\ysonet.pdb") { throw "ysonet.pdb should have been removed by obfuscation." }
+          Write-Host "Obfuscation verified: signature string literals are encrypted."
+
       - name: Collect artifacts
         shell: pwsh
         run: |

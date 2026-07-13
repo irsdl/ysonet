@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Obfuscar config for ysonet.
+
+  Goal: encrypt string LITERALS in ysonet.exe so plain-text signatures (gadget
+  templates, type AQNs, help text) do not sit in the file as clear ASCII/UTF-16.
+  This reduces naive string-match antivirus false positives on the tool binary
+  itself (the same way the EICAR test string triggers on text alone).
+
+  What this does and does NOT do:
+    - HideStrings=true    -> string literals are encrypted in metadata and
+                             decrypted at runtime. Generated payloads stay
+                             byte-for-byte identical, because the decrypted
+                             string equals the original.
+    - Renaming is OFF      -> type, method, field, property and event names are
+                             kept. ysonet discovers gadgets/plugins by reflection
+                             (Activator.CreateInstance("ysonet.Generators." + name),
+                             Name() derived from the class name, interface scans).
+                             Renaming would break all of that, so it is disabled.
+
+  Only ysonet.exe is processed. Bundled/gadget DLLs are left untouched on purpose.
+
+  Paths are relative to the project directory (the ObfuscateOutput MSBuild target
+  runs Obfuscar with that as the working directory).
+
+  InPath is the PRISTINE compiler output under obj\Release (never overwritten in
+  place), so re-running is idempotent and can never double-obfuscate. The target
+  copies the result over bin\Release\ysonet.exe. AssemblySearchPath points at
+  bin\Release because the dependency DLLs live there, not next to the
+  intermediate exe.
+-->
+<Obfuscator>
+  <Var name="InPath" value="obj\Release" />
+  <Var name="OutPath" value="obj\obfuscated" />
+
+  <!-- Keep every name: no renaming, so reflection-based discovery keeps working. -->
+  <Var name="KeepPublicApi" value="true" />
+  <Var name="HidePrivateApi" value="false" />
+  <Var name="RenameProperties" value="false" />
+  <Var name="RenameFields" value="false" />
+  <Var name="RenameEvents" value="false" />
+
+  <!-- The one transform we want: encrypt string literals. -->
+  <Var name="HideStrings" value="true" />
+
+  <!-- Leave IL otherwise as-is to minimise risk with the reflection/emit paths. -->
+  <Var name="OptimizeMethods" value="false" />
+  <Var name="SuppressIldasm" value="false" />
+
+  <AssemblySearchPath path="bin\Release" />
+
+  <Module file="$(InPath)\ysonet.exe" />
+</Obfuscator>
