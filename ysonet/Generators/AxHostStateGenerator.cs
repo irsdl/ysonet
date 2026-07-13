@@ -131,7 +131,7 @@ namespace ysonet.Generators
 
         public AxHostStateMarshal(object fakePropertyBagBinary) : this(fakePropertyBagBinary, new InputArgs())
         {
-            // This won't use anything we might have defined in ysonet.net BinaryFormatter process (such as minification)
+            // This won't use anything we might have defined in YSoNet BinaryFormatter process (such as minification)
         }
 
         public AxHostStateMarshal(MemoryStream ms)

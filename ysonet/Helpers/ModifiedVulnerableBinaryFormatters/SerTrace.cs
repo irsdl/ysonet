@@ -23,7 +23,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
     public static class BCLDebug
     {
-        public static bool isLoggingEnabled = false; // This is to enable debugging in ysonet.net - for developers not normal users!
+        public static bool isLoggingEnabled = false; // This is to enable debugging in YSoNet - for developers not normal users!
 
         public static void Trace(String switchName, params Object[] messages)
         {

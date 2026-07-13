@@ -173,7 +173,7 @@ namespace ysonet.Generators
                 return stream.ToArray();
             }
             /*
-             * We don't actually need to use ObjectStateFormatter in ysonet.net because it is the same as LosFormatter without MAC/keys
+             * We don't actually need to use ObjectStateFormatter in YSoNet because it is the same as LosFormatter without MAC/keys
             else if (formatter.ToLower().Equals("objectstateformatter"))
             {
                 ObjectStateFormatter osf = new ObjectStateFormatter();

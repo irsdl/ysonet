@@ -22,7 +22,7 @@ This project is inspired by [Chris Frohoff's ysoserial project](https://github.c
 ## Disclaimer 
 This software has been created purely for the purposes of academic research and for the development of effective defensive techniques, and is not intended to be used to attack systems except where explicitly authorized. Project maintainers are not responsible or liable for misuse of the software. Use responsibly.
 
-This software is a personal project and not related to any companies, including the project owner’s and contributors’ employers.
+This software is a personal project and not related to any companies, including the project owner's and contributors' employers.
 
 ## Installation
 In order to obtain the latest version, it is recommended to download it from [the Actions page](https://github.com/irsdl/ysonet/actions).
@@ -36,7 +36,7 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 
 choco install visualstudio2022community --yes
 choco install visualstudio2022-workload-nativedesktop --yes
-choco install choco install msbuild.communitytasks --yes
+choco install msbuild.communitytasks --yes
 choco install nuget.commandline --yes
 choco install git --yes
 
@@ -49,7 +49,7 @@ msbuild ysonet.sln -p:Configuration=Release
 ```
 
 ## Usage
-Use `ysonet.exe --fullhelp` to see more details. You can also see different gadgets’ or plugins’ help using:
+Use `ysonet.exe --fullhelp` to see more details. You can also see different gadgets' or plugins' help using:
     * `ysonet.exe -g NameHere -help`
     * `ysonet.exe -p NameHere -help`
 	
@@ -103,7 +103,7 @@ $ ./ysonet.exe --help
         (*) TransactionManagerReenlist (Generates payload for the TransactionManager.Reenlist method)
         (*) ViewState (Generates a ViewState using known MachineKey parameters)
 
-Note: Machine authentication code (MAC) key modifier is not being used for LosFormatter in ysonet.net. Therefore, LosFormatter (base64 encoded) can be used to create ObjectStateFormatter payloads.
+Note: Machine authentication code (MAC) key modifier is not being used for LosFormatter in YSoNet. Therefore, LosFormatter (base64 encoded) can be used to create ObjectStateFormatter payloads.
 
 Usage: ysonet.exe [options]
 Options:
@@ -247,7 +247,7 @@ Special thanks to all contributors:
 $ ./ysonet.exe --credit
 
 YSoNet tool is being developed and maintained by Soroush Dalili (@irsdl)
-YSoSerial.Net has been originally developed by Alvaro Muñoz (@pwntester)
+YSoSerial.Net has been originally developed by Alvaro Munoz (@pwntester)
 
 Credits for available gadgets:
         ActivitySurrogateDisableTypeCheck
@@ -344,7 +344,7 @@ Credits for available plugins:
                 Soroush Dalili
 
 Various other people have also donated their time and contributed to this project.
-Please see https://github.com/pwntester/ysonet.net/graphs/contributors to find those who have helped developing more features or have fixed bugs.
+Please see https://github.com/irsdl/ysonet/graphs/contributors to find those who have helped developing more features or have fixed bugs.
 ```
 
 ## Additional Reading

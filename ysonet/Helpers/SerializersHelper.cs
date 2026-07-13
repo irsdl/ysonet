@@ -630,7 +630,10 @@ namespace ysonet.Helpers
         {
             Object obj = JsonConvert.DeserializeObject<Object>(str, new JsonSerializerSettings
             {
-                TypeNameHandling = TypeNameHandling.Auto
+                TypeNameHandling = TypeNameHandling.Auto,
+                // Newtonsoft 13 defaults MaxDepth to 128. Keep it unlimited so the tool's
+                // own local --test round-trip can still read arbitrarily nested payloads.
+                MaxDepth = null
             });
             return obj;
         }

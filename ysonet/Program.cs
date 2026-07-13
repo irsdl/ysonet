@@ -699,7 +699,7 @@ namespace ysonet
 
         private static void ShowHelp()
         {
-            Console.WriteLine("ysonet.net generates deserialization payloads for a variety of .NET formatters.");
+            Console.WriteLine("YSoNet generates deserialization payloads for a variety of .NET formatters.");
             Console.WriteLine("");
             if (plugin_name == "")
             {
@@ -829,7 +829,7 @@ namespace ysonet
                 }
 
                 Console.WriteLine("");
-                Console.WriteLine("Note: Machine authentication code (MAC) key modifier is not being used for LosFormatter in ysonet.net. Therefore, LosFormatter (base64 encoded) can be used to create ObjectStateFormatter payloads.");
+                Console.WriteLine("Note: Machine authentication code (MAC) key modifier is not being used for LosFormatter in YSoNet. Therefore, LosFormatter (base64 encoded) can be used to create ObjectStateFormatter payloads.");
                 Console.WriteLine("");
                 Console.WriteLine("Usage: ysonet.exe [options]");
                 Console.WriteLine("Options:");
@@ -1039,7 +1039,7 @@ namespace ysonet
 
             Console.WriteLine("");
             Console.WriteLine("Various other people have also donated their time and contributed to this project.");
-            Console.WriteLine("Please see https://github.com/pwntester/ysonet.net/graphs/contributors to find those who have helped developing more features or have fixed bugs.");
+            Console.WriteLine("Please see https://github.com/irsdl/ysonet/graphs/contributors to find those who have helped developing more features or have fixed bugs.");
             System.Environment.Exit(0);
         }
 

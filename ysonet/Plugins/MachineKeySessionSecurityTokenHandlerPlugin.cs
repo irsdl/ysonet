@@ -13,7 +13,7 @@ using ysonet.Helpers;
  *  This plugin is based on the existing SessionSecurityTokenHandler plugin.
  *  See `MachineKeySessionSecurityTokenHandler`: https://learn.microsoft.com/zh-cn/dotnet/api/system.identitymodel.services.tokens.machinekeysessionsecuritytokenhandler?view=netframework-4.8.1 
  *  This PoC uses BinaryFormatter from TypeConfuseDelegate
- *  The Ysoserial.net tool includes an exploit plugin for the SessionSecurityTokenHandler security issue. However, due to the fact that SessionSecurityTokenHandler employs DPAPI for encryption and decryption, it is often difficult to exploit in most cases.
+ *  The YSoNet tool includes an exploit plugin for the SessionSecurityTokenHandler security issue. However, due to the fact that SessionSecurityTokenHandler employs DPAPI for encryption and decryption, it is often difficult to exploit in most cases.
  *  Nevertheless, Microsoft's documentation on SessionSecurityTokenHandler mentions that for web scenarios requiring a similar security mechanism, one can use the MachineKeySessionSecurityTokenHandler.
  *  This class inherits from SessionSecurityTokenHandler and shares similar characteristics. The key difference is that MachineKeySessionSecurityTokenHandler utilizes MachineKey configuration information for encryption and decryption operations.
  *  Therefore, as long as the MachineKey configuration information can be obtained (for instance, through a web.config leak), it may be possible to exploit it, making it more susceptible to exploitation compared to SessionSecurityTokenHandler.

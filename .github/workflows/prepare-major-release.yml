@@ -28,11 +28,12 @@ jobs:
 
       - name: Checkout
         if: steps.gate.outputs.is_major == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3 (2026-06-02)
         with:
           fetch-depth: 0
 
       - name: Bump VERSION and update projects
+        id: bump
         if: steps.gate.outputs.is_major == 'true'
         shell: pwsh
         run: |
@@ -44,6 +45,7 @@ jobs:
           $new = "v{0}.00" -f $nextMaj
           Set-Content -NoNewline -Path $versionPath -Value $new
           Write-Host "VERSION: $cur -> $new"
+          "version=$new" >> $env:GITHUB_OUTPUT
 
           $info = "$new+ysonet"
 
@@ -72,15 +74,15 @@ jobs:
 
       - name: Create Release PR
         if: steps.gate.outputs.is_major == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1 (2026-04-10)
         with:
-          commit-message: "chore(release): prepare $(cat VERSION)"
-          title: "Release $(cat VERSION)"
+          commit-message: "chore(release): prepare ${{ steps.bump.outputs.version }}"
+          title: "Release ${{ steps.bump.outputs.version }}"
           body: |
-            Prepare **$(cat VERSION)**.
+            Prepare **${{ steps.bump.outputs.version }}**.
             - Bump `VERSION`
-            - Stamp `.csproj` `AssemblyInformationalVersion` to `$(cat VERSION)+ysonet`
-          branch: release/$(cat VERSION)
+            - Stamp `.csproj` `AssemblyInformationalVersion` to `${{ steps.bump.outputs.version }}+ysonet`
+          branch: release/${{ steps.bump.outputs.version }}
           labels: release
           signoff: true
           delete-branch: true

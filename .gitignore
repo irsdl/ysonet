@@ -248,3 +248,32 @@ ysonet/Helpers/TestingArena/
 .idea
 ysonet/Helpers/TestingArena/TestingArenaHome.cs
 /ExploitClass/ExploitSamples
+
+# Claude Code dev files (project development only, not part of the product)
+CLAUDE.md
+.claude/
+dev-kitchen/
+
+# VS Code
+.vscode/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup / editor swap files
+*.bak
+*.orig
+*.swp
+
+# Local secrets / credentials (should never be committed)
+.env
+.env.*
+*.snk
+NuGet.Config
+nuget.config
+
+# Local test/benchmark output
+BenchmarkDotNet.Artifacts/
+TestResults/

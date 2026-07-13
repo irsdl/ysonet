@@ -12,16 +12,16 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3 (2026-06-02)
 
       - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
+        uses: NuGet/setup-nuget@fd55a6f3b34392fa83fde1454582407d8c714123 # v4.0 (2026-04-15)
 
       - name: Restore
         run: nuget restore ysonet.sln
 
       - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3 (2026-03-20)
 
       - name: Build (Release)
         run: msbuild ysonet.sln -p:Configuration=Release
@@ -33,7 +33,7 @@ jobs:
           Move-Item .\ysonet\bin\Release\* .\release\ -Force
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 (2026-04-10)
         with:
           name: ysonet-${{ github.sha }}
           path: release

@@ -85,7 +85,7 @@ namespace ysonet.Generators
 
         public DataSetBinarySpoofMarshal(object fakeTable) : this(fakeTable, new InputArgs())
         {
-            // This won't use anything we might have defined in ysonet.net BinaryFormatter process (such as minification)
+            // This won't use anything we might have defined in YSoNet BinaryFormatter process (such as minification)
         }
 
         public DataSetBinarySpoofMarshal(object fakeTable, InputArgs inputArgs)
