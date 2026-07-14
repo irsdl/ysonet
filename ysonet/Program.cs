@@ -262,7 +262,18 @@ namespace ysonet
                     System.Environment.Exit(-1);
                 }
 
-                raw = plugin.Run(args);
+                try
+                {
+                    raw = plugin.Run(args);
+                }
+                catch (Exception ex)
+                {
+                    // A plugin-invoked gadget may now signal bad input by throwing
+                    // instead of exiting the process. Preserve the old CLI behavior:
+                    // print the message and exit non-zero.
+                    Console.WriteLine(ex.Message);
+                    System.Environment.Exit(-1);
+                }
 
                 ProcessOutput(outputformat, raw, isDebugMode, outputpath);
             }

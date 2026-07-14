@@ -1,5 +1,6 @@
 ﻿using System;
 using System.CodeDom.Compiler;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -26,8 +27,7 @@ namespace ysonet.Helpers
         {
             if (!File.Exists(filePath))
             {
-                Console.Error.WriteLine("Assembly not found!");
-                Environment.Exit(-1);
+                throw new Exception("Assembly not found: " + filePath);
             }
 
             return File.ReadAllBytes(filePath);
@@ -56,19 +56,21 @@ namespace ysonet.Helpers
                 CompilerResults compilerResults = codeDomProvider.CompileAssemblyFromFile(compilerParameters, files[0]);
                 if (compilerResults.Errors.Count > 0)
                 {
+                    var errorTexts = new List<string>();
                     foreach (CompilerError error in compilerResults.Errors)
                     {
-                        Console.Error.WriteLine(error.ErrorText);
+                        errorTexts.Add(error.ErrorText);
                     }
-                    Environment.Exit(-1);
+                    throw new Exception("Compilation failed: " + string.Join("; ", errorTexts.ToArray()));
                 }
                 assemblyBytes = File.ReadAllBytes(compilerResults.PathToAssembly);
                 File.Delete(compilerResults.PathToAssembly);
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                Console.Error.WriteLine(e.Message);
-                Environment.Exit(-1);
+                // surface to the caller (CLI prints it and exits; interactive shows
+                // it and returns to the menu) instead of killing the process
+                throw;
             }
 
             return assemblyBytes;

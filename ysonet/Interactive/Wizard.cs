@@ -77,29 +77,30 @@ namespace ysonet.Interactive
             while (true)
             {
                 int choice = _menu.Show("What do you want to do?", topItems, 0);
-                switch (choice)
+                if (choice < 0 || choice == 6)
                 {
-                    case 0:
-                        RunGadgetFlow();
-                        break;
-                    case 1:
-                        RunPluginFlow();
-                        break;
-                    case 2:
-                        SearchFormattersInfo();
-                        break;
-                    case 3:
-                        RunAllFormattersInfo();
-                        break;
-                    case 4:
-                        ShowCreditsInfo();
-                        break;
-                    case 5:
-                        ShowHelpInfo();
-                        break;
-                    default:
-                        WriteLine("Bye.");
-                        return 0;
+                    WriteLine("Bye.");
+                    return 0;
+                }
+
+                // Any unexpected failure in a single action returns to this menu
+                // rather than dropping the user out of the wizard.
+                try
+                {
+                    switch (choice)
+                    {
+                        case 0: RunGadgetFlow(); break;
+                        case 1: RunPluginFlow(); break;
+                        case 2: SearchFormattersInfo(); break;
+                        case 3: RunAllFormattersInfo(); break;
+                        case 4: ShowCreditsInfo(); break;
+                        case 5: ShowHelpInfo(); break;
+                    }
+                }
+                catch (Exception e)
+                {
+                    ConsoleStyle.WriteLine("Something went wrong: " + e.Message, ConsoleStyle.Error);
+                    WriteLine("Back to the menu.");
                 }
             }
         }
@@ -349,8 +350,12 @@ namespace ysonet.Interactive
         private void RunAllFormattersInfo()
         {
             WriteLine("");
-            WriteLine("This mirrors the --runallformatters flag: it generates a payload for");
-            WriteLine("every gadget that supports a matching formatter and shows the lengths.");
+            ConsoleStyle.WriteLine("Run all formatters (mirrors --runallformatters):", ConsoleStyle.Heading);
+            WriteLine("Generates a payload for every gadget that supports a matching formatter");
+            WriteLine("and shows the lengths.");
+            ConsoleStyle.WriteLine("Note: some gadgets do not take a shell command; they expect the command", ConsoleStyle.Help);
+            ConsoleStyle.WriteLine("to be a file path, a URL, or a DLL/C# source (e.g. the *FromFile gadgets,", ConsoleStyle.Help);
+            ConsoleStyle.WriteLine("ObjRef, BaseActivationFactory). Those are skipped here, not errors.", ConsoleStyle.Help);
             string term = AskText("Formatter to match (e.g. Json, Binary)", "", "");
             if (string.IsNullOrEmpty(term))
                 return;
@@ -361,38 +366,69 @@ namespace ysonet.Interactive
 
             WriteLine("");
             int count = 0;
+            var skipped = new List<string>();
             foreach (string gadgetName in GadgetHelper.GetAllGadgetNames())
             {
                 if (gadgetName == "Generic")
                     continue;
-                IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
-                if (gg == null)
-                    continue;
-                foreach (string f in gg.SupportedFormatters())
+
+                // Guard every gadget: some throw on an unsuitable command (they
+                // expect a file/URL/DLL). One bad gadget must never abort the sweep
+                // or drop the user out of the wizard.
+                try
                 {
-                    if (f.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0)
+                    IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                    if (gg == null)
                         continue;
-                    string token = f.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0];
-                    GenerationRequest req = new GenerationRequest();
-                    req.GadgetName = gg.Name();
-                    req.FormatterName = token;
-                    req.OutputFormat = "";
-                    req.InputArgs = inputArgs;
-                    RunResult r = PayloadRunner.GenerateGadget(req);
-                    if (r.Success)
+
+                    foreach (string f in gg.SupportedFormatters())
                     {
-                        int len;
-                        byte[] bytes = PayloadRunner.Encode(r.Raw, r.EffectiveOutputFormat, out len);
-                        WriteLine("  " + gg.Name() + " / " + token + " -> length " + (bytes == null ? 0 : bytes.Length));
-                        count++;
-                    }
-                    else
-                    {
-                        WriteLine("  " + gg.Name() + " / " + token + " -> error: " + r.ErrorMessage);
+                        if (f.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0)
+                            continue;
+                        string token = f.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0];
+
+                        string label = gg.Name() + " / " + token;
+                        try
+                        {
+                            GenerationRequest req = new GenerationRequest();
+                            req.GadgetName = gg.Name();
+                            req.FormatterName = token;
+                            req.OutputFormat = "";
+                            req.InputArgs = inputArgs;
+                            RunResult r = PayloadRunner.GenerateGadget(req);
+                            if (r.Success)
+                            {
+                                int len;
+                                byte[] bytes = PayloadRunner.Encode(r.Raw, r.EffectiveOutputFormat, out len);
+                                ConsoleStyle.WriteLine("  [ok]   " + label + " -> length " + (bytes == null ? 0 : bytes.Length), ConsoleStyle.Success);
+                                count++;
+                            }
+                            else
+                            {
+                                skipped.Add(label);
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            skipped.Add(label);
+                        }
                     }
                 }
+                catch (Exception)
+                {
+                    skipped.Add(gadgetName);
+                }
             }
-            WriteLine("Done. " + count + " payload(s) generated. (Lengths only; use the gadget flow to emit one.)");
+
+            WriteLine("");
+            ConsoleStyle.WriteLine("Done. " + count + " payload(s) generated with \"" + command + "\".", ConsoleStyle.Heading);
+            if (skipped.Count > 0)
+            {
+                ConsoleStyle.WriteLine("Skipped " + skipped.Count + " (need a different command input, or not supported):", ConsoleStyle.Help);
+                foreach (string s in skipped)
+                    ConsoleStyle.WriteLine("  [skip] " + s, ConsoleStyle.Help);
+            }
+            WriteLine("(Lengths only; use the gadget flow to emit a specific payload.)");
             WriteLine("");
         }
 

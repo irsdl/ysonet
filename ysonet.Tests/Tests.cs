@@ -40,6 +40,7 @@ namespace ysonet.Tests
             Run("Wizard writes to a file, not stdout", WizardOutputToFile);
             Run("Wizard cancel at the picker emits nothing", WizardCancelAtPicker);
             Run("Wizard plugin path matches the core", WizardPluginPath);
+            Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
 
             Console.Error.WriteLine();
             Console.Error.WriteLine("Passed: " + _passed + "  Failed: " + _failed);
@@ -367,6 +368,26 @@ namespace ysonet.Tests
             AssertTrue(got.Length > 0, "plugin payload produced");
             AssertTrue(BytesEqual(got, expected), "wizard plugin payload equals core payload");
             AssertTrue(stderr.Contains("-p ApplicationTrust"), "echoed plugin command");
+        }
+
+        private static void WizardRunAllFormatters()
+        {
+            // The reported bug: this sweep exited the wizard because some gadgets
+            // reject a shell command (they expect a file/URL/DLL). It must now run
+            // to completion, skip those gracefully, and emit nothing to stdout.
+            var keys = new ScriptedKeyReader();
+            keys.Digit(4);   // top menu -> Run all formatters (index 3)
+            keys.Escape();   // back at top menu -> quit
+
+            var lines = Lines("Binary", "calc.exe"); // formatter term, command
+
+            string stderr;
+            byte[] stdout = DriveWizard(keys, lines, out stderr);
+
+            AssertEqual(0, stdout.Length, "sweep writes nothing to stdout");
+            AssertTrue(stderr.Contains("Done."), "sweep ran to completion");
+            AssertTrue(stderr.Contains("[ok]"), "at least one gadget generated");
+            AssertTrue(stderr.Contains("[skip]"), "file/url gadgets were skipped, not fatal");
         }
 
         // ---- helpers -----------------------------------------------------------

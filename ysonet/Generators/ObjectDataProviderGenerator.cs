@@ -95,9 +95,7 @@ namespace ysonet.Generators
                 {
                     if (xaml_url == "")
                     {
-                        Console.WriteLine("Url parameter was not provided.");
-                        Console.WriteLine("Try 'ysonet --fullhelp' for more information.");
-                        System.Environment.Exit(-1);
+                        throw new Exception("Url parameter (xamlurl) was not provided. Try 'ysonet --fullhelp' for more information.");
                     }
 
                     // There are loads of other objects in Presentation that use XAML URLs and they can be used here instead

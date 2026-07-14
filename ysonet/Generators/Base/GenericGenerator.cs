@@ -66,11 +66,8 @@ namespace ysonet.Generators
                 }
                 catch (OptionException e)
                 {
-                    Console.Write("ysonet: ");
-                    Console.WriteLine(e.Message);
-                    Console.WriteLine("Extra options for " + Name() + " are as follows:");
-                    options.WriteOptionDescriptions(Console.Out);
-                    System.Environment.Exit(-1);
+                    throw new Exception("Invalid option for " + Name() + ": " + e.Message +
+                        " (see 'ysonet -g " + Name() + " --fullhelp' for the gadget options)");
                 }
             }
         }
