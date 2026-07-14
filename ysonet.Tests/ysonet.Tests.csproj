@@ -23,6 +23,17 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <!-- Release exists only so the project compiles in a Release solution build.
+       The test RUN (RunYsonetTests below) is Debug-only. -->
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -40,4 +51,28 @@
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+
+  <!--
+    Run the interactive/core test suite automatically after a DEBUG build only.
+    Release never runs it (the shipped binary is obfuscated and tests are a
+    dev-time gate). The runner must execute from ysonet's own output folder so the
+    bundled DLLs (Microsoft.PowerShell.Editor.dll, etc.) resolve, so we stage the
+    test exe there and run it. A non-zero exit (any failed test) fails the build.
+
+    Opt out for a one-off build with:  -p:RunYsonetTests=false
+    Skipped automatically if that AnyCPU output is absent (e.g. a Debug|x64 build),
+    so it never fails spuriously.
+  -->
+  <PropertyGroup>
+    <RunYsonetTests Condition="'$(RunYsonetTests)' == ''">true</RunYsonetTests>
+    <YsonetOutDir>$(MSBuildProjectDirectory)\..\ysonet\bin\Debug</YsonetOutDir>
+  </PropertyGroup>
+  <Target Name="RunYsonetTests" AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Debug' and '$(RunYsonetTests)' != 'false' and Exists('$(YsonetOutDir)\ysonet.exe')">
+    <Message Importance="high" Text="RunYsonetTests: running interactive/core tests from $(YsonetOutDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(YsonetOutDir)" OverwriteReadOnlyFiles="true" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(YsonetOutDir)"
+          OverwriteReadOnlyFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    <Exec Command="&quot;$(YsonetOutDir)\ysonet.Tests.exe&quot;" WorkingDirectory="$(YsonetOutDir)" />
+  </Target>
 </Project>

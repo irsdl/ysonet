@@ -31,7 +31,14 @@ namespace ysonet.Tests
             Run("PayloadRunner.GenerateGadget is deterministic", GenerateDeterministic);
             Run("Plugin argv rebuild matches CLI output", PluginArgvRebuild);
             Run("Every global option is surfaced or excluded", OptionCompleteness);
+            Run("Menu navigates with arrows and Enter", MenuNavigation);
+            Run("Menu digit shortcut and Escape cancel", MenuDigitAndCancel);
+            Run("Picker selects by typing and cancels on Esc", PickerShowSelectAndCancel);
             Run("Wizard e2e builds the same payload as the core", WizardEndToEnd);
+            Run("Wizard advanced options reach the payload", WizardAdvancedOptions);
+            Run("Wizard writes to a file, not stdout", WizardOutputToFile);
+            Run("Wizard cancel at the picker emits nothing", WizardCancelAtPicker);
+            Run("Wizard plugin path matches the core", WizardPluginPath);
 
             Console.Error.WriteLine();
             Console.Error.WriteLine("Passed: " + _passed + "  Failed: " + _failed);
@@ -195,14 +202,155 @@ namespace ysonet.Tests
             keys.Enter();                         // generate now? -> Yes (default)
             keys.Escape();                        // back at top menu -> quit
 
-            var lines = new StringReader(string.Join("\r\n", new string[]
-            {
-                "calc.exe", // command
-                "",         // variant (skip)
-                "",         // xamlurl (skip)
-                ""          // output file path (skip -> stdout)
-            }) + "\r\n");
+            // command, variant (skip), xamlurl (skip), output path (skip -> stdout)
+            var lines = Lines("calc.exe", "", "", "");
 
+            string stderr;
+            byte[] got = DriveWizard(keys, lines, out stderr);
+            byte[] expected = GenerateOdpJson("calc.exe");
+
+            AssertTrue(got.Length > 0, "wizard wrote a payload to stdout stream");
+            AssertTrue(BytesEqual(got, expected), "wizard payload equals core payload");
+            AssertTrue(stderr.Contains("ysonet.exe -g ObjectDataProvider -f Json.NET -c calc.exe"),
+                "equivalent command echoed to stderr");
+            AssertTrue(!Encoding.UTF8.GetString(got).Contains("Equivalent command"),
+                "prompts did not leak into the payload stream");
+        }
+
+        private static void MenuNavigation()
+        {
+            var keys = new ScriptedKeyReader();
+            keys.Down().Down().Enter();   // 0 -> 1 -> 2, select index 2
+            Menu m = new Menu(keys);
+            int i = WithSwallowedError(() => m.Show("pick", new List<string> { "a", "b", "c" }, 0));
+            AssertEqual(2, i, "arrows moved to index 2");
+        }
+
+        private static void MenuDigitAndCancel()
+        {
+            Menu m1 = new Menu(new ScriptedKeyReader().Digit(2));
+            int i = WithSwallowedError(() => m1.Show("pick", new List<string> { "a", "b", "c" }, 0));
+            AssertEqual(1, i, "digit 2 selects index 1");
+
+            Menu m2 = new Menu(new ScriptedKeyReader().Escape());
+            int c = WithSwallowedError(() => m2.Show("pick", new List<string> { "a", "b" }, 0));
+            AssertEqual(-1, c, "escape cancels with -1");
+        }
+
+        private static void PickerShowSelectAndCancel()
+        {
+            var keys = new ScriptedKeyReader().Type("Beta").Enter();
+            Picker p = new Picker(keys);
+            string sel = WithSwallowedError(() =>
+                p.Show("pick", new List<string> { "Alpha", "Beta", "Gamma" }, null));
+            AssertEqual("Beta", sel, "typed filter then Enter selects");
+
+            Picker p2 = new Picker(new ScriptedKeyReader().Escape());
+            string cancelled = WithSwallowedError(() =>
+                p2.Show("pick", new List<string> { "Alpha", "Beta" }, null));
+            AssertTrue(cancelled == null, "escape cancels to null");
+        }
+
+        private static void WizardAdvancedOptions()
+        {
+            var keys = new ScriptedKeyReader();
+            keys.Enter();                    // top -> gadget
+            keys.Type("ObjectDataProvider").Enter();
+            keys.Digit(2);                   // formatter Json.NET
+            keys.Enter();                    // rawcmd? No
+            keys.Enter();                    // output format auto
+            keys.Digit(1);                   // advanced? Yes (index 0)
+            keys.Digit(1);                   // minify? Yes
+            keys.Enter();                    // usesimpletype? No
+            keys.Enter();                    // test? No
+            keys.Enter();                    // debugmode? No
+            keys.Enter();                    // generate? Yes
+            keys.Escape();                   // quit
+
+            var lines = Lines("calc.exe", "", "", "", ""); // cmd, var, xamlurl, outpath, bgc
+
+            string stderr;
+            byte[] got = DriveWizard(keys, lines, out stderr);
+            byte[] expected = GenerateOdpJson("calc.exe", true);
+
+            AssertTrue(got.Length > 0, "payload produced");
+            AssertTrue(BytesEqual(got, expected), "minified wizard payload equals minified core payload");
+            AssertTrue(stderr.Contains("--minify"), "echoed command shows --minify");
+        }
+
+        private static void WizardOutputToFile()
+        {
+            string file = Path.Combine(Path.GetTempPath(), "ysonet_wizard_test_out.bin");
+            if (File.Exists(file)) File.Delete(file);
+
+            var keys = new ScriptedKeyReader();
+            keys.Enter();                    // top -> gadget
+            keys.Type("ObjectDataProvider").Enter();
+            keys.Digit(2);                   // Json.NET
+            keys.Enter();                    // rawcmd? No
+            keys.Enter();                    // output format auto
+            keys.Enter();                    // advanced? No
+            keys.Enter();                    // generate? Yes
+            keys.Escape();                   // quit
+
+            var lines = Lines("calc.exe", "", "", file); // cmd, var, xamlurl, outpath
+
+            string stderr;
+            byte[] stdout = DriveWizard(keys, lines, out stderr);
+
+            AssertEqual(0, stdout.Length, "nothing written to the stdout stream");
+            AssertTrue(File.Exists(file), "file was written");
+            byte[] fileBytes = File.ReadAllBytes(file);
+            AssertTrue(BytesEqual(fileBytes, GenerateOdpJson("calc.exe", false)), "file bytes equal core payload");
+            File.Delete(file);
+        }
+
+        private static void WizardCancelAtPicker()
+        {
+            var keys = new ScriptedKeyReader();
+            keys.Enter();     // top -> gadget
+            keys.Escape();    // cancel the gadget picker -> back to top
+            keys.Escape();    // quit
+
+            string stderr;
+            byte[] stdout = DriveWizard(keys, Lines(), out stderr);
+            AssertEqual(0, stdout.Length, "cancelling emits no payload");
+        }
+
+        private static void WizardPluginPath()
+        {
+            var keys = new ScriptedKeyReader();
+            keys.Digit(2);                   // top -> plugin (index 1)
+            keys.Type("ApplicationTrust").Enter();
+            keys.Enter();                    // test? No
+            keys.Enter();                    // minify? No
+            keys.Enter();                    // usesimpletype? No
+            keys.Enter();                    // output format auto
+            keys.Enter();                    // generate? Yes
+            keys.Escape();                   // quit
+
+            var lines = Lines("calc.exe", ""); // command, outputpath
+
+            string stderr;
+            byte[] got = DriveWizard(keys, lines, out stderr);
+
+            RunResult core = PayloadRunner.RunPlugin("ApplicationTrust",
+                new string[] { "-p", "ApplicationTrust", "--command", "calc.exe" });
+            AssertTrue(core.Success, "core plugin ran");
+            int len;
+            byte[] expected = PayloadRunner.Encode(core.Raw, "raw", out len);
+
+            AssertTrue(got.Length > 0, "plugin payload produced");
+            AssertTrue(BytesEqual(got, expected), "wizard plugin payload equals core payload");
+            AssertTrue(stderr.Contains("-p ApplicationTrust"), "echoed plugin command");
+        }
+
+        // ---- helpers -----------------------------------------------------------
+
+        // Drive the wizard with scripted IO and return the bytes written to the
+        // stdout stream. Captured stderr (prompts, menus, echo) is returned too.
+        private static byte[] DriveWizard(IKeyReader keys, TextReader lines, out string stderr)
+        {
             var payload = new MemoryStream();
             TextWriter savedErr = Console.Error;
             StringWriter err = new StringWriter();
@@ -216,26 +364,34 @@ namespace ysonet.Tests
             {
                 Console.SetError(savedErr);
             }
-
-            byte[] got = payload.ToArray();
-            byte[] expected = GenerateOdpJson("calc.exe");
-
-            AssertTrue(got.Length > 0, "wizard wrote a payload to stdout stream");
-            AssertTrue(BytesEqual(got, expected), "wizard payload equals core payload");
-
-            string stderr = err.ToString();
-            AssertTrue(stderr.Contains("ysonet.exe -g ObjectDataProvider -f Json.NET -c calc.exe"),
-                "equivalent command echoed to stderr");
-            AssertTrue(!Encoding.UTF8.GetString(got).Contains("Equivalent command"),
-                "prompts did not leak into the payload stream");
+            stderr = err.ToString();
+            return payload.ToArray();
         }
 
-        // ---- helpers -----------------------------------------------------------
+        // Run an interactive widget while swallowing its stderr rendering.
+        private static T WithSwallowedError<T>(Func<T> action)
+        {
+            TextWriter savedErr = Console.Error;
+            Console.SetError(new StringWriter());
+            try { return action(); }
+            finally { Console.SetError(savedErr); }
+        }
+
+        private static TextReader Lines(params string[] lines)
+        {
+            return new StringReader(string.Join("\r\n", lines) + "\r\n");
+        }
 
         private static byte[] GenerateOdpJson(string cmd)
         {
+            return GenerateOdpJson(cmd, false);
+        }
+
+        private static byte[] GenerateOdpJson(string cmd, bool minify)
+        {
             InputArgs ia = new InputArgs();
             ia.Cmd = cmd;
+            ia.Minify = minify;
             GenerationRequest req = new GenerationRequest();
             req.GadgetName = "ObjectDataProvider";
             req.FormatterName = "Json.NET";
@@ -310,6 +466,18 @@ namespace ysonet.Tests
         public ScriptedKeyReader Enter()
         {
             _keys.Enqueue(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+            return this;
+        }
+
+        public ScriptedKeyReader Down()
+        {
+            _keys.Enqueue(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false));
+            return this;
+        }
+
+        public ScriptedKeyReader Up()
+        {
+            _keys.Enqueue(new ConsoleKeyInfo('\0', ConsoleKey.UpArrow, false, false, false));
             return this;
         }
 
