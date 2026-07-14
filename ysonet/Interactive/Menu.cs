@@ -6,6 +6,10 @@ namespace ysonet.Interactive
     // An arrow-key single-select menu drawn on stderr (so stdout stays clean for
     // the payload). Up/Down move, Enter selects, Esc/q cancels. Built only on
     // Console primitives so it stays portable and needs no extra package.
+    //
+    // Redraw uses RELATIVE cursor movement (up by the number of lines last
+    // written) rather than a cached absolute row, so it stays correct even when
+    // the console buffer scrolls.
     public class Menu
     {
         private readonly IKeyReader _keys;
@@ -30,104 +34,51 @@ namespace ysonet.Interactive
             if (!string.IsNullOrEmpty(title))
                 err.WriteLine(title);
 
-            bool canReposition = TryGetCursorTop();
-            int listTop = canReposition ? Console.CursorTop : -1;
-
-            Render(items, index);
+            bool canControl = ConsoleCursor.CanControl();
+            int lines = Render(items, index);
 
             while (true)
             {
                 ConsoleKeyInfo key = _keys.ReadKey();
 
-                if (key.Key == ConsoleKey.UpArrow || key.Key == ConsoleKey.K)
-                {
-                    index = (index - 1 + items.Count) % items.Count;
-                }
-                else if (key.Key == ConsoleKey.DownArrow || key.Key == ConsoleKey.J)
-                {
-                    index = (index + 1) % items.Count;
-                }
-                else if (key.Key == ConsoleKey.Home)
-                {
-                    index = 0;
-                }
-                else if (key.Key == ConsoleKey.End)
-                {
-                    index = items.Count - 1;
-                }
-                else if (key.Key == ConsoleKey.Enter)
-                {
+                if (key.Key == ConsoleKey.Enter)
                     return index;
-                }
-                else if (key.Key == ConsoleKey.Escape || key.Key == ConsoleKey.Q)
-                {
+                if (key.Key == ConsoleKey.Escape || key.Key == ConsoleKey.Q)
                     return -1;
-                }
-                else if (key.KeyChar >= '1' && key.KeyChar <= '9')
+                if (key.KeyChar >= '1' && key.KeyChar <= '9')
                 {
                     int n = key.KeyChar - '1';
                     if (n < items.Count)
                         return n;
                 }
 
-                if (canReposition && listTop >= 0)
-                {
-                    TrySetCursorTop(listTop);
-                }
-                Render(items, index);
+                if (key.Key == ConsoleKey.UpArrow || key.Key == ConsoleKey.K)
+                    index = (index - 1 + items.Count) % items.Count;
+                else if (key.Key == ConsoleKey.DownArrow || key.Key == ConsoleKey.J)
+                    index = (index + 1) % items.Count;
+                else if (key.Key == ConsoleKey.Home)
+                    index = 0;
+                else if (key.Key == ConsoleKey.End)
+                    index = items.Count - 1;
+                else
+                    continue; // ignore other keys without redrawing
+
+                if (canControl)
+                    ConsoleCursor.MoveUp(lines);
+                lines = Render(items, index);
             }
         }
 
-        private void Render(IList<string> items, int index)
+        // Write the menu block and return how many lines it wrote.
+        private int Render(IList<string> items, int index)
         {
             var err = Console.Error;
             for (int i = 0; i < items.Count; i++)
             {
                 string marker = (i == index) ? " > " : "   ";
-                string line = marker + items[i];
-                // pad so leftover text from a longer previous line is cleared
-                err.WriteLine(PadClear(line));
+                err.WriteLine(ConsoleCursor.PadClear(marker + items[i]));
             }
-        }
-
-        private static string PadClear(string line)
-        {
-            try
-            {
-                int width = Console.BufferWidth - 1;
-                if (width > line.Length)
-                    return line + new string(' ', width - line.Length);
-            }
-            catch
-            {
-                // no console buffer (redirected); return as-is
-            }
-            return line;
-        }
-
-        private static bool TryGetCursorTop()
-        {
-            try
-            {
-                int t = Console.CursorTop;
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static void TrySetCursorTop(int top)
-        {
-            try
-            {
-                Console.SetCursorPosition(0, top);
-            }
-            catch
-            {
-                // ignore if the console cannot reposition
-            }
+            return items.Count;
         }
     }
 }

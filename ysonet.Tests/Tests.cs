@@ -34,6 +34,7 @@ namespace ysonet.Tests
             Run("Menu navigates with arrows and Enter", MenuNavigation);
             Run("Menu digit shortcut and Escape cancel", MenuDigitAndCancel);
             Run("Picker selects by typing and cancels on Esc", PickerShowSelectAndCancel);
+            Run("Menu redraws in place in a real console", MenuRedrawsInPlace);
             Run("Wizard e2e builds the same payload as the core", WizardEndToEnd);
             Run("Wizard advanced options reach the payload", WizardAdvancedOptions);
             Run("Wizard writes to a file, not stdout", WizardOutputToFile);
@@ -249,6 +250,29 @@ namespace ysonet.Tests
             string cancelled = WithSwallowedError(() =>
                 p2.Show("pick", new List<string> { "Alpha", "Beta" }, null));
             AssertTrue(cancelled == null, "escape cancels to null");
+        }
+
+        private static void MenuRedrawsInPlace()
+        {
+            // Only meaningful with a real console cursor. Under a redirected stderr
+            // (this test harness, CI) the widget appends by design, so there is
+            // nothing to measure - treat as a pass. In a real terminal this asserts
+            // that N navigation keys do NOT print N copies of the menu (the bug we
+            // fixed: absolute-row caching that broke when the buffer scrolled).
+            if (!ysonet.Interactive.ConsoleCursor.CanControl())
+                return;
+
+            var items = new List<string> { "a", "b", "c", "d", "e" };
+            int before = Console.CursorTop;
+            var keys = new ScriptedKeyReader().Down().Down().Down().Enter();
+            new Menu(keys).Show("pick", items, 0);
+            int after = Console.CursorTop;
+
+            // In-place redraw advances the cursor by about one menu block
+            // (title + items), not by block-height per keystroke.
+            int advanced = after - before;
+            AssertTrue(advanced <= items.Count + 3,
+                "cursor advanced by ~one block, not once per keypress (advanced=" + advanced + ")");
         }
 
         private static void WizardAdvancedOptions()

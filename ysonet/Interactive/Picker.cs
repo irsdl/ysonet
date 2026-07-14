@@ -6,6 +6,10 @@ namespace ysonet.Interactive
     // A type-to-filter selectable list with a live preview pane. This is the
     // wizard's "autocomplete" for a closed set (gadgets, plugins, formatters):
     // you type, the list narrows, arrow keys and Enter pick. Drawn on stderr.
+    //
+    // Redraw uses RELATIVE cursor movement (up by the number of lines last
+    // written), and the block has a constant height, so it stays correct even when
+    // the console buffer scrolls.
     public class Picker
     {
         private readonly IKeyReader _keys;
@@ -86,10 +90,8 @@ namespace ysonet.Interactive
             int index = 0;
             List<string> filtered = Filter(items, query);
 
-            bool canReposition = TryGetCursorTop();
-            int top = canReposition ? Console.CursorTop : -1;
-
-            Render(query, filtered, index, preview);
+            bool canControl = ConsoleCursor.CanControl();
+            int lines = Render(query, filtered, index, preview);
 
             while (true)
             {
@@ -99,6 +101,7 @@ namespace ysonet.Interactive
                 {
                     if (filtered.Count > 0)
                         return filtered[index];
+                    continue;
                 }
                 else if (key.Key == ConsoleKey.Escape)
                 {
@@ -129,20 +132,26 @@ namespace ysonet.Interactive
                     filtered = Filter(items, query);
                     index = 0;
                 }
+                else
+                {
+                    continue; // ignore other keys without redrawing
+                }
 
-                if (canReposition && top >= 0)
-                    TrySetCursorTop(top);
-                Render(query, filtered, index, preview);
+                if (canControl)
+                    ConsoleCursor.MoveUp(lines);
+                lines = Render(query, filtered, index, preview);
             }
         }
 
-        private void Render(string query, List<string> filtered, int index, Func<string, string> preview)
+        // Write the picker block (constant height) and return the line count.
+        private int Render(string query, List<string> filtered, int index, Func<string, string> preview)
         {
             var err = Console.Error;
+            int written = 0;
 
-            err.WriteLine(PadClear("Search: " + query));
+            err.WriteLine(ConsoleCursor.PadClear("Search: " + query));
+            written++;
 
-            int shown = Math.Min(MaxRows, filtered.Count);
             int start = 0;
             if (index >= MaxRows)
                 start = index - MaxRows + 1;
@@ -153,20 +162,22 @@ namespace ysonet.Interactive
                 if (i < filtered.Count)
                 {
                     string marker = (i == index) ? " > " : "   ";
-                    err.WriteLine(PadClear(marker + filtered[i]));
+                    err.WriteLine(ConsoleCursor.PadClear(marker + filtered[i]));
                 }
                 else
                 {
-                    err.WriteLine(PadClear(""));
+                    err.WriteLine(ConsoleCursor.PadClear(""));
                 }
+                written++;
             }
 
             if (filtered.Count == 0)
-                err.WriteLine(PadClear("  (no matches)"));
+                err.WriteLine(ConsoleCursor.PadClear("  (no matches)"));
             else
-                err.WriteLine(PadClear("  " + filtered.Count + " match(es)"));
+                err.WriteLine(ConsoleCursor.PadClear("  " + filtered.Count + " match(es)"));
+            written++;
 
-            // preview block, constant height for clean redraw
+            // preview block, constant height for a clean redraw
             string[] previewLines = new string[0];
             if (preview != null && filtered.Count > 0)
             {
@@ -176,49 +187,11 @@ namespace ysonet.Interactive
             for (int p = 0; p < MaxPreviewLines; p++)
             {
                 string line = (p < previewLines.Length) ? previewLines[p] : "";
-                err.WriteLine(PadClear(line));
+                err.WriteLine(ConsoleCursor.PadClear(line));
+                written++;
             }
-        }
 
-        private static string PadClear(string line)
-        {
-            if (line == null) line = "";
-            try
-            {
-                int width = Console.BufferWidth - 1;
-                if (width > line.Length)
-                    return line + new string(' ', width - line.Length);
-                if (line.Length > width && width > 1)
-                    return line.Substring(0, width);
-            }
-            catch
-            {
-            }
-            return line;
-        }
-
-        private static bool TryGetCursorTop()
-        {
-            try
-            {
-                int t = Console.CursorTop;
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static void TrySetCursorTop(int top)
-        {
-            try
-            {
-                Console.SetCursorPosition(0, top);
-            }
-            catch
-            {
-            }
+            return written;
         }
     }
 }
