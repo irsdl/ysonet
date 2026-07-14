@@ -23,14 +23,17 @@
   Paths are relative to the project directory (the ObfuscateOutput MSBuild target
   runs Obfuscar with that as the working directory).
 
-  InPath is the PRISTINE compiler output under obj\Release (never overwritten in
-  place), so re-running is idempotent and can never double-obfuscate. The target
-  copies the result over bin\Release\ysonet.exe. AssemblySearchPath points at
-  bin\Release because the dependency DLLs live there, not next to the
-  intermediate exe.
+  InPath is a fixed staging folder (obj\obfuscate-in). The ObfuscateOutput MSBuild
+  target copies the PRISTINE per-platform compiler output (obj\Release,
+  obj\x64\Release, etc.) into it before running Obfuscar, then copies the result
+  over the real output path. Using a fixed path here (instead of a hard-coded
+  obj\Release) is what lets the obfuscation work for any platform, not just AnyCPU.
+  The staged exe is never obfuscated in place, so re-running stays idempotent and
+  can never double-obfuscate. String hiding does not need the dependency DLLs, so
+  AssemblySearchPath just points at the same staging folder.
 -->
 <Obfuscator>
-  <Var name="InPath" value="obj\Release" />
+  <Var name="InPath" value="obj\obfuscate-in" />
   <Var name="OutPath" value="obj\obfuscated" />
 
   <!-- Keep every name: no renaming, so reflection-based discovery keeps working. -->
@@ -47,7 +50,23 @@
   <Var name="OptimizeMethods" value="false" />
   <Var name="SuppressIldasm" value="false" />
 
-  <AssemblySearchPath path="bin\Release" />
+  <AssemblySearchPath path="obj\obfuscate-in" />
 
-  <Module file="$(InPath)\ysonet.exe" />
+  <Module file="$(InPath)\ysonet.exe">
+    <!--
+      Surgical string hiding. HideStrings encrypts EVERY string literal, which makes the
+      binary look like a crypt-everything packer (all strings gone, one XOR blob, a static
+      constructor decryptor). That shape trips generic ML/heuristic engines that then
+      mislabel the tool as a Trojan.
+
+      These SkipStringHiding rules keep the BENIGN user-facing strings (banner, help,
+      usage, credits, gadget/plugin listings) in plain text, so the file reads like a
+      normal console utility. They live in ysonet.Program's Show*/Search* methods.
+
+      The real antivirus signatures (gadget assembly-qualified type names, XAML and
+      serialized gadget templates) live in the Generators/* Generate methods, NOT here, so
+      they stay encrypted. Do not add exclusions for gadget code.
+    -->
+    <SkipStringHiding type="ysonet.Program" rx="^(Show|Search).*" />
+  </Module>
 </Obfuscator>

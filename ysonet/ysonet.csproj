@@ -325,25 +325,33 @@
     reflection-based gadget/plugin discovery keeps working, and generated
     payloads stay byte-for-byte identical. See obfuscar.xml for the rationale.
 
-    Runs only for the shipping build (Release|AnyCPU), which is what CI packages.
-    Debug builds are never obfuscated, so day-to-day development is unaffected.
+    Runs for every Release build, on any platform (AnyCPU / x86 / x64). Pinning
+    it to a single platform is a footgun: a Release build of another platform would
+    silently ship a NON-obfuscated binary. Debug builds are never obfuscated, so
+    day-to-day development is unaffected.
     Opt out for a one-off Release build with:  -p:ObfuscateRelease=false
 
-    It obfuscates the PRISTINE compiler output (obj\Release\ysonet.exe, set as
-    InPath in obfuscar.xml) and copies the result over bin\Release\ysonet.exe.
-    Because the source is never obfuscated in place, the target is idempotent:
-    it runs on every Release build (including no-op rebuilds, where MSBuild may
-    re-copy the pristine exe into bin\Release) and always leaves an obfuscated
-    binary, with no risk of double-obfuscation. The cost is ~1s per Release build.
+    It stages the PRISTINE per-platform compiler output
+    ($(IntermediateOutputPath)ysonet.exe, i.e. obj\Release, obj\x64\Release, ...)
+    into a fixed folder (obj\obfuscate-in, the InPath in obfuscar.xml), runs
+    Obfuscar, then copies the result over $(TargetPath). Staging through a fixed
+    path is what makes it platform-agnostic. Because the source is never obfuscated
+    in place, the target is idempotent: it runs on every Release build and always
+    leaves an obfuscated binary, with no risk of double-obfuscation. The cost is
+    ~1s per Release build.
   -->
   <PropertyGroup>
     <ObfuscateRelease Condition="'$(ObfuscateRelease)' == ''">true</ObfuscateRelease>
   </PropertyGroup>
   <Target Name="ObfuscateOutput" AfterTargets="Build"
-          Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU' and '$(ObfuscateRelease)' != 'false'">
+          Condition="'$(Configuration)' == 'Release' and '$(ObfuscateRelease)' != 'false'">
     <Error Condition="!Exists('$(Obfuscar)')"
            Text="Obfuscar not found. Run 'nuget restore ysonet.sln' first, or build with -p:ObfuscateRelease=false to skip string obfuscation." />
     <Message Importance="high" Text="ObfuscateOutput: string-encrypting $(TargetPath)" />
+    <!-- Stage the pristine per-platform exe into the fixed folder obfuscar.xml reads. -->
+    <Copy SourceFiles="$(IntermediateOutputPath)ysonet.exe"
+          DestinationFiles="$(MSBuildProjectDirectory)\obj\obfuscate-in\ysonet.exe"
+          OverwriteReadOnlyFiles="true" />
     <Exec Command="&quot;$(Obfuscar)&quot; obfuscar.xml" WorkingDirectory="$(MSBuildProjectDirectory)" />
     <Copy SourceFiles="$(MSBuildProjectDirectory)\obj\obfuscated\ysonet.exe"
           DestinationFiles="$(TargetPath)" OverwriteReadOnlyFiles="true" />

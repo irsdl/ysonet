@@ -27,18 +27,34 @@ jobs:
         run: msbuild ysonet.sln -p:Configuration=Release
 
       # The Release build string-encrypts ysonet.exe (see ysonet/obfuscar.xml and the
-      # ObfuscateOutput target). Fail loudly if that did not happen, so we never ship a
-      # binary with plain-text signature strings that trip naive antivirus matching.
+      # ObfuscateOutput target). String hiding is surgical: gadget signature strings are
+      # encrypted, but benign user-facing text (banner, help) is kept in plain text so the
+      # binary does not look like a crypt-everything packer. Verify both halves.
       - name: Verify obfuscation
         shell: pwsh
         run: |
           $exe = ".\ysonet\bin\Release\ysonet.exe"
-          $u = [Text.Encoding]::Unicode.GetString([IO.File]::ReadAllBytes($exe))
-          $markers = 'System.Windows.Data.ObjectDataProvider','MethodParameters','generates deserialization payloads'
-          $leaked = $markers | Where-Object { $u.Contains($_) }
-          if ($leaked) { throw "Obfuscation check failed: plain-text literals still present: $($leaked -join ', ')" }
+          $bytes = [IO.File]::ReadAllBytes($exe)
+          # Alignment-independent UTF-16 substring search. A whole-file Unicode decode from
+          # offset 0 silently misses strings that sit at an odd byte offset, so scan for the
+          # literal byte pattern instead.
+          function Test-Utf16([byte[]]$hay, [string]$s) {
+            $n = [Text.Encoding]::Unicode.GetBytes($s)
+            for ($i = 0; $i -le $hay.Length - $n.Length; $i++) {
+              $m = $true
+              for ($j = 0; $j -lt $n.Length; $j++) { if ($hay[$i + $j] -ne $n[$j]) { $m = $false; break } }
+              if ($m) { return $true }
+            }
+            return $false
+          }
+          # Gadget signature strings MUST be encrypted (absent as plain text).
+          foreach ($sig in 'System.Windows.Data.ObjectDataProvider', 'MethodParameters') {
+            if (Test-Utf16 $bytes $sig) { throw "Obfuscation check failed: signature literal still present: $sig" }
+          }
+          # Benign banner MUST stay in plain text (confirms surgical SkipStringHiding worked).
+          if (-not (Test-Utf16 $bytes 'generates deserialization payloads')) { throw "Surgical string hiding failed: benign banner text was also encrypted." }
           if (Test-Path ".\ysonet\bin\Release\ysonet.pdb") { throw "ysonet.pdb should have been removed by obfuscation." }
-          Write-Host "Obfuscation verified: signature string literals are encrypted."
+          Write-Host "Obfuscation verified: signature strings encrypted, benign text preserved."
 
       - name: Collect artifacts
         shell: pwsh

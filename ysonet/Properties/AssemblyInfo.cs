@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyMetadata("BuildTime", "$(DateTime.UtcNow)")]
-[assembly: AssemblyTitle("ysonet")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("YSoNet")]
+[assembly: AssemblyDescription("Deserialization payload generator for authorized .NET security testing. https://github.com/irsdl/ysonet")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("Not Microsoft")]
-[assembly: AssemblyProduct("ysonet")]
-[assembly: AssemblyCopyright("Copyright © Not Microsoft 2025")]
+[assembly: AssemblyCompany("YSoNet Open Source Project")]
+[assembly: AssemblyProduct("YSoNet")]
+[assembly: AssemblyCopyright("Copyright (c) YSoNet Open Source Project 2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
