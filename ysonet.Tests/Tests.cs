@@ -41,6 +41,7 @@ namespace ysonet.Tests
             Run("Wizard cancel at the picker emits nothing", WizardCancelAtPicker);
             Run("Wizard plugin path matches the core", WizardPluginPath);
             Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
+            Run("Run-all-formatters saves payloads to a folder", WizardRunAllFormattersToFolder);
 
             Console.Error.WriteLine();
             Console.Error.WriteLine("Passed: " + _passed + "  Failed: " + _failed);
@@ -377,6 +378,8 @@ namespace ysonet.Tests
             // to completion, skip those gracefully, and emit nothing to stdout.
             var keys = new ScriptedKeyReader();
             keys.Digit(4);   // top menu -> Run all formatters (index 3)
+            keys.Enter();    // output format -> auto
+            keys.Digit(3);   // destination -> "Just show payload lengths" (index 2)
             keys.Escape();   // back at top menu -> quit
 
             var lines = Lines("Binary", "calc.exe"); // formatter term, command
@@ -388,6 +391,39 @@ namespace ysonet.Tests
             AssertTrue(stderr.Contains("Done."), "sweep ran to completion");
             AssertTrue(stderr.Contains("[ok]"), "at least one gadget generated");
             AssertTrue(stderr.Contains("[skip]"), "file/url gadgets were skipped, not fatal");
+            AssertTrue(!stderr.Contains("length 0"), "empty payloads are skipped, not counted as ok");
+        }
+
+        private static void WizardRunAllFormattersToFolder()
+        {
+            string folder = Path.Combine(Path.GetTempPath(), "ysonet_raf_test");
+            if (Directory.Exists(folder))
+                Directory.Delete(folder, true);
+
+            var keys = new ScriptedKeyReader();
+            keys.Digit(4);   // top -> Run all formatters
+            keys.Enter();    // output format -> auto
+            keys.Digit(1);   // destination -> "Save each to its own file" (index 0)
+            keys.Escape();   // back at top -> quit
+
+            var lines = Lines("Binary", "calc.exe", folder); // term, command, folder
+
+            string stderr;
+            byte[] stdout = DriveWizard(keys, lines, out stderr);
+
+            AssertEqual(0, stdout.Length, "sweep writes nothing to stdout");
+            AssertTrue(Directory.Exists(folder), "output folder created");
+            string[] files = Directory.GetFiles(folder);
+            AssertTrue(files.Length > 0, "payload files were written");
+            long biggest = 0;
+            foreach (string p in files)
+            {
+                long n = new FileInfo(p).Length;
+                if (n > biggest) biggest = n;
+            }
+            AssertTrue(biggest > 0, "written payloads are non-empty");
+
+            try { Directory.Delete(folder, true); } catch { }
         }
 
         // ---- helpers -----------------------------------------------------------

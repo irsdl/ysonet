@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using ysonet.Generators;
 using ysonet.Helpers;
 using ysonet.Helpers.Core;
@@ -218,7 +219,7 @@ namespace ysonet.Interactive
             req.OutputPath = outputPath;
             req.InputArgs = inputArgs;
 
-            RunResult result = PayloadRunner.GenerateGadget(req);
+            RunResult result = Quiet(() => PayloadRunner.GenerateGadget(req));
             if (!result.Success)
             {
                 ConsoleStyle.WriteLine("Generation failed: " + result.ErrorMessage, ConsoleStyle.Error);
@@ -282,7 +283,7 @@ namespace ysonet.Interactive
             if (!AskYesNo("Generate now?", true))
                 return;
 
-            RunResult result = PayloadRunner.RunPlugin(view.Name, argv.ToArray());
+            RunResult result = Quiet(() => PayloadRunner.RunPlugin(view.Name, argv.ToArray()));
             if (!result.Success)
             {
                 ConsoleStyle.WriteLine("Plugin failed: " + result.ErrorMessage, ConsoleStyle.Error);
@@ -347,19 +348,47 @@ namespace ysonet.Interactive
             WriteLine("");
         }
 
+        // Bulk generate one command across every gadget that supports a matching
+        // formatter (like --runallformatters), then do something useful with the
+        // results: save each to its own file, concatenate into one file, or just
+        // report lengths for a quick survey.
         private void RunAllFormattersInfo()
         {
             WriteLine("");
             ConsoleStyle.WriteLine("Run all formatters (mirrors --runallformatters):", ConsoleStyle.Heading);
-            WriteLine("Generates a payload for every gadget that supports a matching formatter");
-            WriteLine("and shows the lengths.");
+            WriteLine("Generates one command across every gadget that supports a matching formatter.");
             ConsoleStyle.WriteLine("Note: some gadgets do not take a shell command; they expect the command", ConsoleStyle.Help);
             ConsoleStyle.WriteLine("to be a file path, a URL, or a DLL/C# source (e.g. the *FromFile gadgets,", ConsoleStyle.Help);
             ConsoleStyle.WriteLine("ObjRef, BaseActivationFactory). Those are skipped here, not errors.", ConsoleStyle.Help);
+
             string term = AskText("Formatter to match (e.g. Json, Binary)", "", "");
             if (string.IsNullOrEmpty(term))
                 return;
             string command = AskText("Command to run", "calc.exe", "");
+            string outputFormat = AskOutputFormat();
+
+            // Where should the payloads go?
+            int dest = _menu.Show("What should happen with each payload?", new List<string>
+            {
+                "Save each to its own file in a folder (recommended)",
+                "Write all into one file (with headers)",
+                "Just show payload lengths (quick survey)"
+            }, 0);
+            if (dest < 0)
+                return;
+
+            string folder = null;
+            string singleFilePath = null;
+            if (dest == 0)
+            {
+                folder = AskText("Folder to write files into", "ysonet_payloads", "Created if it does not exist. One file per gadget/formatter.");
+                try { Directory.CreateDirectory(folder); }
+                catch (Exception e) { ConsoleStyle.WriteLine("Cannot create folder: " + e.Message, ConsoleStyle.Error); return; }
+            }
+            else if (dest == 1)
+            {
+                singleFilePath = AskText("File to write all payloads into", "ysonet_payloads.txt", "Each payload is preceded by a header line.");
+            }
 
             InputArgs inputArgs = new InputArgs();
             inputArgs.Cmd = command;
@@ -367,69 +396,150 @@ namespace ysonet.Interactive
             WriteLine("");
             int count = 0;
             var skipped = new List<string>();
-            foreach (string gadgetName in GadgetHelper.GetAllGadgetNames())
+            FileStream single = null;
+            try
             {
-                if (gadgetName == "Generic")
-                    continue;
-
-                // Guard every gadget: some throw on an unsuitable command (they
-                // expect a file/URL/DLL). One bad gadget must never abort the sweep
-                // or drop the user out of the wizard.
-                try
+                if (dest == 1)
                 {
-                    IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
-                    if (gg == null)
+                    try { single = new FileStream(singleFilePath, FileMode.Create); }
+                    catch (Exception e) { ConsoleStyle.WriteLine("Cannot open file: " + e.Message, ConsoleStyle.Error); return; }
+                }
+
+                foreach (string gadgetName in GadgetHelper.GetAllGadgetNames())
+                {
+                    if (gadgetName == "Generic")
                         continue;
 
-                    foreach (string f in gg.SupportedFormatters())
+                    // Guard every gadget: some throw or return nothing on an
+                    // unsuitable command. One bad gadget must never abort the sweep
+                    // or drop the user out of the wizard.
+                    try
                     {
-                        if (f.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0)
+                        IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                        if (gg == null)
                             continue;
-                        string token = f.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0];
 
-                        string label = gg.Name() + " / " + token;
-                        try
+                        foreach (string f in gg.SupportedFormatters())
                         {
-                            GenerationRequest req = new GenerationRequest();
-                            req.GadgetName = gg.Name();
-                            req.FormatterName = token;
-                            req.OutputFormat = "";
-                            req.InputArgs = inputArgs;
-                            RunResult r = PayloadRunner.GenerateGadget(req);
-                            if (r.Success)
+                            if (f.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0)
+                                continue;
+                            string token = f.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0];
+                            string label = gg.Name() + " / " + token;
+
+                            byte[] bytes = TryGenerateQuietly(gg.Name(), token, outputFormat, inputArgs);
+                            // an empty payload means the gadget rejected the input
+                            // (e.g. a *FromFile gadget with a non-file command)
+                            if (bytes == null || bytes.Length == 0)
                             {
-                                int len;
-                                byte[] bytes = PayloadRunner.Encode(r.Raw, r.EffectiveOutputFormat, out len);
-                                ConsoleStyle.WriteLine("  [ok]   " + label + " -> length " + (bytes == null ? 0 : bytes.Length), ConsoleStyle.Success);
-                                count++;
+                                skipped.Add(label);
+                                continue;
+                            }
+
+                            if (dest == 0)
+                            {
+                                string path = Path.Combine(folder, SafeFileName(gg.Name() + "_" + token) + PayloadExtension(outputFormat));
+                                File.WriteAllBytes(path, bytes);
+                                ConsoleStyle.WriteLine("  [ok]   " + label + " -> " + path + " (" + bytes.Length + ")", ConsoleStyle.Success);
+                            }
+                            else if (dest == 1)
+                            {
+                                byte[] header = Encoding.ASCII.GetBytes("=== " + label + " (length " + bytes.Length + ") ===\r\n");
+                                single.Write(header, 0, header.Length);
+                                single.Write(bytes, 0, bytes.Length);
+                                single.WriteByte(13); single.WriteByte(10);
+                                ConsoleStyle.WriteLine("  [ok]   " + label + " (" + bytes.Length + ")", ConsoleStyle.Success);
                             }
                             else
                             {
-                                skipped.Add(label);
+                                ConsoleStyle.WriteLine("  [ok]   " + label + " -> length " + bytes.Length, ConsoleStyle.Success);
                             }
-                        }
-                        catch (Exception)
-                        {
-                            skipped.Add(label);
+                            count++;
                         }
                     }
+                    catch (Exception)
+                    {
+                        skipped.Add(gadgetName);
+                    }
                 }
-                catch (Exception)
-                {
-                    skipped.Add(gadgetName);
-                }
+            }
+            finally
+            {
+                if (single != null)
+                    single.Close();
             }
 
             WriteLine("");
             ConsoleStyle.WriteLine("Done. " + count + " payload(s) generated with \"" + command + "\".", ConsoleStyle.Heading);
+            if (dest == 0)
+                ConsoleStyle.WriteLine("Saved to folder: " + folder, ConsoleStyle.Success);
+            else if (dest == 1)
+                ConsoleStyle.WriteLine("Saved to file: " + singleFilePath, ConsoleStyle.Success);
             if (skipped.Count > 0)
             {
                 ConsoleStyle.WriteLine("Skipped " + skipped.Count + " (need a different command input, or not supported):", ConsoleStyle.Help);
                 foreach (string s in skipped)
                     ConsoleStyle.WriteLine("  [skip] " + s, ConsoleStyle.Help);
             }
-            WriteLine("(Lengths only; use the gadget flow to emit a specific payload.)");
             WriteLine("");
+        }
+
+        // Generate one gadget/formatter and encode it. Returns null/empty on
+        // failure. Console chatter is suppressed by Quiet.
+        private byte[] TryGenerateQuietly(string gadgetName, string formatterToken, string outputFormat, InputArgs inputArgs)
+        {
+            try
+            {
+                GenerationRequest req = new GenerationRequest();
+                req.GadgetName = gadgetName;
+                req.FormatterName = formatterToken;
+                req.OutputFormat = outputFormat;
+                req.InputArgs = inputArgs;
+                RunResult r = Quiet(() => PayloadRunner.GenerateGadget(req));
+                if (!r.Success)
+                    return null;
+                int len;
+                return PayloadRunner.Encode(r.Raw, r.EffectiveOutputFormat, out len);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        // Run a function with Console.Out/Error suppressed, so a gadget that prints
+        // during generation cannot leak onto the real stdout (which carries the
+        // payload) or clutter the menus. Always restores the previous writers.
+        private static T Quiet<T>(Func<T> f)
+        {
+            var prevOut = Console.Out;
+            var prevErr = Console.Error;
+            try
+            {
+                Console.SetOut(TextWriter.Null);
+                Console.SetError(TextWriter.Null);
+                return f();
+            }
+            finally
+            {
+                Console.SetOut(prevOut);
+                Console.SetError(prevErr);
+            }
+        }
+
+        private static string SafeFileName(string name)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (char c in name)
+                sb.Append(char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '.' ? c : '_');
+            return sb.ToString();
+        }
+
+        private static string PayloadExtension(string outputFormat)
+        {
+            string f = (outputFormat ?? "").ToLowerInvariant();
+            if (f.Contains("base64") || f.Contains("hex") || f.Contains("urlencode"))
+                return ".txt";
+            return ".bin";
         }
 
         private void ShowCreditsInfo()
