@@ -1,0 +1,89 @@
+using System;
+using System.Collections.Generic;
+using ysonet.Generators;
+using ysonet.Helpers;
+using ysonet.Plugins;
+
+namespace ysonet.Interactive
+{
+    // A uniform view over "a gadget" or "a plugin" so the wizard can treat both
+    // the same way when picking, previewing, and reading options.
+    public class ModuleView
+    {
+        public bool IsGadget;
+        public string Name;
+        public string Info;              // gadget AdditionalInfo, or plugin Description
+        public string Credit;
+        public List<string> Formatters;  // gadgets only; empty for plugins
+        public List<string> Labels;      // gadgets only; empty for plugins
+        public string BridgedFormatter;  // gadgets only
+        public List<OptionField> OptionFields;
+
+        public static ModuleView FromGadget(string gadgetName)
+        {
+            IGenerator g = GadgetHelper.CreateGadgetInstance(gadgetName);
+            if (g == null)
+                return null;
+
+            ModuleView view = new ModuleView();
+            view.IsGadget = true;
+            view.Name = g.Name();
+            view.Info = g.AdditionalInfo();
+            view.Credit = g.Credit();
+            view.Formatters = new List<string>(g.SupportedFormatters());
+            view.Labels = new List<string>(g.Labels());
+            view.BridgedFormatter = g.SupportedBridgedFormatter();
+            view.OptionFields = OptionField.FromOptionSet(g.Options());
+            return view;
+        }
+
+        public static ModuleView FromPlugin(string pluginName)
+        {
+            IPlugin p = PluginHelper.CreatePluginInstance(pluginName);
+            if (p == null)
+                return null;
+
+            ModuleView view = new ModuleView();
+            view.IsGadget = false;
+            view.Name = p.Name();
+            view.Info = p.Description();
+            view.Credit = p.Credit();
+            view.Formatters = new List<string>();
+            view.Labels = new List<string>();
+            view.BridgedFormatter = "";
+            view.OptionFields = OptionField.FromOptionSet(p.Options());
+            return view;
+        }
+
+        // A multi-line preview used by the picker.
+        public string PreviewText()
+        {
+            var lines = new List<string>();
+            if (!string.IsNullOrEmpty(Info))
+                lines.Add("  " + Info);
+
+            if (IsGadget)
+            {
+                if (Formatters != null && Formatters.Count > 0)
+                    lines.Add("  Formatters: " + string.Join(", ", Formatters.ToArray()));
+                if (Labels != null && Labels.Count > 0)
+                    lines.Add("  Labels: " + string.Join(", ", Labels.ToArray()));
+                if (!string.IsNullOrEmpty(BridgedFormatter))
+                    lines.Add("  Bridge formatter: " + BridgedFormatter);
+            }
+
+            if (OptionFields != null && OptionFields.Count > 0)
+            {
+                var names = new List<string>();
+                foreach (var f in OptionFields)
+                    names.Add(f.DisplayName);
+                lines.Add("  Extra options: " + string.Join(", ", names.ToArray()));
+            }
+
+            if (!string.IsNullOrEmpty(Credit))
+                lines.Add("  Credit: " + Credit);
+
+            return string.Join("\r\n", lines.ToArray());
+        }
+    }
+}

@@ -240,6 +240,15 @@
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\binaryutilclasses.cs" />
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\Environment.cs" />
     <Compile Include="Helpers\CommandArgSplitter.cs" />
+    <Compile Include="Helpers\Core\PayloadRunner.cs" />
+    <Compile Include="Interactive\IKeyReader.cs" />
+    <Compile Include="Interactive\Menu.cs" />
+    <Compile Include="Interactive\Picker.cs" />
+    <Compile Include="Interactive\OptionField.cs" />
+    <Compile Include="Interactive\ModuleView.cs" />
+    <Compile Include="Interactive\CommandEcho.cs" />
+    <Compile Include="Interactive\Wizard.cs" />
+    <Compile Include="Interactive\InteractiveMode.cs" />
     <Compile Include="Helpers\Debugging.cs" />
     <Compile Include="Helpers\FormatterType.cs" />
     <Compile Include="Helpers\InputArgs.cs" />

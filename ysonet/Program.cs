@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using ysonet.Generators;
 using ysonet.Helpers;
+using ysonet.Helpers.Core;
 using ysonet.Plugins;
 
 namespace ysonet
@@ -37,7 +38,7 @@ namespace ysonet
         static IEnumerable<string> generators;
         static IEnumerable<string> plugins;
 
-        static OptionSet options = new OptionSet()
+        internal static OptionSet options = new OptionSet()
             {
                 {"p|plugin=", "The plugin to be used.", v => plugin_name = v },
                 {"o|output=", "The output format (raw|base64|raw-urlencode|base64-urlencode|hex).", v => outputformat = v },
@@ -62,6 +63,16 @@ namespace ysonet
 
         static void Main(string[] args)
         {
+            // Interactive mode is an extra entry mode, detected before normal
+            // option parsing so the one-shot CLI is completely unchanged. It is
+            // only triggered when the user is not running a plugin (plugins own
+            // -i inside their own argv).
+            if (IsInteractiveInvocation(args))
+            {
+                int interactiveCode = ysonet.Interactive.InteractiveMode.Run();
+                System.Environment.Exit(interactiveCode);
+            }
+
             InputArgs inputArgs = new InputArgs();
 
             try
@@ -288,118 +299,27 @@ namespace ysonet
                     inputArgs.Cmd = cmd;
                 }
 
-                for (int i = 0; i < gadgetsChain.Count; i++)
+                // Generation now runs through the shared core. It walks the same
+                // bridged chain and returns a result instead of exiting on error.
+                GenerationRequest request = new GenerationRequest
                 {
-                    string current_gadget_name = gadgetsChain[i];
-                    string consumer_gadget_name = "";
-                    string current_formatter_name = "";
+                    GadgetName = gadget_name,
+                    FormatterName = formatter_name,
+                    BridgedGadgetChain = bridged_gadget_chain,
+                    OutputFormat = outputformat,
+                    OutputPath = outputpath,
+                    InputArgs = inputArgs
+                };
 
-                    if (i < gadgetsChain.Count - 1)
-                    {
-                        // this is not the last one so it has a consumer and 'current_gadget_name' should be a bridge gadget!
-                        consumer_gadget_name = gadgetsChain[i + 1];
-
-                    }
-                    else
-                    {
-                        // the provided formatter from the user input should only be used for the last item in the chain
-                        // bridges should know what they need to pass it on
-                        current_formatter_name = formatter_name;
-                    }
-
-                    // Validate gadget exists using GadgetHelper
-                    if (!GadgetHelper.GadgetExists(current_gadget_name))
-                    {
-                        Console.WriteLine("Gadget '" + current_gadget_name + "' not supported.");
-                        Console.WriteLine();
-                        ShowAvailableGadgets(current_gadget_name);
-                        System.Environment.Exit(-1);
-                    }
-
-                    // Instantiate Payload Generator using GadgetHelper
-                    IGenerator generator = GadgetHelper.CreateGadgetInstance(current_gadget_name);
-                    if (generator == null)
-                    {
-                        Console.WriteLine("Gadget " + current_gadget_name + " not supported!");
-                        System.Environment.Exit(-1);
-                    }
-
-                    if (!string.IsNullOrEmpty(consumer_gadget_name))
-                    {
-                        // we have a consumer which has its own requirements and we need to check them to be satisfied
-                        // first we need to check whether we have a valid consumer using GadgetHelper
-                        if (!GadgetHelper.GadgetExists(consumer_gadget_name))
-                        {
-                            Console.WriteLine("Bridged gadget '" + consumer_gadget_name + "' not supported.");
-                            Console.WriteLine();
-                            ShowAvailableGadgets(consumer_gadget_name);
-                            Console.WriteLine("Current supplied gadget chain: " + string.Join(" -> ", gadgetsChain));
-                            System.Environment.Exit(-1);
-                        }
-
-                        // Instantiate The Bridged Gadget using GadgetHelper
-                        IGenerator consumer_gadget = GadgetHelper.CreateGadgetInstance(consumer_gadget_name);
-                        if (consumer_gadget == null)
-                        {
-                            Console.WriteLine("Bridged gadget " + consumer_gadget_name + " not supported!");
-                            Console.WriteLine("Current supplied gadget chain: " + string.Join(" -> ", gadgetsChain));
-                            System.Environment.Exit(-1);
-                        }
-
-                        if (!consumer_gadget.Labels().Contains(GadgetTags.Bridged))
-                        {
-                            Console.WriteLine("The " + consumer_gadget.Name() + " gadget is not a bridge gadget and it cannot accept another gadget.");
-                            Console.WriteLine("Current supplied gadget chain: " + string.Join(" -> ", gadgetsChain));
-                            System.Environment.Exit(-1);
-                        }
-
-                        if (string.IsNullOrEmpty(consumer_gadget.SupportedBridgedFormatter()))
-                        {
-                            Console.WriteLine("The " + consumer_gadget.Name() + " gadget does not specify a formatter for the bridge");
-                            Console.WriteLine("Current supplied gadget chain: " + string.Join(" -> ", gadgetsChain));
-                            System.Environment.Exit(-1);
-                        }
-
-                        current_formatter_name = consumer_gadget.SupportedBridgedFormatter();
-                    }
-
-                    if (!generator.IsSupported(current_formatter_name))
-                    {
-                        Console.WriteLine("Formatter " + current_formatter_name + " not supported by " + generator.Name() + ". Supported formatters are: " + string.Join(" , ", generator.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
-                        System.Environment.Exit(-1);
-                    }
-
-                    if (i > 0)
-                    {
-                        generator.BridgedPayload = raw;
-                    }
-
-                    if (i == gadgetsChain.Count - 1)
-                    {
-                        raw = generator.GenerateWithInit(current_formatter_name, inputArgs);
-                    }
-                    else
-                    {
-                        // we do not need to run the payload when building the bridges unless it is the last one
-                        raw = generator.GenerateWithNoTest(current_formatter_name, inputArgs);
-                    }
-
-
+                RunResult result = PayloadRunner.GenerateGadget(request);
+                if (!result.Success)
+                {
+                    Console.WriteLine(result.ErrorMessage);
+                    System.Environment.Exit(-1);
                 }
 
-
-
-                // LosFormatter is already base64 encoded
-                if (outputformat.ToLower().Equals("base64") && formatter_name.ToLower().Equals("losformatter"))
-                {
-                    outputformat = "raw";
-                }
-
-                // Getting the default output format if it has not been provided
-                if (string.IsNullOrEmpty(outputformat))
-                {
-                    outputformat = GetDefaultOutputFormat(formatter_name);
-                }
+                raw = result.Raw;
+                outputformat = result.EffectiveOutputFormat;
 
                 ProcessOutput(outputformat, raw, isDebugMode, outputpath);
             }
@@ -430,7 +350,7 @@ namespace ysonet
 
                                         String payloadTitle = "(*) Gadget: " + gg.Name() + " - Formatter: " + current_formatter_name;
 
-                                        outputformat = GetDefaultOutputFormat(current_formatter_name);
+                                        outputformat = PayloadRunner.GetDefaultOutputFormat(current_formatter_name);
                                         if (cmd == "" && cmdstdin)
                                         {
                                             Stream stdin = Console.OpenStandardInput(2050);
@@ -484,80 +404,36 @@ namespace ysonet
             }
         }
 
+        // Detects whether the user asked for interactive mode. Triggers, and only
+        // as the first argument so they cannot collide with an option value (for
+        // example -c "interactive"):
+        //   ysonet.exe interactive | wizard | -i | --interactive
+        // Because the trigger must be first, a plugin or gadget run (which starts
+        // with -p/-g) is never mistaken for interactive mode.
+        private static bool IsInteractiveInvocation(string[] args)
+        {
+            if (args == null || args.Length == 0)
+                return false;
+
+            string first = args[0];
+            if (first == null)
+                return false;
+
+            return string.Equals(first, "-i", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(first, "--interactive", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(first, "interactive", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(first, "wizard", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static void ProcessOutput(string outputformat, object raw, bool showOutputLength, string outputFilePath)
         {
             ProcessOutput(outputformat, raw, showOutputLength, outputFilePath, 0, "", "");
         }
         private static void ProcessOutput(string outputformat, object raw, bool showOutputLength, string outputFilePath, int loopCount, string prefix, string suffix)
         {
-            byte[] outputBytes = null;
-            string outputString = "";
-            int outputActualLength = 0;
-
-            if (outputformat.ToLower().Contains("base64"))
-            {
-                if (raw.GetType() == typeof(String))
-                {
-                    outputBytes = Encoding.ASCII.GetBytes((String)raw);
-                }
-                else if (raw.GetType() == typeof(byte[]))
-                {
-                    outputBytes = (byte[])raw;
-                }
-
-                outputString = Convert.ToBase64String(outputBytes);
-                outputActualLength = outputString.Length;
-
-                if (outputformat.ToLower().Contains("urlencode"))
-                {
-                    outputString = outputString.Replace("+", "%2B")
-                                 .Replace("/", "%2F")
-                                 .Replace("=", "%3D");
-                }
-
-                outputBytes = Encoding.ASCII.GetBytes(outputString);
-            }
-            else if (raw.GetType() == typeof(String))
-            {
-                outputString = (String)raw;
-                outputActualLength = outputString.Length;
-
-                if (outputformat.ToLower().Contains("urlencode"))
-                {
-                    outputString = outputString.Replace("+", "%2B")
-                                 .Replace("/", "%2F")
-                                 .Replace("=", "%3D");
-                }
-                else if (outputformat.ToLower().Equals("hex"))
-                {
-                    outputBytes = Encoding.ASCII.GetBytes((String)outputString);
-                    outputString = BitConverter.ToString(outputBytes).Replace("-", "");
-                }
-                outputBytes = Encoding.UTF8.GetBytes((String)outputString ?? "");
-            }
-            else if (raw.GetType() == typeof(byte[]))
-            {
-                outputActualLength = ((byte[])raw).Length;
-
-                if (outputformat.ToLower().Contains("urlencode"))
-                {
-                    outputString = Encoding.UTF8.GetString((byte[])raw);
-                    outputString = outputString = outputString.Replace("+", "%2B")
-                                 .Replace("/", "%2F")
-                                 .Replace("=", "%3D");
-                    outputBytes = Encoding.ASCII.GetBytes((String)outputString ?? "");
-                }
-                else if (outputformat.ToLower().Equals("hex"))
-                {
-                    outputString = BitConverter.ToString((byte[])raw).Replace("-", "");
-                    outputBytes = Encoding.ASCII.GetBytes((String)outputString ?? "");
-                }
-                else
-                {
-                    outputBytes = (byte[])raw;
-                }
-
-            }
+            // Encoding is now a pure function shared with interactive mode.
+            int outputActualLength;
+            byte[] outputBytes = PayloadRunner.Encode(raw, outputformat, out outputActualLength);
 
             if (outputBytes == null)
             {
@@ -644,16 +520,6 @@ namespace ysonet
             }
         }
 
-
-        private static string GetDefaultOutputFormat(string formatter_name)
-        {
-            string result = "raw";
-            List<String> base64Default = new List<string>() { "BinaryFormatter", "ObjectStateFormatter", "MessagePackTypeless", "MessagePackTypelessLz4", "SharpSerializerBinary" }; // LosFormatter is already base64 encoded
-            var b64match = base64Default.FirstOrDefault(b64formatter => String.Equals(b64formatter, formatter_name, StringComparison.OrdinalIgnoreCase));
-            if (b64match != null)
-                result = "base64";
-            return result;
-        }
 
         private static void SearchFormatters(string formatter_name, InputArgs inputArgs)
         {

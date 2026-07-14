@@ -1,5 +1,9 @@
 ﻿using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+
+// The test project drives the interactive core and reads the global OptionSet.
+[assembly: InternalsVisibleTo("ysonet.Tests")]
 
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
