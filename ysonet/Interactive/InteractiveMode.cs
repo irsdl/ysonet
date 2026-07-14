@@ -19,8 +19,13 @@ namespace ysonet.Interactive
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine("Interactive mode error: " + e.Message);
+                ConsoleStyle.WriteLine("Interactive mode error: " + e.Message, ConsoleStyle.Error);
                 return -1;
+            }
+            finally
+            {
+                // never leave the terminal in a changed color
+                ConsoleStyle.Reset();
             }
         }
     }

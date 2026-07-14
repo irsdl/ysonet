@@ -243,6 +243,7 @@
     <Compile Include="Helpers\Core\PayloadRunner.cs" />
     <Compile Include="Interactive\IKeyReader.cs" />
     <Compile Include="Interactive\ConsoleCursor.cs" />
+    <Compile Include="Interactive\ConsoleStyle.cs" />
     <Compile Include="Interactive\Menu.cs" />
     <Compile Include="Interactive\Picker.cs" />
     <Compile Include="Interactive\OptionField.cs" />

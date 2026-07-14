@@ -58,9 +58,9 @@ namespace ysonet.Interactive
         public int Run()
         {
             WriteLine("");
-            WriteLine("=== YSoNet interactive mode ===");
-            WriteLine("Build a payload step by step. Prompts and menus are on stderr;");
-            WriteLine("only the final payload goes to stdout, so piping still works.");
+            ConsoleStyle.WriteLine("=== YSoNet interactive mode ===", ConsoleStyle.Banner);
+            ConsoleStyle.WriteLine("Build a payload step by step. Prompts and menus are on stderr;", ConsoleStyle.Help);
+            ConsoleStyle.WriteLine("only the final payload goes to stdout, so piping still works.", ConsoleStyle.Help);
             WriteLine("");
 
             var topItems = new List<string>
@@ -187,14 +187,14 @@ namespace ysonet.Interactive
             string commandLine = CommandEcho.Build(echoTokens);
 
             WriteLine("");
-            WriteLine("Review:");
+            ConsoleStyle.WriteLine("Review:", ConsoleStyle.Heading);
             WriteLine("  Gadget:    " + view.Name);
             WriteLine("  Formatter: " + formatter);
             WriteLine("  Command:   " + command);
             WriteLine("  Output:    " + (string.IsNullOrEmpty(outputFormat) ? "(auto)" : outputFormat));
             if (!string.IsNullOrEmpty(outputPath))
                 WriteLine("  File:      " + outputPath);
-            WriteLine("  Command line: " + commandLine);
+            WriteCommandLine(commandLine);
             WriteLine("");
 
             if (!AskYesNo("Generate now?", true))
@@ -220,7 +220,7 @@ namespace ysonet.Interactive
             RunResult result = PayloadRunner.GenerateGadget(req);
             if (!result.Success)
             {
-                WriteLine("Generation failed: " + result.ErrorMessage);
+                ConsoleStyle.WriteLine("Generation failed: " + result.ErrorMessage, ConsoleStyle.Error);
                 WriteLine("You can go back and try different values.");
                 return;
             }
@@ -245,8 +245,8 @@ namespace ysonet.Interactive
             }
 
             WriteLine("");
-            WriteLine(view.Name + ": " + view.Info);
-            WriteLine("Set the plugin options. See plugin help for which are required.");
+            ConsoleStyle.WriteLine(view.Name + ": " + view.Info, ConsoleStyle.Heading);
+            ConsoleStyle.WriteLine("Set the plugin options. See plugin help for which are required.", ConsoleStyle.Help);
 
             CollectModuleOptions(view);
 
@@ -273,9 +273,9 @@ namespace ysonet.Interactive
             string commandLine = CommandEcho.Build(argv);
 
             WriteLine("");
-            WriteLine("Review:");
+            ConsoleStyle.WriteLine("Review:", ConsoleStyle.Heading);
             WriteLine("  Plugin:  " + view.Name);
-            WriteLine("  Command line: " + commandLine);
+            WriteCommandLine(commandLine);
             WriteLine("");
 
             if (!AskYesNo("Generate now?", true))
@@ -284,7 +284,7 @@ namespace ysonet.Interactive
             RunResult result = PayloadRunner.RunPlugin(view.Name, argv.ToArray());
             if (!result.Success)
             {
-                WriteLine("Plugin failed: " + result.ErrorMessage);
+                ConsoleStyle.WriteLine("Plugin failed: " + result.ErrorMessage, ConsoleStyle.Error);
                 WriteLine("Check the plugin help for required options.");
                 return;
             }
@@ -302,7 +302,7 @@ namespace ysonet.Interactive
                 return;
 
             WriteLine("");
-            WriteLine("Options for " + view.Name + " (Enter to skip any):");
+            ConsoleStyle.WriteLine("Options for " + view.Name + " (Enter to skip any):", ConsoleStyle.Heading);
             foreach (OptionField field in view.OptionFields)
             {
                 string help = string.IsNullOrEmpty(field.Description) ? "" : field.Description;
@@ -430,8 +430,8 @@ namespace ysonet.Interactive
             if (string.IsNullOrWhiteSpace(outputPath))
             {
                 WriteLine("");
-                WriteLine("Payload (" + actualLength + " chars/bytes) follows on stdout:");
-                WriteLine("Equivalent command: " + commandLine);
+                ConsoleStyle.WriteLine("Payload (" + actualLength + " chars/bytes) follows on stdout:", ConsoleStyle.Success);
+                WriteCommandLine(commandLine);
                 WriteLine("");
                 Console.Error.Flush();
                 _output.Write(bytes, 0, bytes.Length);
@@ -445,13 +445,13 @@ namespace ysonet.Interactive
                 {
                     File.WriteAllBytes(outputPath, bytes);
                     WriteLine("");
-                    WriteLine("Wrote " + bytes.Length + " bytes to " + outputPath);
-                    WriteLine("Equivalent command: " + commandLine);
+                    ConsoleStyle.WriteLine("Wrote " + bytes.Length + " bytes to " + outputPath, ConsoleStyle.Success);
+                    WriteCommandLine(commandLine);
                     WriteLine("");
                 }
                 catch (Exception e)
                 {
-                    WriteLine("Error saving to file: " + e.Message);
+                    ConsoleStyle.WriteLine("Error saving to file: " + e.Message, ConsoleStyle.Error);
                 }
             }
         }
@@ -498,9 +498,9 @@ namespace ysonet.Interactive
         private string AskText(string label, string defaultValue, string help)
         {
             if (!string.IsNullOrEmpty(help))
-                WriteLine("  (" + help + ")");
+                ConsoleStyle.WriteLine("  (" + help + ")", ConsoleStyle.Help);
             string suffix = string.IsNullOrEmpty(defaultValue) ? "" : " [" + defaultValue + "]";
-            Console.Error.Write(label + suffix + ": ");
+            ConsoleStyle.Write(label + suffix + ": ", ConsoleStyle.Prompt);
             Console.Error.Flush();
             string line = _input.ReadLine();
             if (line == null)
@@ -523,7 +523,14 @@ namespace ysonet.Interactive
 
         private void WriteLine(string s)
         {
-            Console.Error.WriteLine(s);
+            ConsoleStyle.WriteLine(s);
+        }
+
+        // Print the equivalent-command line with the command itself highlighted.
+        private void WriteCommandLine(string commandLine)
+        {
+            ConsoleStyle.Write("  Equivalent command: ", ConsoleStyle.Help);
+            ConsoleStyle.WriteLine(commandLine, ConsoleStyle.Command);
         }
     }
 }

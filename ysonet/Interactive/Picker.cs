@@ -81,10 +81,9 @@ namespace ysonet.Interactive
             if (items == null || items.Count == 0)
                 return null;
 
-            var err = Console.Error;
             if (!string.IsNullOrEmpty(title))
-                err.WriteLine(title);
-            err.WriteLine("(type to filter, Up/Down to move, Enter to pick, Esc to cancel)");
+                ConsoleStyle.WriteLine(title, ConsoleStyle.Heading);
+            ConsoleStyle.WriteLine("(type to filter, Up/Down to move, Enter to pick, Esc to cancel)", ConsoleStyle.Help);
 
             string query = "";
             int index = 0;
@@ -146,10 +145,10 @@ namespace ysonet.Interactive
         // Write the picker block (constant height) and return the line count.
         private int Render(string query, List<string> filtered, int index, Func<string, string> preview)
         {
-            var err = Console.Error;
             int written = 0;
 
-            err.WriteLine(ConsoleCursor.PadClear("Search: " + query));
+            ConsoleStyle.Write(ConsoleCursor.PadClear("Search: " + query), ConsoleStyle.Prompt);
+            Console.Error.WriteLine();
             written++;
 
             int start = 0;
@@ -161,20 +160,25 @@ namespace ysonet.Interactive
                 int i = start + row;
                 if (i < filtered.Count)
                 {
-                    string marker = (i == index) ? " > " : "   ";
-                    err.WriteLine(ConsoleCursor.PadClear(marker + filtered[i]));
+                    bool selected = (i == index);
+                    string marker = selected ? " > " : "   ";
+                    string line = ConsoleCursor.PadClear(marker + filtered[i]);
+                    if (selected)
+                        ConsoleStyle.WriteLineHighlight(line, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
+                    else
+                        ConsoleStyle.WriteLine(line);
                 }
                 else
                 {
-                    err.WriteLine(ConsoleCursor.PadClear(""));
+                    ConsoleStyle.WriteLine(ConsoleCursor.PadClear(""));
                 }
                 written++;
             }
 
             if (filtered.Count == 0)
-                err.WriteLine(ConsoleCursor.PadClear("  (no matches)"));
+                ConsoleStyle.WriteLine(ConsoleCursor.PadClear("  (no matches)"), ConsoleStyle.Error);
             else
-                err.WriteLine(ConsoleCursor.PadClear("  " + filtered.Count + " match(es)"));
+                ConsoleStyle.WriteLine(ConsoleCursor.PadClear("  " + filtered.Count + " match(es)"), ConsoleStyle.Help);
             written++;
 
             // preview block, constant height for a clean redraw
@@ -187,7 +191,7 @@ namespace ysonet.Interactive
             for (int p = 0; p < MaxPreviewLines; p++)
             {
                 string line = (p < previewLines.Length) ? previewLines[p] : "";
-                err.WriteLine(ConsoleCursor.PadClear(line));
+                ConsoleStyle.WriteLine(ConsoleCursor.PadClear(line), ConsoleStyle.Help);
                 written++;
             }
 

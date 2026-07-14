@@ -30,9 +30,8 @@ namespace ysonet.Interactive
             if (index < 0) index = 0;
             if (index >= items.Count) index = items.Count - 1;
 
-            var err = Console.Error;
             if (!string.IsNullOrEmpty(title))
-                err.WriteLine(title);
+                ConsoleStyle.WriteLine(title, ConsoleStyle.Heading);
 
             bool canControl = ConsoleCursor.CanControl();
             int lines = Render(items, index);
@@ -69,14 +68,19 @@ namespace ysonet.Interactive
             }
         }
 
-        // Write the menu block and return how many lines it wrote.
+        // Write the menu block and return how many lines it wrote. The selected
+        // row is drawn as a full-width highlight bar.
         private int Render(IList<string> items, int index)
         {
-            var err = Console.Error;
             for (int i = 0; i < items.Count; i++)
             {
-                string marker = (i == index) ? " > " : "   ";
-                err.WriteLine(ConsoleCursor.PadClear(marker + items[i]));
+                bool selected = (i == index);
+                string marker = selected ? " > " : "   ";
+                string line = ConsoleCursor.PadClear(marker + items[i]);
+                if (selected)
+                    ConsoleStyle.WriteLineHighlight(line, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
+                else
+                    ConsoleStyle.WriteLine(line);
             }
             return items.Count;
         }
