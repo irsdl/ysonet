@@ -142,6 +142,7 @@
       <HintPath>..\packages\SharpSerializer.3.0.1\lib\net452\Polenter.SharpSerializer.dll</HintPath>
     </Reference>
     <Reference Include="PresentationFramework" />
+    <Reference Include="PresentationCore" />
     <Reference Include="System" />
     <Reference Include="System.Buffers, Version=4.0.4.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Buffers.4.6.0\lib\net462\System.Buffers.dll</HintPath>
@@ -249,6 +250,10 @@
     <Compile Include="Interactive\OptionField.cs" />
     <Compile Include="Interactive\ModuleView.cs" />
     <Compile Include="Interactive\CommandEcho.cs" />
+    <Compile Include="Interactive\EditableField.cs" />
+    <Compile Include="Interactive\PayloadEmitter.cs" />
+    <Compile Include="Interactive\ModuleEditor.cs" />
+    <Compile Include="Interactive\ModuleEditor.Columns.cs" />
     <Compile Include="Interactive\Wizard.cs" />
     <Compile Include="Interactive\InteractiveMode.cs" />
     <Compile Include="Helpers\Debugging.cs" />

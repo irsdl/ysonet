@@ -23,6 +23,10 @@ namespace ysonet.Interactive
         private readonly Menu _menu;
         private readonly Picker _picker;
 
+        // Shared across builds in one session: the module editor and the run-all
+        // sweep both read/update it (currently the last shell command typed).
+        private readonly WizardSession _session = new WizardSession();
+
         // Thrown when the user presses Esc at a prompt. Caught in Run's loop, which
         // returns to the top menu - so Esc goes back from anywhere, including a
         // free-text prompt.
@@ -118,266 +122,29 @@ namespace ysonet.Interactive
 
         private void RunGadgetFlow()
         {
-            // Step 2: pick the gadget.
-            var gadgetNames = new List<string>();
+            var names = new List<string>();
             foreach (string n in GadgetHelper.GetAllGadgetNames())
                 if (n != "Generic")
-                    gadgetNames.Add(n);
-
-            string gadgetName = _picker.Show("Pick a gadget:", gadgetNames, PreviewGadget);
-            if (gadgetName == null)
-                return;
-
-            ModuleView view = ModuleView.FromGadget(gadgetName);
-            if (view == null)
-            {
-                WriteLine("Could not load gadget " + gadgetName + ".");
-                return;
-            }
-
-            // Step 3: pick the formatter (normalized token, as -f expects).
-            var display = new List<string>();
-            var values = new List<string>();
-            var seen = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-            foreach (string f in view.Formatters)
-            {
-                string token = f.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0];
-                if (seen.ContainsKey(token))
-                    continue;
-                seen[token] = true;
-                values.Add(token);
-                display.Add(f.Equals(token) ? token : (token + "   [" + f + "]"));
-            }
-            if (values.Count == 0)
-            {
-                WriteLine("This gadget reports no formatters.");
-                return;
-            }
-            int fi = _menu.Show("Pick a formatter for " + view.Name + ":", display, 0);
-            if (fi < 0)
-                return;
-            string formatter = values[fi];
-
-            if (!string.IsNullOrEmpty(view.Info))
-                ConsoleStyle.WriteLine("About this gadget: " + view.Info, ConsoleStyle.Help);
-
-            // Step 4: variant (only when the gadget has variants). Asked before the
-            // command because a variant can change what the command means.
-            GadgetVariant selectedVariant = null;
-            if (view.Variants != null && view.Variants.Count > 0)
-            {
-                var vItems = new List<string>();
-                foreach (GadgetVariant v in view.Variants)
-                    vItems.Add(v.Label);
-                int vi = _menu.Show("Pick a variant for " + view.Name + ":", vItems, 0);
-                if (vi < 0)
-                    return;
-                selectedVariant = view.Variants[vi];
-                OptionField vf = view.VariantField();
-                if (vf != null)
-                    vf.Value = selectedVariant.Number.ToString();
-            }
-
-            // Step 5: command. The gadget declares what -c means (shell command,
-            // .cs file, DLL path, URL, file path, or ignored), so label the prompt
-            // accordingly instead of always saying "Command to run". A variant can
-            // override this (e.g. XamlImageInfo variant 2 takes a command, not a
-            // file path), so the chosen variant's input wins when it sets one.
-            CommandInputType inputType = selectedVariant != null
-                ? selectedVariant.EffectiveInput(view.CommandInput)
-                : view.CommandInput;
-            string command = AskText(CommandLabel(inputType), CommandDefaultFor(inputType), CommandHelp(inputType));
-            RememberCommand(inputType, command);
-
-            // "raw command" only makes sense for a shell command.
-            bool rawcmd = false;
-            if (inputType == CommandInputType.ShellCommand || inputType == CommandInputType.Ignored)
-                rawcmd = AskYesNo("Run the command raw (no 'cmd /c' prefix)?", false);
-
-            // Step 6: remaining gadget-specific options (the variant is already set).
-            CollectModuleOptions(view);
-
-            // Step 6: output and advanced options.
-            string outputFormat = AskOutputFormat();
-            string outputPath = AskText("Output file path (blank = write to stdout)", "", "Where to save the payload. Leave blank to print it.");
-
-            bool minify = false, useSimpleType = false, test = false, debugMode = false;
-            string bridgedChain = "";
-            if (AskYesNo("Set advanced options (minify, test, bridged chain, ...)?", false))
-            {
-                minify = AskYesNo("Minify the payload where applicable (--minify)?", false);
-                useSimpleType = AskYesNo("Use simple type when minifying (--usesimpletype)?", false);
-                test = AskYesNo("Locally run the payload to self-test it (--test)?", false);
-                bridgedChain = AskText("Bridged gadget chain (--bgc, comma separated)", "", "Advanced: wrap this gadget inside bridge gadgets. Blank for none.");
-                debugMode = AskYesNo("Enable debug output (--debugmode)?", false);
-            }
-
-            // Build gadget extra-option argv from the collected fields.
-            var extraTokens = new List<string>();
-            foreach (OptionField field in view.OptionFields)
-                extraTokens.AddRange(field.ToArgv());
-
-            // Step 7: review + generate.
-            var echoTokens = CommandEcho.GadgetTokens(
-                view.Name, formatter, command, rawcmd, false,
-                outputFormat, outputPath, bridgedChain,
-                minify, useSimpleType, test, debugMode, extraTokens);
-            string commandLine = CommandEcho.Build(echoTokens);
-
-            WriteLine("");
-            ConsoleStyle.WriteLine("Review:", ConsoleStyle.Heading);
-            WriteLine("  Gadget:    " + view.Name);
-            WriteLine("  Formatter: " + formatter);
-            WriteLine("  Command:   " + command);
-            WriteLine("  Output:    " + (string.IsNullOrEmpty(outputFormat) ? "(auto)" : outputFormat));
-            if (!string.IsNullOrEmpty(outputPath))
-                WriteLine("  File:      " + outputPath);
-            WriteCommandLine(commandLine);
-            WriteLine("");
-
-            if (!AskYesNo("Generate now?", true))
-                return;
-
-            InputArgs inputArgs = new InputArgs();
-            inputArgs.Cmd = command;
-            inputArgs.IsRawCmd = rawcmd;
-            inputArgs.Test = test;
-            inputArgs.Minify = minify;
-            inputArgs.UseSimpleType = useSimpleType;
-            inputArgs.IsDebugMode = debugMode;
-            inputArgs.ExtraArguments = extraTokens;
-
-            GenerationRequest req = new GenerationRequest();
-            req.GadgetName = view.Name;
-            req.FormatterName = formatter;
-            req.BridgedGadgetChain = bridgedChain;
-            req.OutputFormat = outputFormat;
-            req.OutputPath = outputPath;
-            req.InputArgs = inputArgs;
-
-            RunResult result = Quiet(() => PayloadRunner.GenerateGadget(req));
-            if (!result.Success)
-            {
-                ConsoleStyle.WriteLine("Generation failed: " + result.ErrorMessage, ConsoleStyle.Error);
-                WriteLine("You can go back and try different values.");
-                return;
-            }
-
-            EmitPayload(result.Raw, result.EffectiveOutputFormat, outputPath, commandLine);
+                    names.Add(n);
+            new ModuleEditor(_keys, _output, true, names, _session).Run();
         }
 
         // ---- Plugin path -------------------------------------------------------
 
         private void RunPluginFlow()
         {
-            var pluginNames = new List<string>(PluginHelper.GetAllPluginNames());
-            string pluginName = _picker.Show("Pick a plugin:", pluginNames, PreviewPlugin);
-            if (pluginName == null)
-                return;
-
-            ModuleView view = ModuleView.FromPlugin(pluginName);
-            if (view == null)
-            {
-                WriteLine("Could not load plugin " + pluginName + ".");
-                return;
-            }
-
-            WriteLine("");
-            ConsoleStyle.WriteLine(view.Name + ": " + view.Info, ConsoleStyle.Heading);
-            ConsoleStyle.WriteLine("Set the plugin options. See plugin help for which are required.", ConsoleStyle.Help);
-
-            CollectModuleOptions(view);
-
-            string outputFormat = AskOutputFormat();
-            string outputPath = AskText("Output file path (blank = write to stdout)", "", "Where to save the payload. Leave blank to print it.");
-
-            // Rebuild argv exactly as the CLI forwards it to plugin.Run.
-            var argv = new List<string>();
-            argv.Add("-p");
-            argv.Add(view.Name);
-            foreach (OptionField field in view.OptionFields)
-                argv.AddRange(field.ToArgv());
-            if (!string.IsNullOrEmpty(outputFormat))
-            {
-                argv.Add("-o");
-                argv.Add(outputFormat);
-            }
-            if (!string.IsNullOrEmpty(outputPath))
-            {
-                argv.Add("--outputpath");
-                argv.Add(outputPath);
-            }
-
-            string commandLine = CommandEcho.Build(argv);
-
-            WriteLine("");
-            ConsoleStyle.WriteLine("Review:", ConsoleStyle.Heading);
-            WriteLine("  Plugin:  " + view.Name);
-            WriteCommandLine(commandLine);
-            WriteLine("");
-
-            if (!AskYesNo("Generate now?", true))
-                return;
-
-            RunResult result = Quiet(() => PayloadRunner.RunPlugin(view.Name, argv.ToArray()));
-            if (!result.Success)
-            {
-                ConsoleStyle.WriteLine("Plugin failed: " + result.ErrorMessage, ConsoleStyle.Error);
-                WriteLine("Check the plugin help for required options.");
-                return;
-            }
-
-            // Plugins own their output; honor the requested -o through the encoder.
-            string effective = string.IsNullOrEmpty(outputFormat) ? "raw" : outputFormat;
-            EmitPayload(result.Raw, effective, outputPath, commandLine);
-        }
-
-        // ---- Shared option collection -----------------------------------------
-
-        private void CollectModuleOptions(ModuleView view)
-        {
-            if (view.OptionFields == null || view.OptionFields.Count == 0)
-                return;
-
-            OptionField variantField = view.VariantField();
-            bool headerShown = false;
-            foreach (OptionField field in view.OptionFields)
-            {
-                // the variant is already chosen via the variant menu; do not re-ask
-                if (field == variantField)
-                    continue;
-
-                if (!headerShown)
-                {
-                    WriteLine("");
-                    ConsoleStyle.WriteLine("Options for " + view.Name + " (Enter to skip any):", ConsoleStyle.Heading);
-                    headerShown = true;
-                }
-
-                string help = string.IsNullOrEmpty(field.Description) ? "" : field.Description;
-                if (field.IsFlag)
-                {
-                    bool on = AskYesNo("  " + field.CliFlag + "  " + help, false);
-                    field.Value = on ? "true" : "";
-                }
-                else
-                {
-                    string val = AskText("  " + field.CliFlag, "", help);
-                    field.Value = val;
-                }
-            }
+            var names = new List<string>(PluginHelper.GetAllPluginNames());
+            new ModuleEditor(_keys, _output, false, names, _session).Run();
         }
 
         // ---- Session command memory -------------------------------------------
 
-        // Remembered so the next shell-command prompt defaults to what you last
-        // typed. Session only; not persisted.
-        private string _lastShellCommand = "calc.exe";
-
+        // The shell-command prompt defaults to what you last typed (shared with the
+        // module editor via _session). Session only; not persisted.
         private string CommandDefaultFor(CommandInputType t)
         {
             if (t == CommandInputType.ShellCommand || t == CommandInputType.Ignored)
-                return _lastShellCommand;
+                return _session.LastShellCommand;
             return CommandDefault(t);
         }
 
@@ -385,7 +152,7 @@ namespace ysonet.Interactive
         {
             if ((t == CommandInputType.ShellCommand || t == CommandInputType.Ignored)
                 && !string.IsNullOrEmpty(command))
-                _lastShellCommand = command;
+                _session.LastShellCommand = command;
         }
 
         // ---- Informational top-menu entries -----------------------------------
@@ -830,59 +597,6 @@ namespace ysonet.Interactive
 
         // ---- Output ------------------------------------------------------------
 
-        private void EmitPayload(object raw, string effectiveFormat, string outputPath, string commandLine)
-        {
-            int actualLength;
-            byte[] bytes = PayloadRunner.Encode(raw, effectiveFormat, out actualLength);
-            if (bytes == null)
-            {
-                WriteLine("Unsupported serialized format; nothing to write.");
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(outputPath))
-            {
-                WriteLine("");
-                ConsoleStyle.WriteLine("Payload (" + actualLength + " chars/bytes) follows on stdout:", ConsoleStyle.Success);
-                WriteCommandLine(commandLine);
-                WriteLine("");
-                Console.Error.Flush();
-                _output.Write(bytes, 0, bytes.Length);
-                _output.Flush();
-                // trailing newline on stderr so the shell prompt is clean
-                Console.Error.WriteLine();
-            }
-            else
-            {
-                try
-                {
-                    File.WriteAllBytes(outputPath, bytes);
-                    WriteLine("");
-                    ConsoleStyle.WriteLine("Wrote " + bytes.Length + " bytes to " + outputPath, ConsoleStyle.Success);
-                    WriteCommandLine(commandLine);
-                    WriteLine("");
-                }
-                catch (Exception e)
-                {
-                    ConsoleStyle.WriteLine("Error saving to file: " + e.Message, ConsoleStyle.Error);
-                }
-            }
-        }
-
-        // ---- Previews ----------------------------------------------------------
-
-        private string PreviewGadget(string name)
-        {
-            ModuleView v = ModuleView.FromGadget(name);
-            return v == null ? "" : v.PreviewText();
-        }
-
-        private string PreviewPlugin(string name)
-        {
-            ModuleView v = ModuleView.FromPlugin(name);
-            return v == null ? "" : v.PreviewText();
-        }
-
         // ---- Prompt helpers ----------------------------------------------------
 
         private string AskOutputFormat()
@@ -957,27 +671,9 @@ namespace ysonet.Interactive
             return line;
         }
 
-        private bool AskYesNo(string label, bool defaultYes)
-        {
-            var items = new List<string> { "Yes", "No" };
-            int start = defaultYes ? 0 : 1;
-            string hinted = label + "  (Enter = " + (defaultYes ? "Yes" : "No") + ")";
-            int i = _menu.Show(hinted, items, start);
-            if (i < 0)
-                throw new WizardCancel();
-            return i == 0;
-        }
-
         private void WriteLine(string s)
         {
             ConsoleStyle.WriteLine(s);
-        }
-
-        // Print the equivalent-command line with the command itself highlighted.
-        private void WriteCommandLine(string commandLine)
-        {
-            ConsoleStyle.Write("  Equivalent command: ", ConsoleStyle.Help);
-            ConsoleStyle.WriteLine(commandLine, ConsoleStyle.Command);
         }
     }
 }

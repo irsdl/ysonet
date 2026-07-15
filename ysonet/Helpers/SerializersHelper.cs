@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Soap;
 using System.Runtime.Serialization.Json;
@@ -530,6 +531,42 @@ namespace ysonet.Helpers
         {
             object obj = XamlReader.Load(new XmlTextReader(new StringReader(str)));
             return obj;
+        }
+
+        // Deserialize XAML through the RestrictiveXamlXmlReader path, i.e. the
+        // internal XamlReader.Load(XmlReader, useRestrictiveXamlReader: true)
+        // overload. This is what the WPF clipboard paste sinks use by default
+        // since the CVE-2020-0605/0606 mitigation, so it blocks dangerous types
+        // such as ObjectDataProvider. It exists only on frameworks that carry the
+        // mitigation; on older ones the overload is absent and we say so instead of
+        // silently running the non-restrictive path.
+        public static object Xaml_deserialize_restrictive(string str)
+        {
+            MethodInfo mi = typeof(XamlReader).GetMethod(
+                "Load",
+                BindingFlags.NonPublic | BindingFlags.Static,
+                null,
+                new Type[] { typeof(XmlReader), typeof(bool) },
+                null);
+
+            if (mi == null)
+            {
+                throw new NotSupportedException(
+                    "Restrictive XamlReader.Load(XmlReader, bool) overload not found on this framework " +
+                    "(it predates the CVE-2020-0605/0606 mitigation); the payload would not be blocked here.");
+            }
+
+            using (XmlTextReader reader = new XmlTextReader(new StringReader(str)))
+            {
+                try
+                {
+                    return mi.Invoke(null, new object[] { reader, true });
+                }
+                catch (TargetInvocationException tie)
+                {
+                    throw tie.InnerException ?? tie;
+                }
+            }
         }
 
         // This to replace our bespoked marshal objects with the actual object

