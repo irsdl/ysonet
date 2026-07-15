@@ -60,12 +60,19 @@ namespace ysonet.Interactive
         // be driven by a scripted key reader without a real terminal).
         internal static bool ForceFallback = false;
 
-        public void Run()
+        // Set by the "Generate and quit" action: leave interactive mode entirely so
+        // the freshly generated payload is the last thing on the screen.
+        private bool _quit;
+
+        // Returns true when the user chose to generate-and-quit (leave interactive
+        // mode), false when they just backed out to the top menu.
+        public bool Run()
         {
             if (!ForceFallback && ColumnsFit())
                 RunColumns();
             else
                 RunFallback();
+            return _quit;
         }
 
         // ---- Fallback: pick a module, then a type-to-filter option form ---------
@@ -85,6 +92,8 @@ namespace ysonet.Interactive
                     continue;
                 }
                 EditForm();
+                if (_quit)
+                    return;
             }
         }
 
@@ -121,6 +130,8 @@ namespace ysonet.Interactive
                 if (chosenField.IsAction)
                 {
                     RunAction(chosenField);
+                    if (_quit)
+                        return;
                     continue;
                 }
                 EditField(chosenField);
@@ -333,9 +344,11 @@ namespace ysonet.Interactive
             }
 
             list.Add(new EditableField { Label = "[ Generate ]", Kind = FieldKind.Action, ActionId = "generate",
-                Help = "Build the payload with the settings above." });
+                Help = "Build the payload with the settings above, then keep editing." });
+            list.Add(new EditableField { Label = "[ Generate and quit ]", Kind = FieldKind.Action, ActionId = "generatequit",
+                Help = "Build the payload and leave interactive mode, so the payload is the last thing shown." });
             list.Add(new EditableField { Label = "[ Copy payload to clipboard ]", Kind = FieldKind.Action, ActionId = "clipboard",
-                Help = "Build the payload and copy it to the clipboard (also emitted as usual)." });
+                Help = "Build the payload and copy it to the clipboard (it is also emitted as usual)." });
             list.Add(new EditableField { Label = "[ Show ysonet command ]", Kind = FieldKind.Action, ActionId = "showcmd",
                 Help = "Print the equivalent one-line ysonet.exe command, without generating." });
         }
@@ -388,15 +401,25 @@ namespace ysonet.Interactive
             return ef;
         }
 
-        // Alphabetical by label, with any action row ([ Generate ]) pinned last.
+        // Settings alphabetical by label, then the action rows in the order they
+        // were added (Generate, Generate and quit, Copy, Show) - not alphabetical,
+        // so the primary Generate stays first.
         private void SortFieldsWithActionLast()
         {
-            _fields.Sort(delegate (EditableField a, EditableField b)
+            var options = new List<EditableField>();
+            var actions = new List<EditableField>();
+            foreach (EditableField f in _fields)
             {
-                if (a.IsAction != b.IsAction)
-                    return a.IsAction ? 1 : -1;
+                if (f.IsAction) actions.Add(f);
+                else options.Add(f);
+            }
+            options.Sort(delegate (EditableField a, EditableField b)
+            {
                 return string.Compare(a.Label, b.Label, StringComparison.OrdinalIgnoreCase);
             });
+            _fields = new List<EditableField>();
+            _fields.AddRange(options);
+            _fields.AddRange(actions);
         }
 
         // Recompute the parts that depend on other fields: the command's meaning
@@ -447,6 +470,7 @@ namespace ysonet.Interactive
             {
                 case "clipboard": Generate(true); break;
                 case "showcmd": ShowCommand(); break;
+                case "generatequit": if (Generate(false)) _quit = true; break;
                 default: Generate(false); break;
             }
         }
@@ -471,13 +495,14 @@ namespace ysonet.Interactive
             return null;
         }
 
-        private void Generate(bool copyToClipboard)
+        // Returns true when a payload was actually emitted.
+        private bool Generate(bool copyToClipboard)
         {
             string need = MissingRequiredCommand();
             if (need != null)
             {
                 ConsoleStyle.WriteLine("Cannot generate yet - this gadget needs a value first: " + need, ConsoleStyle.Error);
-                return;
+                return false;
             }
 
             string commandLine, outputPath;
@@ -485,10 +510,11 @@ namespace ysonet.Interactive
                 ? GenerateGadgetBytes(out commandLine, out outputPath)
                 : GeneratePluginBytes(out commandLine, out outputPath);
             if (bytes == null)
-                return;
+                return false;
             PayloadEmitter.EmitBytes(_output, bytes, outputPath, commandLine);
             if (copyToClipboard)
                 CopyToClipboard(bytes);
+            return true;
         }
 
         // Print the equivalent one-line ysonet.exe command without generating, so
@@ -759,6 +785,15 @@ namespace ysonet.Interactive
 
             string line = sb.ToString().Trim();
             return line.Length == 0 ? current : line;
+        }
+
+        // After an action prints its result, wait for a key so the user can read it
+        // (and select/copy it) before the grid is redrawn over it.
+        private void PauseForReview()
+        {
+            ConsoleStyle.WriteLine("");
+            ConsoleStyle.WriteLine("Press any key to go back to the editor (select text to copy it first if you like).", ConsoleStyle.Help);
+            _keys.ReadKey();
         }
 
         // Run generation with Console.Out/Error suppressed so a gadget that prints

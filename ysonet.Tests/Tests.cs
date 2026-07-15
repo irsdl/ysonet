@@ -54,6 +54,7 @@ namespace ysonet.Tests
             Run("Themes apply and are named", ThemeApply);
             Run("Conditional plugin options are not marked required", ConditionalRequired);
             Run("Show-command action prints the one-liner without generating", WizardShowCommand);
+            Run("Generate and quit emits the payload and exits", WizardGenerateAndQuit);
             Run("Generate is blocked (not an exit) when required settings are empty", WizardBlocksMissingRequired);
             Run("Wizard remembers the last command", WizardRemembersLastCommand);
             Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
@@ -651,6 +652,25 @@ namespace ysonet.Tests
             AssertEqual(0, stdout.Length, "blocked generation emits no payload");
             AssertTrue(stderr.Contains("needs a value first"), "the user is told a value is needed");
             AssertTrue(stderr.Contains("Bye."), "the wizard is still running (reached the top-menu quit)");
+        }
+
+        private static void WizardGenerateAndQuit()
+        {
+            // Generate and quit emits the payload and leaves interactive mode; if it
+            // did NOT exit, the wizard would ask for more keys and the scripted
+            // reader would run dry (throwing), so reaching the asserts proves it left.
+            var keys = new ScriptedKeyReader();
+            keys.Enter();                            // top -> gadget
+            keys.Type("ObjectDataProvider").Enter(); // module picker
+            keys.Type("formatter").Enter();          // open formatter
+            keys.Digit(2);                           // Json.NET
+            keys.Type("Generate and quit").Enter();  // generate + leave
+
+            string stderr;
+            byte[] got = DriveWizard(keys, out stderr);
+
+            AssertTrue(BytesEqual(got, GenerateOdpJson("calc.exe")), "the payload was emitted");
+            AssertTrue(!stderr.Contains("Bye."), "left via generate-and-quit, not the plain quit");
         }
 
         private static void WizardShowCommand()

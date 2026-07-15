@@ -141,9 +141,15 @@ namespace ysonet.Interactive
                         EditableField f = visible[fieldIndex];
                         if (f.IsAction)
                         {
+                            // Clear first so the action's output (payload, command,
+                            // confirmation) shows on a clean screen instead of being
+                            // sandwiched between two copies of the grid.
+                            ConsoleCursor.ClearScreen();
                             RunAction(f);
-                            // The action's output just printed below the grid; redraw
-                            // fresh underneath instead of overwriting it.
+                            if (_quit)
+                                return; // leave the payload as the last thing on screen
+                            PauseForReview();
+                            ConsoleCursor.ClearScreen();
                             lastLines = 0;
                         }
                         else
@@ -253,7 +259,7 @@ namespace ysonet.Interactive
             if (showRight)
             {
                 string h2 = loaded ? (_view.Name + " settings") : "settings";
-                string h3 = (focus == 2 && editing != null) ? ("Edit: " + editing.Label) : "detail";
+                string h3 = (focus == 2 && editing != null) ? ("Edit: " + editing.Label) : "info";
                 ConsoleStyle.WriteLine(ConsoleCursor.PadClear(
                     Cell(h1, w1) + " | " + Cell(h2, w2) + " | " + Cell(h3, w3)), ConsoleStyle.Heading);
             }
@@ -303,7 +309,7 @@ namespace ysonet.Interactive
                     if (editingText)
                     {
                         if (r == 0) c3 = "> " + (textBuf != null ? textBuf.ToString() : "") + "_";
-                        else if (r == 2) c3 = "(type, Enter to save)";
+                        else if (r == 2) c3 = "Type a value, Enter saves, Esc cancels";
                     }
                     else if (choiceItems != null)
                     {
@@ -364,14 +370,14 @@ namespace ysonet.Interactive
         private static string FocusHint(int focus, bool loaded, List<EditableField> visible, int fieldIndex, bool isGadget)
         {
             if (focus == 0)
-                return "Up/Down choose a module  Enter/Right open its settings  Esc leave";
+                return "Up/Down: choose a module    Enter/Right: open its settings    Esc: leave";
             if (focus == 2)
-                return "Up/Down choose  Enter save  Esc/Left cancel";
+                return "Up/Down: choose    Enter: save    Esc/Left: cancel";
             if (loaded && fieldIndex < visible.Count && visible[fieldIndex].IsAction)
-                return "Enter to run this action  Esc/Left back to modules";
+                return "Enter: run this action    Esc/Left: back to modules";
             return isGadget
-                ? "Up/Down move  Enter edit  Esc/Left back  (accent = gadget-specific, * = required)"
-                : "Up/Down move  Enter edit  Esc/Left back  (* = required)";
+                ? "Up/Down: move    Enter: edit    Esc/Left: back    (accent = gadget option, * = required)"
+                : "Up/Down: move    Enter: edit    Esc/Left: back    (* = required)";
         }
 
         // First visible index so the selected item stays on screen.

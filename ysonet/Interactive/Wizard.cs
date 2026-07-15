@@ -100,8 +100,8 @@ namespace ysonet.Interactive
                 {
                     switch (choice)
                     {
-                        case 0: RunGadgetFlow(); break;
-                        case 1: RunPluginFlow(); break;
+                        case 0: if (RunGadgetFlow()) return 0; break;
+                        case 1: if (RunPluginFlow()) return 0; break;
                         case 2: SearchFormattersInfo(); break;
                         case 3: RunAllFormattersInfo(); break;
                         case 4: ShowCreditsInfo(); break;
@@ -223,21 +223,23 @@ namespace ysonet.Interactive
 
         // ---- Gadget path -------------------------------------------------------
 
-        private void RunGadgetFlow()
+        // Returns true when the editor asked to quit interactive mode
+        // (Generate and quit), so the caller can leave the payload on screen.
+        private bool RunGadgetFlow()
         {
             var names = new List<string>();
             foreach (string n in GadgetHelper.GetAllGadgetNames())
                 if (n != "Generic")
                     names.Add(n);
-            new ModuleEditor(_keys, _output, true, names, _session).Run();
+            return new ModuleEditor(_keys, _output, true, names, _session).Run();
         }
 
         // ---- Plugin path -------------------------------------------------------
 
-        private void RunPluginFlow()
+        private bool RunPluginFlow()
         {
             var names = new List<string>(PluginHelper.GetAllPluginNames());
-            new ModuleEditor(_keys, _output, false, names, _session).Run();
+            return new ModuleEditor(_keys, _output, false, names, _session).Run();
         }
 
         // ---- Session command memory -------------------------------------------
