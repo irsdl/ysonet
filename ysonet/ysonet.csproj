@@ -256,6 +256,7 @@
     <Compile Include="Interactive\ModuleEditor.Columns.cs" />
     <Compile Include="Interactive\Wizard.cs" />
     <Compile Include="Interactive\InteractiveMode.cs" />
+    <Compile Include="Helpers\ClipboardHelper.cs" />
     <Compile Include="Helpers\Debugging.cs" />
     <Compile Include="Helpers\FormatterType.cs" />
     <Compile Include="Helpers\InputArgs.cs" />

@@ -24,6 +24,7 @@ namespace ysonet.Interactive
         public FieldKind Kind;
         public bool Required;         // best-effort; advisory highlight, not enforced
         public bool Hidden;           // computed rows that do not apply right now
+        public bool ModuleOwn;        // a gadget/plugin-specific option (vs a shared built-in)
         public List<string> Choices;  // Choice/Pick: the offered values
         public bool AllowCustom;      // Choice: also allow typing a value not listed
         public string ActionId;       // Action rows: e.g. "generate"

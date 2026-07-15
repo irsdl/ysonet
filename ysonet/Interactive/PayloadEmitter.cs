@@ -18,6 +18,16 @@ namespace ysonet.Interactive
                 ConsoleStyle.WriteLine("Unsupported serialized format; nothing to write.");
                 return;
             }
+            EmitBytes(output, bytes, outputPath, commandLine);
+        }
+
+        // Write already-encoded payload bytes to stdout or a file, with the status
+        // text and command echo on stderr.
+        public static void EmitBytes(Stream output, byte[] bytes, string outputPath, string commandLine)
+        {
+            if (bytes == null)
+                return;
+            int actualLength = bytes.Length;
 
             if (string.IsNullOrWhiteSpace(outputPath))
             {

@@ -48,6 +48,8 @@ namespace ysonet.Tests
             Run("Variants can declare their own command-input type", VariantInputTypes);
             Run("Option heuristics recover choices/default/required", OptionHeuristics);
             Run("Editor builds plugin fields with defaults and a gadget picker", EditorPluginFields);
+            Run("Editor exposes actions and marks module-own options", EditorActionsAndOwnership);
+            Run("Show-command action prints the one-liner without generating", WizardShowCommand);
             Run("Wizard remembers the last command", WizardRemembersLastCommand);
             Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
             Run("Run-all-formatters saves payloads to a folder", WizardRunAllFormattersToFolder);
@@ -525,6 +527,53 @@ namespace ysonet.Tests
                 if (string.Equals(f.Label, label, StringComparison.OrdinalIgnoreCase))
                     return f;
             return null;
+        }
+
+        private static EditableField FindAction(List<EditableField> fields, string actionId)
+        {
+            foreach (EditableField f in fields)
+                if (f.IsAction && string.Equals(f.ActionId, actionId, StringComparison.OrdinalIgnoreCase))
+                    return f;
+            return null;
+        }
+
+        private static void EditorActionsAndOwnership()
+        {
+            var editor = new ModuleEditor(null, null, true, null, null);
+            var fields = editor.BuildFieldsForTest("ObjectDataProvider");
+
+            // Generate, copy-to-clipboard, and show-command actions are all offered.
+            AssertTrue(FindAction(fields, "generate") != null, "generate action present");
+            AssertTrue(FindAction(fields, "clipboard") != null, "copy-to-clipboard action present");
+            AssertTrue(FindAction(fields, "showcmd") != null, "show-command action present");
+
+            // Built-ins are not module-own; the gadget's own options (e.g. variant) are.
+            AssertTrue(!FindEditable(fields, "formatter").ModuleOwn, "formatter is a shared built-in");
+            AssertTrue(!FindEditable(fields, "output").ModuleOwn, "output is a shared built-in");
+            EditableField variant = FindEditable(fields, "variant");
+            AssertTrue(variant != null && variant.ModuleOwn, "variant is a gadget-specific option");
+        }
+
+        private static void WizardShowCommand()
+        {
+            // The show-command action prints the equivalent one-liner and generates
+            // nothing (no payload on stdout).
+            var keys = new ScriptedKeyReader();
+            keys.Enter();                            // top -> gadget
+            keys.Type("ObjectDataProvider").Enter(); // module picker
+            keys.Type("formatter").Enter();          // open formatter
+            keys.Digit(2);                           // Json.NET
+            keys.Type("Show ysonet").Enter();        // show-command action
+            keys.Escape();                           // leave form
+            keys.Escape();                           // leave module list
+            keys.Escape();                           // quit
+
+            string stderr;
+            byte[] stdout = DriveWizard(keys, out stderr);
+
+            AssertEqual(0, stdout.Length, "show-command does not generate a payload");
+            AssertTrue(stderr.Contains("Equivalent one-line command"), "prints the command header");
+            AssertTrue(stderr.Contains("-g ObjectDataProvider -f Json.NET"), "prints the gadget command line");
         }
 
         private static void WizardRemembersLastCommand()

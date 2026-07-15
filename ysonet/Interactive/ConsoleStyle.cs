@@ -19,6 +19,7 @@ namespace ysonet.Interactive
         public const ConsoleColor Prompt = ConsoleColor.White;
         public const ConsoleColor SelectFg = ConsoleColor.Black;
         public const ConsoleColor SelectBg = ConsoleColor.Cyan;
+        public const ConsoleColor Accent = ConsoleColor.Magenta; // module-specific options
 
         private static readonly bool _enabled =
             Environment.GetEnvironmentVariable("NO_COLOR") == null;

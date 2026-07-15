@@ -120,7 +120,7 @@ namespace ysonet.Interactive
                 EditableField chosenField = visible[idx];
                 if (chosenField.IsAction)
                 {
-                    Generate();
+                    RunAction(chosenField);
                     continue;
                 }
                 EditField(chosenField);
@@ -242,6 +242,7 @@ namespace ysonet.Interactive
                 {
                     Label = "variant",
                     Kind = FieldKind.Choice,
+                    ModuleOwn = true,
                     Help = "Gadget variant (can change what the command means)."
                 };
                 var labels = new List<string>();
@@ -329,8 +330,12 @@ namespace ysonet.Interactive
                 list.Add(_bridged);
             }
 
-            var gen = new EditableField { Label = "[ Generate ]", Kind = FieldKind.Action, ActionId = "generate" };
-            list.Add(gen);
+            list.Add(new EditableField { Label = "[ Generate ]", Kind = FieldKind.Action, ActionId = "generate",
+                Help = "Build the payload with the settings above." });
+            list.Add(new EditableField { Label = "[ Copy payload to clipboard ]", Kind = FieldKind.Action, ActionId = "clipboard",
+                Help = "Build the payload and copy it to the clipboard (also emitted as usual)." });
+            list.Add(new EditableField { Label = "[ Show ysonet command ]", Kind = FieldKind.Action, ActionId = "showcmd",
+                Help = "Print the equivalent one-line ysonet.exe command, without generating." });
         }
 
         private static EditableField Flag(string label, string help)
@@ -342,7 +347,7 @@ namespace ysonet.Interactive
         // a choice set and a required hint from the option's description text.
         private static EditableField FromOption(OptionField f, bool gadgetPicker)
         {
-            var ef = new EditableField { Label = f.DisplayName, Help = f.Description ?? "" };
+            var ef = new EditableField { Label = f.DisplayName, Help = f.Description ?? "", ModuleOwn = true };
 
             if (f.IsFlag)
             {
@@ -430,59 +435,125 @@ namespace ysonet.Interactive
                 ? _session.LastShellCommand : "";
         }
 
-        // ---- Generation --------------------------------------------------------
+        // ---- Actions (Generate / Copy / Show command) --------------------------
 
-        private void Generate()
+        // Dispatch an action row. Kept as one entry point so both presentations
+        // (columns and the fallback form) behave identically.
+        private void RunAction(EditableField action)
         {
-            if (_isGadget)
-                GenerateGadget();
-            else
-                GeneratePlugin();
+            switch (action.ActionId)
+            {
+                case "clipboard": Generate(true); break;
+                case "showcmd": ShowCommand(); break;
+                default: Generate(false); break;
+            }
         }
 
-        private void GenerateGadget()
+        private void Generate(bool copyToClipboard)
+        {
+            string commandLine, outputPath;
+            byte[] bytes = _isGadget
+                ? GenerateGadgetBytes(out commandLine, out outputPath)
+                : GeneratePluginBytes(out commandLine, out outputPath);
+            if (bytes == null)
+                return;
+            PayloadEmitter.EmitBytes(_output, bytes, outputPath, commandLine);
+            if (copyToClipboard)
+                CopyToClipboard(bytes);
+        }
+
+        // Print the equivalent one-line ysonet.exe command without generating, so
+        // the user can reproduce the same payload directly.
+        private void ShowCommand()
+        {
+            string commandLine;
+            if (_isGadget)
+            {
+                commandLine = GadgetCommandLine(CollectGadget());
+            }
+            else
+            {
+                string of, op;
+                commandLine = CommandEcho.Build(PluginArgv(out of, out op));
+            }
+            ConsoleStyle.WriteLine("");
+            ConsoleStyle.WriteLine("Equivalent one-line command (run this to reproduce the payload):", ConsoleStyle.Heading);
+            ConsoleStyle.WriteLine("  " + commandLine, ConsoleStyle.Command);
+            ConsoleStyle.WriteLine("");
+        }
+
+        private void CopyToClipboard(byte[] bytes)
+        {
+            // ISO-8859-1 maps bytes 1:1 to chars, so nothing is lost; for base64/hex
+            // output this is plain ASCII. Raw binary is best pasted from a file.
+            string text = System.Text.Encoding.GetEncoding("ISO-8859-1").GetString(bytes);
+            string err;
+            if (ClipboardHelper.TrySetText(text, out err))
+                ConsoleStyle.WriteLine("Copied " + text.Length + " chars to the clipboard.", ConsoleStyle.Success);
+            else
+                ConsoleStyle.WriteLine("Could not copy to clipboard: " + (err ?? "unavailable")
+                    + " (the payload is still on stdout / in the file).", ConsoleStyle.Error);
+        }
+
+        // Collected gadget settings, shared by generate and show-command.
+        private class GadgetInputs
+        {
+            public string Command, Formatter, OutputFormat, OutputPath, Bgc;
+            public bool RawCmd, Minify, Ust, Test, Debug;
+            public List<string> Extra;
+            public CommandInputType Eff;
+        }
+
+        private GadgetInputs CollectGadget()
         {
             RefreshDynamic();
-            CommandInputType eff = EffectiveInput();
-
-            string command = _command.Value;
-            string formatter = _formatter.Value;
-            bool rawcmd = _rawcmd != null && !_rawcmd.Hidden && _rawcmd.IsOn;
-            string outputFormat = OutputFormatValue();
-            string outputPath = _outputPath.Value;
-            bool minify = _minify.IsOn, ust = _useSimpleType.IsOn, test = _test.IsOn, debug = _debugMode.IsOn;
-            string bgc = _bridged.Value;
-
-            if (eff == CommandInputType.ShellCommand || eff == CommandInputType.Ignored)
-            {
-                if (!string.IsNullOrEmpty(command))
-                    _session.LastShellCommand = command;
-            }
-
-            var extra = new List<string>();
+            var g = new GadgetInputs();
+            g.Eff = EffectiveInput();
+            g.Command = _command.Value;
+            g.Formatter = _formatter.Value;
+            g.RawCmd = _rawcmd != null && !_rawcmd.Hidden && _rawcmd.IsOn;
+            g.OutputFormat = OutputFormatValue();
+            g.OutputPath = _outputPath.Value;
+            g.Minify = _minify.IsOn; g.Ust = _useSimpleType.IsOn; g.Test = _test.IsOn; g.Debug = _debugMode.IsOn;
+            g.Bgc = _bridged.Value;
+            g.Extra = new List<string>();
             foreach (OptionField f in _view.OptionFields)
-                extra.AddRange(f.ToArgv());
+                g.Extra.AddRange(f.ToArgv());
+            return g;
+        }
 
-            var echoTokens = CommandEcho.GadgetTokens(
-                _view.Name, formatter, command, rawcmd, false,
-                outputFormat, outputPath, bgc, minify, ust, test, debug, extra);
-            string commandLine = CommandEcho.Build(echoTokens);
+        private string GadgetCommandLine(GadgetInputs g)
+        {
+            return CommandEcho.Build(CommandEcho.GadgetTokens(
+                _view.Name, g.Formatter, g.Command, g.RawCmd, false,
+                g.OutputFormat, g.OutputPath, g.Bgc, g.Minify, g.Ust, g.Test, g.Debug, g.Extra));
+        }
+
+        private byte[] GenerateGadgetBytes(out string commandLine, out string outputPath)
+        {
+            GadgetInputs g = CollectGadget();
+            outputPath = g.OutputPath;
+            commandLine = GadgetCommandLine(g);
+
+            if ((g.Eff == CommandInputType.ShellCommand || g.Eff == CommandInputType.Ignored)
+                && !string.IsNullOrEmpty(g.Command))
+                _session.LastShellCommand = g.Command;
 
             InputArgs inputArgs = new InputArgs();
-            inputArgs.Cmd = command;
-            inputArgs.IsRawCmd = rawcmd;
-            inputArgs.Test = test;
-            inputArgs.Minify = minify;
-            inputArgs.UseSimpleType = ust;
-            inputArgs.IsDebugMode = debug;
-            inputArgs.ExtraArguments = extra;
+            inputArgs.Cmd = g.Command;
+            inputArgs.IsRawCmd = g.RawCmd;
+            inputArgs.Test = g.Test;
+            inputArgs.Minify = g.Minify;
+            inputArgs.UseSimpleType = g.Ust;
+            inputArgs.IsDebugMode = g.Debug;
+            inputArgs.ExtraArguments = g.Extra;
 
             GenerationRequest req = new GenerationRequest();
             req.GadgetName = _view.Name;
-            req.FormatterName = formatter;
-            req.BridgedGadgetChain = bgc;
-            req.OutputFormat = outputFormat;
-            req.OutputPath = outputPath;
+            req.FormatterName = g.Formatter;
+            req.BridgedGadgetChain = g.Bgc;
+            req.OutputFormat = g.OutputFormat;
+            req.OutputPath = g.OutputPath;
             req.InputArgs = inputArgs;
 
             RunResult result = Quiet(() => PayloadRunner.GenerateGadget(req));
@@ -490,16 +561,15 @@ namespace ysonet.Interactive
             {
                 ConsoleStyle.WriteLine("Generation failed: " + result.ErrorMessage, ConsoleStyle.Error);
                 ConsoleStyle.WriteLine("Adjust the settings and try again.", ConsoleStyle.Help);
-                return;
+                return null;
             }
-            PayloadEmitter.Emit(_output, result.Raw, result.EffectiveOutputFormat, outputPath, commandLine);
+            return EncodeOrReport(result.Raw, result.EffectiveOutputFormat);
         }
 
-        private void GeneratePlugin()
+        private List<string> PluginArgv(out string outputFormat, out string outputPath)
         {
-            string outputFormat = OutputFormatValue();
-            string outputPath = _outputPath.Value;
-
+            outputFormat = OutputFormatValue();
+            outputPath = _outputPath.Value;
             var argv = new List<string>();
             argv.Add("-p");
             argv.Add(_view.Name);
@@ -515,18 +585,33 @@ namespace ysonet.Interactive
                 argv.Add("--outputpath");
                 argv.Add(outputPath);
             }
+            return argv;
+        }
 
-            string commandLine = CommandEcho.Build(argv);
+        private byte[] GeneratePluginBytes(out string commandLine, out string outputPath)
+        {
+            string outputFormat;
+            List<string> argv = PluginArgv(out outputFormat, out outputPath);
+            commandLine = CommandEcho.Build(argv);
 
             RunResult result = Quiet(() => PayloadRunner.RunPlugin(_view.Name, argv.ToArray()));
             if (!result.Success)
             {
                 ConsoleStyle.WriteLine("Plugin failed: " + result.ErrorMessage, ConsoleStyle.Error);
                 ConsoleStyle.WriteLine("Check the required settings (marked *required).", ConsoleStyle.Help);
-                return;
+                return null;
             }
             string effective = string.IsNullOrEmpty(outputFormat) ? "raw" : outputFormat;
-            PayloadEmitter.Emit(_output, result.Raw, effective, outputPath, commandLine);
+            return EncodeOrReport(result.Raw, effective);
+        }
+
+        private static byte[] EncodeOrReport(object raw, string effectiveFormat)
+        {
+            int len;
+            byte[] bytes = PayloadRunner.Encode(raw, effectiveFormat, out len);
+            if (bytes == null)
+                ConsoleStyle.WriteLine("Unsupported serialized format; nothing to write.", ConsoleStyle.Error);
+            return bytes;
         }
 
         private string OutputFormatValue()

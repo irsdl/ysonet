@@ -137,9 +137,9 @@ namespace ysonet.Interactive
                         EditableField f = visible[fieldIndex];
                         if (f.IsAction)
                         {
-                            Generate();
-                            // The payload notice and echo just printed below the grid;
-                            // redraw fresh underneath instead of overwriting them.
+                            RunAction(f);
+                            // The action's output just printed below the grid; redraw
+                            // fresh underneath instead of overwriting it.
                             lastLines = 0;
                         }
                         else
@@ -268,11 +268,13 @@ namespace ysonet.Interactive
                 string c2 = "";
                 bool c2sel = false;
                 bool c2req = false;
+                bool c2own = false;
                 if (loaded && fi < visible.Count)
                 {
                     EditableField f = visible[fi];
                     c2sel = (fi == fieldIndex);
                     c2req = f.Required && string.IsNullOrEmpty(f.Value) && f.Kind != FieldKind.Flag;
+                    c2own = f.ModuleOwn;
                     string label = (c2req ? "*" : "") + f.Label;
                     c2 = (c2sel ? "> " : "  ") + (f.IsAction ? f.Label : (PadRight(label, 20) + " " + f.DisplayValue));
                 }
@@ -311,11 +313,17 @@ namespace ysonet.Interactive
                 bool hi2 = focus == 1 && c2sel;
                 bool hi3 = focus == 2 && (c3sel || (editingText && r == 0));
 
-                WriteCell(c1, w1, hi1, false);
+                // Column-2 foreground when not selected: required-empty in the
+                // heading color, a gadget/plugin-specific option in the accent color,
+                // built-ins in the default color.
+                ConsoleColor? c2fg = c2req ? ConsoleStyle.Heading
+                    : (c2own ? ConsoleStyle.Accent : (ConsoleColor?)null);
+
+                WriteCell(c1, w1, hi1, null);
                 ConsoleStyle.Write(" | ");
-                WriteCell(c2, w2, hi2, c2req && !hi2); // required-and-empty stands out when not selected
+                WriteCell(c2, w2, hi2, c2fg);
                 ConsoleStyle.Write(" | ");
-                WriteCell(c3, w3, hi3, false);
+                WriteCell(c3, w3, hi3, null);
                 Console.Error.WriteLine();
                 lines++;
             }
@@ -333,9 +341,9 @@ namespace ysonet.Interactive
                 return "Up/Down choose a module  Enter/Right open its settings  Esc leave";
             if (focus == 2)
                 return "Up/Down choose  Enter save  Esc/Left cancel";
-            string tail = "Up/Down move  Enter edit  Esc/Left back to modules";
+            string tail = "Up/Down move  Enter edit  Esc/Left back  (colored = gadget/plugin-specific, * = required)";
             if (loaded && fieldIndex < visible.Count && visible[fieldIndex].IsAction)
-                tail = "Enter to generate  Esc/Left back to modules";
+                tail = "Enter to run this action  Esc/Left back to modules";
             return tail;
         }
 
@@ -357,15 +365,15 @@ namespace ysonet.Interactive
             return s + new string(' ', width - s.Length);
         }
 
-        // Write one fixed-width column cell (no newline). Highlighted cells get the
-        // selection colors; a required-and-empty cell gets the heading color.
-        private static void WriteCell(string text, int width, bool highlight, bool heading)
+        // Write one fixed-width column cell (no newline). A highlighted cell gets the
+        // selection colors; otherwise the given foreground (null = default).
+        private static void WriteCell(string text, int width, bool highlight, ConsoleColor? fg)
         {
             string cell = Cell(text, width);
             if (highlight)
                 ConsoleStyle.WriteHighlight(cell, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
-            else if (heading)
-                ConsoleStyle.Write(cell, ConsoleStyle.Heading);
+            else if (fg.HasValue)
+                ConsoleStyle.Write(cell, fg.Value);
             else
                 ConsoleStyle.Write(cell);
         }
