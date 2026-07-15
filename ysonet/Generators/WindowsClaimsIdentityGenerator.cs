@@ -38,6 +38,18 @@ namespace ysonet.Generators
             return "Soroush Dalili";
         }
 
+        // Variant validity is formatter-restricted (some formatters allow only 1-2);
+        // an invalid variant falls through to variant 1.
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "actor member (default)"),
+                new GadgetVariant(2, "bootstrapContext member"),
+                new GadgetVariant(3, "bootstrapContext (NetDataContractSerializer form)")
+            };
+        }
+
         public override List<string> Labels()
         {
             return new List<string> { GadgetTags.Bridged, GadgetTags.NotInGAC };

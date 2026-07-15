@@ -18,7 +18,22 @@ namespace ysonet.Interactive
         public List<string> Labels;      // gadgets only; empty for plugins
         public string BridgedFormatter;  // gadgets only
         public CommandInputType CommandInput; // gadgets only; what -c means
+        public List<GadgetVariant> Variants;  // gadgets only; empty if none
         public List<OptionField> OptionFields;
+
+        // The option field that carries the variant number (var/variant or
+        // ig/internalgadget), so the wizard can set it from the variant menu and
+        // skip re-asking it as a plain option. Null if the gadget has no variants.
+        public OptionField VariantField()
+        {
+            if (OptionFields == null)
+                return null;
+            foreach (OptionField f in OptionFields)
+                if (string.Equals(f.Name, "variant", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(f.Name, "internalgadget", StringComparison.OrdinalIgnoreCase))
+                    return f;
+            return null;
+        }
 
         public static ModuleView FromGadget(string gadgetName)
         {
@@ -35,6 +50,7 @@ namespace ysonet.Interactive
             view.Labels = new List<string>(g.Labels());
             view.BridgedFormatter = g.SupportedBridgedFormatter();
             view.CommandInput = g.CommandInput();
+            view.Variants = g.Variants();
             view.OptionFields = OptionField.FromOptionSet(g.Options());
             return view;
         }
@@ -53,6 +69,7 @@ namespace ysonet.Interactive
             view.Formatters = new List<string>();
             view.Labels = new List<string>();
             view.BridgedFormatter = "";
+            view.Variants = new List<GadgetVariant>();
             view.OptionFields = OptionField.FromOptionSet(p.Options());
             return view;
         }

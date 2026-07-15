@@ -37,6 +37,15 @@ namespace ysonet.Generators
             return CommandInputType.FilePath;
         }
 
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "LazyFileStream - reads XAML from a file path (default, GAC)"),
+                new GadgetVariant(2, "ReadOnlyStreamFromStrings - takes a shell command (non-GAC)")
+            };
+        }
+
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()

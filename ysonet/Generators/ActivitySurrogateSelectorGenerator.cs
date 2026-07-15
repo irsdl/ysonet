@@ -269,6 +269,15 @@ namespace ysonet.Generators
             return CommandInputType.Ignored;
         }
 
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "new enumerator chain (version-compatible, default)"),
+                new GadgetVariant(2, "old chain (shorter, may not work across versions)")
+            };
+        }
+
         public override List<string> SupportedFormatters()
         {
             return new List<string> { "BinaryFormatter (2)", "SoapFormatter", "LosFormatter" };

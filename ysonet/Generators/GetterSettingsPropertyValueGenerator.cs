@@ -33,6 +33,17 @@ namespace ysonet.Generators
             return "Piotr Bazydlo";
         }
 
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "PropertyGrid getter (default; only option for MessagePack)"),
+                new GadgetVariant(2, "ComboBox getter"),
+                new GadgetVariant(3, "ListBox getter"),
+                new GadgetVariant(4, "CheckedListBox getter")
+            };
+        }
+
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()

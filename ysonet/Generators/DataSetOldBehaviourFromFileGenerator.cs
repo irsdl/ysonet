@@ -21,6 +21,15 @@ namespace ysonet.Generators
             return CommandInputType.CsSourceFile;
         }
 
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "default DataSet schema (default)"),
+                new GadgetVariant(2, "List<ExpandedWrapper> array schema")
+            };
+        }
+
         public override string Finders()
         {
             return "Steven Seeley, Markus Wulftange, Khoa Dinh";

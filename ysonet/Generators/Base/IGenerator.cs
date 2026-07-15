@@ -26,6 +26,23 @@ namespace ysonet.Generators
         OptionSet Options();
         void Init(InputArgs inputArgs);
         CommandInputType CommandInput();
+        List<GadgetVariant> Variants();
+    }
+
+    // One selectable variant of a gadget (the value passed to its var/ig option).
+    // Lets the wizard offer variants as a menu and the run-all sweep iterate them,
+    // instead of parsing the option's prose description. Number is the value; Label
+    // is a short human description. A gadget with no variants returns an empty list.
+    public class GadgetVariant
+    {
+        public int Number;
+        public string Label;
+
+        public GadgetVariant(int number, string label)
+        {
+            Number = number;
+            Label = label;
+        }
     }
 
     // What the gadget expects in the -c (command) argument. Lets callers (the

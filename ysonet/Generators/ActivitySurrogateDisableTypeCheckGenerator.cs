@@ -16,6 +16,15 @@ namespace ysonet.Generators
             return CommandInputType.Ignored;
         }
 
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "TypeConfuseDelegate wrapper (default)"),
+                new GadgetVariant(2, "TextFormattingRunProperties wrapper")
+            };
+        }
+
         public override string Finders()
         {
             return "Nick Landers";

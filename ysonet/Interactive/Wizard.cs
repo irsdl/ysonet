@@ -158,20 +158,37 @@ namespace ysonet.Interactive
                 return;
             string formatter = values[fi];
 
-            // Step 4: command. The gadget declares what -c means (shell command,
-            // .cs file, DLL path, URL, file path, or ignored), so label the prompt
-            // accordingly instead of always saying "Command to run".
             if (!string.IsNullOrEmpty(view.Info))
                 ConsoleStyle.WriteLine("About this gadget: " + view.Info, ConsoleStyle.Help);
+
+            // Step 4: variant (only when the gadget has variants). Asked before the
+            // command because a variant can change what the command means.
+            if (view.Variants != null && view.Variants.Count > 0)
+            {
+                var vItems = new List<string>();
+                foreach (GadgetVariant v in view.Variants)
+                    vItems.Add(v.Label);
+                int vi = _menu.Show("Pick a variant for " + view.Name + ":", vItems, 0);
+                if (vi < 0)
+                    return;
+                OptionField vf = view.VariantField();
+                if (vf != null)
+                    vf.Value = view.Variants[vi].Number.ToString();
+            }
+
+            // Step 5: command. The gadget declares what -c means (shell command,
+            // .cs file, DLL path, URL, file path, or ignored), so label the prompt
+            // accordingly instead of always saying "Command to run".
             CommandInputType inputType = view.CommandInput;
-            string command = AskText(CommandLabel(inputType), CommandDefault(inputType), CommandHelp(inputType));
+            string command = AskText(CommandLabel(inputType), CommandDefaultFor(inputType), CommandHelp(inputType));
+            RememberCommand(inputType, command);
 
             // "raw command" only makes sense for a shell command.
             bool rawcmd = false;
             if (inputType == CommandInputType.ShellCommand || inputType == CommandInputType.Ignored)
                 rawcmd = AskYesNo("Run the command raw (no 'cmd /c' prefix)?", false);
 
-            // Step 5: gadget-specific options.
+            // Step 6: remaining gadget-specific options (the variant is already set).
             CollectModuleOptions(view);
 
             // Step 6: output and advanced options.
@@ -316,10 +333,21 @@ namespace ysonet.Interactive
             if (view.OptionFields == null || view.OptionFields.Count == 0)
                 return;
 
-            WriteLine("");
-            ConsoleStyle.WriteLine("Options for " + view.Name + " (Enter to skip any):", ConsoleStyle.Heading);
+            OptionField variantField = view.VariantField();
+            bool headerShown = false;
             foreach (OptionField field in view.OptionFields)
             {
+                // the variant is already chosen via the variant menu; do not re-ask
+                if (field == variantField)
+                    continue;
+
+                if (!headerShown)
+                {
+                    WriteLine("");
+                    ConsoleStyle.WriteLine("Options for " + view.Name + " (Enter to skip any):", ConsoleStyle.Heading);
+                    headerShown = true;
+                }
+
                 string help = string.IsNullOrEmpty(field.Description) ? "" : field.Description;
                 if (field.IsFlag)
                 {
@@ -332,6 +360,26 @@ namespace ysonet.Interactive
                     field.Value = val;
                 }
             }
+        }
+
+        // ---- Session command memory -------------------------------------------
+
+        // Remembered so the next shell-command prompt defaults to what you last
+        // typed. Session only; not persisted.
+        private string _lastShellCommand = "calc.exe";
+
+        private string CommandDefaultFor(CommandInputType t)
+        {
+            if (t == CommandInputType.ShellCommand || t == CommandInputType.Ignored)
+                return _lastShellCommand;
+            return CommandDefault(t);
+        }
+
+        private void RememberCommand(CommandInputType t, string command)
+        {
+            if ((t == CommandInputType.ShellCommand || t == CommandInputType.Ignored)
+                && !string.IsNullOrEmpty(command))
+                _lastShellCommand = command;
         }
 
         // ---- Informational top-menu entries -----------------------------------
@@ -449,14 +497,16 @@ namespace ysonet.Interactive
                 ConsoleStyle.WriteLine("No gadget of this input type supports " + chosenFormatter + ". Pick different choices.", ConsoleStyle.Error);
                 return;
             }
-            ConsoleStyle.WriteLine(runGadgets.Count + " gadget(s) will run with " + chosenFormatter + ".", ConsoleStyle.Help);
+            ConsoleStyle.WriteLine(runGadgets.Count + " gadget(s) will run with " + chosenFormatter
+                + " (variant-capable gadgets run every variant).", ConsoleStyle.Help);
 
-            string command = AskText(CommandLabel(chosenType), CommandDefault(chosenType), CommandHelp(chosenType));
+            string command = AskText(CommandLabel(chosenType), CommandDefaultFor(chosenType), CommandHelp(chosenType));
             if (chosenType != CommandInputType.ShellCommand && string.IsNullOrEmpty(command))
             {
                 ConsoleStyle.WriteLine("A value is required for this input type.", ConsoleStyle.Error);
                 return;
             }
+            RememberCommand(chosenType, command);
             string outputFormat = AskOutputFormat();
 
             // Where should the payloads go?
@@ -499,37 +549,69 @@ namespace ysonet.Interactive
 
                 foreach (IGenerator gg in runGadgets)
                 {
-                    string label = gg.Name() + " / " + chosenFormatter;
-                    byte[] bytes;
-                    try { bytes = TryGenerateQuietly(gg.Name(), chosenFormatter, outputFormat, inputArgs); }
-                    catch (Exception) { bytes = null; }
-
-                    // an empty payload means the gadget could not use this input
-                    if (bytes == null || bytes.Length == 0)
-                    {
-                        skipped.Add(label);
-                        continue;
-                    }
-
-                    if (dest == 0)
-                    {
-                        string path = Path.Combine(folder, SafeFileName(gg.Name() + "_" + chosenFormatter) + PayloadExtension(outputFormat));
-                        File.WriteAllBytes(path, bytes);
-                        ConsoleStyle.WriteLine("  [ok]   " + label + " -> " + path + " (" + bytes.Length + ")", ConsoleStyle.Success);
-                    }
-                    else if (dest == 1)
-                    {
-                        byte[] header = Encoding.ASCII.GetBytes("=== " + label + " (length " + bytes.Length + ") ===\r\n");
-                        single.Write(header, 0, header.Length);
-                        single.Write(bytes, 0, bytes.Length);
-                        single.WriteByte(13); single.WriteByte(10);
-                        ConsoleStyle.WriteLine("  [ok]   " + label + " (" + bytes.Length + ")", ConsoleStyle.Success);
-                    }
+                    // Iterate every variant for variant-capable gadgets; one pass
+                    // (no variant token) otherwise.
+                    List<GadgetVariant> variantList = gg.Variants();
+                    bool hasVariants = variantList != null && variantList.Count > 0;
+                    string variantFlag = hasVariants ? VariantFlag(gg) : null;
+                    var iterations = new List<GadgetVariant>();
+                    if (hasVariants)
+                        iterations.AddRange(variantList);
                     else
+                        iterations.Add(null);
+
+                    // Drop variants that produce byte-identical output (a
+                    // formatter-invalid variant falls through to another).
+                    var seenForGadget = new List<byte[]>();
+
+                    foreach (GadgetVariant v in iterations)
                     {
-                        ConsoleStyle.WriteLine("  [ok]   " + label + " -> length " + bytes.Length, ConsoleStyle.Success);
+                        if (v == null)
+                            inputArgs.ExtraArguments = new List<string>();
+                        else
+                            inputArgs.ExtraArguments = new List<string> { variantFlag, v.Number.ToString() };
+
+                        string vLabel = (v == null) ? "" : " v" + v.Number;
+                        string vSuffix = (v == null) ? "" : "_v" + v.Number;
+                        string label = gg.Name() + vLabel + " / " + chosenFormatter;
+
+                        byte[] bytes;
+                        try { bytes = TryGenerateQuietly(gg.Name(), chosenFormatter, outputFormat, inputArgs); }
+                        catch (Exception) { bytes = null; }
+
+                        if (bytes == null || bytes.Length == 0)
+                        {
+                            skipped.Add(label);
+                            continue;
+                        }
+
+                        bool duplicate = false;
+                        foreach (byte[] prev in seenForGadget)
+                            if (BytesEqual(prev, bytes)) { duplicate = true; break; }
+                        if (duplicate)
+                            continue; // same as another variant; skip silently
+                        seenForGadget.Add(bytes);
+
+                        if (dest == 0)
+                        {
+                            string path = Path.Combine(folder, SafeFileName(gg.Name() + vSuffix + "_" + chosenFormatter) + PayloadExtension(outputFormat));
+                            File.WriteAllBytes(path, bytes);
+                            ConsoleStyle.WriteLine("  [ok]   " + label + " -> " + path + " (" + bytes.Length + ")", ConsoleStyle.Success);
+                        }
+                        else if (dest == 1)
+                        {
+                            byte[] header = Encoding.ASCII.GetBytes("=== " + label + " (length " + bytes.Length + ") ===\r\n");
+                            single.Write(header, 0, header.Length);
+                            single.Write(bytes, 0, bytes.Length);
+                            single.WriteByte(13); single.WriteByte(10);
+                            ConsoleStyle.WriteLine("  [ok]   " + label + " (" + bytes.Length + ")", ConsoleStyle.Success);
+                        }
+                        else
+                        {
+                            ConsoleStyle.WriteLine("  [ok]   " + label + " -> length " + bytes.Length, ConsoleStyle.Success);
+                        }
+                        count++;
                     }
-                    count++;
                 }
             }
             finally
@@ -583,6 +665,29 @@ namespace ysonet.Interactive
         private static string FormatterToken(string f)
         {
             return f.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0];
+        }
+
+        // The CLI flag that sets this gadget's variant (--variant or, for
+        // ResourceSet, --internalgadget).
+        private static string VariantFlag(IGenerator gg)
+        {
+            foreach (OptionField f in OptionField.FromOptionSet(gg.Options()))
+                if (string.Equals(f.Name, "variant", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(f.Name, "internalgadget", StringComparison.OrdinalIgnoreCase))
+                    return f.CliFlag;
+            return "--variant";
+        }
+
+        private static bool BytesEqual(byte[] a, byte[] b)
+        {
+            if (a == null || b == null)
+                return a == b;
+            if (a.Length != b.Length)
+                return false;
+            for (int i = 0; i < a.Length; i++)
+                if (a[i] != b[i])
+                    return false;
+            return true;
         }
 
         // Generate one gadget/formatter and encode it. Returns null/empty on

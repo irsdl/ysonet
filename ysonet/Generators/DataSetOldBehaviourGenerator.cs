@@ -58,6 +58,15 @@ namespace ysonet.Generators
             return "Steven Seeley, Markus Wulftange, Khoa Dinh";
         }
 
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "default DataSet schema (default)"),
+                new GadgetVariant(2, "List<ExpandedWrapper> array schema (SharePoint/ToolShell)")
+            };
+        }
+
         public override string Contributors()
         {
             return "Soroush Dalili";

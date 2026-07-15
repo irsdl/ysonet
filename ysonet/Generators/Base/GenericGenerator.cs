@@ -84,6 +84,13 @@ namespace ysonet.Generators
             return CommandInputType.ShellCommand;
         }
 
+        // No variants by default. Gadgets with a var/ig option override this to
+        // list their selectable variants.
+        public virtual List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>();
+        }
+
         public object GenerateWithInit(string formatter, InputArgs inputArgs)
         {
             Init(inputArgs);

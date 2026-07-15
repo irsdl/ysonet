@@ -49,6 +49,19 @@ namespace ysonet.Generators
             return "Oleksandr Mirosh, Alvaro Munoz";
         }
 
+        // Variant meaning depends on the formatter (mostly the Xaml formatter).
+        // Non-Xaml formatters ignore the number and reuse variant 1.
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "plain ObjectDataProvider (default)"),
+                new GadgetVariant(2, "ResourceDictionary wrapper (Xaml) / LosFormatter inner (XmlSerializer)"),
+                new GadgetVariant(3, "ResourceDictionary Source=--xamlurl (Xaml; ignores command)"),
+                new GadgetVariant(4, "WorkflowDesigner wrapper (Xaml, STA)")
+            };
+        }
+
         public override string Contributors()
         {
             return "Alvaro Munoz, Soroush Dalili, Dane Evans";
