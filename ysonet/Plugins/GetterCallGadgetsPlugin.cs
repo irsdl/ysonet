@@ -207,7 +207,7 @@ Exemplary usage:
                 Console.WriteLine(e.Message);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " -l' for the list of implemented gadgets");
-                Environment.Exit(-1);
+                throw new Exception(e.Message);
             }
 
 
@@ -233,7 +233,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Gadget " + gadget + " does not exist! Use -l option to show available gadgets");
-                Environment.Exit(-1);
+                throw new Exception("Gadget " + gadget + " does not exist! Use -l option to show available gadgets");
             }
 
             //minify

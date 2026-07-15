@@ -77,115 +77,125 @@ namespace ysonet.Plugins
             // to solve this error: Current thread must be set to single thread apartment (STA) mode before OLE calls can be made
             // we cannot use the [STAThread] outside of this plugin
             // here is a solution
+            Exception threadError = null;
             var staThread = new Thread(delegate ()
             {
-                InputArgs inputArgs = new InputArgs();
-                List<string> extra;
                 try
                 {
-                    extra = options.Parse(args);
-                    inputArgs.Cmd = command;
-                    inputArgs.Minify = minify;
-                    inputArgs.UseSimpleType = useSimpleType;
-                    inputArgs.Test = test;
-                }
-                catch (OptionException e)
-                {
-                    Console.Write("ysonet: ");
-                    Console.WriteLine(e.Message);
-                    Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                    System.Environment.Exit(-1);
-                }
-
-                if (mode != "winforms" && mode != "wpfxaml")
-                {
-                    Console.Write("ysonet: ");
-                    Console.WriteLine("Unknown mode '" + mode + "'. Use 'winforms' or 'wpfxaml'.");
-                    Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                    System.Environment.Exit(-1);
-                }
-
-                if (String.IsNullOrEmpty(command) || String.IsNullOrWhiteSpace(command))
-                {
-                    Console.Write("ysonet: ");
-                    Console.WriteLine("Incorrect plugin mode/arguments combination");
-                    Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                    System.Environment.Exit(-1);
-                }
-
-                if (mode == "wpfxaml")
-                {
-                    if (xamlVariant != 1 && xamlVariant != 2)
+                    InputArgs inputArgs = new InputArgs();
+                    List<string> extra;
+                    try
+                    {
+                        extra = options.Parse(args);
+                        inputArgs.Cmd = command;
+                        inputArgs.Minify = minify;
+                        inputArgs.UseSimpleType = useSimpleType;
+                        inputArgs.Test = test;
+                    }
+                    catch (OptionException e)
                     {
                         Console.Write("ysonet: ");
-                        Console.WriteLine("Invalid xamlvariant '" + xamlVariant + "'. Use 1 or 2.");
+                        Console.WriteLine(e.Message);
                         Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                        System.Environment.Exit(-1);
+                        throw new Exception(e.Message);
                     }
 
-                    // Build the ObjectDataProvider XAML with ysonet's existing generator,
-                    // then place it as a plain string under the WPF 'Xaml'
-                    // (DataFormats.Xaml == "Xaml") format. The WPF paste path reads it via
-                    // GetData(DataFormats.Xaml) as a string and hands it to XamlReader.Load,
-                    // which runs the gadget when the paste path is non-restrictive.
-                    ObjectDataProviderGenerator odpGen = new ObjectDataProviderGenerator();
-                    odpGen.Options().Parse(new string[] { "--variant", xamlVariant.ToString() });
-
-                    // Generate without the generator's own local test; when --test is set we
-                    // run our own faithful paste-path simulation below instead.
-                    bool runTest = inputArgs.Test;
-                    inputArgs.Test = false;
-                    string xamlPayload = (string)odpGen.Generate("xaml", inputArgs);
-                    inputArgs.Test = runTest;
-
-                    // Use the WPF clipboard (System.Windows), not the WinForms one. A
-                    // WinForms DataObject.SetData("Xaml", string) serializes the string with
-                    // BinaryFormatter into the clipboard, but WPF paste reads the 'Xaml'
-                    // format as raw UTF-16 text, so it would get garbage. WPF's own
-                    // DataObject stores the string the way WPF paste reads it back.
-                    System.Windows.DataObject wpfDataObject = new System.Windows.DataObject();
-                    wpfDataObject.SetData(System.Windows.DataFormats.Xaml, xamlPayload);
-
-                    System.Windows.Clipboard.Clear();
-                    System.Windows.Clipboard.SetDataObject(wpfDataObject, true);
-
-                    if (runTest)
+                    if (mode != "winforms" && mode != "wpfxaml")
                     {
-                        RunWpfXamlPasteTest(xamlPayload, inputArgs);
+                        Console.Write("ysonet: ");
+                        Console.WriteLine("Unknown mode '" + mode + "'. Use 'winforms' or 'wpfxaml'.");
+                        Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
+                        throw new Exception("Unknown mode '" + mode + "'. Use 'winforms' or 'wpfxaml'.");
+                    }
+
+                    if (String.IsNullOrEmpty(command) || String.IsNullOrWhiteSpace(command))
+                    {
+                        Console.Write("ysonet: ");
+                        Console.WriteLine("Incorrect plugin mode/arguments combination");
+                        Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
+                        throw new Exception("Incorrect plugin mode/arguments combination");
+                    }
+
+                    if (mode == "wpfxaml")
+                    {
+                        if (xamlVariant != 1 && xamlVariant != 2)
+                        {
+                            Console.Write("ysonet: ");
+                            Console.WriteLine("Invalid xamlvariant '" + xamlVariant + "'. Use 1 or 2.");
+                            Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
+                            throw new Exception("Invalid xamlvariant '" + xamlVariant + "'. Use 1 or 2.");
+                        }
+
+                        // Build the ObjectDataProvider XAML with ysonet's existing generator,
+                        // then place it as a plain string under the WPF 'Xaml'
+                        // (DataFormats.Xaml == "Xaml") format. The WPF paste path reads it via
+                        // GetData(DataFormats.Xaml) as a string and hands it to XamlReader.Load,
+                        // which runs the gadget when the paste path is non-restrictive.
+                        ObjectDataProviderGenerator odpGen = new ObjectDataProviderGenerator();
+                        odpGen.Options().Parse(new string[] { "--variant", xamlVariant.ToString() });
+
+                        // Generate without the generator's own local test; when --test is set we
+                        // run our own faithful paste-path simulation below instead.
+                        bool runTest = inputArgs.Test;
+                        inputArgs.Test = false;
+                        string xamlPayload = (string)odpGen.Generate("xaml", inputArgs);
+                        inputArgs.Test = runTest;
+
+                        // Use the WPF clipboard (System.Windows), not the WinForms one. A
+                        // WinForms DataObject.SetData("Xaml", string) serializes the string with
+                        // BinaryFormatter into the clipboard, but WPF paste reads the 'Xaml'
+                        // format as raw UTF-16 text, so it would get garbage. WPF's own
+                        // DataObject stores the string the way WPF paste reads it back.
+                        System.Windows.DataObject wpfDataObject = new System.Windows.DataObject();
+                        wpfDataObject.SetData(System.Windows.DataFormats.Xaml, xamlPayload);
+
+                        System.Windows.Clipboard.Clear();
+                        System.Windows.Clipboard.SetDataObject(wpfDataObject, true);
+
+                        if (runTest)
+                        {
+                            RunWpfXamlPasteTest(xamlPayload, inputArgs);
+                        }
+                    }
+                    else
+                    {
+                        // Creates a new data object.
+                        System.Windows.Forms.DataObject myDataObject = new System.Windows.Forms.DataObject();
+
+                        myDataObject.SetData(format, false, new AxHostStateMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs))); // for System.Windows.Forms
+
+                        /*
+                        myDataObject.SetData(format, new DataSetBinaryMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs)), false); // for System.Windows
+                        */
+
+                        Clipboard.Clear();
+                        Clipboard.SetDataObject(myDataObject, true);
+
+                        if (test)
+                        {
+                            // PoC on how it works in practice
+                            try
+                            {
+                                IDataObject dataObj = Clipboard.GetDataObject();
+                                Object testObj = dataObj.GetData(format);
+                            }
+                            catch (Exception err)
+                            {
+                                Debugging.ShowErrors(inputArgs, err);
+                            }
+                        }
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    // Creates a new data object.
-                    System.Windows.Forms.DataObject myDataObject = new System.Windows.Forms.DataObject();
-
-                    myDataObject.SetData(format, false, new AxHostStateMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs))); // for System.Windows.Forms
-
-                    /*
-                    myDataObject.SetData(format, new DataSetBinaryMarshal(TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs)), false); // for System.Windows
-                    */
-
-                    Clipboard.Clear();
-                    Clipboard.SetDataObject(myDataObject, true);
-
-                    if (test)
-                    {
-                        // PoC on how it works in practice
-                        try
-                        {
-                            IDataObject dataObj = Clipboard.GetDataObject();
-                            Object testObj = dataObj.GetData(format);
-                        }
-                        catch (Exception err)
-                        {
-                            Debugging.ShowErrors(inputArgs, err);
-                        }
-                    }
+                    threadError = ex;
                 }
             });
             staThread.SetApartmentState(ApartmentState.STA);
             staThread.Start();
             staThread.Join();
+
+            if (threadError != null) throw threadError;
 
             return "Object copied to the clipboard";
         }

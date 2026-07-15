@@ -181,7 +181,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox gadget");
             }
 
             return gadget;
@@ -204,7 +204,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox gadget");
             }
 
             return gadget;
@@ -229,7 +229,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox gadget");
             }
 
             return gadget;
@@ -249,7 +249,7 @@ Exemplary usage:
             if (generator == null)
             {
                 Console.WriteLine("TypeConfuseDelegateGenerator not supported!");
-                Environment.Exit(-1);
+                throw new Exception("TypeConfuseDelegateGenerator not supported!");
             }
 
             byte[] binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs);
@@ -290,7 +290,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox gadget");
             }
 
             return gadget;
@@ -327,7 +327,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox gadget");
             }
 
             return gadget;
@@ -350,7 +350,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox gadget");
             }
 
             return gadget;
@@ -363,7 +363,7 @@ Exemplary usage:
             if (!File.Exists(input))
             {
                 Console.WriteLine("Provided file " + input + " does not exist");
-                Environment.Exit(-1);
+                throw new Exception("Provided file " + input + " does not exist");
             }
 
             String gadget = "";
@@ -385,7 +385,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox gadget");
             }
 
             return gadget;
@@ -410,7 +410,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox gadget");
             }
 
             return gadget;
@@ -438,7 +438,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox gadget");
             }
 
             return gadget;
@@ -463,7 +463,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox gadget");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox gadget");
             }
 
             return gadget;
@@ -506,7 +506,7 @@ Exemplary usage:
                 Console.WriteLine(e.Message);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " -l' for the list of implemented gadgets and formatters.");
-                Environment.Exit(-1);
+                throw new Exception(e.Message);
             }
 
 
@@ -556,7 +556,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Gadget " + gadget + " does not exist! Use -l option to show available gadgets");
-                Environment.Exit(-1);
+                throw new Exception("Gadget " + gadget + " does not exist! Use -l option to show available gadgets");
             }
 
             //remove version/public key token

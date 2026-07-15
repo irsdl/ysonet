@@ -61,7 +61,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine(e.Message);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception(e.Message);
             }
             string payload = "";
 
@@ -89,7 +89,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine("Incorrect plugin mode/arguments combination");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
             if (minify)

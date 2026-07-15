@@ -138,7 +138,7 @@ namespace ysonet.Plugins
                 Console.WriteLine(e.Message);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
                 ShowExamples();
-                System.Environment.Exit(-1);
+                throw new Exception(e.Message);
             }
 
             if (showExamples)
@@ -154,7 +154,7 @@ namespace ysonet.Plugins
                 Console.WriteLine("Incorrect plugin mode/arguments combination");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
                 ShowExamples();
-                System.Environment.Exit(-1);
+                throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
             var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes());
@@ -175,7 +175,7 @@ namespace ysonet.Plugins
                 else
                 {
                     Console.WriteLine("Invalid generator parameter. It needs to be in Hex format. Example: 955733D9");
-                    System.Environment.Exit(-1);
+                    throw new Exception("Invalid generator parameter. It needs to be in Hex format. Example: 955733D9");
                 }
             }
 
@@ -205,7 +205,7 @@ namespace ysonet.Plugins
                 if (!generators.Contains(gadget))
                 {
                     Console.WriteLine("Gadget not supported.");
-                    System.Environment.Exit(-1);
+                    throw new Exception("Gadget not supported.");
                 }
 
                 // Instantiate Payload Generator
@@ -218,7 +218,7 @@ namespace ysonet.Plugins
                 catch
                 {
                     Console.WriteLine("Gadget not supported!");
-                    System.Environment.Exit(-1);
+                    throw new Exception("Gadget not supported!");
                 }
 
                 // Check Generator supports specified formatter
@@ -229,14 +229,14 @@ namespace ysonet.Plugins
                 else
                 {
                     Console.WriteLine("LosFormatter not supported.");
-                    System.Environment.Exit(-1);
+                    throw new Exception("LosFormatter not supported.");
                 }
             }
 
             if (string.IsNullOrEmpty(validationKey))
             {
                 Console.WriteLine("validationkey must not be empty.");
-                System.Environment.Exit(-1);
+                throw new Exception("validationkey must not be empty.");
             }
 
             if (isDebug)

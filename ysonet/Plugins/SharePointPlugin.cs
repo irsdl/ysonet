@@ -75,7 +75,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine(e.Message);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception(e.Message);
             }
             string payload = "";
 
@@ -84,7 +84,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine("Incorrect plugin mode/arguments combination");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
             switch (cve.ToLower())
@@ -136,7 +136,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine("Incorrect plugin mode/arguments combination");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
             return payload;
@@ -157,7 +157,7 @@ namespace ysonet.Plugins
             if (!GadgetHelper.GadgetExists(gadget))
             {
                 Console.WriteLine("Gadget not supported.");
-                System.Environment.Exit(-1);
+                throw new Exception("Gadget not supported.");
             }
 
             // Use GadgetHelper to create gadget instance
@@ -165,7 +165,7 @@ namespace ysonet.Plugins
             if (generator == null)
             {
                 Console.WriteLine("Gadget not supported!");
-                System.Environment.Exit(-1);
+                throw new Exception("Gadget not supported!");
             }
 
             if (generator.IsSupported(formatter))
@@ -175,7 +175,7 @@ namespace ysonet.Plugins
             else
             {
                 Console.WriteLine("BinaryFormatter not supported by the selected gadget.");
-                System.Environment.Exit(-1);
+                throw new Exception("BinaryFormatter not supported by the selected gadget.");
             }
 
             // Base paths
@@ -294,7 +294,7 @@ runat=""server"">
                 if (dsFromFileGenerator == null)
                 {
                     Console.WriteLine("DataSetOldBehaviourFromFileGenerator not supported!");
-                    System.Environment.Exit(-1);
+                    throw new Exception("DataSetOldBehaviourFromFileGenerator not supported!");
                 }
 
                 inputArgs.ExtraInternalArguments = new List<string> {
@@ -310,7 +310,7 @@ runat=""server"">
                 if (dsGenerator == null)
                 {
                     Console.WriteLine("DataSetOldBehaviourGenerator not supported!");
-                    System.Environment.Exit(-1);
+                    throw new Exception("DataSetOldBehaviourGenerator not supported!");
                 }
 
                 inputArgs.ExtraInternalArguments = new List<string> {
@@ -357,7 +357,7 @@ runat=""server"">
             if (!GadgetHelper.GadgetExists(gadget))
             {
                 Console.WriteLine("Gadget not supported.");
-                System.Environment.Exit(-1);
+                throw new Exception("Gadget not supported.");
             }
 
             // Use GadgetHelper to create gadget instance
@@ -365,7 +365,7 @@ runat=""server"">
             if (generator == null)
             {
                 Console.WriteLine("Gadget not supported!");
-                System.Environment.Exit(-1);
+                throw new Exception("Gadget not supported!");
             }
 
             // Check Generator supports specified formatter
@@ -376,7 +376,7 @@ runat=""server"">
             else
             {
                 Console.WriteLine("LosFormatter not supported.");
-                System.Environment.Exit(-1);
+                throw new Exception("LosFormatter not supported.");
             }
 
             string payload = @"<DataSet>
@@ -518,7 +518,7 @@ PublicKeyToken=31bf3856ad364e35"">
                 if (myTFRPG == null)
                 {
                     Console.WriteLine("TextFormattingRunPropertiesGenerator not supported!");
-                    System.Environment.Exit(-1);
+                    throw new Exception("TextFormattingRunPropertiesGenerator not supported!");
                 }
                 payloadPart2 = (string)myTFRPG.GenerateWithNoTest("DataContractSerializer", inputArgs);
 

@@ -83,7 +83,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine(e.Message);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception(e.Message);
             }
 
             string payload = @"<SecurityContextToken xmlns='http://schemas.xmlsoap.org/ws/2005/02/sc'>
@@ -103,7 +103,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine("Incorrect plugin mode/arguments combination");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
             if (String.IsNullOrEmpty(validationKey) || String.IsNullOrWhiteSpace(validationKey) || String.IsNullOrEmpty(decryptionKey) || String.IsNullOrWhiteSpace(decryptionKey))
@@ -111,7 +111,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine("validationkey or decryptionkey has not been provided correctly.");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception("validationkey or decryptionkey has not been provided correctly.");
             }
 
             if (validationAlg.ToUpper().Equals("SHA1"))
