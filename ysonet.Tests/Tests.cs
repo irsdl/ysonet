@@ -407,21 +407,24 @@ namespace ysonet.Tests
             // reject a shell command (they expect a file/URL/DLL). It must now run
             // to completion, skip those gracefully, and emit nothing to stdout.
             var keys = new ScriptedKeyReader();
-            keys.Digit(4);   // top menu -> Run all formatters (index 3)
-            keys.Enter();    // input type -> Shell command (index 0)
-            keys.Enter();    // output format -> auto
-            keys.Digit(3);   // destination -> "Just show payload lengths" (index 2)
-            keys.Escape();   // back at top menu -> quit
+            keys.Digit(4);                  // top menu -> Run all formatters (index 3)
+            keys.Enter();                   // input type -> Shell command (index 0)
+            keys.Type("BinaryFormatter");   // formatter picker filter
+            keys.Enter();                   // pick the formatter
+            keys.Enter();                   // output format -> auto
+            keys.Digit(3);                  // destination -> "Just show payload lengths" (index 2)
+            keys.Escape();                  // back at top menu -> quit
 
-            var lines = Lines("Binary", "calc.exe"); // formatter term, command
+            var lines = Lines("calc.exe"); // command
 
             string stderr;
             byte[] stdout = DriveWizard(keys, lines, out stderr);
 
             AssertEqual(0, stdout.Length, "sweep writes nothing to stdout");
+            AssertTrue(stderr.Contains("Shell command ("), "input types listed with gadget counts");
             AssertTrue(stderr.Contains("Done."), "sweep ran to completion");
+            AssertTrue(stderr.Contains("will run with"), "non-empty gadget set previewed before running");
             AssertTrue(stderr.Contains("[ok]"), "at least one gadget generated");
-            AssertTrue(stderr.Contains("not applicable"), "file/url/dll gadgets excluded by input type");
             AssertTrue(!stderr.Contains("length 0"), "empty payloads are skipped, not counted as ok");
         }
 
@@ -432,13 +435,15 @@ namespace ysonet.Tests
                 Directory.Delete(folder, true);
 
             var keys = new ScriptedKeyReader();
-            keys.Digit(4);   // top -> Run all formatters
-            keys.Enter();    // input type -> Shell command (index 0)
-            keys.Enter();    // output format -> auto
-            keys.Digit(1);   // destination -> "Save each to its own file" (index 0)
-            keys.Escape();   // back at top -> quit
+            keys.Digit(4);                  // top -> Run all formatters
+            keys.Enter();                   // input type -> Shell command (index 0)
+            keys.Type("BinaryFormatter");   // formatter picker filter
+            keys.Enter();                   // pick the formatter
+            keys.Enter();                   // output format -> auto
+            keys.Digit(1);                  // destination -> "Save each to its own file" (index 0)
+            keys.Escape();                  // back at top -> quit
 
-            var lines = Lines("Binary", "calc.exe", folder); // term, command, folder
+            var lines = Lines("calc.exe", folder); // command, folder
 
             string stderr;
             byte[] stdout = DriveWizard(keys, lines, out stderr);

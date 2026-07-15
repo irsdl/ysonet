@@ -353,42 +353,96 @@ namespace ysonet.Interactive
             WriteLine("");
         }
 
-        // Bulk generate one command across every gadget that supports a matching
-        // formatter (like --runallformatters), then do something useful with the
-        // results: save each to its own file, concatenate into one file, or just
-        // report lengths for a quick survey.
+        // Bulk generate one input across every gadget that accepts it and supports
+        // a chosen formatter (like --runallformatters), then save each to its own
+        // file, concatenate into one file, or report lengths.
+        //
+        // Choices that would run nothing are prevented up front: only input types
+        // that have gadgets are offered, and the formatter is picked from the ones
+        // those gadgets actually support - so the combination can never be empty.
         private void RunAllFormattersInfo()
         {
             WriteLine("");
             ConsoleStyle.WriteLine("Run all formatters (mirrors --runallformatters):", ConsoleStyle.Heading);
-            WriteLine("Generates one input across every gadget that accepts it and supports a matching formatter.");
+            WriteLine("Pick an input type and a formatter; every gadget that accepts both is run.");
 
-            // Different gadgets accept different kinds of input. Pick one so we
-            // only run the gadgets that actually take it (no mismatched errors).
-            var typeLabels = new List<string>
+            // Load all gadgets once.
+            var gadgets = new List<IGenerator>();
+            foreach (string name in GadgetHelper.GetAllGadgetNames())
             {
-                "Shell command (most gadgets)",
-                ".cs source file (compiled)",
-                "DLL path",
-                "URL",
-                "File path (e.g. XAML)"
-            };
-            var typeValues = new CommandInputType[]
+                if (name == "Generic")
+                    continue;
+                IGenerator gg = GadgetHelper.CreateGadgetInstance(name);
+                if (gg != null)
+                    gadgets.Add(gg);
+            }
+
+            // Offer only input types that actually have gadgets (with counts).
+            var candidateTypes = new CommandInputType[]
             {
-                CommandInputType.ShellCommand,
-                CommandInputType.CsSourceFile,
-                CommandInputType.DllPath,
-                CommandInputType.Url,
-                CommandInputType.FilePath
+                CommandInputType.ShellCommand, CommandInputType.CsSourceFile,
+                CommandInputType.DllPath, CommandInputType.Url, CommandInputType.FilePath
             };
+            var typeLabels = new List<string>();
+            var typeValues = new List<CommandInputType>();
+            foreach (CommandInputType t in candidateTypes)
+            {
+                int n = 0;
+                foreach (IGenerator gg in gadgets)
+                    if (InputTypeMatches(gg.CommandInput(), t)) n++;
+                if (n > 0)
+                {
+                    typeLabels.Add(InputTypeName(t) + " (" + n + " gadget" + (n == 1 ? "" : "s") + ")");
+                    typeValues.Add(t);
+                }
+            }
+            if (typeValues.Count == 0)
+            {
+                ConsoleStyle.WriteLine("No gadgets are available.", ConsoleStyle.Error);
+                return;
+            }
             int ti = _menu.Show("What kind of input will you provide?", typeLabels, 0);
             if (ti < 0)
                 return;
             CommandInputType chosenType = typeValues[ti];
 
-            string term = AskText("Formatter to match (e.g. Json, Binary)", "", "");
-            if (string.IsNullOrEmpty(term))
+            var typeGadgets = new List<IGenerator>();
+            foreach (IGenerator gg in gadgets)
+                if (InputTypeMatches(gg.CommandInput(), chosenType))
+                    typeGadgets.Add(gg);
+
+            // Offer only formatters at least one of these gadgets supports.
+            var formatters = new List<string>();
+            var seen = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            foreach (IGenerator gg in typeGadgets)
+                foreach (string f in gg.SupportedFormatters())
+                {
+                    string tok = FormatterToken(f);
+                    if (!seen.ContainsKey(tok)) { seen[tok] = true; formatters.Add(tok); }
+                }
+            formatters.Sort(StringComparer.OrdinalIgnoreCase);
+            if (formatters.Count == 0)
+            {
+                ConsoleStyle.WriteLine("No formatters are available for this input type. Pick a different input type.", ConsoleStyle.Error);
                 return;
+            }
+            string chosenFormatter = _picker.Show("Pick a formatter:", formatters, null);
+            if (chosenFormatter == null)
+                return;
+
+            // Gadgets that support the chosen formatter (guaranteed >= 1 because the
+            // formatter came from this very set; the guard is defensive).
+            var runGadgets = new List<IGenerator>();
+            foreach (IGenerator gg in typeGadgets)
+                if (gg.IsSupported(chosenFormatter))
+                    runGadgets.Add(gg);
+            if (runGadgets.Count == 0)
+            {
+                ConsoleStyle.WriteLine("No gadget of this input type supports " + chosenFormatter + ". Pick different choices.", ConsoleStyle.Error);
+                return;
+            }
+            ConsoleStyle.WriteLine(runGadgets.Count + " gadget(s) will run with " + chosenFormatter + ".", ConsoleStyle.Help);
+
             string command = AskText(CommandLabel(chosenType), CommandDefault(chosenType), CommandHelp(chosenType));
             if (chosenType != CommandInputType.ShellCommand && string.IsNullOrEmpty(command))
             {
@@ -411,7 +465,7 @@ namespace ysonet.Interactive
             string singleFilePath = null;
             if (dest == 0)
             {
-                folder = AskText("Folder to write files into", "ysonet_payloads", "Created if it does not exist. One file per gadget/formatter.");
+                folder = AskText("Folder to write files into", "ysonet_payloads", "Created if it does not exist. One file per gadget.");
                 try { Directory.CreateDirectory(folder); }
                 catch (Exception e) { ConsoleStyle.WriteLine("Cannot create folder: " + e.Message, ConsoleStyle.Error); return; }
             }
@@ -425,7 +479,6 @@ namespace ysonet.Interactive
 
             WriteLine("");
             int count = 0;
-            int notApplicable = 0;
             var skipped = new List<string>();
             FileStream single = null;
             try
@@ -436,70 +489,39 @@ namespace ysonet.Interactive
                     catch (Exception e) { ConsoleStyle.WriteLine("Cannot open file: " + e.Message, ConsoleStyle.Error); return; }
                 }
 
-                foreach (string gadgetName in GadgetHelper.GetAllGadgetNames())
+                foreach (IGenerator gg in runGadgets)
                 {
-                    if (gadgetName == "Generic")
+                    string label = gg.Name() + " / " + chosenFormatter;
+                    byte[] bytes;
+                    try { bytes = TryGenerateQuietly(gg.Name(), chosenFormatter, outputFormat, inputArgs); }
+                    catch (Exception) { bytes = null; }
+
+                    // an empty payload means the gadget could not use this input
+                    if (bytes == null || bytes.Length == 0)
+                    {
+                        skipped.Add(label);
                         continue;
-
-                    // Guard every gadget: some throw or return nothing on an
-                    // unsuitable command. One bad gadget must never abort the sweep
-                    // or drop the user out of the wizard.
-                    try
-                    {
-                        IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
-                        if (gg == null)
-                            continue;
-
-                        // Only run gadgets that accept the chosen input type. Ignored
-                        // gadgets ride along with the shell-command sweep (any
-                        // placeholder works for them).
-                        if (!InputTypeMatches(gg.CommandInput(), chosenType))
-                        {
-                            notApplicable++;
-                            continue;
-                        }
-
-                        foreach (string f in gg.SupportedFormatters())
-                        {
-                            if (f.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0)
-                                continue;
-                            string token = f.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0];
-                            string label = gg.Name() + " / " + token;
-
-                            byte[] bytes = TryGenerateQuietly(gg.Name(), token, outputFormat, inputArgs);
-                            // an empty payload means the gadget rejected the input
-                            // (e.g. a *FromFile gadget with a non-file command)
-                            if (bytes == null || bytes.Length == 0)
-                            {
-                                skipped.Add(label);
-                                continue;
-                            }
-
-                            if (dest == 0)
-                            {
-                                string path = Path.Combine(folder, SafeFileName(gg.Name() + "_" + token) + PayloadExtension(outputFormat));
-                                File.WriteAllBytes(path, bytes);
-                                ConsoleStyle.WriteLine("  [ok]   " + label + " -> " + path + " (" + bytes.Length + ")", ConsoleStyle.Success);
-                            }
-                            else if (dest == 1)
-                            {
-                                byte[] header = Encoding.ASCII.GetBytes("=== " + label + " (length " + bytes.Length + ") ===\r\n");
-                                single.Write(header, 0, header.Length);
-                                single.Write(bytes, 0, bytes.Length);
-                                single.WriteByte(13); single.WriteByte(10);
-                                ConsoleStyle.WriteLine("  [ok]   " + label + " (" + bytes.Length + ")", ConsoleStyle.Success);
-                            }
-                            else
-                            {
-                                ConsoleStyle.WriteLine("  [ok]   " + label + " -> length " + bytes.Length, ConsoleStyle.Success);
-                            }
-                            count++;
-                        }
                     }
-                    catch (Exception)
+
+                    if (dest == 0)
                     {
-                        skipped.Add(gadgetName);
+                        string path = Path.Combine(folder, SafeFileName(gg.Name() + "_" + chosenFormatter) + PayloadExtension(outputFormat));
+                        File.WriteAllBytes(path, bytes);
+                        ConsoleStyle.WriteLine("  [ok]   " + label + " -> " + path + " (" + bytes.Length + ")", ConsoleStyle.Success);
                     }
+                    else if (dest == 1)
+                    {
+                        byte[] header = Encoding.ASCII.GetBytes("=== " + label + " (length " + bytes.Length + ") ===\r\n");
+                        single.Write(header, 0, header.Length);
+                        single.Write(bytes, 0, bytes.Length);
+                        single.WriteByte(13); single.WriteByte(10);
+                        ConsoleStyle.WriteLine("  [ok]   " + label + " (" + bytes.Length + ")", ConsoleStyle.Success);
+                    }
+                    else
+                    {
+                        ConsoleStyle.WriteLine("  [ok]   " + label + " -> length " + bytes.Length, ConsoleStyle.Success);
+                    }
+                    count++;
                 }
             }
             finally
@@ -509,16 +531,14 @@ namespace ysonet.Interactive
             }
 
             WriteLine("");
-            ConsoleStyle.WriteLine("Done. " + count + " payload(s) generated with \"" + command + "\".", ConsoleStyle.Heading);
+            ConsoleStyle.WriteLine("Done. " + count + " payload(s): " + chosenFormatter + " via " + InputTypeName(chosenType) + ".", ConsoleStyle.Heading);
             if (dest == 0)
                 ConsoleStyle.WriteLine("Saved to folder: " + folder, ConsoleStyle.Success);
             else if (dest == 1)
                 ConsoleStyle.WriteLine("Saved to file: " + singleFilePath, ConsoleStyle.Success);
-            if (notApplicable > 0)
-                ConsoleStyle.WriteLine(notApplicable + " gadget(s) not applicable for this input type (skipped by design).", ConsoleStyle.Help);
             if (skipped.Count > 0)
             {
-                ConsoleStyle.WriteLine("Failed " + skipped.Count + " (right input type, but generation did not succeed):", ConsoleStyle.Help);
+                ConsoleStyle.WriteLine("Failed " + skipped.Count + " (accepted the input type, but generation did not succeed):", ConsoleStyle.Help);
                 foreach (string s in skipped)
                     ConsoleStyle.WriteLine("  [skip] " + s, ConsoleStyle.Help);
             }
@@ -535,6 +555,26 @@ namespace ysonet.Interactive
             if (chosen == CommandInputType.ShellCommand && gadgetType == CommandInputType.Ignored)
                 return true;
             return false;
+        }
+
+        // Short menu name for an input type.
+        internal static string InputTypeName(CommandInputType t)
+        {
+            switch (t)
+            {
+                case CommandInputType.CsSourceFile: return ".cs source file";
+                case CommandInputType.DllPath: return "DLL path";
+                case CommandInputType.Url: return "URL";
+                case CommandInputType.FilePath: return "File path";
+                case CommandInputType.Ignored: return "Ignored";
+                default: return "Shell command";
+            }
+        }
+
+        // The normalized formatter token (first word) that -f expects.
+        private static string FormatterToken(string f)
+        {
+            return f.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0];
         }
 
         // Generate one gadget/formatter and encode it. Returns null/empty on
