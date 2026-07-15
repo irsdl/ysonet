@@ -7,22 +7,23 @@ namespace ysonet.Interactive
     // in that case CanControl returns false and callers just append output.
     internal static class ConsoleCursor
     {
-        // True when we can read and move the console cursor. False when stderr is
-        // redirected or the cursor is unavailable, in which case widgets append
-        // instead of redrawing in place.
+        private static ITerminal T { get { return Term.Current; } }
+
+        // True when we can read and move the cursor. False when output is redirected
+        // or the cursor is unavailable, in which case widgets append instead of
+        // redrawing in place.
         public static bool CanControl()
         {
-            try
-            {
-                if (Console.IsErrorRedirected)
-                    return false;
-                int probe = Console.CursorTop;
-                return probe >= 0;
-            }
-            catch
-            {
-                return false;
-            }
+            try { return T.CanControl; }
+            catch { return false; }
+        }
+
+        // The drawable width (one less than the buffer width, to avoid the auto-wrap
+        // column).
+        public static int Width()
+        {
+            try { return T.BufferWidth - 1; }
+            catch { return 79; }
         }
 
         // Clear the whole screen so the next render reuses the space instead of
@@ -32,14 +33,8 @@ namespace ysonet.Interactive
         {
             if (!CanControl())
                 return;
-            try
-            {
-                Console.Clear();
-            }
-            catch
-            {
-                // no console buffer to clear; the caller falls back to appending
-            }
+            try { T.Clear(); }
+            catch { }
         }
 
         // Move the cursor up by n lines from the current position, relative so it
@@ -50,10 +45,10 @@ namespace ysonet.Interactive
                 return;
             try
             {
-                int target = Console.CursorTop - n;
+                int target = T.CursorTop - n;
                 if (target < 0)
                     target = 0;
-                Console.SetCursorPosition(0, target);
+                T.SetCursorPosition(0, target);
             }
             catch
             {
@@ -70,7 +65,7 @@ namespace ysonet.Interactive
                 line = "";
             try
             {
-                int width = Console.BufferWidth - 1;
+                int width = T.BufferWidth - 1;
                 if (width > 1)
                 {
                     if (line.Length > width)

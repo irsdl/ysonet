@@ -43,6 +43,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Tests.cs" />
+    <Compile Include="VirtualTerminal.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ysonet\ysonet.csproj">

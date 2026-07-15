@@ -22,7 +22,7 @@ namespace ysonet.Interactive
                 return false;
             try
             {
-                return Console.BufferWidth >= 80 && Console.WindowHeight >= 14;
+                return Term.Current.BufferWidth >= 80 && Term.Current.WindowHeight >= 14;
             }
             catch
             {
@@ -238,7 +238,7 @@ namespace ysonet.Interactive
             int focus, EditableField editing, List<string> choiceItems, int choiceIndex, bool editingText, StringBuilder textBuf)
         {
             int total;
-            try { total = Console.BufferWidth - 1; }
+            try { total = ConsoleCursor.Width(); }
             catch { total = 99; }
 
             int w1 = 22, w3 = 30, sep = 3;
@@ -356,7 +356,7 @@ namespace ysonet.Interactive
                 // this is what makes the right columns visually disappear on focus 0.
                 if (used < total)
                     ConsoleStyle.Write(new string(' ', total - used));
-                Console.Error.WriteLine();
+                ConsoleStyle.NewLine();
                 lines++;
             }
 

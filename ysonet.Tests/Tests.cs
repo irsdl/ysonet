@@ -21,6 +21,7 @@ namespace ysonet.Tests
 
         private static int Main(string[] args)
         {
+            if (Environment.GetEnvironmentVariable("YSONET_DUMPUI") != null) { DumpUi(); return 0; }
             Run("Picker.Filter ranks exact, prefix, contains", PickerFilterRanking);
             Run("Picker.Filter empty query returns all", PickerFilterEmpty);
             Run("Picker.Filter no match returns empty", PickerFilterNoMatch);
@@ -55,6 +56,7 @@ namespace ysonet.Tests
             Run("Conditional plugin options are not marked required", ConditionalRequired);
             Run("Show-command action prints the one-liner without generating", WizardShowCommand);
             Run("Generate and quit emits the payload and exits", WizardGenerateAndQuit);
+            Run("Columns render in a virtual terminal (layout + per-cell highlight)", ColumnsRenderInVirtualTerminal);
             Run("Generate is blocked (not an exit) when required settings are empty", WizardBlocksMissingRequired);
             Run("Wizard remembers the last command", WizardRemembersLastCommand);
             Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
@@ -671,6 +673,89 @@ namespace ysonet.Tests
 
             AssertTrue(BytesEqual(got, GenerateOdpJson("calc.exe")), "the payload was emitted");
             AssertTrue(!stderr.Contains("Bye."), "left via generate-and-quit, not the plain quit");
+        }
+
+        private static void ColumnsRenderInVirtualTerminal()
+        {
+            // Drive the REAL side-by-side columns path (not the fallback) against an
+            // in-memory terminal, and assert on what it actually renders. This is the
+            // headless stand-in for a real console: it catches layout, column-hiding,
+            // and per-cell-highlight regressions.
+            var prevTerm = Term.Current;
+            bool prevForce = ModuleEditor.ForceFallback;
+            var vt = new VirtualTerminal(120, 40);
+            Term.Current = vt;
+            ModuleEditor.ForceFallback = false; // exercise RunColumns, not the fallback
+            try
+            {
+                var keys = new RecordingKeyReader(vt);
+                keys.Enter();       // top menu -> Build a gadget payload
+                keys.Enter();       // columns: open the first gadget's settings
+                keys.Down().Down(); // move the setting selection
+                keys.Escape();      // back to the modules column
+                keys.Escape();      // leave the editor -> top menu
+                keys.Escape();      // quit
+
+                new Wizard(keys, new MemoryStream()).Run();
+                var frames = keys.Frames;
+                AssertTrue(frames.Count >= 6, "a frame was captured per keypress");
+
+                // Modules-only frame: the settings/editor columns are hidden here.
+                Frame modules = FindFrame(frames, f => f.Contains("Gadgets") && !f.Contains(" | "));
+                AssertTrue(modules != null, "modules column renders alone (right columns hidden)");
+
+                // A three-column settings frame with the action rows.
+                Frame settings = FindFrame(frames, f => f.Contains(" | ") && f.Contains("[ Generate and quit ]"));
+                AssertTrue(settings != null, "three-column settings view rendered");
+                AssertTrue(settings.Contains("command"), "command setting shown");
+                AssertTrue(settings.Contains("formatter"), "formatter setting shown");
+                AssertTrue(settings.Contains("[ Generate ]") && settings.Contains("[ Show ysonet command ]"), "all actions shown");
+
+                // Per-cell highlight: the selection bar covers only the settings
+                // column's current cell, not the whole row (the bug we fixed).
+                int barRow = -1;
+                for (int y = 0; y < settings.Height && barRow < 0; y++)
+                    for (int x = 25; x < settings.Width; x++)
+                        if (settings.Bg(x, y) == ConsoleStyle.SelectBg) { barRow = y; break; }
+                AssertTrue(barRow >= 0, "a selection bar is drawn in the settings column");
+                AssertTrue(settings.Bg(2, barRow) != ConsoleStyle.SelectBg,
+                    "the modules column is NOT part of the settings selection bar (per-cell highlight)");
+            }
+            finally
+            {
+                Term.Current = prevTerm;
+                ModuleEditor.ForceFallback = prevForce;
+            }
+        }
+
+        private static Frame FindFrame(List<Frame> frames, Func<Frame, bool> pred)
+        {
+            foreach (Frame f in frames)
+                if (pred(f)) return f;
+            return null;
+        }
+
+        // Dev demo: drive the columns UI in the virtual terminal and print a couple
+        // of captured frames, so a human/AI can see exactly what the UI renders.
+        private static void DumpUi()
+        {
+            var vt = new VirtualTerminal(120, 40);
+            Term.Current = vt;
+            ModuleEditor.ForceFallback = false;
+            var keys = new RecordingKeyReader(vt);
+            keys.Enter();          // top -> gadget
+            keys.Down().Down().Down().Down().Down(); // scroll modules a bit
+            keys.Enter();          // open a gadget
+            keys.Down().Down();    // move selection
+            keys.Escape().Escape().Escape();
+            new Wizard(keys, new MemoryStream()).Run();
+
+            Frame modules = FindFrame(keys.Frames, f => f.Contains("Gadgets") && !f.Contains(" | "));
+            Frame settings = FindFrame(keys.Frames, f => f.Contains(" | ") && f.Contains("[ Generate and quit ]"));
+            Console.WriteLine("===== MODULES COLUMN (right columns hidden) =====");
+            Console.WriteLine(modules == null ? "(not captured)" : modules.Text());
+            Console.WriteLine("===== GADGET SETTINGS (three columns) =====");
+            Console.WriteLine(settings == null ? "(not captured)" : settings.Text());
         }
 
         private static void WizardShowCommand()

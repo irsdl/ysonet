@@ -148,7 +148,7 @@ namespace ysonet.Interactive
             int written = 0;
 
             ConsoleStyle.Write(ConsoleCursor.PadClear("Search: " + query), ConsoleStyle.Prompt);
-            Console.Error.WriteLine();
+            ConsoleStyle.NewLine();
             written++;
 
             int start = 0;

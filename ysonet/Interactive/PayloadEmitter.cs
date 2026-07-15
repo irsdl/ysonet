@@ -35,11 +35,11 @@ namespace ysonet.Interactive
                 ConsoleStyle.WriteLine("Payload (" + actualLength + " chars/bytes) follows on stdout:", ConsoleStyle.Success);
                 WriteCommandLine(commandLine);
                 ConsoleStyle.WriteLine("");
-                Console.Error.Flush();
+                ConsoleStyle.Flush();
                 output.Write(bytes, 0, bytes.Length);
                 output.Flush();
                 // trailing newline on stderr so the shell prompt is clean
-                Console.Error.WriteLine();
+                ConsoleStyle.NewLine();
             }
             else
             {

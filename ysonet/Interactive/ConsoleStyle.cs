@@ -86,50 +86,38 @@ namespace ysonet.Interactive
             CurrentThemeName = t.Name;
         }
 
+        private static ITerminal T { get { return Term.Current; } }
+
         private static bool ColorsOn()
         {
             if (!_noColorEnv || _monochrome)
                 return false;
-            try
-            {
-                return !Console.IsErrorRedirected;
-            }
-            catch
-            {
-                return false;
-            }
+            try { return T.CanControl; }
+            catch { return false; }
         }
+
+        // End the current line (used after per-cell colored writes).
+        public static void NewLine() { T.WriteLine(""); }
+
+        public static void Flush() { T.Flush(); }
 
         public static void WriteLine(string text)
         {
-            Console.Error.WriteLine(text);
+            T.WriteLine(text);
         }
 
         public static void WriteLine(string text, ConsoleColor fg)
         {
-            if (!ColorsOn())
-            {
-                Console.Error.WriteLine(text);
-                return;
-            }
-            ConsoleColor prev;
-            try { prev = Console.ForegroundColor; }
-            catch { Console.Error.WriteLine(text); return; }
-            try
-            {
-                Console.ForegroundColor = fg;
-                Console.Error.WriteLine(text);
-            }
-            finally
-            {
-                try { Console.ForegroundColor = prev; } catch { }
-            }
+            if (!ColorsOn()) { T.WriteLine(text); return; }
+            ConsoleColor prev = T.Foreground;
+            try { T.Foreground = fg; T.WriteLine(text); }
+            finally { T.Foreground = prev; }
         }
 
         // Plain write, no color, no newline. Used between colored cells.
         public static void Write(string text)
         {
-            Console.Error.Write(text);
+            T.Write(text);
         }
 
         // Write a highlighted cell (foreground on background) with NO trailing
@@ -137,82 +125,35 @@ namespace ysonet.Interactive
         // share one line (the module editor's columns).
         public static void WriteHighlight(string text, ConsoleColor fg, ConsoleColor bg)
         {
-            if (!ColorsOn())
-            {
-                Console.Error.Write(text);
-                return;
-            }
-            ConsoleColor pf, pb;
-            try { pf = Console.ForegroundColor; pb = Console.BackgroundColor; }
-            catch { Console.Error.Write(text); return; }
-            try
-            {
-                Console.ForegroundColor = fg;
-                Console.BackgroundColor = bg;
-                Console.Error.Write(text);
-            }
-            finally
-            {
-                try { Console.ForegroundColor = pf; Console.BackgroundColor = pb; } catch { }
-            }
+            if (!ColorsOn()) { T.Write(text); return; }
+            ConsoleColor pf = T.Foreground, pb = T.Background;
+            try { T.Foreground = fg; T.Background = bg; T.Write(text); }
+            finally { T.Foreground = pf; T.Background = pb; }
         }
 
         public static void Write(string text, ConsoleColor fg)
         {
-            if (!ColorsOn())
-            {
-                Console.Error.Write(text);
-                return;
-            }
-            ConsoleColor prev;
-            try { prev = Console.ForegroundColor; }
-            catch { Console.Error.Write(text); return; }
-            try
-            {
-                Console.ForegroundColor = fg;
-                Console.Error.Write(text);
-            }
-            finally
-            {
-                try { Console.ForegroundColor = prev; } catch { }
-            }
+            if (!ColorsOn()) { T.Write(text); return; }
+            ConsoleColor prev = T.Foreground;
+            try { T.Foreground = fg; T.Write(text); }
+            finally { T.Foreground = prev; }
         }
 
         // Write a highlighted row (foreground on background), then reset before the
         // newline so the color does not bleed to the next line.
         public static void WriteLineHighlight(string text, ConsoleColor fg, ConsoleColor bg)
         {
-            if (!ColorsOn())
-            {
-                Console.Error.WriteLine(text);
-                return;
-            }
-            ConsoleColor pf, pb;
-            try { pf = Console.ForegroundColor; pb = Console.BackgroundColor; }
-            catch { Console.Error.WriteLine(text); return; }
-            try
-            {
-                Console.ForegroundColor = fg;
-                Console.BackgroundColor = bg;
-                Console.Error.Write(text);
-            }
-            finally
-            {
-                try { Console.ForegroundColor = pf; Console.BackgroundColor = pb; } catch { }
-            }
-            Console.Error.WriteLine();
+            if (!ColorsOn()) { T.WriteLine(text); return; }
+            ConsoleColor pf = T.Foreground, pb = T.Background;
+            try { T.Foreground = fg; T.Background = bg; T.Write(text); }
+            finally { T.Foreground = pf; T.Background = pb; }
+            T.WriteLine("");
         }
 
         public static void Reset()
         {
-            try
-            {
-                if (ColorsOn())
-                    Console.ResetColor();
-            }
-            catch
-            {
-            }
+            try { if (ColorsOn()) T.ResetColor(); }
+            catch { }
         }
     }
 }

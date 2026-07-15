@@ -211,12 +211,12 @@ namespace ysonet.Interactive
             int used = prefix.Length + words.Length;
             try
             {
-                int width = Console.BufferWidth - 1;
+                int width = ConsoleCursor.Width();
                 if (used < width)
                     ConsoleStyle.Write(new string(' ', width - used));
             }
             catch { }
-            Console.Error.WriteLine();
+            ConsoleStyle.NewLine();
             lines++;
             return lines;
         }
@@ -738,7 +738,7 @@ namespace ysonet.Interactive
                 ConsoleStyle.WriteLine("  (" + help + ")", ConsoleStyle.Help);
             string suffix = string.IsNullOrEmpty(defaultValue) ? "" : " [" + defaultValue + "]";
             ConsoleStyle.Write(label + suffix + ": ", ConsoleStyle.Prompt);
-            Console.Error.Flush();
+            ConsoleStyle.Flush();
 
             var sb = new StringBuilder();
             while (true)
@@ -746,12 +746,12 @@ namespace ysonet.Interactive
                 ConsoleKeyInfo k = _keys.ReadKey();
                 if (k.Key == ConsoleKey.Enter)
                 {
-                    Console.Error.WriteLine();
+                    ConsoleStyle.NewLine();
                     break;
                 }
                 if (k.Key == ConsoleKey.Escape)
                 {
-                    Console.Error.WriteLine();
+                    ConsoleStyle.NewLine();
                     throw new WizardCancel();
                 }
                 if (k.Key == ConsoleKey.Backspace)
@@ -759,14 +759,14 @@ namespace ysonet.Interactive
                     if (sb.Length > 0)
                     {
                         sb.Length = sb.Length - 1;
-                        Console.Error.Write("\b \b"); // erase on a real console
+                        ConsoleStyle.Write("\b \b"); // erase on a real console
                     }
                     continue;
                 }
                 if (k.KeyChar != '\0' && !char.IsControl(k.KeyChar))
                 {
                     sb.Append(k.KeyChar);
-                    Console.Error.Write(k.KeyChar); // echo (ReadKey is non-echoing)
+                    ConsoleStyle.Write(k.KeyChar.ToString()); // echo (ReadKey is non-echoing)
                 }
             }
 

@@ -751,7 +751,7 @@ namespace ysonet.Interactive
                 ConsoleStyle.WriteLine("  (" + help + ")", ConsoleStyle.Help);
             string suffix = string.IsNullOrEmpty(current) ? "" : " [" + current + "]";
             ConsoleStyle.Write(label + suffix + ": ", ConsoleStyle.Prompt);
-            Console.Error.Flush();
+            ConsoleStyle.Flush();
 
             var sb = new StringBuilder();
             while (true)
@@ -759,12 +759,12 @@ namespace ysonet.Interactive
                 ConsoleKeyInfo k = _keys.ReadKey();
                 if (k.Key == ConsoleKey.Enter)
                 {
-                    Console.Error.WriteLine();
+                    ConsoleStyle.NewLine();
                     break;
                 }
                 if (k.Key == ConsoleKey.Escape)
                 {
-                    Console.Error.WriteLine();
+                    ConsoleStyle.NewLine();
                     return null;
                 }
                 if (k.Key == ConsoleKey.Backspace)
@@ -772,14 +772,14 @@ namespace ysonet.Interactive
                     if (sb.Length > 0)
                     {
                         sb.Length = sb.Length - 1;
-                        Console.Error.Write("\b \b");
+                        ConsoleStyle.Write("\b \b");
                     }
                     continue;
                 }
                 if (k.KeyChar != '\0' && !char.IsControl(k.KeyChar))
                 {
                     sb.Append(k.KeyChar);
-                    Console.Error.Write(k.KeyChar);
+                    ConsoleStyle.Write(k.KeyChar.ToString());
                 }
             }
 
