@@ -150,12 +150,19 @@ namespace ysonet.Interactive
                 return;
             string formatter = values[fi];
 
-            // Step 4: command.
-            bool ignoresCmd = view.Name.IndexOf("ActivitySurrogateSelector", StringComparison.OrdinalIgnoreCase) >= 0
-                              && view.Name.IndexOf("FromFile", StringComparison.OrdinalIgnoreCase) < 0;
-            if (ignoresCmd)
-                WriteLine("Note: " + view.Name + " ignores the command (it runs its own logic). A placeholder is fine.");
-            string command = AskText("Command to run", "calc.exe", "The command the gadget will execute on the target.");
+            // Step 4: command. Show the gadget's own description so the user knows
+            // how it treats the command (a shell command, a file path, a URL, a
+            // DLL, or ignored). Detect "command ignored" from that description
+            // rather than a hardcoded gadget name, so any such gadget is covered
+            // (e.g. ActivitySurrogateSelector and ActivitySurrogateDisableTypeCheck
+            // both say the command is ignored).
+            if (!string.IsNullOrEmpty(view.Info))
+                ConsoleStyle.WriteLine("About this gadget: " + view.Info, ConsoleStyle.Help);
+            bool ignoresCmd = InfoSaysCommandIgnored(view.Info);
+            string cmdHelp = ignoresCmd
+                ? "This gadget ignores the command, but a value is still required. A placeholder is fine."
+                : "The command the gadget will execute on the target.";
+            string command = AskText("Command to run", "calc.exe", cmdHelp);
             bool rawcmd = AskYesNo("Run the command raw (no 'cmd /c' prefix)?", false);
 
             // Step 5: gadget-specific options.
@@ -524,6 +531,17 @@ namespace ysonet.Interactive
                 Console.SetOut(prevOut);
                 Console.SetError(prevErr);
             }
+        }
+
+        // A gadget documents in AdditionalInfo when it does not use the command
+        // (e.g. "command is ignored", "ignores the command parameter"). Detect that
+        // instead of hardcoding gadget names.
+        internal static bool InfoSaysCommandIgnored(string info)
+        {
+            if (string.IsNullOrEmpty(info))
+                return false;
+            string s = info.ToLowerInvariant();
+            return s.Contains("command") && s.Contains("ignor");
         }
 
         private static string SafeFileName(string name)

@@ -40,6 +40,7 @@ namespace ysonet.Tests
             Run("Wizard writes to a file, not stdout", WizardOutputToFile);
             Run("Wizard cancel at the picker emits nothing", WizardCancelAtPicker);
             Run("Wizard plugin path matches the core", WizardPluginPath);
+            Run("Command-ignored gadgets are detected from their info", CommandIgnoredDetection);
             Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
             Run("Run-all-formatters saves payloads to a folder", WizardRunAllFormattersToFolder);
 
@@ -369,6 +370,23 @@ namespace ysonet.Tests
             AssertTrue(got.Length > 0, "plugin payload produced");
             AssertTrue(BytesEqual(got, expected), "wizard plugin payload equals core payload");
             AssertTrue(stderr.Contains("-p ApplicationTrust"), "echoed plugin command");
+        }
+
+        private static void CommandIgnoredDetection()
+        {
+            // The detector logic.
+            AssertTrue(Wizard.InfoSaysCommandIgnored("... command is ignored"), "detects 'command is ignored'");
+            AssertTrue(Wizard.InfoSaysCommandIgnored("This gadget ignores the command parameter"), "detects 'ignores the command'");
+            AssertTrue(!Wizard.InfoSaysCommandIgnored("Runs a shell command"), "normal gadget not flagged");
+            AssertTrue(!Wizard.InfoSaysCommandIgnored(null), "null info not flagged");
+
+            // The real gadget data both flows depend on.
+            ModuleView sel = ModuleView.FromGadget("ActivitySurrogateSelector");
+            ModuleView dis = ModuleView.FromGadget("ActivitySurrogateDisableTypeCheck");
+            ModuleView odp = ModuleView.FromGadget("ObjectDataProvider");
+            AssertTrue(Wizard.InfoSaysCommandIgnored(sel.Info), "ActivitySurrogateSelector reports command ignored");
+            AssertTrue(Wizard.InfoSaysCommandIgnored(dis.Info), "ActivitySurrogateDisableTypeCheck reports command ignored");
+            AssertTrue(!Wizard.InfoSaysCommandIgnored(odp.Info), "ObjectDataProvider uses the command");
         }
 
         private static void WizardRunAllFormatters()
