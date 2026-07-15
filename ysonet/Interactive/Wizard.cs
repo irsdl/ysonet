@@ -143,6 +143,7 @@ namespace ysonet.Interactive
                 if (string.Equals(themes[i].Name, original, StringComparison.OrdinalIgnoreCase))
                     index = i;
 
+            ConsoleCursor.ClearScreen(); // start clean, not under the top menu
             bool canControl = ConsoleCursor.CanControl();
             int lines = 0;
             while (true)
@@ -194,13 +195,27 @@ namespace ysonet.Interactive
                     ConsoleStyle.WriteLine(line);
                 lines++;
             }
-            // A sample row so the effect is visible beyond the highlight bar.
-            ConsoleStyle.Write(ConsoleCursor.PadClear("  sample -> "), ConsoleStyle.Help);
+            // A sample row so the effect is visible beyond the highlight bar. Each
+            // word is a separate colored segment, so DON'T pad the prefix to full
+            // width (that would overflow the line and wrap to a 2nd physical line,
+            // throwing off the redraw count). Instead pad the tail with spaces to
+            // clear leftovers while keeping it a single line.
+            string prefix = "  sample -> ";
+            string words = "heading command gadget-option ok error";
+            ConsoleStyle.Write(prefix, ConsoleStyle.Help);
             ConsoleStyle.Write("heading ", ConsoleStyle.Heading);
             ConsoleStyle.Write("command ", ConsoleStyle.Command);
             ConsoleStyle.Write("gadget-option ", ConsoleStyle.Accent);
             ConsoleStyle.Write("ok ", ConsoleStyle.Success);
             ConsoleStyle.Write("error", ConsoleStyle.Error);
+            int used = prefix.Length + words.Length;
+            try
+            {
+                int width = Console.BufferWidth - 1;
+                if (used < width)
+                    ConsoleStyle.Write(new string(' ', width - used));
+            }
+            catch { }
             Console.Error.WriteLine();
             lines++;
             return lines;
