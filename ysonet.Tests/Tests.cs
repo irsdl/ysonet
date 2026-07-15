@@ -49,6 +49,9 @@ namespace ysonet.Tests
             Run("Option heuristics recover choices/default/required", OptionHeuristics);
             Run("Editor builds plugin fields with defaults and a gadget picker", EditorPluginFields);
             Run("Editor exposes actions and marks module-own options", EditorActionsAndOwnership);
+            Run("Choice options are detected (modes, colon lists, numbered)", ChoiceDetection);
+            Run("Bridged-chain setting offers bridge gadgets", BridgedChainChoices);
+            Run("Themes apply and are named", ThemeApply);
             Run("Show-command action prints the one-liner without generating", WizardShowCommand);
             Run("Generate is blocked (not an exit) when required settings are empty", WizardBlocksMissingRequired);
             Run("Wizard remembers the last command", WizardRemembersLastCommand);
@@ -553,6 +556,60 @@ namespace ysonet.Tests
             AssertTrue(!FindEditable(fields, "output").ModuleOwn, "output is a shared built-in");
             EditableField variant = FindEditable(fields, "variant");
             AssertTrue(variant != null && variant.ModuleOwn, "variant is a gadget-specific option");
+        }
+
+        private static void ChoiceDetection()
+        {
+            // Colon-introduced list, keeping a dotted token intact (System.String).
+            var fmt = EditableField.ParseChoices("The object format: Csv, PenData, System.String, WaveAudio. Default: PenData");
+            AssertTrue(fmt != null && fmt.Count == 4, "colon list of four tokens");
+            AssertTrue(fmt.Contains("System.String"), "dotted token kept whole");
+
+            // Numbered options -> the numbers.
+            var num = EditableField.ParseChoices("XAML variant: 1 = bare, 2 = wrapper. Default: 2");
+            AssertTrue(num != null && num.Count == 2 && num[0] == "1" && num[1] == "2", "numbered choices 1,2");
+
+            // Quoted lowercase modes, ignoring a quoted CamelCase format name.
+            var mode = EditableField.ParseChoices("mode. 'winforms' (default) under the 'Xaml' format, or 'wpfxaml'. Default: winforms");
+            AssertTrue(mode != null && mode.Count == 2, "two lowercase modes");
+            AssertTrue(mode.Contains("winforms") && mode.Contains("wpfxaml") && !mode.Contains("Xaml"), "CamelCase 'Xaml' excluded");
+
+            // And the real Clipboard plugin options come through as selects.
+            var editor = new ModuleEditor(null, null, false, null, null);
+            var fields = editor.BuildFieldsForTest("Clipboard");
+            EditableField modeField = FindEditable(fields, "mode");
+            AssertTrue(modeField != null && modeField.Kind == FieldKind.Choice, "Clipboard mode is a choice");
+            AssertTrue(modeField.Choices.Contains("winforms") && modeField.Choices.Contains("wpfxaml"), "mode choices");
+            EditableField xv = FindEditable(fields, "xamlvariant");
+            AssertTrue(xv != null && xv.Kind == FieldKind.Choice, "xamlvariant is a choice");
+        }
+
+        private static void BridgedChainChoices()
+        {
+            var editor = new ModuleEditor(null, null, true, null, null);
+            var fields = editor.BuildFieldsForTest("ObjectDataProvider");
+            EditableField bgc = FindEditable(fields, "bridgedgadgetchain");
+            AssertTrue(bgc != null && bgc.Kind == FieldKind.Choice, "bridged chain is a choice");
+            AssertTrue(bgc.AllowCustom, "still allows a custom comma-separated chain");
+            AssertTrue(bgc.Choices != null && bgc.Choices.Count > 0, "offers bridge-capable gadgets");
+        }
+
+        private static void ThemeApply()
+        {
+            string original = ConsoleStyle.CurrentThemeName;
+            try
+            {
+                AssertTrue(ConsoleStyle.Themes.Length >= 3, "several themes available");
+                ConsoleStyle.ApplyTheme("Green");
+                AssertEqual("Green", ConsoleStyle.CurrentThemeName, "current theme updated");
+                AssertEqual(ConsoleColor.DarkCyan, ConsoleStyle.Accent, "Green theme sets its accent");
+                ConsoleStyle.ApplyTheme("Blue");
+                AssertEqual(ConsoleColor.Cyan, ConsoleStyle.Accent, "Blue theme sets its accent");
+            }
+            finally
+            {
+                ConsoleStyle.ApplyTheme(original);
+            }
         }
 
         private static void WizardBlocksMissingRequired()

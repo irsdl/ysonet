@@ -47,6 +47,10 @@ namespace ysonet.Interactive
             int lastLines = 0;
             bool canControl = ConsoleCursor.CanControl();
 
+            // Start on a clean screen so the editor reuses the space rather than
+            // stacking beneath the top menu.
+            ConsoleCursor.ClearScreen();
+
             while (true)
             {
                 if (loaded)
@@ -239,12 +243,24 @@ namespace ysonet.Interactive
 
             int lines = 0;
 
+            // The settings and editor columns only appear once a module is opened
+            // (focus >= 1). On the module list (focus 0) they disappear, so going
+            // back is clean rather than leaving a stale right-hand menu on screen.
+            bool showRight = focus >= 1;
+
             // Header row.
             string h1 = _isGadget ? "Gadgets" : "Plugins";
-            string h2 = loaded ? (_view.Name + " settings") : "settings";
-            string h3 = (focus == 2 && editing != null) ? ("Edit: " + editing.Label) : "detail";
-            ConsoleStyle.WriteLine(ConsoleCursor.PadClear(
-                Cell(h1, w1) + " | " + Cell(h2, w2) + " | " + Cell(h3, w3)), ConsoleStyle.Heading);
+            if (showRight)
+            {
+                string h2 = loaded ? (_view.Name + " settings") : "settings";
+                string h3 = (focus == 2 && editing != null) ? ("Edit: " + editing.Label) : "detail";
+                ConsoleStyle.WriteLine(ConsoleCursor.PadClear(
+                    Cell(h1, w1) + " | " + Cell(h2, w2) + " | " + Cell(h3, w3)), ConsoleStyle.Heading);
+            }
+            else
+            {
+                ConsoleStyle.WriteLine(ConsoleCursor.PadClear(Cell(h1, w1)), ConsoleStyle.Heading);
+            }
             lines++;
 
             int modStart = Scroll(moduleIndex, _moduleNames.Count);
@@ -314,37 +330,48 @@ namespace ysonet.Interactive
                 bool hi3 = focus == 2 && (c3sel || (editingText && r == 0));
 
                 // Column-2 foreground when not selected: required-empty in the
-                // heading color, a gadget/plugin-specific option in the accent color,
-                // built-ins in the default color.
+                // heading color, and a gadget-specific option in the accent color
+                // (only for gadgets - in a plugin nearly every option is its own, so
+                // accenting them all is just noise). Built-ins stay default.
                 ConsoleColor? c2fg = c2req ? ConsoleStyle.Heading
-                    : (c2own ? ConsoleStyle.Accent : (ConsoleColor?)null);
+                    : (c2own && _isGadget ? ConsoleStyle.Accent : (ConsoleColor?)null);
 
+                int used = w1;
                 WriteCell(c1, w1, hi1, null);
-                ConsoleStyle.Write(" | ");
-                WriteCell(c2, w2, hi2, c2fg);
-                ConsoleStyle.Write(" | ");
-                WriteCell(c3, w3, hi3, null);
+                if (showRight)
+                {
+                    ConsoleStyle.Write(" | ");
+                    WriteCell(c2, w2, hi2, c2fg);
+                    ConsoleStyle.Write(" | ");
+                    WriteCell(c3, w3, hi3, null);
+                    used += 6 + w2 + w3;
+                }
+                // Pad the rest of the line so a previous (wider) frame is cleared -
+                // this is what makes the right columns visually disappear on focus 0.
+                if (used < total)
+                    ConsoleStyle.Write(new string(' ', total - used));
                 Console.Error.WriteLine();
                 lines++;
             }
 
-            string hint = FocusHint(focus, loaded, visible, fieldIndex);
+            string hint = FocusHint(focus, loaded, visible, fieldIndex, _isGadget);
             ConsoleStyle.WriteLine(ConsoleCursor.PadClear(hint), ConsoleStyle.Help);
             lines++;
 
             return lines;
         }
 
-        private static string FocusHint(int focus, bool loaded, List<EditableField> visible, int fieldIndex)
+        private static string FocusHint(int focus, bool loaded, List<EditableField> visible, int fieldIndex, bool isGadget)
         {
             if (focus == 0)
                 return "Up/Down choose a module  Enter/Right open its settings  Esc leave";
             if (focus == 2)
                 return "Up/Down choose  Enter save  Esc/Left cancel";
-            string tail = "Up/Down move  Enter edit  Esc/Left back  (colored = gadget/plugin-specific, * = required)";
             if (loaded && fieldIndex < visible.Count && visible[fieldIndex].IsAction)
-                tail = "Enter to run this action  Esc/Left back to modules";
-            return tail;
+                return "Enter to run this action  Esc/Left back to modules";
+            return isGadget
+                ? "Up/Down move  Enter edit  Esc/Left back  (accent = gadget-specific, * = required)"
+                : "Up/Down move  Enter edit  Esc/Left back  (* = required)";
         }
 
         // First visible index so the selected item stays on screen.

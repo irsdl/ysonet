@@ -251,6 +251,7 @@
     <Compile Include="Interactive\ModuleView.cs" />
     <Compile Include="Interactive\CommandEcho.cs" />
     <Compile Include="Interactive\EditableField.cs" />
+    <Compile Include="Interactive\InteractiveConfig.cs" />
     <Compile Include="Interactive\PayloadEmitter.cs" />
     <Compile Include="Interactive\ModuleEditor.cs" />
     <Compile Include="Interactive\ModuleEditor.Columns.cs" />

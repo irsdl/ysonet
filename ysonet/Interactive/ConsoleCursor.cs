@@ -25,6 +25,23 @@ namespace ysonet.Interactive
             }
         }
 
+        // Clear the whole screen so the next render reuses the space instead of
+        // stacking beneath the previous one. Best effort, and only when we control a
+        // real console (redirected output / tests just keep appending).
+        public static void ClearScreen()
+        {
+            if (!CanControl())
+                return;
+            try
+            {
+                Console.Clear();
+            }
+            catch
+            {
+                // no console buffer to clear; the caller falls back to appending
+            }
+        }
+
         // Move the cursor up by n lines from the current position, relative so it
         // stays correct even after the buffer scrolls. Best effort; ignores errors.
         public static void MoveUp(int n)

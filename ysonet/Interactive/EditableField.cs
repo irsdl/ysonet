@@ -98,35 +98,115 @@ namespace ysonet.Interactive
             return description.Substring(j, k - j).Trim();
         }
 
-        // A small set of choices pulled from the description when it enumerates them
-        // ("can be set to A, B, or C") or single-quotes them ("'winforms' ...
-        // 'wpfxaml'"). Returns null when nothing confident is found.
+        // A small set of choices pulled from the description. Tries, in order:
+        //  1) a cue-based list ("can be set to A, B, or C"),
+        //  2) a colon-introduced list of >=3 enum-like tokens ("format: Csv, Pen, ..."),
+        //  3) numbered options ("1 = bare, 2 = wrapper" -> ["1","2"]),
+        //  4) single-quoted lowercase tokens ("'winforms' ... 'wpfxaml'").
+        // Returns null when nothing confident is found. Callers always allow a
+        // custom value, so a miss just means free text and a wrong guess is
+        // overridable.
         public static List<string> ParseChoices(string description)
         {
             if (string.IsNullOrEmpty(description))
                 return null;
 
-            // 1) cue-based list: take the text after a cue up to the next sentence
-            // end (a period, or the word "Default").
+            // 1) cue-based list: text after a cue up to the next sentence end.
             string[] cues = { "can be set to", "set to", "can be", "one of", "choices:", "choices are", "options are" };
             foreach (string cue in cues)
             {
                 int c = description.IndexOf(cue, StringComparison.OrdinalIgnoreCase);
                 if (c < 0)
                     continue;
-                int start = c + cue.Length;
-                int end = description.IndexOf('.', start);
-                int def = description.IndexOf("Default", start, StringComparison.OrdinalIgnoreCase);
-                if (def >= 0 && (end < 0 || def < end))
-                    end = def;
-                if (end < 0)
-                    end = description.Length;
-                List<string> list = SplitList(description.Substring(start, end - start));
+                List<string> list = SplitList(SegmentAfter(description, c + cue.Length));
                 if (list.Count >= 2)
                     return list;
             }
 
-            // 2) single-quoted tokens (e.g. delivery modes), de-duplicated.
+            // 2) colon-introduced list of enum-like tokens (>=3, to stay conservative).
+            List<string> colon = ColonList(description);
+            if (colon != null)
+                return colon;
+
+            // 3) numbered options: a digit that starts a token and is followed by
+            // '=', '-', '(' or ':' (e.g. "1 = bare ObjectDataProvider").
+            List<string> numbered = NumberedChoices(description);
+            if (numbered != null)
+                return numbered;
+
+            // 4) single-quoted lowercase tokens (delivery modes). Lowercase-only so
+            // quoted CamelCase names (like the 'Xaml' clipboard format) are ignored.
+            List<string> quoted = QuotedLowercase(description);
+            if (quoted != null)
+                return quoted;
+
+            return null;
+        }
+
+        // The text from `start` up to the next sentence-ending period or the word
+        // "Default". A period counts as a terminator only when followed by a space
+        // or end of string, so a token like "System.String" is not cut in half.
+        private static string SegmentAfter(string description, int start)
+        {
+            int end = -1;
+            for (int k = start; k < description.Length; k++)
+            {
+                if (description[k] == '.' && (k + 1 >= description.Length || description[k + 1] == ' '))
+                {
+                    end = k;
+                    break;
+                }
+            }
+            int def = description.IndexOf("Default", start, StringComparison.OrdinalIgnoreCase);
+            if (def >= 0 && (end < 0 || def < end))
+                end = def;
+            if (end < 0)
+                end = description.Length;
+            return description.Substring(start, end - start);
+        }
+
+        private static List<string> ColonList(string description)
+        {
+            int from = 0;
+            while (true)
+            {
+                int c = description.IndexOf(':', from);
+                if (c < 0)
+                    break;
+                List<string> list = SplitList(SegmentAfter(description, c + 1));
+                if (list.Count >= 3)
+                    return list;
+                from = c + 1;
+            }
+            return null;
+        }
+
+        private static List<string> NumberedChoices(string description)
+        {
+            var nums = new List<string>();
+            for (int i = 0; i < description.Length; i++)
+            {
+                char d = description[i];
+                if (d < '1' || d > '9')
+                    continue;
+                if (i > 0 && char.IsLetterOrDigit(description[i - 1]))
+                    continue; // part of a larger number/word (e.g. SHA1, 4.5)
+                int j = i + 1;
+                while (j < description.Length && description[j] == ' ')
+                    j++;
+                if (j < description.Length && (description[j] == '=' || description[j] == '-'
+                    || description[j] == '(' || description[j] == ':'))
+                {
+                    string s = d.ToString();
+                    if (!nums.Contains(s))
+                        nums.Add(s);
+                }
+            }
+            return nums.Count >= 2 ? nums : null;
+        }
+
+        private static List<string> QuotedLowercase(string description)
+        {
             var quoted = new List<string>();
             int p = 0;
             while (true)
@@ -136,14 +216,21 @@ namespace ysonet.Interactive
                 int b = description.IndexOf('\'', a + 1);
                 if (b < 0) break;
                 string tok = description.Substring(a + 1, b - a - 1).Trim();
-                if (LooksLikeToken(tok) && !quoted.Contains(tok))
+                if (IsLowerToken(tok) && !quoted.Contains(tok))
                     quoted.Add(tok);
                 p = b + 1;
             }
-            if (quoted.Count >= 2)
-                return quoted;
+            return quoted.Count >= 2 ? quoted : null;
+        }
 
-            return null;
+        private static bool IsLowerToken(string t)
+        {
+            if (string.IsNullOrEmpty(t) || t.Length > 30)
+                return false;
+            foreach (char ch in t)
+                if (!((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_'))
+                    return false;
+            return true;
         }
 
         // A value option with a description that names no default and is not marked

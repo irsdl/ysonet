@@ -320,8 +320,10 @@ namespace ysonet.Interactive
                 _bridged = new EditableField
                 {
                     Label = "bridgedgadgetchain",
-                    Kind = FieldKind.Text,
-                    Help = "Advanced: wrap this gadget inside bridge gadgets (--bgc, comma separated)."
+                    Kind = FieldKind.Choice,
+                    Choices = BridgeGadgetNames(),
+                    AllowCustom = true,
+                    Help = "Advanced: wrap this gadget inside a bridge gadget (--bgc). Pick one, or type a comma-separated chain."
                 };
                 list.Add(_minify);
                 list.Add(_useSimpleType);
@@ -688,6 +690,24 @@ namespace ysonet.Interactive
             foreach (string n in GadgetHelper.GetAllGadgetNames())
                 if (n != "Generic")
                     names.Add(n);
+            return names;
+        }
+
+        // Gadgets that can act as a bridge (accept another gadget's payload), used
+        // as the choices for the bridged-gadget-chain setting. A gadget is a bridge
+        // when its labels include the Bridged tag - the same check PayloadRunner
+        // uses to validate a chain.
+        private static List<string> BridgeGadgetNames()
+        {
+            var names = new List<string>();
+            foreach (string n in GadgetHelper.GetAllGadgetNames())
+            {
+                if (n == "Generic")
+                    continue;
+                IGenerator g = GadgetHelper.CreateGadgetInstance(n);
+                if (g != null && g.Labels() != null && g.Labels().Contains(GadgetTags.Bridged))
+                    names.Add(n);
+            }
             return names;
         }
 

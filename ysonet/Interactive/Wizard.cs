@@ -65,12 +65,7 @@ namespace ysonet.Interactive
 
         public int Run()
         {
-            WriteLine("");
-            ConsoleStyle.WriteLine("=== YSoNet interactive mode ===", ConsoleStyle.Banner);
-            ConsoleStyle.WriteLine("Build a payload step by step. Prompts and menus are on stderr;", ConsoleStyle.Help);
-            ConsoleStyle.WriteLine("only the final payload goes to stdout, so piping still works.", ConsoleStyle.Help);
-            ConsoleStyle.WriteLine("Press Esc at any prompt to go back to this menu.", ConsoleStyle.Help);
-            WriteLine("");
+            InteractiveConfig.ApplySavedTheme();
 
             var topItems = new List<string>
             {
@@ -80,13 +75,19 @@ namespace ysonet.Interactive
                 "Run all formatters (one formatter across all gadgets)",
                 "Show credits",
                 "Help",
+                "Appearance (color theme)",
                 "Quit"
             };
 
             while (true)
             {
+                // Reuse the screen instead of stacking each menu beneath the last
+                // (a no-op when output is redirected, so pipes/tests still append).
+                ConsoleCursor.ClearScreen();
+                PrintBanner();
+
                 int choice = _menu.Show("What do you want to do?", topItems, 0);
-                if (choice < 0 || choice == 6)
+                if (choice < 0 || choice == topItems.Count - 1)
                 {
                     WriteLine("Bye.");
                     return 0;
@@ -104,6 +105,7 @@ namespace ysonet.Interactive
                         case 3: RunAllFormattersInfo(); break;
                         case 4: ShowCreditsInfo(); break;
                         case 5: ShowHelpInfo(); break;
+                        case 6: ChooseTheme(); break;
                     }
                 }
                 catch (WizardCancel)
@@ -116,6 +118,36 @@ namespace ysonet.Interactive
                     WriteLine("Back to the menu.");
                 }
             }
+        }
+
+        private void PrintBanner()
+        {
+            WriteLine("");
+            ConsoleStyle.WriteLine("=== YSoNet interactive mode ===", ConsoleStyle.Banner);
+            ConsoleStyle.WriteLine("Build a payload step by step. Prompts and menus are on stderr;", ConsoleStyle.Help);
+            ConsoleStyle.WriteLine("only the final payload goes to stdout, so piping still works.", ConsoleStyle.Help);
+            ConsoleStyle.WriteLine("Press Esc at any prompt to go back to this menu.", ConsoleStyle.Help);
+            WriteLine("");
+        }
+
+        // Pick and persist a color theme (item on the top menu). Applied immediately
+        // and saved so it is the default next time.
+        private void ChooseTheme()
+        {
+            var names = new List<string>();
+            int current = 0;
+            for (int i = 0; i < ConsoleStyle.Themes.Length; i++)
+            {
+                names.Add(ConsoleStyle.Themes[i].Name);
+                if (string.Equals(ConsoleStyle.Themes[i].Name, ConsoleStyle.CurrentThemeName, StringComparison.OrdinalIgnoreCase))
+                    current = i;
+            }
+            int choice = _menu.Show("Pick a color theme (saved for next time):", names, current);
+            if (choice < 0)
+                return;
+            ConsoleStyle.ApplyTheme(names[choice]);
+            InteractiveConfig.SaveThemeName(names[choice]);
+            ConsoleStyle.WriteLine("Theme set to: " + names[choice], ConsoleStyle.Success);
         }
 
         // ---- Gadget path -------------------------------------------------------
