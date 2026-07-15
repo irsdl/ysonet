@@ -40,7 +40,7 @@ namespace ysonet.Tests
             Run("Wizard writes to a file, not stdout", WizardOutputToFile);
             Run("Wizard cancel at the picker emits nothing", WizardCancelAtPicker);
             Run("Wizard plugin path matches the core", WizardPluginPath);
-            Run("Command-ignored gadgets are detected from their info", CommandIgnoredDetection);
+            Run("Gadgets declare their command-input type", CommandInputTypes);
             Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
             Run("Run-all-formatters saves payloads to a folder", WizardRunAllFormattersToFolder);
 
@@ -372,21 +372,33 @@ namespace ysonet.Tests
             AssertTrue(stderr.Contains("-p ApplicationTrust"), "echoed plugin command");
         }
 
-        private static void CommandIgnoredDetection()
+        private static void CommandInputTypes()
         {
-            // The detector logic.
-            AssertTrue(Wizard.InfoSaysCommandIgnored("... command is ignored"), "detects 'command is ignored'");
-            AssertTrue(Wizard.InfoSaysCommandIgnored("This gadget ignores the command parameter"), "detects 'ignores the command'");
-            AssertTrue(!Wizard.InfoSaysCommandIgnored("Runs a shell command"), "normal gadget not flagged");
-            AssertTrue(!Wizard.InfoSaysCommandIgnored(null), "null info not flagged");
+            // Each gadget declares what -c means; the wizard relies on this.
+            AssertEqual(CommandInputType.ShellCommand, Gadget("ObjectDataProvider").CommandInput(), "ODP is a shell command");
+            AssertEqual(CommandInputType.Ignored, Gadget("ActivitySurrogateSelector").CommandInput(), "ASS ignores the command");
+            AssertEqual(CommandInputType.Ignored, Gadget("ActivitySurrogateDisableTypeCheck").CommandInput(), "ASDTC ignores the command");
+            AssertEqual(CommandInputType.CsSourceFile, Gadget("ActivitySurrogateSelectorFromFile").CommandInput(), "ASSFromFile takes a .cs file");
+            AssertEqual(CommandInputType.CsSourceFile, Gadget("XamlAssemblyLoadFromFile").CommandInput(), "XamlAssemblyLoadFromFile takes a .cs file");
+            AssertEqual(CommandInputType.DllPath, Gadget("BaseActivationFactory").CommandInput(), "BaseActivationFactory takes a DLL path");
+            AssertEqual(CommandInputType.DllPath, Gadget("GetterCompilerResults").CommandInput(), "GetterCompilerResults takes a DLL path");
+            AssertEqual(CommandInputType.Url, Gadget("ObjRef").CommandInput(), "ObjRef takes a URL");
+            AssertEqual(CommandInputType.FilePath, Gadget("XamlImageInfo").CommandInput(), "XamlImageInfo takes a file path");
 
-            // The real gadget data both flows depend on.
-            ModuleView sel = ModuleView.FromGadget("ActivitySurrogateSelector");
-            ModuleView dis = ModuleView.FromGadget("ActivitySurrogateDisableTypeCheck");
-            ModuleView odp = ModuleView.FromGadget("ObjectDataProvider");
-            AssertTrue(Wizard.InfoSaysCommandIgnored(sel.Info), "ActivitySurrogateSelector reports command ignored");
-            AssertTrue(Wizard.InfoSaysCommandIgnored(dis.Info), "ActivitySurrogateDisableTypeCheck reports command ignored");
-            AssertTrue(!Wizard.InfoSaysCommandIgnored(odp.Info), "ObjectDataProvider uses the command");
+            // Prompt labels follow the type.
+            AssertEqual("Command to run", Wizard.CommandLabel(CommandInputType.ShellCommand), "shell label");
+            AssertEqual("Path to .dll", Wizard.CommandLabel(CommandInputType.DllPath), "dll label");
+            AssertEqual("URL", Wizard.CommandLabel(CommandInputType.Url), "url label");
+            AssertEqual("calc.exe", Wizard.CommandDefault(CommandInputType.ShellCommand), "shell default");
+            AssertEqual("", Wizard.CommandDefault(CommandInputType.DllPath), "dll has no default");
+        }
+
+        private static IGenerator Gadget(string name)
+        {
+            IGenerator g = GadgetHelper.CreateGadgetInstance(name);
+            if (g == null)
+                throw new Exception("gadget not found: " + name);
+            return g;
         }
 
         private static void WizardRunAllFormatters()
@@ -396,6 +408,7 @@ namespace ysonet.Tests
             // to completion, skip those gracefully, and emit nothing to stdout.
             var keys = new ScriptedKeyReader();
             keys.Digit(4);   // top menu -> Run all formatters (index 3)
+            keys.Enter();    // input type -> Shell command (index 0)
             keys.Enter();    // output format -> auto
             keys.Digit(3);   // destination -> "Just show payload lengths" (index 2)
             keys.Escape();   // back at top menu -> quit
@@ -408,7 +421,7 @@ namespace ysonet.Tests
             AssertEqual(0, stdout.Length, "sweep writes nothing to stdout");
             AssertTrue(stderr.Contains("Done."), "sweep ran to completion");
             AssertTrue(stderr.Contains("[ok]"), "at least one gadget generated");
-            AssertTrue(stderr.Contains("[skip]"), "file/url gadgets were skipped, not fatal");
+            AssertTrue(stderr.Contains("not applicable"), "file/url/dll gadgets excluded by input type");
             AssertTrue(!stderr.Contains("length 0"), "empty payloads are skipped, not counted as ok");
         }
 
@@ -420,6 +433,7 @@ namespace ysonet.Tests
 
             var keys = new ScriptedKeyReader();
             keys.Digit(4);   // top -> Run all formatters
+            keys.Enter();    // input type -> Shell command (index 0)
             keys.Enter();    // output format -> auto
             keys.Digit(1);   // destination -> "Save each to its own file" (index 0)
             keys.Escape();   // back at top -> quit

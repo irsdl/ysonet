@@ -11,6 +11,11 @@ namespace ysonet.Generators
             return "Disables 4.8+ type protections for ActivitySurrogateSelector, command is ignored";
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.Ignored;
+        }
+
         public override string Finders()
         {
             return "Nick Landers";

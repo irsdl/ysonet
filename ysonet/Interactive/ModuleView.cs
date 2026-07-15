@@ -17,6 +17,7 @@ namespace ysonet.Interactive
         public List<string> Formatters;  // gadgets only; empty for plugins
         public List<string> Labels;      // gadgets only; empty for plugins
         public string BridgedFormatter;  // gadgets only
+        public CommandInputType CommandInput; // gadgets only; what -c means
         public List<OptionField> OptionFields;
 
         public static ModuleView FromGadget(string gadgetName)
@@ -33,6 +34,7 @@ namespace ysonet.Interactive
             view.Formatters = new List<string>(g.SupportedFormatters());
             view.Labels = new List<string>(g.Labels());
             view.BridgedFormatter = g.SupportedBridgedFormatter();
+            view.CommandInput = g.CommandInput();
             view.OptionFields = OptionField.FromOptionSet(g.Options());
             return view;
         }

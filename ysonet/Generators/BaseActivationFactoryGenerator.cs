@@ -26,6 +26,11 @@ namespace ysonet.Generators
             return "Gadget for .NET 5/6/7 with WPF enabled or Microsoft.WindowsDesktop.App\\PresentationFramework.dll available. Leads to remote DLL loading (native C/C++ DLL)";
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.DllPath;
+        }
+
         public override List<string> Labels()
         {
             return new List<string> { GadgetTags.Independent, ".NET 5/6/7", "Requires WPF enabled or PresentationFramework.dll" };

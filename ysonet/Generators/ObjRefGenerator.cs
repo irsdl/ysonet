@@ -31,6 +31,11 @@ namespace ysonet.Generators
             return "Markus Wulftange";
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.Url;
+        }
+
         public override List<string> Labels()
         {
             return new List<string> { GadgetTags.Independent };

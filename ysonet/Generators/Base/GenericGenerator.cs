@@ -77,6 +77,13 @@ namespace ysonet.Generators
             return null;
         }
 
+        // Most gadgets run a shell command. Gadgets that expect a file path, DLL,
+        // URL, or that ignore the command override this.
+        public virtual CommandInputType CommandInput()
+        {
+            return CommandInputType.ShellCommand;
+        }
+
         public object GenerateWithInit(string formatter, InputArgs inputArgs)
         {
             Init(inputArgs);

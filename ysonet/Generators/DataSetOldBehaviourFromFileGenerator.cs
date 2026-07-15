@@ -16,6 +16,11 @@ namespace ysonet.Generators
             return info;
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.CsSourceFile;
+        }
+
         public override string Finders()
         {
             return "Steven Seeley, Markus Wulftange, Khoa Dinh";

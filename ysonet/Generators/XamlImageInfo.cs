@@ -30,6 +30,13 @@ namespace ysonet.Generators
             return "Piotr Bazydlo";
         }
 
+        // Default variant 1 reads XAML from a file path. Variant 2 (non-GAC) takes
+        // a shell command instead; the file-path label is the safe default.
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.FilePath;
+        }
+
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()

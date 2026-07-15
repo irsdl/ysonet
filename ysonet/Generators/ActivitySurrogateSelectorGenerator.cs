@@ -264,6 +264,11 @@ namespace ysonet.Generators
             return "This gadget ignores the command parameter and executes the constructor of ExploitClass class";
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.Ignored;
+        }
+
         public override List<string> SupportedFormatters()
         {
             return new List<string> { "BinaryFormatter (2)", "SoapFormatter", "LosFormatter" };

@@ -14,6 +14,11 @@ namespace ysonet.Generators
             return "Loads assembly using XAML. This gadget interprets the command parameter as path to the .cs file that should be compiled as exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.Windows.Forms.dll'";
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.CsSourceFile;
+        }
+
         public override string Finders()
         {
             return "Soroush Dalili";

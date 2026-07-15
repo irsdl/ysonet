@@ -150,20 +150,18 @@ namespace ysonet.Interactive
                 return;
             string formatter = values[fi];
 
-            // Step 4: command. Show the gadget's own description so the user knows
-            // how it treats the command (a shell command, a file path, a URL, a
-            // DLL, or ignored). Detect "command ignored" from that description
-            // rather than a hardcoded gadget name, so any such gadget is covered
-            // (e.g. ActivitySurrogateSelector and ActivitySurrogateDisableTypeCheck
-            // both say the command is ignored).
+            // Step 4: command. The gadget declares what -c means (shell command,
+            // .cs file, DLL path, URL, file path, or ignored), so label the prompt
+            // accordingly instead of always saying "Command to run".
             if (!string.IsNullOrEmpty(view.Info))
                 ConsoleStyle.WriteLine("About this gadget: " + view.Info, ConsoleStyle.Help);
-            bool ignoresCmd = InfoSaysCommandIgnored(view.Info);
-            string cmdHelp = ignoresCmd
-                ? "This gadget ignores the command, but a value is still required. A placeholder is fine."
-                : "The command the gadget will execute on the target.";
-            string command = AskText("Command to run", "calc.exe", cmdHelp);
-            bool rawcmd = AskYesNo("Run the command raw (no 'cmd /c' prefix)?", false);
+            CommandInputType inputType = view.CommandInput;
+            string command = AskText(CommandLabel(inputType), CommandDefault(inputType), CommandHelp(inputType));
+
+            // "raw command" only makes sense for a shell command.
+            bool rawcmd = false;
+            if (inputType == CommandInputType.ShellCommand || inputType == CommandInputType.Ignored)
+                rawcmd = AskYesNo("Run the command raw (no 'cmd /c' prefix)?", false);
 
             // Step 5: gadget-specific options.
             CollectModuleOptions(view);
@@ -363,15 +361,40 @@ namespace ysonet.Interactive
         {
             WriteLine("");
             ConsoleStyle.WriteLine("Run all formatters (mirrors --runallformatters):", ConsoleStyle.Heading);
-            WriteLine("Generates one command across every gadget that supports a matching formatter.");
-            ConsoleStyle.WriteLine("Note: some gadgets do not take a shell command; they expect the command", ConsoleStyle.Help);
-            ConsoleStyle.WriteLine("to be a file path, a URL, or a DLL/C# source (e.g. the *FromFile gadgets,", ConsoleStyle.Help);
-            ConsoleStyle.WriteLine("ObjRef, BaseActivationFactory). Those are skipped here, not errors.", ConsoleStyle.Help);
+            WriteLine("Generates one input across every gadget that accepts it and supports a matching formatter.");
+
+            // Different gadgets accept different kinds of input. Pick one so we
+            // only run the gadgets that actually take it (no mismatched errors).
+            var typeLabels = new List<string>
+            {
+                "Shell command (most gadgets)",
+                ".cs source file (compiled)",
+                "DLL path",
+                "URL",
+                "File path (e.g. XAML)"
+            };
+            var typeValues = new CommandInputType[]
+            {
+                CommandInputType.ShellCommand,
+                CommandInputType.CsSourceFile,
+                CommandInputType.DllPath,
+                CommandInputType.Url,
+                CommandInputType.FilePath
+            };
+            int ti = _menu.Show("What kind of input will you provide?", typeLabels, 0);
+            if (ti < 0)
+                return;
+            CommandInputType chosenType = typeValues[ti];
 
             string term = AskText("Formatter to match (e.g. Json, Binary)", "", "");
             if (string.IsNullOrEmpty(term))
                 return;
-            string command = AskText("Command to run", "calc.exe", "");
+            string command = AskText(CommandLabel(chosenType), CommandDefault(chosenType), CommandHelp(chosenType));
+            if (chosenType != CommandInputType.ShellCommand && string.IsNullOrEmpty(command))
+            {
+                ConsoleStyle.WriteLine("A value is required for this input type.", ConsoleStyle.Error);
+                return;
+            }
             string outputFormat = AskOutputFormat();
 
             // Where should the payloads go?
@@ -402,6 +425,7 @@ namespace ysonet.Interactive
 
             WriteLine("");
             int count = 0;
+            int notApplicable = 0;
             var skipped = new List<string>();
             FileStream single = null;
             try
@@ -425,6 +449,15 @@ namespace ysonet.Interactive
                         IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
                         if (gg == null)
                             continue;
+
+                        // Only run gadgets that accept the chosen input type. Ignored
+                        // gadgets ride along with the shell-command sweep (any
+                        // placeholder works for them).
+                        if (!InputTypeMatches(gg.CommandInput(), chosenType))
+                        {
+                            notApplicable++;
+                            continue;
+                        }
 
                         foreach (string f in gg.SupportedFormatters())
                         {
@@ -481,13 +514,27 @@ namespace ysonet.Interactive
                 ConsoleStyle.WriteLine("Saved to folder: " + folder, ConsoleStyle.Success);
             else if (dest == 1)
                 ConsoleStyle.WriteLine("Saved to file: " + singleFilePath, ConsoleStyle.Success);
+            if (notApplicable > 0)
+                ConsoleStyle.WriteLine(notApplicable + " gadget(s) not applicable for this input type (skipped by design).", ConsoleStyle.Help);
             if (skipped.Count > 0)
             {
-                ConsoleStyle.WriteLine("Skipped " + skipped.Count + " (need a different command input, or not supported):", ConsoleStyle.Help);
+                ConsoleStyle.WriteLine("Failed " + skipped.Count + " (right input type, but generation did not succeed):", ConsoleStyle.Help);
                 foreach (string s in skipped)
                     ConsoleStyle.WriteLine("  [skip] " + s, ConsoleStyle.Help);
             }
             WriteLine("");
+        }
+
+        // A gadget accepts the chosen input type if they match, or the sweep is a
+        // shell-command sweep and the gadget ignores the command (a placeholder
+        // works for it).
+        private static bool InputTypeMatches(CommandInputType gadgetType, CommandInputType chosen)
+        {
+            if (gadgetType == chosen)
+                return true;
+            if (chosen == CommandInputType.ShellCommand && gadgetType == CommandInputType.Ignored)
+                return true;
+            return false;
         }
 
         // Generate one gadget/formatter and encode it. Returns null/empty on
@@ -533,15 +580,38 @@ namespace ysonet.Interactive
             }
         }
 
-        // A gadget documents in AdditionalInfo when it does not use the command
-        // (e.g. "command is ignored", "ignores the command parameter"). Detect that
-        // instead of hardcoding gadget names.
-        internal static bool InfoSaysCommandIgnored(string info)
+        // Prompt label, help, and default value for each command-input type, so
+        // the user is asked for the right thing (a shell command, a .cs file, a
+        // DLL, a URL, ...) instead of a generic "command".
+        internal static string CommandLabel(CommandInputType t)
         {
-            if (string.IsNullOrEmpty(info))
-                return false;
-            string s = info.ToLowerInvariant();
-            return s.Contains("command") && s.Contains("ignor");
+            switch (t)
+            {
+                case CommandInputType.CsSourceFile: return "Path to .cs source file (';' for extra assemblies)";
+                case CommandInputType.DllPath: return "Path to .dll";
+                case CommandInputType.Url: return "URL";
+                case CommandInputType.FilePath: return "File path (e.g. a XAML file)";
+                case CommandInputType.Ignored: return "Command (ignored by this gadget)";
+                default: return "Command to run";
+            }
+        }
+
+        internal static string CommandHelp(CommandInputType t)
+        {
+            switch (t)
+            {
+                case CommandInputType.CsSourceFile: return "This gadget compiles the .cs file. Example: ExploitClass.cs;System.Windows.Forms.dll";
+                case CommandInputType.DllPath: return "This gadget loads the DLL on the target. A UNC path works for remote loading.";
+                case CommandInputType.Url: return "This gadget expects an absolute URL (e.g. a remoting endpoint).";
+                case CommandInputType.FilePath: return "This gadget reads the file (local or UNC path).";
+                case CommandInputType.Ignored: return "This gadget ignores the command, but a value is still required. A placeholder is fine.";
+                default: return "The command the gadget will execute on the target.";
+            }
+        }
+
+        internal static string CommandDefault(CommandInputType t)
+        {
+            return (t == CommandInputType.ShellCommand || t == CommandInputType.Ignored) ? "calc.exe" : "";
         }
 
         private static string SafeFileName(string name)

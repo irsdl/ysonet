@@ -25,6 +25,21 @@ namespace ysonet.Generators
         Boolean IsSupported(string formatter);
         OptionSet Options();
         void Init(InputArgs inputArgs);
+        CommandInputType CommandInput();
+    }
+
+    // What the gadget expects in the -c (command) argument. Lets callers (the
+    // interactive wizard, and potentially the CLI) label prompts correctly and
+    // group gadgets by the kind of input they accept, instead of assuming every
+    // gadget takes a shell command. Default is ShellCommand.
+    public enum CommandInputType
+    {
+        ShellCommand,   // a command to run (directly, or via the inner gadget for bridges)
+        CsSourceFile,   // a path to a .cs file to compile (';' separates extra assemblies)
+        DllPath,        // a path to a .dll to load on the target
+        Url,            // a URL (e.g. a remoting endpoint)
+        FilePath,       // a path to a file the gadget reads (e.g. a XAML file)
+        Ignored         // the command is not used by this gadget
     }
 
     public static class GadgetTags

@@ -43,6 +43,11 @@ namespace ysonet.Generators
             return "Another variant of the ActivitySurrogateSelector gadget. This gadget interprets the command parameter as path to the .cs file that should be compiled as exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.Windows.Forms.dll'";
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.CsSourceFile;
+        }
+
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {

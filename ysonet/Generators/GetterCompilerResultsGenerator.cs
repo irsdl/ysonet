@@ -38,6 +38,11 @@ namespace ysonet.Generators
             return "Remote DLL loading gadget for .NET 5/6/7 with WPF enabled (mixed DLL). Local DLL loading for .NET Framework if System.CodeDom is available. DLL path delivered with -c argument";
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.DllPath;
+        }
+
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()
