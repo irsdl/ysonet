@@ -33,15 +33,37 @@ namespace ysonet.Generators
     // Lets the wizard offer variants as a menu and the run-all sweep iterate them,
     // instead of parsing the option's prose description. Number is the value; Label
     // is a short human description. A gadget with no variants returns an empty list.
+    //
+    // Input is the -c meaning for THIS variant, when it differs from the rest of the
+    // gadget. Most variants only change the payload structure and share the gadget's
+    // CommandInput(), so they leave Input null. A gadget whose variants take
+    // different inputs (e.g. XamlImageInfo: variant 1 = file path, variant 2 = shell
+    // command) sets Input per variant. The wizard uses Input ?? gadget.CommandInput().
     public class GadgetVariant
     {
         public int Number;
         public string Label;
+        public CommandInputType? Input;
 
         public GadgetVariant(int number, string label)
         {
             Number = number;
             Label = label;
+            Input = null;
+        }
+
+        public GadgetVariant(int number, string label, CommandInputType input)
+        {
+            Number = number;
+            Label = label;
+            Input = input;
+        }
+
+        // The -c meaning for this variant: its own Input if set, else the gadget's
+        // default (passed in by the caller).
+        public CommandInputType EffectiveInput(CommandInputType gadgetDefault)
+        {
+            return Input.HasValue ? Input.Value : gadgetDefault;
         }
     }
 

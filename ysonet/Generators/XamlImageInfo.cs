@@ -39,10 +39,13 @@ namespace ysonet.Generators
 
         public override List<GadgetVariant> Variants()
         {
+            // Variants take different -c inputs, so each declares its own: variant 1
+            // reads a XAML file path, variant 2 runs a shell command. The wizard uses
+            // the per-variant input to label the prompt correctly.
             return new List<GadgetVariant>
             {
-                new GadgetVariant(1, "LazyFileStream - reads XAML from a file path (default, GAC)"),
-                new GadgetVariant(2, "ReadOnlyStreamFromStrings - takes a shell command (non-GAC)")
+                new GadgetVariant(1, "LazyFileStream - reads XAML from a file path (default, GAC)", CommandInputType.FilePath),
+                new GadgetVariant(2, "ReadOnlyStreamFromStrings - takes a shell command (non-GAC)", CommandInputType.ShellCommand)
             };
         }
 

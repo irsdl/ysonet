@@ -163,6 +163,7 @@ namespace ysonet.Interactive
 
             // Step 4: variant (only when the gadget has variants). Asked before the
             // command because a variant can change what the command means.
+            GadgetVariant selectedVariant = null;
             if (view.Variants != null && view.Variants.Count > 0)
             {
                 var vItems = new List<string>();
@@ -171,15 +172,20 @@ namespace ysonet.Interactive
                 int vi = _menu.Show("Pick a variant for " + view.Name + ":", vItems, 0);
                 if (vi < 0)
                     return;
+                selectedVariant = view.Variants[vi];
                 OptionField vf = view.VariantField();
                 if (vf != null)
-                    vf.Value = view.Variants[vi].Number.ToString();
+                    vf.Value = selectedVariant.Number.ToString();
             }
 
             // Step 5: command. The gadget declares what -c means (shell command,
             // .cs file, DLL path, URL, file path, or ignored), so label the prompt
-            // accordingly instead of always saying "Command to run".
-            CommandInputType inputType = view.CommandInput;
+            // accordingly instead of always saying "Command to run". A variant can
+            // override this (e.g. XamlImageInfo variant 2 takes a command, not a
+            // file path), so the chosen variant's input wins when it sets one.
+            CommandInputType inputType = selectedVariant != null
+                ? selectedVariant.EffectiveInput(view.CommandInput)
+                : view.CommandInput;
             string command = AskText(CommandLabel(inputType), CommandDefaultFor(inputType), CommandHelp(inputType));
             RememberCommand(inputType, command);
 
@@ -445,7 +451,7 @@ namespace ysonet.Interactive
             {
                 int n = 0;
                 foreach (IGenerator gg in gadgets)
-                    if (InputTypeMatches(gg.CommandInput(), t)) n++;
+                    if (UnitsForType(gg, t).Count > 0) n++;
                 if (n > 0)
                 {
                     typeLabels.Add(InputTypeName(t) + " (" + n + " gadget" + (n == 1 ? "" : "s") + ")");
@@ -464,7 +470,7 @@ namespace ysonet.Interactive
 
             var typeGadgets = new List<IGenerator>();
             foreach (IGenerator gg in gadgets)
-                if (InputTypeMatches(gg.CommandInput(), chosenType))
+                if (UnitsForType(gg, chosenType).Count > 0)
                     typeGadgets.Add(gg);
 
             // Offer only formatters at least one of these gadgets supports.
@@ -549,16 +555,11 @@ namespace ysonet.Interactive
 
                 foreach (IGenerator gg in runGadgets)
                 {
-                    // Iterate every variant for variant-capable gadgets; one pass
-                    // (no variant token) otherwise.
-                    List<GadgetVariant> variantList = gg.Variants();
-                    bool hasVariants = variantList != null && variantList.Count > 0;
+                    // Iterate only the variants whose input fits the chosen type
+                    // (one pass with no variant token for a no-variant gadget).
+                    var iterations = UnitsForType(gg, chosenType);
+                    bool hasVariants = iterations.Count > 0 && iterations[0] != null;
                     string variantFlag = hasVariants ? VariantFlag(gg) : null;
-                    var iterations = new List<GadgetVariant>();
-                    if (hasVariants)
-                        iterations.AddRange(variantList);
-                    else
-                        iterations.Add(null);
 
                     // Drop variants that produce byte-identical output (a
                     // formatter-invalid variant falls through to another).
@@ -633,6 +634,31 @@ namespace ysonet.Interactive
                     ConsoleStyle.WriteLine("  [skip] " + s, ConsoleStyle.Help);
             }
             WriteLine("");
+        }
+
+        // The run-units of a gadget whose effective -c input matches the chosen
+        // sweep type. A unit is a variant, or null for a gadget with no variants.
+        // Because each variant can declare its own input (XamlImageInfo variant 1 =
+        // file path, variant 2 = shell command), one gadget can contribute units to
+        // more than one sweep type - and only the variants that fit the chosen type
+        // run, so a file-path sweep never feeds a command to a command-only variant.
+        private static List<GadgetVariant> UnitsForType(IGenerator gg, CommandInputType chosen)
+        {
+            var units = new List<GadgetVariant>();
+            CommandInputType def = gg.CommandInput();
+            List<GadgetVariant> vs = gg.Variants();
+            if (vs == null || vs.Count == 0)
+            {
+                if (InputTypeMatches(def, chosen))
+                    units.Add(null);
+            }
+            else
+            {
+                foreach (GadgetVariant v in vs)
+                    if (InputTypeMatches(v.EffectiveInput(def), chosen))
+                        units.Add(v);
+            }
+            return units;
         }
 
         // A gadget accepts the chosen input type if they match, or the sweep is a
