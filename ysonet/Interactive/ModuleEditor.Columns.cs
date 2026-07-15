@@ -305,20 +305,18 @@ namespace ysonet.Interactive
                     if (r < wrapped.Length) c3 = wrapped[r];
                 }
 
-                string line = Cell(c1, w1) + " | " + Cell(c2, w2) + " | " + Cell(c3, w3);
-                line = ConsoleCursor.PadClear(line);
+                // Render each column cell on its own so the selection highlight
+                // covers only the focused column's current cell, not the whole row.
+                bool hi1 = focus == 0 && c1sel;
+                bool hi2 = focus == 1 && c2sel;
+                bool hi3 = focus == 2 && (c3sel || (editingText && r == 0));
 
-                bool activeRow =
-                    (focus == 0 && c1sel) ||
-                    (focus == 1 && c2sel) ||
-                    (focus == 2 && (c3sel || (editingText && r == 0)));
-
-                if (activeRow)
-                    ConsoleStyle.WriteLineHighlight(line, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
-                else if (c2req)
-                    ConsoleStyle.WriteLine(line, ConsoleStyle.Heading); // required-and-empty stands out
-                else
-                    ConsoleStyle.WriteLine(line);
+                WriteCell(c1, w1, hi1, false);
+                ConsoleStyle.Write(" | ");
+                WriteCell(c2, w2, hi2, c2req && !hi2); // required-and-empty stands out when not selected
+                ConsoleStyle.Write(" | ");
+                WriteCell(c3, w3, hi3, false);
+                Console.Error.WriteLine();
                 lines++;
             }
 
@@ -357,6 +355,19 @@ namespace ysonet.Interactive
             if (s == null) s = "";
             if (s.Length > width) return s.Substring(0, width);
             return s + new string(' ', width - s.Length);
+        }
+
+        // Write one fixed-width column cell (no newline). Highlighted cells get the
+        // selection colors; a required-and-empty cell gets the heading color.
+        private static void WriteCell(string text, int width, bool highlight, bool heading)
+        {
+            string cell = Cell(text, width);
+            if (highlight)
+                ConsoleStyle.WriteHighlight(cell, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
+            else if (heading)
+                ConsoleStyle.Write(cell, ConsoleStyle.Heading);
+            else
+                ConsoleStyle.Write(cell);
         }
 
         private static string[] Wrap(string text, int width)

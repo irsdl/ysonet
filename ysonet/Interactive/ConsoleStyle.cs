@@ -63,6 +63,37 @@ namespace ysonet.Interactive
             }
         }
 
+        // Plain write, no color, no newline. Used between colored cells.
+        public static void Write(string text)
+        {
+            Console.Error.Write(text);
+        }
+
+        // Write a highlighted cell (foreground on background) with NO trailing
+        // newline, resetting colors after, so several differently-colored cells can
+        // share one line (the module editor's columns).
+        public static void WriteHighlight(string text, ConsoleColor fg, ConsoleColor bg)
+        {
+            if (!ColorsOn())
+            {
+                Console.Error.Write(text);
+                return;
+            }
+            ConsoleColor pf, pb;
+            try { pf = Console.ForegroundColor; pb = Console.BackgroundColor; }
+            catch { Console.Error.Write(text); return; }
+            try
+            {
+                Console.ForegroundColor = fg;
+                Console.BackgroundColor = bg;
+                Console.Error.Write(text);
+            }
+            finally
+            {
+                try { Console.ForegroundColor = pf; Console.BackgroundColor = pb; } catch { }
+            }
+        }
+
         public static void Write(string text, ConsoleColor fg)
         {
             if (!ColorsOn())
