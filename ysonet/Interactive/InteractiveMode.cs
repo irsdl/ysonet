@@ -13,7 +13,6 @@ namespace ysonet.Interactive
             {
                 Wizard wizard = new Wizard(
                     new ConsoleKeyReader(),
-                    Console.In,
                     Console.OpenStandardOutput());
                 return wizard.Run();
             }

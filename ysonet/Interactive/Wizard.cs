@@ -19,10 +19,14 @@ namespace ysonet.Interactive
     public class Wizard
     {
         private readonly IKeyReader _keys;
-        private readonly TextReader _input;
         private readonly Stream _output;
         private readonly Menu _menu;
         private readonly Picker _picker;
+
+        // Thrown when the user presses Esc at a prompt. Caught in Run's loop, which
+        // returns to the top menu - so Esc goes back from anywhere, including a
+        // free-text prompt.
+        private class WizardCancel : Exception { }
 
         // Global option names the wizard does not surface, with reasons:
         //  - runmytest: dev-only testing hook.
@@ -47,10 +51,9 @@ namespace ysonet.Interactive
             "bridgedgadgetchains", "debugmode"
         };
 
-        public Wizard(IKeyReader keys, TextReader input, Stream output)
+        public Wizard(IKeyReader keys, Stream output)
         {
             _keys = keys ?? new ConsoleKeyReader();
-            _input = input ?? Console.In;
             _output = output ?? Console.OpenStandardOutput();
             _menu = new Menu(_keys);
             _picker = new Picker(_keys);
@@ -62,6 +65,7 @@ namespace ysonet.Interactive
             ConsoleStyle.WriteLine("=== YSoNet interactive mode ===", ConsoleStyle.Banner);
             ConsoleStyle.WriteLine("Build a payload step by step. Prompts and menus are on stderr;", ConsoleStyle.Help);
             ConsoleStyle.WriteLine("only the final payload goes to stdout, so piping still works.", ConsoleStyle.Help);
+            ConsoleStyle.WriteLine("Press Esc at any prompt to go back to this menu.", ConsoleStyle.Help);
             WriteLine("");
 
             var topItems = new List<string>
@@ -97,6 +101,10 @@ namespace ysonet.Interactive
                         case 4: ShowCreditsInfo(); break;
                         case 5: ShowHelpInfo(); break;
                     }
+                }
+                catch (WizardCancel)
+                {
+                    // Esc at a prompt: quietly return to the menu.
                 }
                 catch (Exception e)
                 {
@@ -758,6 +766,8 @@ namespace ysonet.Interactive
                 "hex"
             };
             int i = _menu.Show("Output format:", items, 0);
+            if (i < 0)
+                throw new WizardCancel();
             switch (i)
             {
                 case 1: return "raw";
@@ -769,6 +779,9 @@ namespace ysonet.Interactive
             }
         }
 
+        // Prompt for a line of free text, read via the key reader so Esc can cancel
+        // (throws WizardCancel -> back to the menu). Enter accepts; Backspace edits;
+        // an empty entry returns the default.
         private string AskText(string label, string defaultValue, string help)
         {
             if (!string.IsNullOrEmpty(help))
@@ -776,10 +789,38 @@ namespace ysonet.Interactive
             string suffix = string.IsNullOrEmpty(defaultValue) ? "" : " [" + defaultValue + "]";
             ConsoleStyle.Write(label + suffix + ": ", ConsoleStyle.Prompt);
             Console.Error.Flush();
-            string line = _input.ReadLine();
-            if (line == null)
-                return defaultValue;
-            line = line.TrimEnd('\r', '\n');
+
+            var sb = new StringBuilder();
+            while (true)
+            {
+                ConsoleKeyInfo k = _keys.ReadKey();
+                if (k.Key == ConsoleKey.Enter)
+                {
+                    Console.Error.WriteLine();
+                    break;
+                }
+                if (k.Key == ConsoleKey.Escape)
+                {
+                    Console.Error.WriteLine();
+                    throw new WizardCancel();
+                }
+                if (k.Key == ConsoleKey.Backspace)
+                {
+                    if (sb.Length > 0)
+                    {
+                        sb.Length = sb.Length - 1;
+                        Console.Error.Write("\b \b"); // erase on a real console
+                    }
+                    continue;
+                }
+                if (k.KeyChar != '\0' && !char.IsControl(k.KeyChar))
+                {
+                    sb.Append(k.KeyChar);
+                    Console.Error.Write(k.KeyChar); // echo (ReadKey is non-echoing)
+                }
+            }
+
+            string line = sb.ToString().Trim();
             if (line.Length == 0)
                 return defaultValue;
             return line;
@@ -791,7 +832,7 @@ namespace ysonet.Interactive
             int start = defaultYes ? 0 : 1;
             int i = _menu.Show(label, items, start);
             if (i < 0)
-                return defaultYes;
+                throw new WizardCancel();
             return i == 0;
         }
 
