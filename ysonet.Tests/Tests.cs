@@ -57,6 +57,8 @@ namespace ysonet.Tests
             Run("Show-command action prints the one-liner without generating", WizardShowCommand);
             Run("Generate and quit emits the payload and exits", WizardGenerateAndQuit);
             Run("Columns render in a virtual terminal (layout + per-cell highlight)", ColumnsRenderInVirtualTerminal);
+            Run("Every top menu screen renders in a virtual terminal", AllMenusRender);
+            Run("Text editor shows the current value and replaces on type", TextEditReplaces);
             Run("Generate is blocked (not an exit) when required settings are empty", WizardBlocksMissingRequired);
             Run("Wizard remembers the last command", WizardRemembersLastCommand);
             Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
@@ -735,27 +737,113 @@ namespace ysonet.Tests
             return null;
         }
 
-        // Dev demo: drive the columns UI in the virtual terminal and print a couple
-        // of captured frames, so a human/AI can see exactly what the UI renders.
-        private static void DumpUi()
+        // Drive the interactive UI against a fresh virtual terminal (real columns
+        // path) and return every rendered frame.
+        private static List<Frame> DriveFrames(Action<RecordingKeyReader> build)
         {
+            var prevTerm = Term.Current;
+            bool prevForce = ModuleEditor.ForceFallback;
             var vt = new VirtualTerminal(120, 40);
             Term.Current = vt;
             ModuleEditor.ForceFallback = false;
-            var keys = new RecordingKeyReader(vt);
-            keys.Enter();          // top -> gadget
-            keys.Down().Down().Down().Down().Down(); // scroll modules a bit
-            keys.Enter();          // open a gadget
-            keys.Down().Down();    // move selection
-            keys.Escape().Escape().Escape();
-            new Wizard(keys, new MemoryStream()).Run();
+            try
+            {
+                var k = new RecordingKeyReader(vt);
+                build(k);
+                try { new Wizard(k, new MemoryStream()).Run(); } catch { }
+                return k.Frames;
+            }
+            finally
+            {
+                Term.Current = prevTerm;
+                ModuleEditor.ForceFallback = prevForce;
+            }
+        }
 
-            Frame modules = FindFrame(keys.Frames, f => f.Contains("Gadgets") && !f.Contains(" | "));
-            Frame settings = FindFrame(keys.Frames, f => f.Contains(" | ") && f.Contains("[ Generate and quit ]"));
-            Console.WriteLine("===== MODULES COLUMN (right columns hidden) =====");
-            Console.WriteLine(modules == null ? "(not captured)" : modules.Text());
-            Console.WriteLine("===== GADGET SETTINGS (three columns) =====");
-            Console.WriteLine(settings == null ? "(not captured)" : settings.Text());
+        private static bool AnyFrame(List<Frame> frames, string needle)
+        {
+            foreach (Frame f in frames)
+                if (f.Contains(needle)) return true;
+            return false;
+        }
+
+        private static void AllMenusRender()
+        {
+            AssertTrue(AnyFrame(DriveFrames(k => k.Escape()), "Build a gadget payload"), "top menu renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Enter().Enter().Escape().Escape().Escape()), "[ Generate and quit ]"), "gadget settings render");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(2).Up().Enter().Escape().Escape().Escape()), "ViewState settings"), "plugin settings render");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(3).Type("Json").Enter().Enter().Escape()), "Gadgets with a formatter"), "search formatters renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(4).Escape().Escape()), "What kind of input"), "run-all-formatters renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(6).Enter().Escape()), "Pick 'gadget'"), "help renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(5).Enter().Escape()), "developed and maintained"), "credits render");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(7).Down().Escape().Escape()), "Pick a color theme"), "theme picker renders");
+        }
+
+        private static void TextEditReplaces()
+        {
+            // Open a gadget, edit the command (a text setting): the editor shows the
+            // current value as context and typing replaces it (does not append).
+            var frames = DriveFrames(k => k.Enter().Enter().Down().Enter()
+                .Type("notepad").Escape().Escape().Escape().Escape());
+            AssertTrue(AnyFrame(frames, "(current: calc.exe)"), "the current value is shown as context");
+            AssertTrue(AnyFrame(frames, "> notepad_"), "typing replaces rather than appending to the current value");
+        }
+
+        // Dev inspection: walk every interactive menu/screen in the virtual terminal
+        // and print a captured frame of each, so a human/AI can eyeball the real UI.
+        private static void DumpUi()
+        {
+            Func<Action<RecordingKeyReader>, List<Frame>> run = build =>
+            {
+                var vt = new VirtualTerminal(120, 40);
+                Term.Current = vt;
+                ModuleEditor.ForceFallback = false;
+                var k = new RecordingKeyReader(vt);
+                build(k);
+                try { new Wizard(k, new MemoryStream()).Run(); } catch { }
+                return k.Frames;
+            };
+            Action<string, List<Frame>, string, bool> show = (label, fs, needle, last) =>
+            {
+                Frame f = null;
+                foreach (Frame x in fs) { if (x.Contains(needle)) { f = x; if (!last) break; } }
+                Console.WriteLine("\n#################### " + label + " ####################");
+                Console.WriteLine(f == null ? "(not captured: '" + needle + "')" : f.Text());
+            };
+
+            var top = run(k => k.Escape());
+            show("TOP MENU", top, "What do you want to do", false);
+
+            var gadget = run(k => k.Enter().Enter().Down().Down().Escape().Escape().Escape());
+            show("GADGET MODULES (right columns hidden)", gadget, "Gadgets", false);
+            show("GADGET SETTINGS (columns)", gadget, "[ Generate and quit ]", false);
+
+            var textEdit = run(k => k.Enter().Enter().Down().Enter().Type("notepad").Escape().Escape().Escape().Escape());
+            show("EDIT A TEXT SETTING (command)", textEdit, "Edit: command", true);
+
+            var choice = run(k => k.Enter().Enter().Down().Down().Down().Enter().Escape().Escape().Escape().Escape());
+            show("EDIT A CHOICE SETTING (formatter)", choice, "Edit: formatter", false);
+
+            var showCmd = run(k => k.Enter().Enter().Up().Enter().Enter().Escape().Escape().Escape());
+            show("SHOW YSONET COMMAND action", showCmd, "Equivalent one-line command", false);
+
+            var gen = run(k => k.Enter().Enter().Up().Up().Up().Up().Enter().Enter().Escape().Escape().Escape());
+            show("GENERATE action output", gen, "Payload (", false);
+
+            var plugin = run(k => k.Digit(2).Up().Enter().Escape().Escape().Escape());
+            show("PLUGIN SETTINGS (ViewState)", plugin, "ViewState settings", false);
+
+            var theme = run(k => k.Digit(7).Down().Down().Escape().Escape());
+            show("THEME PICKER (live preview)", theme, "Pick a color theme", false);
+
+            var search = run(k => k.Digit(3).Type("Json").Enter().Enter().Escape());
+            show("SEARCH FORMATTERS", search, "Gadgets with a formatter", true);
+
+            var help = run(k => k.Digit(6).Enter().Escape());
+            show("HELP", help, "Pick 'gadget'", false);
+
+            var credits = run(k => k.Digit(5).Enter().Escape());
+            show("CREDITS", credits, "developed and maintained", false);
         }
 
         private static void WizardShowCommand()

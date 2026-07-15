@@ -71,7 +71,12 @@ namespace ysonet.Interactive
                 {
                     if (key.Key == ConsoleKey.Enter)
                     {
-                        editing.Value = textBuf.ToString().Trim();
+                        // An empty entry keeps the current value (the input starts
+                        // empty and shows the current one as context), so typing
+                        // replaces rather than appends.
+                        string typed = textBuf.ToString().Trim();
+                        if (typed.Length > 0)
+                            editing.Value = typed;
                         focus = 1; editing = null; editingText = false; textBuf = null;
                     }
                     else if (key.Key == ConsoleKey.Escape)
@@ -203,7 +208,7 @@ namespace ysonet.Interactive
                     break;
                 default: // Text
                     text = true;
-                    buf = new StringBuilder(f.Value ?? "");
+                    buf = new StringBuilder(); // start empty; the current value is shown as context
                     break;
             }
         }
@@ -221,7 +226,7 @@ namespace ysonet.Interactive
                 if (f.AllowCustom && index == items.Count - 1)
                 {
                     editingText = true;
-                    textBuf = new StringBuilder(f.Value ?? "");
+                    textBuf = new StringBuilder(); // start empty; current value shown as context
                     return;
                 }
                 f.Value = f.Choices[index];
@@ -309,7 +314,8 @@ namespace ysonet.Interactive
                     if (editingText)
                     {
                         if (r == 0) c3 = "> " + (textBuf != null ? textBuf.ToString() : "") + "_";
-                        else if (r == 2) c3 = "Type a value, Enter saves, Esc cancels";
+                        else if (r == 1 && !string.IsNullOrEmpty(editing.Value)) c3 = "(current: " + editing.Value + ")";
+                        else if (r == 3) c3 = "Type to replace, Enter saves (empty keeps current), Esc cancels";
                     }
                     else if (choiceItems != null)
                     {

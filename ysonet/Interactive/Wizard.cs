@@ -264,6 +264,7 @@ namespace ysonet.Interactive
 
         private void SearchFormattersInfo()
         {
+            ConsoleCursor.ClearScreen();
             string term = AskText("Formatter to search for (e.g. Json, Xaml, Binary)", "", "");
             if (string.IsNullOrEmpty(term))
                 return;
@@ -284,7 +285,7 @@ namespace ysonet.Interactive
                 if (hits.Count > 0)
                     WriteLine("  " + gg.Name() + ": " + string.Join(", ", hits.ToArray()));
             }
-            WriteLine("");
+            Pause();
         }
 
         // Bulk generate one input across every gadget that accepts it and supports
@@ -296,6 +297,7 @@ namespace ysonet.Interactive
         // those gadgets actually support - so the combination can never be empty.
         private void RunAllFormattersInfo()
         {
+            ConsoleCursor.ClearScreen();
             WriteLine("");
             ConsoleStyle.WriteLine("Run all formatters (mirrors --runallformatters):", ConsoleStyle.Heading);
             WriteLine("Pick an input type and a formatter; every gadget that accepts both is run.");
@@ -505,7 +507,7 @@ namespace ysonet.Interactive
                 foreach (string s in skipped)
                     ConsoleStyle.WriteLine("  [skip] " + s, ConsoleStyle.Help);
             }
-            WriteLine("");
+            Pause();
         }
 
         // The run-units of a gadget whose effective -c input matches the chosen
@@ -683,21 +685,38 @@ namespace ysonet.Interactive
 
         private void ShowCreditsInfo()
         {
+            ConsoleCursor.ClearScreen();
             WriteLine("");
+            ConsoleStyle.WriteLine("Credits", ConsoleStyle.Heading);
             WriteLine("YSoNet is developed and maintained by Soroush Dalili (@irsdl).");
             WriteLine("YSoSerial.Net was originally developed by Alvaro Munoz (@pwntester).");
             WriteLine("Use --credit on the command line for the full per-gadget credits.");
-            WriteLine("");
+            Pause();
         }
 
         private void ShowHelpInfo()
         {
+            ConsoleCursor.ClearScreen();
             WriteLine("");
+            ConsoleStyle.WriteLine("Help", ConsoleStyle.Heading);
             WriteLine("Pick 'gadget' to wrap a command in a gadget chain and serialize it.");
             WriteLine("Pick 'plugin' for a higher-level builder (ViewState, SharePoint, ...).");
             WriteLine("Every run prints the equivalent ysonet.exe command so you can script it.");
             WriteLine("The one-shot CLI (ysonet.exe -g ... -f ... -c ...) still works as before.");
+            Pause();
+        }
+
+        // Wait for a key so the user can read an informational screen before the top
+        // menu clears and redraws over it. On a redirected/piped console there is
+        // nothing to read and clearing does not happen, so it is a no-op there (and
+        // it does not consume a scripted key in the redirected tests).
+        private void Pause()
+        {
+            if (!ConsoleCursor.CanControl())
+                return;
             WriteLine("");
+            ConsoleStyle.WriteLine("Press any key to return to the menu...", ConsoleStyle.Help);
+            _keys.ReadKey();
         }
 
         // ---- Output ------------------------------------------------------------
