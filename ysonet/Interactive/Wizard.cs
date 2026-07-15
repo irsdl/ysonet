@@ -830,7 +830,8 @@ namespace ysonet.Interactive
         {
             var items = new List<string> { "Yes", "No" };
             int start = defaultYes ? 0 : 1;
-            int i = _menu.Show(label, items, start);
+            string hinted = label + "  (Enter = " + (defaultYes ? "Yes" : "No") + ")";
+            int i = _menu.Show(hinted, items, start);
             if (i < 0)
                 throw new WizardCancel();
             return i == 0;

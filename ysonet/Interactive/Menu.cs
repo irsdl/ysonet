@@ -33,6 +33,11 @@ namespace ysonet.Interactive
             if (!string.IsNullOrEmpty(title))
                 ConsoleStyle.WriteLine(title, ConsoleStyle.Heading);
 
+            // A one-line affordance hint for lists worth navigating. Small lists
+            // (yes/no) rely on the visible numbers and the banner's Esc note.
+            if (items.Count >= 3)
+                ConsoleStyle.WriteLine("(Up/Down or a number, Enter to select, Esc to go back)", ConsoleStyle.Help);
+
             bool canControl = ConsoleCursor.CanControl();
             int lines = Render(items, index);
 
@@ -69,14 +74,16 @@ namespace ysonet.Interactive
         }
 
         // Write the menu block and return how many lines it wrote. The selected
-        // row is drawn as a full-width highlight bar.
+        // row is drawn as a full-width highlight bar. Items are numbered (1-9) so
+        // the number-key shortcut is discoverable.
         private int Render(IList<string> items, int index)
         {
             for (int i = 0; i < items.Count; i++)
             {
                 bool selected = (i == index);
-                string marker = selected ? " > " : "   ";
-                string line = ConsoleCursor.PadClear(marker + items[i]);
+                string marker = selected ? ">" : " ";
+                string num = (i < 9) ? (i + 1) + "." : "  ";
+                string line = ConsoleCursor.PadClear(marker + " " + num + " " + items[i]);
                 if (selected)
                     ConsoleStyle.WriteLineHighlight(line, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
                 else

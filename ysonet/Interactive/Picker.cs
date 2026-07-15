@@ -83,7 +83,7 @@ namespace ysonet.Interactive
 
             if (!string.IsNullOrEmpty(title))
                 ConsoleStyle.WriteLine(title, ConsoleStyle.Heading);
-            ConsoleStyle.WriteLine("(type to filter, Up/Down to move, Enter to pick, Esc to cancel)", ConsoleStyle.Help);
+            ConsoleStyle.WriteLine("(type to filter, Up/Down to move, Enter to pick, Esc to go back)", ConsoleStyle.Help);
 
             string query = "";
             int index = 0;
