@@ -50,6 +50,7 @@ namespace ysonet.Tests
             Run("Editor builds plugin fields with defaults and a gadget picker", EditorPluginFields);
             Run("Editor exposes actions and marks module-own options", EditorActionsAndOwnership);
             Run("Show-command action prints the one-liner without generating", WizardShowCommand);
+            Run("Generate is blocked (not an exit) when required settings are empty", WizardBlocksMissingRequired);
             Run("Wizard remembers the last command", WizardRemembersLastCommand);
             Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
             Run("Run-all-formatters saves payloads to a folder", WizardRunAllFormattersToFolder);
@@ -552,6 +553,27 @@ namespace ysonet.Tests
             AssertTrue(!FindEditable(fields, "output").ModuleOwn, "output is a shared built-in");
             EditableField variant = FindEditable(fields, "variant");
             AssertTrue(variant != null && variant.ModuleOwn, "variant is a gadget-specific option");
+        }
+
+        private static void WizardBlocksMissingRequired()
+        {
+            // ObjRef takes a URL (required) and has no default, so Generate with it
+            // empty must be blocked with a message - and must NOT drop out of the
+            // wizard (the following keys still drive it).
+            var keys = new ScriptedKeyReader();
+            keys.Enter();                  // top -> gadget
+            keys.Type("ObjRef").Enter();   // module picker
+            keys.Type("Generate").Enter(); // blocked: URL is required and empty
+            keys.Escape();                 // leave form
+            keys.Escape();                 // leave module list
+            keys.Escape();                 // quit
+
+            string stderr;
+            byte[] stdout = DriveWizard(keys, out stderr);
+
+            AssertEqual(0, stdout.Length, "blocked generation emits no payload");
+            AssertTrue(stderr.Contains("required settings"), "the user is told which settings to fill");
+            AssertTrue(stderr.Contains("Bye."), "the wizard is still running (reached the top-menu quit)");
         }
 
         private static void WizardShowCommand()

@@ -449,8 +449,35 @@ namespace ysonet.Interactive
             }
         }
 
+        // Required settings that are still empty. Generating with these missing
+        // would reach a plugin/gadget validation error - and some of those still
+        // call Environment.Exit, which would drop the user out of interactive mode -
+        // so the editor blocks generation up front and says what to fill instead.
+        private List<string> MissingRequired()
+        {
+            var missing = new List<string>();
+            if (_isGadget)
+                RefreshDynamic();
+            foreach (EditableField f in _fields)
+            {
+                if (f.Hidden || f.IsAction || f.IsFlag)
+                    continue;
+                if (f.Required && string.IsNullOrEmpty(f.Value))
+                    missing.Add(f.Label);
+            }
+            return missing;
+        }
+
         private void Generate(bool copyToClipboard)
         {
+            List<string> missing = MissingRequired();
+            if (missing.Count > 0)
+            {
+                ConsoleStyle.WriteLine("Cannot generate yet - fill these required settings (marked *): "
+                    + string.Join(", ", missing.ToArray()), ConsoleStyle.Error);
+                return;
+            }
+
             string commandLine, outputPath;
             byte[] bytes = _isGadget
                 ? GenerateGadgetBytes(out commandLine, out outputPath)
