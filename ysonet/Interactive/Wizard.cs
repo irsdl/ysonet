@@ -66,6 +66,7 @@ namespace ysonet.Interactive
         public int Run()
         {
             InteractiveConfig.ApplySavedTheme();
+            ConsoleQuickEdit.Enable(); // so mouse-select + right-click copy works
 
             var topItems = new List<string>
             {
@@ -130,24 +131,79 @@ namespace ysonet.Interactive
             WriteLine("");
         }
 
-        // Pick and persist a color theme (item on the top menu). Applied immediately
-        // and saved so it is the default next time.
+        // Pick a color theme with a LIVE preview: moving the highlight applies the
+        // theme immediately so the whole menu recolors as you browse. Enter keeps and
+        // saves it; Esc reverts to the theme you started with.
         private void ChooseTheme()
         {
-            var names = new List<string>();
-            int current = 0;
-            for (int i = 0; i < ConsoleStyle.Themes.Length; i++)
+            var themes = ConsoleStyle.Themes;
+            string original = ConsoleStyle.CurrentThemeName;
+            int index = 0;
+            for (int i = 0; i < themes.Length; i++)
+                if (string.Equals(themes[i].Name, original, StringComparison.OrdinalIgnoreCase))
+                    index = i;
+
+            bool canControl = ConsoleCursor.CanControl();
+            int lines = 0;
+            while (true)
             {
-                names.Add(ConsoleStyle.Themes[i].Name);
-                if (string.Equals(ConsoleStyle.Themes[i].Name, ConsoleStyle.CurrentThemeName, StringComparison.OrdinalIgnoreCase))
-                    current = i;
+                ConsoleStyle.ApplyTheme(themes[index].Name); // preview live
+                if (canControl && lines > 0)
+                    ConsoleCursor.MoveUp(lines);
+                lines = RenderThemeMenu(themes, index);
+
+                ConsoleKeyInfo key = _keys.ReadKey();
+                if (key.Key == ConsoleKey.Enter)
+                {
+                    InteractiveConfig.SaveThemeName(themes[index].Name);
+                    return;
+                }
+                if (key.Key == ConsoleKey.Escape || key.Key == ConsoleKey.Q)
+                {
+                    ConsoleStyle.ApplyTheme(original); // revert the preview
+                    return;
+                }
+                if (key.Key == ConsoleKey.UpArrow || key.Key == ConsoleKey.K)
+                    index = (index - 1 + themes.Length) % themes.Length;
+                else if (key.Key == ConsoleKey.DownArrow || key.Key == ConsoleKey.J)
+                    index = (index + 1) % themes.Length;
+                else if (key.KeyChar >= '1' && key.KeyChar <= '9')
+                {
+                    int n = key.KeyChar - '1';
+                    if (n < themes.Length)
+                        index = n;
+                }
             }
-            int choice = _menu.Show("Pick a color theme (saved for next time):", names, current);
-            if (choice < 0)
-                return;
-            ConsoleStyle.ApplyTheme(names[choice]);
-            InteractiveConfig.SaveThemeName(names[choice]);
-            ConsoleStyle.WriteLine("Theme set to: " + names[choice], ConsoleStyle.Success);
+        }
+
+        // Draw the theme list plus a small color sample, and return the line count so
+        // the next frame can redraw in place.
+        private int RenderThemeMenu(ConsoleStyle.Theme[] themes, int index)
+        {
+            int lines = 0;
+            ConsoleStyle.WriteLine(ConsoleCursor.PadClear("Pick a color theme (live preview; Enter saves, Esc reverts):"), ConsoleStyle.Heading);
+            lines++;
+            for (int i = 0; i < themes.Length; i++)
+            {
+                bool selected = (i == index);
+                string num = (i < 9) ? (i + 1) + "." : "  ";
+                string line = ConsoleCursor.PadClear((selected ? "> " : "  ") + num + " " + themes[i].Name);
+                if (selected)
+                    ConsoleStyle.WriteLineHighlight(line, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
+                else
+                    ConsoleStyle.WriteLine(line);
+                lines++;
+            }
+            // A sample row so the effect is visible beyond the highlight bar.
+            ConsoleStyle.Write(ConsoleCursor.PadClear("  sample -> "), ConsoleStyle.Help);
+            ConsoleStyle.Write("heading ", ConsoleStyle.Heading);
+            ConsoleStyle.Write("command ", ConsoleStyle.Command);
+            ConsoleStyle.Write("gadget-option ", ConsoleStyle.Accent);
+            ConsoleStyle.Write("ok ", ConsoleStyle.Success);
+            ConsoleStyle.Write("error", ConsoleStyle.Error);
+            Console.Error.WriteLine();
+            lines++;
+            return lines;
         }
 
         // ---- Gadget path -------------------------------------------------------

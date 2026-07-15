@@ -233,17 +233,20 @@ namespace ysonet.Interactive
             return true;
         }
 
-        // A value option with a description that names no default and is not marked
-        // ignored/optional is treated as required. Advisory only.
+        // A value option with a description that names no default, is not marked
+        // ignored/optional, and is not described conditionally ("... if ...",
+        // "when ...", "unless ...", "only ...") is treated as required. Conditional
+        // wording usually means the value is needed only in certain modes (a
+        // decryption key only when decrypting), so it should not be flagged as
+        // always-required. Advisory only.
         public static bool LooksRequired(string description, bool takesValue)
         {
             if (!takesValue || string.IsNullOrEmpty(description))
                 return false;
-            if (description.IndexOf("default", StringComparison.OrdinalIgnoreCase) >= 0)
+            string d = " " + description.ToLowerInvariant() + " ";
+            if (d.Contains("default") || d.Contains("ignored") || d.Contains("optional"))
                 return false;
-            if (description.IndexOf("ignored", StringComparison.OrdinalIgnoreCase) >= 0)
-                return false;
-            if (description.IndexOf("optional", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (d.Contains(" if ") || d.Contains(" when ") || d.Contains("unless") || d.Contains(" only "))
                 return false;
             return true;
         }

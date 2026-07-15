@@ -495,6 +495,7 @@ namespace ysonet.Tests
             AssertTrue(EditableField.LooksRequired("The validationKey from machineKey.", true), "no-default value option looks required");
             AssertTrue(!EditableField.LooksRequired("Gadget chain. Default: ActivitySurrogateSelector.", true), "with-default is not required");
             AssertTrue(!EditableField.LooksRequired("A flag.", false), "flags are never required");
+            AssertTrue(!EditableField.LooksRequired("Validate and decrypt the viewstate if it has been encrypted.", true), "conditional (if) is not required");
         }
 
         private static void EditorPluginFields()
@@ -629,7 +630,7 @@ namespace ysonet.Tests
             byte[] stdout = DriveWizard(keys, out stderr);
 
             AssertEqual(0, stdout.Length, "blocked generation emits no payload");
-            AssertTrue(stderr.Contains("required settings"), "the user is told which settings to fill");
+            AssertTrue(stderr.Contains("needs a value first"), "the user is told a value is needed");
             AssertTrue(stderr.Contains("Bye."), "the wizard is still running (reached the top-menu quit)");
         }
 

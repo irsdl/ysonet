@@ -451,32 +451,32 @@ namespace ysonet.Interactive
             }
         }
 
-        // Required settings that are still empty. Generating with these missing
-        // would reach a plugin/gadget validation error - and some of those still
-        // call Environment.Exit, which would drop the user out of interactive mode -
-        // so the editor blocks generation up front and says what to fill instead.
-        private List<string> MissingRequired()
+        // The command / -c input, when it is required and still empty. This is the
+        // one setting the editor blocks on up front, because it is the primary input
+        // and a clear "provide the URL / .cs file / command" beats a raw error.
+        //
+        // Other settings are NOT pre-blocked: which ones a plugin really needs is
+        // conditional (a ViewState decryption key only matters when decrypting, the
+        // current viewstate only when validating one, ...), and guessing wrong forced
+        // users to fill things that were not needed. Plugins and gadgets now throw a
+        // clear message on genuinely-missing input (caught, so the wizard stays), so
+        // the editor lets generation proceed and reports that message instead.
+        private string MissingRequiredCommand()
         {
-            var missing = new List<string>();
-            if (_isGadget)
-                RefreshDynamic();
-            foreach (EditableField f in _fields)
-            {
-                if (f.Hidden || f.IsAction || f.IsFlag)
-                    continue;
-                if (f.Required && string.IsNullOrEmpty(f.Value))
-                    missing.Add(f.Label);
-            }
-            return missing;
+            if (!_isGadget || _command == null)
+                return null;
+            RefreshDynamic();
+            if (_command.Required && string.IsNullOrEmpty(_command.Value))
+                return _command.Help; // the type-specific label (URL, .cs file, ...)
+            return null;
         }
 
         private void Generate(bool copyToClipboard)
         {
-            List<string> missing = MissingRequired();
-            if (missing.Count > 0)
+            string need = MissingRequiredCommand();
+            if (need != null)
             {
-                ConsoleStyle.WriteLine("Cannot generate yet - fill these required settings (marked *): "
-                    + string.Join(", ", missing.ToArray()), ConsoleStyle.Error);
+                ConsoleStyle.WriteLine("Cannot generate yet - this gadget needs a value first: " + need, ConsoleStyle.Error);
                 return;
             }
 
