@@ -52,6 +52,7 @@ namespace ysonet.Tests
             Run("Choice options are detected (modes, colon lists, numbered)", ChoiceDetection);
             Run("Bridged-chain setting offers bridge gadgets", BridgedChainChoices);
             Run("Themes apply and are named", ThemeApply);
+            Run("Conditional plugin options are not marked required", ConditionalRequired);
             Run("Show-command action prints the one-liner without generating", WizardShowCommand);
             Run("Generate is blocked (not an exit) when required settings are empty", WizardBlocksMissingRequired);
             Run("Wizard remembers the last command", WizardRemembersLastCommand);
@@ -593,6 +594,24 @@ namespace ysonet.Tests
             AssertTrue(bgc != null && bgc.Kind == FieldKind.Choice, "bridged chain is a choice");
             AssertTrue(bgc.AllowCustom, "still allows a custom comma-separated chain");
             AssertTrue(bgc.Choices != null && bgc.Choices.Count > 0, "offers bridge-capable gadgets");
+        }
+
+        private static void ConditionalRequired()
+        {
+            // ViewState: the genuinely-required key stays flagged; the conditional
+            // ones (mode/encryption/OSF-specific, or optional) do not.
+            var vs = new ModuleEditor(null, null, false, null, null).BuildFieldsForTest("ViewState");
+            AssertTrue(FindEditable(vs, "validationkey").Required, "validationkey is required");
+            AssertTrue(!FindEditable(vs, "decryptionkey").Required, "decryptionkey is conditional (encryption)");
+            AssertTrue(!FindEditable(vs, "mackey").Required, "mackey is conditional (osf)");
+            AssertTrue(!FindEditable(vs, "path").Required, "path is optional");
+            AssertTrue(!FindEditable(vs, "apppath").Required, "apppath is conditional");
+            AssertTrue(!FindEditable(vs, "viewstateuserkey").Required, "viewstateuserkey is conditional (sometimes)");
+
+            // Mode-conditional options in other plugins are not required either.
+            var dnn = new ModuleEditor(null, null, false, null, null).BuildFieldsForTest("DotNetNuke");
+            AssertTrue(!FindEditable(dnn, "file").Required, "DotNetNuke file is mode-conditional");
+            AssertTrue(!FindEditable(dnn, "url").Required, "DotNetNuke url is mode-conditional");
         }
 
         private static void ThemeApply()

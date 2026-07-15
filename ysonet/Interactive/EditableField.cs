@@ -233,21 +233,35 @@ namespace ysonet.Interactive
             return true;
         }
 
-        // A value option with a description that names no default, is not marked
-        // ignored/optional, and is not described conditionally ("... if ...",
-        // "when ...", "unless ...", "only ...") is treated as required. Conditional
-        // wording usually means the value is needed only in certain modes (a
-        // decryption key only when decrypting), so it should not be flagged as
-        // always-required. Advisory only.
+        // A value option is treated as required only when its description gives no
+        // sign that the value is optional or conditional. Conditional wording almost
+        // always means the value is needed only in certain modes (a decryption key
+        // only when decrypting, a file only "in read_file mode", a key "sometimes
+        // used", ...), so those must NOT be flagged as always-required. Marking a
+        // genuinely-optional field as required would mislead the user; missing a
+        // truly-required one is harmless here (the field just loses its hint and the
+        // plugin/gadget reports it clearly on generate). So this errs toward NOT
+        // required. Advisory only - it never blocks generation.
         public static bool LooksRequired(string description, bool takesValue)
         {
             if (!takesValue || string.IsNullOrEmpty(description))
                 return false;
             string d = " " + description.ToLowerInvariant() + " ";
+
+            // Explicitly optional / has a default.
             if (d.Contains("default") || d.Contains("ignored") || d.Contains("optional"))
                 return false;
+
+            // Conditional wording -> needed only in some mode/case, not always.
             if (d.Contains(" if ") || d.Contains(" when ") || d.Contains("unless") || d.Contains(" only "))
                 return false;
+            if (d.Contains("sometimes") || d.Contains("used ") || d.Contains("needed ") || d.Contains(" some"))
+                return false;
+            // "... in <x> mode" (mode-specific), but not the mode selector itself
+            // ("the payload mode: a, b, c") which has no " in " before "mode".
+            if (d.Contains(" in ") && d.Contains("mode"))
+                return false;
+
             return true;
         }
 
