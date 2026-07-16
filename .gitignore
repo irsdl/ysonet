@@ -251,6 +251,7 @@ ysonet/Helpers/TestingArena/TestingArenaHome.cs
 
 # Claude Code dev files (project development only, not part of the product)
 CLAUDE.md
+AGENTS.md
 .claude/
 dev-kitchen/
 

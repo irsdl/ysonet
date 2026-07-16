@@ -11,6 +11,7 @@ Sites: [ysonet.net](https://ysonet.net) or [ysonet.com](https://ysonet.com) (bot
 - [Gadgets and Plugins](gadgets-and-plugins.md) - the gadget list, the plugin list, and plugin options.
 - [References](references.md) - background reading, talks, related tools, and uses in the wild.
 - [Credits](credits.md) - who built the tool and found the gadgets and plugins.
+- [Architecture](ARCHITECTURE.md) - full code map of the project, for contributors and agents.
 
 ## A note on the generated lists
 
