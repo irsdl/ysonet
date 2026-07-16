@@ -61,7 +61,7 @@ This software is a personal project and not related to any companies, including 
 3. Push your branch to *your fork*.
 4. Open a PR to **irsdl/ysonet:master** using this link (replace `YOUR_USER` and `YOUR_BRANCH`):
    `https://github.com/irsdl/ysonet/compare/master...YOUR_USER:ysonet:YOUR_BRANCH`
-5. For breaking changes, add the label **`major`** to the PR.
+5. For breaking changes, call them out clearly in the PR description.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the short version.
 

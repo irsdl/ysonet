@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version string like v1.00"
+        description: "Version string like v2026.7.1 (vYEAR.MONTH.RELEASE)"
         required: true
-        default: "v1.00"
+        default: "v2026.7.1"
         type: string
       create_tag:
         description: "Create tag if it doesn't exist"
@@ -40,7 +40,9 @@ jobs:
           } else {
             $v = (Get-Content VERSION -Raw).Trim()
           }
-          if ($v -notmatch '^v\d+\.\d+$') { throw "Unexpected VERSION format: $v" }
+          # Versioning is calendar based: vYEAR.MONTH.RELEASE (middle = month,
+          # last = release count in that month). Example: v2026.7.1.
+          if ($v -notmatch '^v\d+\.\d+\.\d+$') { throw "Unexpected VERSION format: $v (expected vYEAR.MONTH.RELEASE like v2026.7.1)" }
           $tag = "ysonet/$v"
           "value=$v"  >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT

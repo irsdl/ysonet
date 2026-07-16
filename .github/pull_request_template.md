@@ -5,7 +5,7 @@
 ### Type of change
 - [ ] Bug fix
 - [ ] Feature
-- [ ] **Major / breaking**  -> please add the `major` label
+- [ ] **Breaking change** -> call it out clearly in the summary above
 
 ### Checklist
 - [ ] PR targets **irsdl/ysonet:master**
