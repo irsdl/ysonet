@@ -147,8 +147,23 @@ namespace ysonet
                 }
             }
 
+            // A gadget can declare that it ignores the command (CommandInput() == Ignored),
+            // e.g. ActivitySurrogateDisableTypeCheck just flips a protection flag. For those,
+            // -c is not required anywhere: treat a missing command as already satisfied.
+            bool commandIgnored = false;
+            if (!string.IsNullOrEmpty(gadget_name) && plugin_name == "")
+            {
+                string exactForCmd = GadgetHelper.ValidateAndGetExactGadgetName(gadget_name);
+                if (!string.IsNullOrEmpty(exactForCmd))
+                {
+                    IGenerator gForCmd = GadgetHelper.CreateGadgetInstance(exactForCmd);
+                    if (gForCmd != null && gForCmd.CommandInput() == CommandInputType.Ignored)
+                        commandIgnored = true;
+                }
+            }
+
             // Check for missing arguments and decide when to show general help
-            if (((cmd == "" && !cmdstdin) || formatter_name == "" || gadget_name == "") &&
+            if (((cmd == "" && !cmdstdin && !commandIgnored) || formatter_name == "" || gadget_name == "") &&
                 plugin_name == "" && !show_credit && searchFormatter == "")
             {
                 // If a gadget name is provided but other params are missing (scenario A)
@@ -159,7 +174,7 @@ namespace ysonet
 
                     if (!string.IsNullOrEmpty(exactGadgetName))
                     {
-                        Console.WriteLine("Missing arguments. You may need to provide the command parameter even if it is being ignored.");
+                        Console.WriteLine("Missing arguments (a gadget also needs a formatter, and usually a command).");
                         ShowGadgetSpecificHelp(exactGadgetName);
                         System.Environment.Exit(0);
                     }
@@ -193,7 +208,7 @@ namespace ysonet
                 }
                 else if (!show_help)
                 {
-                    Console.WriteLine("Missing arguments. You may need to provide the command parameter even if it is being ignored.");
+                    Console.WriteLine("Missing arguments.");
                     show_help = true;
                 }
             }
@@ -278,7 +293,7 @@ namespace ysonet
                 ProcessOutput(outputformat, raw, isDebugMode, outputpath);
             }
             // othersiwe run payload generation
-            else if (!isSearchFormatterAndRunMode && (cmd != "" || cmdstdin) && formatter_name != "" && gadget_name != "")
+            else if (!isSearchFormatterAndRunMode && (cmd != "" || cmdstdin || commandIgnored) && formatter_name != "" && gadget_name != "")
             {
                 List<string> gadgetsChain = new List<string>();
 

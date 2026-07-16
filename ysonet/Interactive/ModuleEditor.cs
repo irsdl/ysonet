@@ -28,16 +28,16 @@ namespace ysonet.Interactive
         // the "remember my last command" behavior is identical in both.
         public string CommandDefaultFor(CommandInputType t)
         {
-            return (t == CommandInputType.ShellCommand || t == CommandInputType.Ignored)
-                ? LastShellCommand : "";
+            // Only a real shell command has a default. An ignored command stays empty
+            // so the field can be hidden and no spurious -c is echoed.
+            return t == CommandInputType.ShellCommand ? LastShellCommand : "";
         }
 
         // Remember a shell command so the next build defaults to it. Only shell-style
-        // inputs are remembered (a file path or URL is not a "command").
+        // inputs are remembered (a file path, URL, or ignored command is not a "command").
         public void Remember(CommandInputType t, string command)
         {
-            if ((t == CommandInputType.ShellCommand || t == CommandInputType.Ignored)
-                && !string.IsNullOrEmpty(command))
+            if (t == CommandInputType.ShellCommand && !string.IsNullOrEmpty(command))
                 LastShellCommand = command;
         }
     }
@@ -778,7 +778,10 @@ namespace ysonet.Interactive
                 return;
 
             CommandInputType eff = EffectiveInput();
-            _command.Required = eff != CommandInputType.Ignored;
+            bool cmdIgnored = eff == CommandInputType.Ignored;
+            _command.Required = !cmdIgnored;
+            // A gadget that ignores the command does not show the field at all.
+            _command.Hidden = cmdIgnored;
             _command.Help = Wizard.CommandLabel(eff) + " - " + Wizard.CommandHelp(eff);
 
             // On the first refresh, or whenever the input type changes, reset the
@@ -794,8 +797,10 @@ namespace ysonet.Interactive
                 _lastEffInputKnown = true;
             }
 
+            // rawcmd only changes how a shell command is wrapped, so it is only
+            // meaningful for a real shell command (not for ignored/file/url/dll inputs).
             if (_rawcmd != null)
-                _rawcmd.Hidden = !(eff == CommandInputType.ShellCommand || eff == CommandInputType.Ignored);
+                _rawcmd.Hidden = eff != CommandInputType.ShellCommand;
         }
 
         private CommandInputType EffectiveInput()
