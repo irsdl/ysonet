@@ -46,19 +46,10 @@ using ysonet.Helpers;
  *   - The RestrictiveXamlXmlReader clipboard-paste mitigation this mode works around
  *     is CVE-2020-0605 / CVE-2020-0606 (the latter, "code execution via malicious WPF
  *     annotation/Sticky Notes files", was credited to Soroush Dalili).
- *   - Related but NOT what this mode exploits: the July 2026 .NET FX CU (KB5101005)
- *     fixed CVE-2026-50646, the only .NET Framework RCE in that batch (MSRC class:
- *     protection mechanism failure, CWE-693; local RCE). Binary-diff analysis ties it
- *     to the WPF *copy/undo* XAML round-trip sinks
- *     (ClipboardProcessor.CopySelectionInXAML, TextTreeDeleteContentUndoUnit) now
- *     routed through RestrictiveXamlXmlReader. That copy/undo path is gated by a
- *     different switch
- *     (FrameworkCompatibilityPreferences.DisableLegacyDangerousXamlDeserializationMode,
- *     default true) and is not reachable by pasting attacker-supplied clipboard data,
- *     so this paste-delivery mode is complementary to it, not an exploit of it.
- *     CVE-2026-50646 was credited by MSRC to Ky0toFu (@ky0tofu), Kevin Gosse (@kookiz),
- *     and an anonymous reporter. (CVE-2026-50649 is the .NET / .NET Core sibling,
- *     CWE-502, and does not apply to this .NET Framework tool.)
+ *   - Not to be confused with CVE-2026-50646 (July 2026): that fix hardens the WPF
+ *     copy/undo XAML sinks, which fire when a victim copies or undoes attacker-loaded
+ *     document content, not when pasting an attacker clipboard. This paste-delivery
+ *     mode does not reach or exploit it.
  **/
 
 namespace ysonet.Plugins
@@ -75,7 +66,7 @@ namespace ysonet.Plugins
 
         static OptionSet options = new OptionSet()
             {
-                {"m|mode=", "delivery mode. 'winforms' (default): a BinaryFormatter gadget under a WinForms format (see --format). 'wpfxaml': an ObjectDataProvider XAML string under the WPF 'Xaml' clipboard format, targeting InkCanvas or RichTextBox paste. wpfxaml is blocked by default since the CVE-2020-0605/0606 clipboard fix; it only fires when the target turns on the legacy dangerous clipboard deserialization switch (Switch.System.Windows.EnableLegacyDangerousClipboardDeserializationMode=true) or predates that fix. Default: winforms", v => { if (v != null) mode = v.Trim().ToLowerInvariant(); } },
+                {"m|mode=", "delivery mode (default: winforms). 'winforms': a BinaryFormatter gadget under a WinForms format (see --format). 'wpfxaml': an ObjectDataProvider XAML string under the WPF 'Xaml' format, for InkCanvas/RichTextBox paste; fires only if the target enabled the legacy clipboard switch or predates the CVE-2020-0605/0606 mitigation (see the header comment for details).", v => { if (v != null) mode = v.Trim().ToLowerInvariant(); } },
                 {"F|format=", "winforms mode only. The object format: Csv, DeviceIndependentBitmap, DataInterchangeFormat, PenData, RiffAudio, WindowsForms10PersistentObject, System.String, SymbolicLink, TaggedImageFileFormat, WaveAudio. Default: WindowsForms10PersistentObject (the only one that works in Feb 2020 as a result of an incomplete silent patch - will not be useful to target text-based fields anymore)", v => format = v },
                 {"xamlvariant=", "wpfxaml mode only. ObjectDataProvider XAML variant: 1 = bare ObjectDataProvider, 2 = ResourceDictionary wrapper (looks like real clipboard XAML). Default: 2", v => int.TryParse(v, out xamlVariant) },
                 {"c|command=", "the command to be executed", v => command = v },
