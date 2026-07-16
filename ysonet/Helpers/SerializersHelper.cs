@@ -34,7 +34,7 @@ namespace ysonet.Helpers
             try
             {
                 Console.WriteLine("\n~~XmlSerializer:~~\n");
-                Console.WriteLine(XmlSerializer_serialize(myobj, myobj.GetType()));
+                Console.WriteLine(XmlSerializer_serialize(myobj, type));
             }
             catch (Exception e)
             {
@@ -44,7 +44,7 @@ namespace ysonet.Helpers
             try
             {
                 Console.WriteLine("\n~~DataContractSerializer:~~\n");
-                Console.WriteLine(DataContractSerializer_serialize(myobj, myobj.GetType()));
+                Console.WriteLine(DataContractSerializer_serialize(myobj, type));
             }
             catch (Exception e)
             {
@@ -410,7 +410,15 @@ namespace ysonet.Helpers
 
         public static object DataContractSerializer_test(object myobj)
         {
-            return DataContractSerializer_deserialize(DataContractSerializer_serialize(myobj), myobj.GetType());
+            try
+            {
+                return DataContractSerializer_deserialize(DataContractSerializer_serialize(myobj), myobj.GetType());
+            }
+            catch (Exception e)
+            {
+                //ignore
+                return null;
+            }
         }
 
         public static object DataContractSerializer_test(object myobj, Type type)
@@ -927,7 +935,7 @@ namespace ysonet.Helpers
             });
             MemoryStream ms = new MemoryStream();
             js.WriteObject(ms, gadget);
-            return Encoding.Default.GetString(ms.ToArray());
+            return Encoding.UTF8.GetString(ms.ToArray());
         }
 
         public static object SharpSerializer_Binary_deserialize_FromByteArray(byte[] serializedData)

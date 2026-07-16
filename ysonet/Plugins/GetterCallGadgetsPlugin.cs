@@ -68,8 +68,8 @@ namespace ysonet.Plugins
         {
             return @"
 Plugin allows you to chain any ""insecure serialization"" gadget with the arbitrary getter call gadget. 
-You can use this pluing to chain serialization gadgets found in different codebases with arbitrary getter call gadget and reach malicious getter call.
-Several chain of gadgets are already implemented in YSoNet, see following gadgets:
+You can use this plugin to chain serialization gadgets found in different codebases with arbitrary getter call gadget and reach malicious getter call.
+Several chains of gadgets are already implemented in YSoNet, see following gadgets:
 - GetterSecurityException
 - GetterSettingsPropertyValue
 - GetterCompilerResults

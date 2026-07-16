@@ -23,7 +23,10 @@ namespace ysonet.Interactive
         public static ConsoleColor SelectBg = ConsoleColor.Cyan;
         public static ConsoleColor Accent = ConsoleColor.Magenta; // module-specific options
 
-        private static readonly bool _noColorEnv =
+        // True when the environment permits color: the NO_COLOR convention says any
+        // value (even empty) disables color, so color is allowed only when the
+        // variable is absent.
+        private static readonly bool _colorAllowedByEnv =
             Environment.GetEnvironmentVariable("NO_COLOR") == null;
 
         // A theme can force plain text (monochrome), independent of NO_COLOR.
@@ -90,7 +93,7 @@ namespace ysonet.Interactive
 
         private static bool ColorsOn()
         {
-            if (!_noColorEnv || _monochrome)
+            if (!_colorAllowedByEnv || _monochrome)
                 return false;
             try { return T.CanControl; }
             catch { return false; }

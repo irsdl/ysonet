@@ -170,10 +170,27 @@ namespace ysonet.Tests
         public RecordingKeyReader Left() { return Add('\0', ConsoleKey.LeftArrow); }
         public RecordingKeyReader Digit(int n) { return Add((char)('0' + n), (ConsoleKey)((int)ConsoleKey.D0 + n)); }
         public RecordingKeyReader Type(string t) { foreach (char c in t) Add(c, ConsoleKey.A); return this; }
+        public RecordingKeyReader Backspace(int n = 1) { for (int i = 0; i < n; i++) Add('\b', ConsoleKey.Backspace); return this; }
+        public RecordingKeyReader Delete(int n = 1) { for (int i = 0; i < n; i++) Add('\0', ConsoleKey.Delete); return this; }
+        public RecordingKeyReader Home() { return Add('\0', ConsoleKey.Home); }
+        public RecordingKeyReader End() { return Add('\0', ConsoleKey.End); }
+        // Modifier chords used by the line editor.
+        public RecordingKeyReader CtrlLeft() { return AddMod('\0', ConsoleKey.LeftArrow, true, false); }
+        public RecordingKeyReader CtrlRight() { return AddMod('\0', ConsoleKey.RightArrow, true, false); }
+        public RecordingKeyReader CtrlBackspace() { return AddMod((char)127, ConsoleKey.Backspace, true, false); }
+        public RecordingKeyReader CtrlDelete() { return AddMod('\0', ConsoleKey.Delete, true, false); }
+        public RecordingKeyReader CtrlU() { return AddMod((char)21, ConsoleKey.U, true, false); }
+        public RecordingKeyReader AltZ() { return AddMod('z', ConsoleKey.Z, false, true); }
 
         private RecordingKeyReader Add(char c, ConsoleKey k)
         {
             _keys.Enqueue(new ConsoleKeyInfo(c, k, false, false, false));
+            return this;
+        }
+
+        private RecordingKeyReader AddMod(char c, ConsoleKey k, bool ctrl, bool alt)
+        {
+            _keys.Enqueue(new ConsoleKeyInfo(c, k, false, alt, ctrl));
             return this;
         }
 

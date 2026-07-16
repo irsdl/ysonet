@@ -16,6 +16,7 @@ namespace ysonet.Interactive
         public string[] Choices;     // small known set (menu); else null (free text)
         public string Value;         // current value; for a flag, "true" when on
         public bool Advanced;        // collapse under "Advanced options" by default
+        public bool ForceEmit;       // emit "--name \"\"" even when Value is empty (explicit empty string)
 
         public bool IsFlag { get { return !TakesValue; } }
 
@@ -49,10 +50,10 @@ namespace ysonet.Interactive
             var tokens = new List<string>();
             if (TakesValue)
             {
-                if (!string.IsNullOrEmpty(Value))
+                if (!string.IsNullOrEmpty(Value) || ForceEmit)
                 {
                     tokens.Add(CliFlag);
-                    tokens.Add(Value);
+                    tokens.Add(Value ?? "");
                 }
             }
             else

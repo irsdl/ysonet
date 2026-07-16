@@ -74,7 +74,7 @@ Gadgets:
         Formatters: Json.NET, JavaScriptSerializer, Xaml
         [Finders: Piotr Bazydlo]
 
-    (*) FileLogTraceListener - directory creation payload.May lead to DoS, when executed with admin privileges.
+    (*) FileLogTraceListener - directory creation payload. May lead to DoS, when executed with admin privileges.
         Formatters: Json.NET, JavaScriptSerializer, Xaml
         [Finders: Piotr Bazydlo]
 

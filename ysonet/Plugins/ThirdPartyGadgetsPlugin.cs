@@ -104,7 +104,7 @@ Gadgets:
         Tested Version: 2.1.0
         [Finders: Piotr Bazydlo]
 
-    (*) PreserverWorkingFolder (Xunit + Xunit Runner Utility) - sets current directory through Directory.SetCurrentDirectory. Can be used to mess with file operations based on relative paths
+    (*) PreserveWorkingFolder (Xunit + Xunit Runner Utility) - sets current directory through Directory.SetCurrentDirectory. Can be used to mess with file operations based on relative paths
         Affects: .NET Framework
         Input: path to the directory that we want to set, can be either remote (UNC) or local path
         Formatters: Json.NET

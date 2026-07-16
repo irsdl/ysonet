@@ -207,7 +207,7 @@ namespace ysonet.Generators
             }
             else if (formatter.ToLowerInvariant().Equals("messagepacktypeless") || formatter.ToLowerInvariant().Equals("messagepacktypelesslz4"))
             {
-                Console.WriteLine("\r\nThis version of gadget works for MessagePack >= 2.3.75\r\n");
+                Console.WriteLine("\r\nThis version of the gadget works for MessagePack >= 2.3.75\r\n");
                 if (variant_number != 1)
                 {
                     Console.WriteLine("GetterSettingsPropertyValue is implemented only for variant 1 (PropertyGrid getter chain). Switching to variant 1.\r\n");

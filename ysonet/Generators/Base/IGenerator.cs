@@ -92,7 +92,7 @@ namespace ysonet.Generators
             OnDeserialized = "Uses OnDeserialized attribute",
             SecondOrderDeserialization = "Second order deserialization",
             NotInGAC = "Not in GAC", // This is when the gadget is not in GAC
-            Hidden = "Valuable for especial cases or research purposes but hidden from normal search",
+            Hidden = "Valuable for special cases or research purposes but hidden from normal search",
             None = "";
     }
 

@@ -121,10 +121,37 @@ namespace ysonet.Interactive
             }
         }
 
+        // The product version for the banner, read from the assembly's informational
+        // version (set in AssemblyInfo, bumped with the VERSION file on release).
+        // Best effort: falls back to the file version, then to nothing.
+        internal static string ProductVersion()
+        {
+            try
+            {
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                object[] info = asm.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false);
+                if (info.Length > 0)
+                {
+                    string v = ((System.Reflection.AssemblyInformationalVersionAttribute)info[0]).InformationalVersion;
+                    if (!string.IsNullOrEmpty(v) && v != "1.0.0.0")
+                    {
+                        int plus = v.IndexOf('+'); // drop a "+ysonet" build suffix
+                        return plus >= 0 ? v.Substring(0, plus) : v;
+                    }
+                }
+                System.Version fv = asm.GetName().Version;
+                return (fv != null && fv.ToString() != "1.0.0.0") ? ("v" + fv) : "";
+            }
+            catch { return ""; }
+        }
+
         private void PrintBanner()
         {
+            string ver = ProductVersion();
+            string title = "=== YSoNet interactive mode - beta"
+                + (string.IsNullOrEmpty(ver) ? "" : (" " + ver)) + " ===";
             WriteLine("");
-            ConsoleStyle.WriteLine("=== YSoNet interactive mode ===", ConsoleStyle.Banner);
+            ConsoleStyle.WriteLine(title, ConsoleStyle.Banner);
             ConsoleStyle.WriteLine("Build a payload step by step. Prompts and menus are on stderr;", ConsoleStyle.Help);
             ConsoleStyle.WriteLine("only the final payload goes to stdout, so piping still works.", ConsoleStyle.Help);
             ConsoleStyle.WriteLine("Press Esc at any prompt to go back to this menu.", ConsoleStyle.Help);
@@ -181,19 +208,17 @@ namespace ysonet.Interactive
         // the next frame can redraw in place.
         private int RenderThemeMenu(ConsoleStyle.Theme[] themes, int index)
         {
-            int lines = 0;
-            ConsoleStyle.WriteLine(ConsoleCursor.PadClear("Pick a color theme (live preview; Enter saves, Esc reverts):"), ConsoleStyle.Heading);
-            lines++;
+            var fw = new FrameWriter();
+            fw.Line(ConsoleCursor.PadClear("Pick a color theme (live preview; Enter saves, Esc reverts):"), ConsoleStyle.Heading);
             for (int i = 0; i < themes.Length; i++)
             {
                 bool selected = (i == index);
                 string num = (i < 9) ? (i + 1) + "." : "  ";
                 string line = ConsoleCursor.PadClear((selected ? "> " : "  ") + num + " " + themes[i].Name);
                 if (selected)
-                    ConsoleStyle.WriteLineHighlight(line, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
+                    fw.LineHighlight(line, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
                 else
-                    ConsoleStyle.WriteLine(line);
-                lines++;
+                    fw.Line(line);
             }
             // A sample row so the effect is visible beyond the highlight bar. Each
             // word is a separate colored segment, so DON'T pad the prefix to full
@@ -202,23 +227,22 @@ namespace ysonet.Interactive
             // clear leftovers while keeping it a single line.
             string prefix = "  sample -> ";
             string words = "heading command gadget-option ok error";
-            ConsoleStyle.Write(prefix, ConsoleStyle.Help);
-            ConsoleStyle.Write("heading ", ConsoleStyle.Heading);
-            ConsoleStyle.Write("command ", ConsoleStyle.Command);
-            ConsoleStyle.Write("gadget-option ", ConsoleStyle.Accent);
-            ConsoleStyle.Write("ok ", ConsoleStyle.Success);
-            ConsoleStyle.Write("error", ConsoleStyle.Error);
+            fw.Cell(prefix, ConsoleStyle.Help);
+            fw.Cell("heading ", ConsoleStyle.Heading);
+            fw.Cell("command ", ConsoleStyle.Command);
+            fw.Cell("gadget-option ", ConsoleStyle.Accent);
+            fw.Cell("ok ", ConsoleStyle.Success);
+            fw.Cell("error", ConsoleStyle.Error);
             int used = prefix.Length + words.Length;
             try
             {
                 int width = ConsoleCursor.Width();
                 if (used < width)
-                    ConsoleStyle.Write(new string(' ', width - used));
+                    fw.Cell(new string(' ', width - used));
             }
             catch { }
-            ConsoleStyle.NewLine();
-            lines++;
-            return lines;
+            fw.EndLine();
+            return fw.Lines;
         }
 
         // ---- Gadget path -------------------------------------------------------
@@ -248,16 +272,12 @@ namespace ysonet.Interactive
         // module editor via _session). Session only; not persisted.
         private string CommandDefaultFor(CommandInputType t)
         {
-            if (t == CommandInputType.ShellCommand || t == CommandInputType.Ignored)
-                return _session.LastShellCommand;
-            return CommandDefault(t);
+            return _session.CommandDefaultFor(t);
         }
 
         private void RememberCommand(CommandInputType t, string command)
         {
-            if ((t == CommandInputType.ShellCommand || t == CommandInputType.Ignored)
-                && !string.IsNullOrEmpty(command))
-                _session.LastShellCommand = command;
+            _session.Remember(t, command);
         }
 
         // ---- Informational top-menu entries -----------------------------------
@@ -601,7 +621,7 @@ namespace ysonet.Interactive
                 req.FormatterName = formatterToken;
                 req.OutputFormat = outputFormat;
                 req.InputArgs = inputArgs;
-                RunResult r = Quiet(() => PayloadRunner.GenerateGadget(req));
+                RunResult r = ConsoleQuiet.Run(() => PayloadRunner.GenerateGadget(req));
                 if (!r.Success)
                     return null;
                 int len;
@@ -610,26 +630,6 @@ namespace ysonet.Interactive
             catch (Exception)
             {
                 return null;
-            }
-        }
-
-        // Run a function with Console.Out/Error suppressed, so a gadget that prints
-        // during generation cannot leak onto the real stdout (which carries the
-        // payload) or clutter the menus. Always restores the previous writers.
-        private static T Quiet<T>(Func<T> f)
-        {
-            var prevOut = Console.Out;
-            var prevErr = Console.Error;
-            try
-            {
-                Console.SetOut(TextWriter.Null);
-                Console.SetError(TextWriter.Null);
-                return f();
-            }
-            finally
-            {
-                Console.SetOut(prevOut);
-                Console.SetError(prevErr);
             }
         }
 
@@ -778,14 +778,16 @@ namespace ysonet.Interactive
                     if (sb.Length > 0)
                     {
                         sb.Length = sb.Length - 1;
-                        ConsoleStyle.Write("\b \b"); // erase on a real console
+                        if (ConsoleCursor.CanControl())
+                            ConsoleStyle.Write("\b \b"); // erase only on a real console
                     }
                     continue;
                 }
                 if (k.KeyChar != '\0' && !char.IsControl(k.KeyChar))
                 {
                     sb.Append(k.KeyChar);
-                    ConsoleStyle.Write(k.KeyChar.ToString()); // echo (ReadKey is non-echoing)
+                    if (ConsoleCursor.CanControl())
+                        ConsoleStyle.Write(k.KeyChar.ToString()); // echo only on a real console (ReadKey is non-echoing)
                 }
             }
 

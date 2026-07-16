@@ -20,6 +20,7 @@ namespace ysonet.Interactive
         public CommandInputType CommandInput; // gadgets only; what -c means
         public List<GadgetVariant> Variants;  // gadgets only; empty if none
         public List<OptionField> OptionFields;
+        public List<PluginMode> Modes;        // plugins that declare interactive modes; else null
 
         // The option field that carries the variant number (var/variant or
         // ig/internalgadget), so the wizard can set it from the variant menu and
@@ -71,6 +72,7 @@ namespace ysonet.Interactive
             view.BridgedFormatter = "";
             view.Variants = new List<GadgetVariant>();
             view.OptionFields = OptionField.FromOptionSet(p.Options());
+            view.Modes = (p is IPluginModes) ? ((IPluginModes)p).InteractiveModes() : null;
             return view;
         }
 

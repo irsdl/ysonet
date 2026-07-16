@@ -116,6 +116,24 @@ namespace ysonet.Interactive
                     if (filtered.Count > 0)
                         index = (index + 1) % filtered.Count;
                 }
+                else if (key.Key == ConsoleKey.Home)
+                {
+                    index = 0;
+                }
+                else if (key.Key == ConsoleKey.End)
+                {
+                    if (filtered.Count > 0)
+                        index = filtered.Count - 1;
+                }
+                else if (key.Key == ConsoleKey.PageUp)
+                {
+                    index = Math.Max(0, index - MaxRows);
+                }
+                else if (key.Key == ConsoleKey.PageDown)
+                {
+                    if (filtered.Count > 0)
+                        index = Math.Min(filtered.Count - 1, index + MaxRows);
+                }
                 else if (key.Key == ConsoleKey.Backspace)
                 {
                     if (query.Length > 0)
@@ -145,11 +163,10 @@ namespace ysonet.Interactive
         // Write the picker block (constant height) and return the line count.
         private int Render(string query, List<string> filtered, int index, Func<string, string> preview)
         {
-            int written = 0;
+            var fw = new FrameWriter();
 
-            ConsoleStyle.Write(ConsoleCursor.PadClear("Search: " + query), ConsoleStyle.Prompt);
-            ConsoleStyle.NewLine();
-            written++;
+            fw.Cell(ConsoleCursor.PadClear("Search: " + query), ConsoleStyle.Prompt);
+            fw.EndLine();
 
             int start = 0;
             if (index >= MaxRows)
@@ -164,22 +181,20 @@ namespace ysonet.Interactive
                     string marker = selected ? " > " : "   ";
                     string line = ConsoleCursor.PadClear(marker + filtered[i]);
                     if (selected)
-                        ConsoleStyle.WriteLineHighlight(line, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
+                        fw.LineHighlight(line, ConsoleStyle.SelectFg, ConsoleStyle.SelectBg);
                     else
-                        ConsoleStyle.WriteLine(line);
+                        fw.Line(line);
                 }
                 else
                 {
-                    ConsoleStyle.WriteLine(ConsoleCursor.PadClear(""));
+                    fw.Line(ConsoleCursor.PadClear(""));
                 }
-                written++;
             }
 
             if (filtered.Count == 0)
-                ConsoleStyle.WriteLine(ConsoleCursor.PadClear("  (no matches)"), ConsoleStyle.Error);
+                fw.Line(ConsoleCursor.PadClear("  (no matches)"), ConsoleStyle.Error);
             else
-                ConsoleStyle.WriteLine(ConsoleCursor.PadClear("  " + filtered.Count + " match(es)"), ConsoleStyle.Help);
-            written++;
+                fw.Line(ConsoleCursor.PadClear("  " + filtered.Count + " match(es)"), ConsoleStyle.Help);
 
             // preview block, constant height for a clean redraw
             string[] previewLines = new string[0];
@@ -191,11 +206,10 @@ namespace ysonet.Interactive
             for (int p = 0; p < MaxPreviewLines; p++)
             {
                 string line = (p < previewLines.Length) ? previewLines[p] : "";
-                ConsoleStyle.WriteLine(ConsoleCursor.PadClear(line), ConsoleStyle.Help);
-                written++;
+                fw.Line(ConsoleCursor.PadClear(line), ConsoleStyle.Help);
             }
 
-            return written;
+            return fw.Lines;
         }
     }
 }

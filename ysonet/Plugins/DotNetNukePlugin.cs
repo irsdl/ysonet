@@ -7,7 +7,7 @@ using ysonet.Helpers;
 
 namespace ysonet.Plugins
 {
-    public class DotNetNukePlugin : IPlugin
+    public class DotNetNukePlugin : IPlugin, IPluginModes
     {
         static string mode = "";
         static string path = "";
@@ -21,7 +21,7 @@ namespace ysonet.Plugins
                 {"m|mode=", "the payload mode: read_file, write_file, run_command.", v => mode = v },
                 {"c|command=", "the command to be executed in run_command mode.", v => command = v },
                 {"u|url=", "the url to fetch the file from in write_file mode.", v => url = v },
-                {"f|file=", "the file to read in read_file mode or the file to write to in write_file_mode.", v => path = v },
+                {"f|file=", "the file to read in read_file mode or the file to write to in write_file mode.", v => path = v },
                 {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
             };
 
@@ -43,6 +43,36 @@ namespace ysonet.Plugins
         public OptionSet Options()
         {
             return options;
+        }
+
+        // Interactive-only mode descriptions (see IPluginModes). Each maps to a value
+        // of the plugin's own --mode option; the CLI is unchanged.
+        public List<PluginMode> InteractiveModes()
+        {
+            return new List<PluginMode>
+            {
+                new PluginMode {
+                    Name = "Run command (run_command)",
+                    Description = "Execute a command on the target.",
+                    Options = new string[] { "command", "minify" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "mode", "run_command" } },
+                },
+                new PluginMode {
+                    Name = "Read file (read_file)",
+                    Description = "Make the target read/write a local file path.",
+                    Options = new string[] { "file", "minify" },
+                    Required = new string[] { "file" },
+                    Preset = new Dictionary<string, string> { { "mode", "read_file" } },
+                },
+                new PluginMode {
+                    Name = "Write file (write_file)",
+                    Description = "Pull a URL and write it to a file on the target.",
+                    Options = new string[] { "file", "url", "minify" },
+                    Required = new string[] { "file", "url" },
+                    Preset = new Dictionary<string, string> { { "mode", "write_file" } },
+                },
+            };
         }
 
         public object Run(string[] args)

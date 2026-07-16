@@ -26,11 +26,44 @@ using ysonet.Helpers;
  *     only fires when the target enables the legacy clipboard switch or predates the
  *     mitigation. It is a delivery vector for the ObjectDataProvider gadget, not a
  *     default-config issue.
+ *
+ *  How the wpfxaml paste gate works:
+ *   The WPF paste sinks (MS.Internal.Ink.XamlClipboardData.DoPaste and
+ *   System.Windows.Documents.TextEditorCopyPaste.PasteXaml) run the clipboard XAML
+ *   through RestrictiveXamlXmlReader unless the app opts out with the AppContext switch
+ *   'Switch.System.Windows.EnableLegacyDangerousClipboardDeserializationMode' (default
+ *   false). With the switch off the ObjectDataProvider gadget is dropped; set it true
+ *   (or run a framework predating the mitigation, and with Device Guard / WDAC off) and
+ *   the gadget runs on paste. The --test option below simulates both paths locally.
+ *
+ *  References and credit:
+ *   - ObjectDataProvider XAML gadget: Oleksandr Mirosh and Alvaro Munoz
+ *     ("Friday the 13th JSON attacks", Black Hat USA 2017). ysonet builds it with
+ *     ObjectDataProviderGenerator.
+ *   - Clipboard DataObject.SetData deserialization vector: NCC Group research
+ *     "Use of Deserialisation in .NET Framework Methods and Classes" (Soroush Dalili,
+ *     Dec 2018), the origin of this plugin.
+ *   - The RestrictiveXamlXmlReader clipboard-paste mitigation this mode works around
+ *     is CVE-2020-0605 / CVE-2020-0606 (the latter, "code execution via malicious WPF
+ *     annotation/Sticky Notes files", was credited to Soroush Dalili).
+ *   - Related but NOT what this mode exploits: the July 2026 .NET FX CU (KB5101005)
+ *     fixed CVE-2026-50646, the only .NET Framework RCE in that batch (MSRC class:
+ *     protection mechanism failure, CWE-693; local RCE). Binary-diff analysis ties it
+ *     to the WPF *copy/undo* XAML round-trip sinks
+ *     (ClipboardProcessor.CopySelectionInXAML, TextTreeDeleteContentUndoUnit) now
+ *     routed through RestrictiveXamlXmlReader. That copy/undo path is gated by a
+ *     different switch
+ *     (FrameworkCompatibilityPreferences.DisableLegacyDangerousXamlDeserializationMode,
+ *     default true) and is not reachable by pasting attacker-supplied clipboard data,
+ *     so this paste-delivery mode is complementary to it, not an exploit of it.
+ *     CVE-2026-50646 was credited by MSRC to Ky0toFu (@ky0tofu), Kevin Gosse (@kookiz),
+ *     and an anonymous reporter. (CVE-2026-50649 is the .NET / .NET Core sibling,
+ *     CWE-502, and does not apply to this .NET Framework tool.)
  **/
 
 namespace ysonet.Plugins
 {
-    public class ClipboardPlugin : IPlugin
+    public class ClipboardPlugin : IPlugin, IPluginModes
     {
         static string format = System.Windows.Forms.DataFormats.Serializable;
         static string command = "";
@@ -42,7 +75,7 @@ namespace ysonet.Plugins
 
         static OptionSet options = new OptionSet()
             {
-                {"m|mode=", "delivery mode. 'winforms' (default): a BinaryFormatter gadget under a WinForms format (see --format). 'wpfxaml': an ObjectDataProvider XAML string under the WPF 'Xaml' clipboard format, targeting InkCanvas or RichTextBox paste. wpfxaml is blocked by default since the CVE-2020-0605/0606 clipboard fix; it only fires when the target turns on the legacy dangerous clipboard deserialization switch or predates that fix. Default: winforms", v => { if (v != null) mode = v.Trim().ToLowerInvariant(); } },
+                {"m|mode=", "delivery mode. 'winforms' (default): a BinaryFormatter gadget under a WinForms format (see --format). 'wpfxaml': an ObjectDataProvider XAML string under the WPF 'Xaml' clipboard format, targeting InkCanvas or RichTextBox paste. wpfxaml is blocked by default since the CVE-2020-0605/0606 clipboard fix; it only fires when the target turns on the legacy dangerous clipboard deserialization switch (Switch.System.Windows.EnableLegacyDangerousClipboardDeserializationMode=true) or predates that fix. Default: winforms", v => { if (v != null) mode = v.Trim().ToLowerInvariant(); } },
                 {"F|format=", "winforms mode only. The object format: Csv, DeviceIndependentBitmap, DataInterchangeFormat, PenData, RiffAudio, WindowsForms10PersistentObject, System.String, SymbolicLink, TaggedImageFileFormat, WaveAudio. Default: WindowsForms10PersistentObject (the only one that works in Feb 2020 as a result of an incomplete silent patch - will not be useful to target text-based fields anymore)", v => format = v },
                 {"xamlvariant=", "wpfxaml mode only. ObjectDataProvider XAML variant: 1 = bare ObjectDataProvider, 2 = ResourceDictionary wrapper (looks like real clipboard XAML). Default: 2", v => int.TryParse(v, out xamlVariant) },
                 {"c|command=", "the command to be executed", v => command = v },
@@ -70,6 +103,30 @@ namespace ysonet.Plugins
         public OptionSet Options()
         {
             return options;
+        }
+
+        // Interactive-only mode descriptions (see IPluginModes). Each maps to a value
+        // of the plugin's own --mode option; --format applies only to winforms and
+        // --xamlvariant only to wpfxaml, which the modes encode. The CLI is unchanged.
+        public List<PluginMode> InteractiveModes()
+        {
+            return new List<PluginMode>
+            {
+                new PluginMode {
+                    Name = "WinForms (BinaryFormatter under a WinForms format)",
+                    Description = "TextFormattingRunProperties under a WinForms clipboard format.",
+                    Options = new string[] { "command", "format", "test", "minify", "usesimpletype" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "mode", "winforms" } },
+                },
+                new PluginMode {
+                    Name = "WPF XAML (ObjectDataProvider under the Xaml format)",
+                    Description = "ObjectDataProvider XAML under the WPF 'Xaml' clipboard format.",
+                    Options = new string[] { "command", "xamlvariant", "test", "minify", "usesimpletype" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "mode", "wpfxaml" } },
+                },
+            };
         }
 
         public object Run(string[] args)

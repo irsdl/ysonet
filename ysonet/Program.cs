@@ -577,6 +577,7 @@ namespace ysonet
         private static void ShowHelp()
         {
             Console.WriteLine("YSoNet generates deserialization payloads for a variety of .NET formatters.");
+            Console.WriteLine("Project: https://ysonet.net or https://ysonet.com (both open the repo).");
             Console.WriteLine("");
             if (plugin_name == "")
             {
@@ -917,6 +918,8 @@ namespace ysonet
             Console.WriteLine("");
             Console.WriteLine("Various other people have also donated their time and contributed to this project.");
             Console.WriteLine("Please see https://github.com/irsdl/ysonet/graphs/contributors to find those who have helped developing more features or have fixed bugs.");
+            Console.WriteLine("");
+            Console.WriteLine("Project home: https://ysonet.net or https://ysonet.com (both open the repo).");
             System.Environment.Exit(0);
         }
 

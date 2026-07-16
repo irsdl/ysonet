@@ -25,6 +25,7 @@ namespace ysonet.Interactive
         public bool Required;         // best-effort; advisory highlight, not enforced
         public bool Hidden;           // computed rows that do not apply right now
         public bool ModuleOwn;        // a gadget/plugin-specific option (vs a shared built-in)
+        public bool Touched;          // the user changed this value (so it is worth remembering)
         public List<string> Choices;  // Choice/Pick: the offered values
         public bool AllowCustom;      // Choice: also allow typing a value not listed
         public string ActionId;       // Action rows: e.g. "generate"
@@ -36,6 +37,13 @@ namespace ysonet.Interactive
         private string _val = "";
         private Func<string> _get;
         private Action<string> _set;
+        private Action<bool> _setForceEmit;
+
+        // True when the value is an explicitly-set empty string (the user asked for
+        // an empty value), as opposed to simply unset. Kept distinct because for some
+        // options an empty string means something different from "not provided" (e.g.
+        // ViewState's viewStateUserKey checks != null, so "" is a real value).
+        public bool ExplicitEmpty;
 
         public string Value
         {
@@ -47,6 +55,20 @@ namespace ysonet.Interactive
         {
             _get = get;
             _set = set;
+        }
+
+        // Bind the "emit even when empty" flag to the underlying option, so an
+        // explicit empty string is passed on the command line as `--name ""`.
+        public void BindExplicitEmpty(Action<bool> set)
+        {
+            _setForceEmit = set;
+        }
+
+        public void SetExplicitEmpty(bool value)
+        {
+            ExplicitEmpty = value;
+            if (_setForceEmit != null)
+                _setForceEmit(value);
         }
 
         public bool IsAction { get { return Kind == FieldKind.Action; } }
@@ -64,7 +86,9 @@ namespace ysonet.Interactive
                 if (Kind == FieldKind.Flag)
                     return IsOn ? "on" : "off";
                 if (string.IsNullOrEmpty(Value))
-                    return Required ? "(required)" : "(unset)";
+                    return ExplicitEmpty ? "(empty string)" : (Required ? "(required)" : "(unset)");
+                if (Value != Value.Trim())
+                    return "\"" + Value + "\""; // has leading/trailing space, quoted so it is visible
                 return Value;
             }
         }

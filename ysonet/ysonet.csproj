@@ -246,6 +246,9 @@
     <Compile Include="Interactive\ITerminal.cs" />
     <Compile Include="Interactive\ConsoleCursor.cs" />
     <Compile Include="Interactive\ConsoleStyle.cs" />
+    <Compile Include="Interactive\ConsoleQuiet.cs" />
+    <Compile Include="Interactive\FrameWriter.cs" />
+    <Compile Include="Interactive\LineEditBuffer.cs" />
     <Compile Include="Interactive\Menu.cs" />
     <Compile Include="Interactive\Picker.cs" />
     <Compile Include="Interactive\OptionField.cs" />
@@ -297,6 +300,7 @@
     <Compile Include="Plugins\ClipboardPlugin.cs" />
     <Compile Include="Plugins\DotNetNukePlugin.cs" />
     <Compile Include="Plugins\base\IPlugin.cs" />
+    <Compile Include="Plugins\base\IPluginModes.cs" />
     <Compile Include="Plugins\ResxPlugin.cs" />
     <Compile Include="Plugins\SessionSecurityTokenHandlerPlugin.cs" />
     <Compile Include="Plugins\SharePointPlugin.cs" />

@@ -38,3 +38,6 @@ using System.Runtime.InteropServices;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
+// Human-facing product version, shown in the interactive-mode banner. Keep in step
+// with the VERSION file on each release (the release tooling bumps that file).
+[assembly: AssemblyInformationalVersion("v1.14")]

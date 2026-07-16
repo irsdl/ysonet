@@ -25,7 +25,7 @@ using ysonet.Helpers;
 
 namespace ysonet.Plugins
 {
-    public class SharePointPlugin : IPlugin
+    public class SharePointPlugin : IPlugin, IPluginModes
     {
         static string cve = "";
         static string gadget = "TypeConfuseDelegate";
@@ -60,6 +60,59 @@ namespace ysonet.Plugins
         public OptionSet Options()
         {
             return options;
+        }
+
+        // Interactive-only mode descriptions (see IPluginModes). The mode here is the
+        // CVE; each CVE surfaces only its relevant inner setting (a variant, a gadget,
+        // or the useurl switch). Each maps to a value of the plugin's own --cve option,
+        // so the CLI is unchanged.
+        public List<PluginMode> InteractiveModes()
+        {
+            return new List<PluginMode>
+            {
+                new PluginMode {
+                    Name = "CVE-2025-49704 (ToolShell)",
+                    Description = "ToolPane.aspx DataSet gadget; pick a variant.",
+                    Options = new string[] { "command", "variant" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2025-49704" } },
+                },
+                new PluginMode {
+                    Name = "CVE-2025-53770 (ToolShell patch bypass)",
+                    Description = "CVE-2025-49704 with the patch bypass; pick a variant.",
+                    Options = new string[] { "command", "variant" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2025-53770" } },
+                },
+                new PluginMode {
+                    Name = "CVE-2024-38018",
+                    Description = "SPObjectStateFormatter webpart; choose a BinaryFormatter gadget.",
+                    Options = new string[] { "command", "gadget" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2024-38018" } },
+                },
+                new PluginMode {
+                    Name = "CVE-2020-1147",
+                    Description = "DataSet quicklinks gadget; choose a LosFormatter gadget.",
+                    Options = new string[] { "command", "gadget" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2020-1147" } },
+                },
+                new PluginMode {
+                    Name = "CVE-2019-0604",
+                    Description = "XmlSerializer workflow; command or a XAML url (--useurl).",
+                    Options = new string[] { "command", "useurl" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2019-0604" } },
+                },
+                new PluginMode {
+                    Name = "CVE-2018-8421",
+                    Description = "Workflow markup; command or a XAML url (--useurl).",
+                    Options = new string[] { "command", "useurl" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2018-8421" } },
+                },
+            };
         }
 
         public object Run(string[] args)
