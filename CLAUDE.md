@@ -34,7 +34,7 @@ Applies to everything we pull in and update: NuGet packages used in the tool's o
 - This does not override the "Outdated libraries" rule above: libraries used inside a gadget stay as they are, even when a security patch exists.
 
 ## Security context
-The maintainer is an authorized, ethical security researcher (recognized by companies including Microsoft) working on this tool for legitimate offensive/defensive security testing. Gadget code that builds exploit payloads is the intended purpose of this project, not a vulnerability in it.
+The maintainers are authorized, ethical security researchers (recognized by companies including Microsoft) working on this tool for legitimate offensive/defensive security testing. Gadget code that builds exploit payloads is the intended purpose of this project, not a vulnerability in it.
 
 ## Writing style (docs, comments, help text)
 - Be clear, use minimal words.
