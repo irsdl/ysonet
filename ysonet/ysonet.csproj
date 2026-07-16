@@ -344,6 +344,37 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 
   <!--
+    Single source of truth for the product version: the /VERSION file at the repo root.
+    This target reads it at build time and generates the AssemblyInformationalVersion
+    attribute into obj/, so the interactive-mode banner always shows the current version
+    without anyone editing AssemblyInfo.cs (which used to drift). The generated file lives
+    under the intermediate output dir (never committed) and is rewritten only when the
+    version changes, so it does not force needless rebuilds.
+  -->
+  <Target Name="GenerateVersionInfo" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <YsonetVersionFile>$(MSBuildProjectDirectory)\..\VERSION</YsonetVersionFile>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(YsonetVersionFile)')"
+           Text="VERSION file not found at $(YsonetVersionFile). It is the single source of the product version." />
+    <ReadLinesFromFile File="$(YsonetVersionFile)">
+      <Output TaskParameter="Lines" ItemName="YsonetVersionLines" />
+    </ReadLinesFromFile>
+    <PropertyGroup>
+      <YsonetVersion>@(YsonetVersionLines)</YsonetVersion>
+      <YsonetVersion>$(YsonetVersion.Trim())</YsonetVersion>
+      <YsonetVersionGeneratedFile>$(IntermediateOutputPath)VersionInfo.g.cs</YsonetVersionGeneratedFile>
+    </PropertyGroup>
+    <Error Condition="'$(YsonetVersion)' == ''" Text="VERSION file is empty; it must contain a version like v2026.7.1." />
+    <WriteLinesToFile File="$(YsonetVersionGeneratedFile)"
+                      Lines="// Auto-generated from /VERSION at build time. Do not edit.;[assembly: System.Reflection.AssemblyInformationalVersion(&quot;$(YsonetVersion)&quot;)]"
+                      Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(YsonetVersionGeneratedFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
     String-encrypt the shipped binary to cut naive-signature antivirus false
     positives on ysonet.exe. Encrypts string literals only; no renaming, so the
     reflection-based gadget/plugin discovery keeps working, and generated

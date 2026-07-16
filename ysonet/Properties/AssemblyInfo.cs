@@ -38,9 +38,7 @@ using System.Runtime.InteropServices;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
-// Human-facing product version, shown in the interactive-mode banner. Keep in step
-// with the VERSION file on each release. Scheme is vYEAR.MONTH.RELEASE (calendar
-// based) - middle number is the month, last number is the release count in that
-// month. Example: v2026.7.1 is the first release in July 2026. Chosen so the
-// version never looks like a .NET version. Edit the VERSION file to release.
-[assembly: AssemblyInformationalVersion("v2026.7.1")]
+// The human-facing product version (AssemblyInformationalVersion, shown in the
+// interactive-mode banner) is generated at build time from the /VERSION file at the
+// repo root - see the GenerateVersionInfo target in ysonet.csproj. The VERSION file
+// is the single source of truth; do not set the version here.
