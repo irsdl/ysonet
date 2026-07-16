@@ -249,10 +249,10 @@ ysonet/Helpers/TestingArena/
 ysonet/Helpers/TestingArena/TestingArenaHome.cs
 /ExploitClass/ExploitSamples
 
-# Claude Code dev files (project development only, not part of the product)
-CLAUDE.md
-AGENTS.md
-.claude/
+# Claude Code project files are tracked and public so contributors and their agents
+# share the same guidance: CLAUDE.md, AGENTS.md, and any skills/agents under .claude/.
+# Only personal local settings and the private dev-kitchen working area stay out of git.
+.claude/settings.local.json
 dev-kitchen/
 
 # VS Code
