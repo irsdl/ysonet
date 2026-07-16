@@ -344,12 +344,14 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 
   <!--
-    Single source of truth for the product version: the /VERSION file at the repo root.
-    This target reads it at build time and generates the AssemblyInformationalVersion
-    attribute into obj/, so the interactive-mode banner always shows the current version
-    without anyone editing AssemblyInfo.cs (which used to drift). The generated file lives
-    under the intermediate output dir (never committed) and is rewritten only when the
-    version changes, so it does not force needless rebuilds.
+    Single source of truth for every version: the /VERSION file at the repo root. This
+    target reads it at build time and generates all three assembly version attributes into
+    obj/, so nobody edits AssemblyInfo.cs (which used to drift):
+      - AssemblyInformationalVersion = the raw string, e.g. "v2026.7.1" (the banner value).
+      - AssemblyVersion / AssemblyFileVersion = the numeric form with the leading "v"
+        stripped, e.g. "2026.7.1" (these must be numeric major.minor.build[.revision]).
+    The generated file lives under the intermediate output dir (never committed) and is
+    rewritten only when the version changes, so it does not force needless rebuilds.
   -->
   <Target Name="GenerateVersionInfo" BeforeTargets="CoreCompile">
     <PropertyGroup>
@@ -363,11 +365,13 @@
     <PropertyGroup>
       <YsonetVersion>@(YsonetVersionLines)</YsonetVersion>
       <YsonetVersion>$(YsonetVersion.Trim())</YsonetVersion>
+      <!-- Numeric form for AssemblyVersion/AssemblyFileVersion (strip the leading v). -->
+      <YsonetVersionNumeric>$(YsonetVersion.TrimStart('v'))</YsonetVersionNumeric>
       <YsonetVersionGeneratedFile>$(IntermediateOutputPath)VersionInfo.g.cs</YsonetVersionGeneratedFile>
     </PropertyGroup>
     <Error Condition="'$(YsonetVersion)' == ''" Text="VERSION file is empty; it must contain a version like v2026.7.1." />
     <WriteLinesToFile File="$(YsonetVersionGeneratedFile)"
-                      Lines="// Auto-generated from /VERSION at build time. Do not edit.;[assembly: System.Reflection.AssemblyInformationalVersion(&quot;$(YsonetVersion)&quot;)]"
+                      Lines="// Auto-generated from /VERSION at build time. Do not edit.;[assembly: System.Reflection.AssemblyInformationalVersion(&quot;$(YsonetVersion)&quot;)];[assembly: System.Reflection.AssemblyVersion(&quot;$(YsonetVersionNumeric)&quot;)];[assembly: System.Reflection.AssemblyFileVersion(&quot;$(YsonetVersionNumeric)&quot;)]"
                       Overwrite="true" WriteOnlyWhenDifferent="true" />
     <ItemGroup>
       <Compile Include="$(YsonetVersionGeneratedFile)" />
