@@ -59,15 +59,9 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Tag on a VERSION-change push, or on manual dispatch when asked and the tag is new.
       - name: Create annotated tag
-        if: |
-          # Define conditions for better readability
-          ${{ github.event_name == 'push' }} ||
-          ${{ 
-            github.event_name == 'workflow_dispatch' && 
-            inputs.create_tag == true && 
-            steps.tagcheck.outputs.exists == 'false' 
-          }}
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_tag == true && steps.tagcheck.outputs.exists == 'false') }}
         shell: pwsh
         run: |
           git config user.name  "github-actions[bot]"
@@ -127,6 +121,6 @@ jobs:
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0 (2026-03-14)
         with:
           tag:  ${{ steps.v.outputs.tag }}
-          name: "[ysonet] ${{ steps.v.outputs.value }}"
+          name: "YSoNet ${{ steps.v.outputs.value }}"
           generateReleaseNotes: true
           artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip"
