@@ -114,6 +114,7 @@ ysonet/
     GadgetSurrogates/                     # surrogate POCOs for MessagePack gadgets
     MessagePackObjectDataProviderHelper.cs, MessagePackGetterSettingsPropertyValueHelper.cs
     Utilities.cs, Debugging.cs, FormatterType.cs
+    HelpText.cs                           # safe --help rendering (guards an NDesk.Options wrap-loop hang)
     TestingArena/                         # dev-only scratch, excluded from discovery
   dlls/                          # bundled non-NuGet + vulnerable DLLs (see section 2)
 ```

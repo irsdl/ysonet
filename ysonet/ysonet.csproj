@@ -222,6 +222,7 @@
     <Compile Include="Generators\WindowsPrincipalGenerator.cs" />
     <Compile Include="Helpers\GadgetHelper.cs" />
     <Compile Include="Helpers\GadgetSurrogates\GetterSettingsPropertyValueSurrogates.cs" />
+    <Compile Include="Helpers\HelpText.cs" />
     <Compile Include="Helpers\LocalCodeCompiler.cs" />
     <Compile Include="Helpers\MachineKeyHelper.cs" />
     <Compile Include="Helpers\MessagePackGetterSettingsPropertyValueHelper.cs" />

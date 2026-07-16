@@ -654,7 +654,7 @@ namespace ysonet
                                         StringWriter baseTextWriter = new StringWriter();
                                         baseTextWriter.NewLine = "\r\n\t\t\t"; // this is easier than using string builder and adding spacing to each line!
                                         Console.WriteLine("\t\t\tExtra options:");
-                                        extraOptions.WriteOptionDescriptions(baseTextWriter);
+                                        HelpText.WriteOptionDescriptions(extraOptions, baseTextWriter);
                                         Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
                                         Console.WriteLine(baseTextWriter.ToString());
                                     }
@@ -701,7 +701,7 @@ namespace ysonet
                                         StringWriter baseTextWriter = new StringWriter();
                                         baseTextWriter.NewLine = "\r\n\t\t"; // this is easier than using string builder and adding spacing to each line!
                                         Console.WriteLine("\t\tOptions:");
-                                        options.WriteOptionDescriptions(baseTextWriter);
+                                        HelpText.WriteOptionDescriptions(options, baseTextWriter);
                                         Console.Write("\t\t"); // this is easier than using string builder and adding spacing to each line!
                                         Console.WriteLine(baseTextWriter.ToString());
                                     }
@@ -726,7 +726,7 @@ namespace ysonet
                 Console.WriteLine("");
                 Console.WriteLine("Usage: ysonet.exe [options]");
                 Console.WriteLine("Options:");
-                options.WriteOptionDescriptions(Console.Out);
+                HelpText.WriteOptionDescriptions(options, Console.Out);
                 System.Environment.Exit(0);
             }
             else
@@ -740,7 +740,7 @@ namespace ysonet
                         Console.WriteLine("Plugin:\n");
                         Console.WriteLine(pp.Name() + " (" + pp.Description() + ")");
                         Console.WriteLine("\nOptions:\n");
-                        pp.Options().WriteOptionDescriptions(Console.Out);
+                        HelpText.WriteOptionDescriptions(pp.Options(), Console.Out);
                     }
                     else
                     {
@@ -796,7 +796,7 @@ namespace ysonet
                     StringWriter baseTextWriter = new StringWriter();
                     baseTextWriter.NewLine = "\r\n\t\t\t"; // this is easier than using string builder and adding spacing to each line!
                     Console.WriteLine("\t\t\tExtra options:");
-                    extraOptions.WriteOptionDescriptions(baseTextWriter);
+                    HelpText.WriteOptionDescriptions(extraOptions, baseTextWriter);
                     Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
                     Console.WriteLine(baseTextWriter.ToString());
                 }
@@ -835,7 +835,7 @@ namespace ysonet
                     StringWriter baseTextWriter = new StringWriter();
                     baseTextWriter.NewLine = "\r\n\t\t\t"; // this is easier than using string builder and adding spacing to each line!
                     Console.WriteLine("\t\t\tOptions:");
-                    extraOptions.WriteOptionDescriptions(baseTextWriter);
+                    HelpText.WriteOptionDescriptions(extraOptions, baseTextWriter);
                     Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
                     Console.WriteLine(baseTextWriter.ToString());
                 }

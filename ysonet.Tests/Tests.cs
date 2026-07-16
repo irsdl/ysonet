@@ -93,6 +93,10 @@ namespace ysonet.Tests
             Run("Clipboard plugin exposes the wpfxaml mode options", ClipboardWpfXamlOptions);
             Run("Clipboard payloads actually trigger (winforms + wpfxaml variants)", ClipboardPayloadsTrigger);
             Run("Restrictive XAML load blocks the ObjectDataProvider gadget", RestrictiveXamlBlocksGadget);
+            Run("Option help renders without hanging for every plugin and gadget", OptionHelpNeverHangs);
+            Run("SoftBreak wraps over-long help tokens (NDesk hang guard)", SoftBreakWrapsLongTokens);
+            Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
+            Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
 
             Console.Error.WriteLine();
             Console.Error.WriteLine("Passed: " + _passed + "  Failed: " + _failed);
@@ -1754,6 +1758,241 @@ namespace ysonet.Tests
             bool ran = File.Exists(marker);
             if (ran) File.Delete(marker);
             AssertTrue(!ran, "restrictive XAML load must block the gadget (marker must not be created)");
+        }
+
+        // Guards the whole CLI --help/--fullhelp surface against the NDesk.Options
+        // wrap-loop hang (see Helpers/HelpText.cs). It renders every plugin's and
+        // gadget's option help through the production HelpText path on a worker
+        // thread with a timeout. Before the fix, "ysonet.exe -p clipboard --help"
+        // spun forever inside WriteOptionDescriptions; this fails instead of hanging
+        // if any option description ever regresses that way again.
+        private static void OptionHelpNeverHangs()
+        {
+            var sets = new List<KeyValuePair<string, OptionSet>>();
+
+            foreach (string name in GadgetHelper.GetAllGadgetNames())
+            {
+                IGenerator g = GadgetHelper.CreateGadgetInstance(name);
+                OptionSet o = g == null ? null : g.Options();
+                if (o != null) sets.Add(new KeyValuePair<string, OptionSet>("gadget " + name, o));
+            }
+            foreach (string name in PluginHelper.GetAllPluginNames())
+            {
+                IPlugin p = PluginHelper.CreatePluginInstance(name);
+                OptionSet o = p == null ? null : p.Options();
+                if (o != null) sets.Add(new KeyValuePair<string, OptionSet>("plugin " + name, o));
+            }
+
+            AssertTrue(sets.Count > 0, "found plugin/gadget option sets to render");
+
+            foreach (KeyValuePair<string, OptionSet> kv in sets)
+            {
+                OptionSet opts = kv.Value;
+                Exception err = null;
+                StringWriter sw = new StringWriter();
+                System.Threading.Thread t = new System.Threading.Thread(delegate ()
+                {
+                    try { HelpText.WriteOptionDescriptions(opts, sw); }
+                    catch (Exception e) { err = e; }
+                });
+                t.IsBackground = true; // a genuine hang must not keep the test process alive
+                t.Start();
+                bool done = t.Join(System.TimeSpan.FromSeconds(10));
+                AssertTrue(done, "option help render hung (NDesk wrap loop) for " + kv.Key);
+                AssertTrue(err == null, "option help render threw for " + kv.Key + ": " + (err == null ? "" : err.Message));
+                // The render must actually produce help text (it has at least one option).
+                AssertTrue(sw.ToString().Trim().Length > 0, "option help produced output for " + kv.Key);
+            }
+        }
+
+        // Unit test for the soft-break that makes the render safe. A whitespace-free
+        // token longer than the NDesk wrap width is what triggers the loop, so
+        // SoftBreak must shrink every run to the safe width while only inserting
+        // spaces (never dropping or changing characters).
+        private static void SoftBreakWrapsLongTokens()
+        {
+            // The real clipboard --mode token that caused the hang.
+            string token = "Switch.System.Windows.EnableLegacyDangerousClipboardDeserializationMode=true";
+            AssertTrue(HelpText.LongestUnbrokenRun(token) > HelpText.MaxTokenLength,
+                "sample token is long enough to trigger the NDesk hang");
+
+            string broken = HelpText.SoftBreak(token);
+            AssertTrue(HelpText.LongestUnbrokenRun(broken) <= HelpText.MaxTokenLength,
+                "soft-break keeps every run within the safe wrap width");
+            AssertEqual(token, broken.Replace(" ", ""),
+                "soft-break only inserts spaces; all original characters are kept");
+
+            // Text that already wraps is returned untouched.
+            string ok = "a normal help line with short words";
+            AssertEqual(ok, HelpText.SoftBreak(ok), "short text is returned unchanged");
+            AssertEqual("", HelpText.SoftBreak(""), "empty text is safe");
+            AssertEqual(null, HelpText.SoftBreak(null), "null text is safe");
+        }
+
+        // Every gadget must actually produce a non-empty payload from valid inputs,
+        // not merely declare that it supports a formatter. Data-driven, so a newly
+        // added gadget is covered automatically. For each gadget it picks a sample
+        // input matching the gadget's declared CommandInput() and generates with the
+        // gadget's first supported formatter. (The CLI's --raf sweeps every formatter;
+        // this is the per-gadget smoke test that each one can generate at all.)
+        private static void EveryGadgetGeneratesAPayload()
+        {
+            // Fixtures for the file/dll/source input types.
+            string csFixture = Path.Combine(Path.GetTempPath(), "ysonet_gadget_fixture.cs");
+            File.WriteAllText(csFixture, "public class YsonetTestFixture { public YsonetTestFixture() { } }");
+            // A real managed PE for gadgets that embed a DLL to load on the target.
+            string dllFixture = new Uri(typeof(OptionSet).Assembly.CodeBase).LocalPath;
+
+            try
+            {
+                string[] names = GadgetHelper.GetAllGadgetNames();
+                AssertTrue(names.Length > 0, "found gadgets to generate");
+
+                foreach (string name in names)
+                {
+                    // "Generic" is the base generator, not a real gadget (the CLI hides
+                    // it too); it has no payload to produce.
+                    if (name == "Generic") continue;
+
+                    IGenerator g = GadgetHelper.CreateGadgetInstance(name);
+                    AssertTrue(g != null, "gadget loads: " + name);
+
+                    List<string> formatters = g.SupportedFormatters();
+                    AssertTrue(formatters != null && formatters.Count > 0, name + " declares a formatter");
+
+                    // SupportedFormatters() entries may carry display annotations
+                    // ("Xaml (4)", "YamlDotNet < 5.0.0"); the real -f name is the first
+                    // whitespace-delimited token (see GenericGenerator.IsSupported).
+                    string formatter = formatters[0].Split(' ')[0];
+
+                    InputArgs ia = new InputArgs();
+                    ia.Cmd = SampleInputForGadget(g.CommandInput(), csFixture, dllFixture);
+
+                    GenerationRequest req = new GenerationRequest
+                    {
+                        GadgetName = name,
+                        FormatterName = formatter,
+                        OutputFormat = "",
+                        InputArgs = ia,
+                    };
+
+                    RunResult r = PayloadRunner.GenerateGadget(req);
+                    AssertTrue(r.Success, "generate " + name + " (-f " + formatter + "): " + r.ErrorMessage);
+                    AssertTrue(!RawIsEmpty(r.Raw), "non-empty payload for " + name + " (-f " + formatter + ")");
+                }
+            }
+            finally
+            {
+                try { File.Delete(csFixture); } catch { }
+            }
+        }
+
+        // A valid sample input for a gadget's declared command-input type. Nothing here
+        // reaches the network; file/dll/source inputs point at local fixtures.
+        private static string SampleInputForGadget(CommandInputType t, string csFixture, string dllFixture)
+        {
+            switch (t)
+            {
+                case CommandInputType.Ignored: return "";
+                case CommandInputType.ShellCommand: return "calc.exe";
+                case CommandInputType.Url: return "http://localhost/ysonet";
+                case CommandInputType.FilePath: return csFixture;   // any existing local file
+                case CommandInputType.CsSourceFile: return csFixture;
+                case CommandInputType.DllPath: return dllFixture;
+                default: return "calc.exe";
+            }
+        }
+
+        // Reset a plugin's private static bool option flag so an in-process test is not
+        // affected by a value a sibling test left behind (see note in the plugin sweep).
+        private static void ResetStaticBool(Type t, string field)
+        {
+            var f = t.GetField(field, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            if (f != null && f.FieldType == typeof(bool)) f.SetValue(null, false);
+        }
+
+        private static bool RawIsEmpty(object raw)
+        {
+            if (raw == null) return true;
+            byte[] b = raw as byte[];
+            if (b != null) return b.Length == 0;
+            string s = raw as string;
+            if (s != null) return s.Length == 0;
+            return false; // some other non-null object counts as produced
+        }
+
+        // Every plugin that can generate a payload offline must actually do so with
+        // valid inputs. The remaining plugins are excluded explicitly with a reason.
+        // A coverage guard fails if a plugin is neither generated nor excluded, so a
+        // newly added plugin cannot silently skip this test.
+        //
+        // Plugins store parsed options in static fields, so runs are made deterministic
+        // by passing the mode/format tokens each plugin relies on rather than trusting
+        // defaults that an earlier run may have changed.
+        private static void EverySafePluginGeneratesAPayload()
+        {
+            // Plugins keep parsed options in static fields and never reset them. In
+            // production this is harmless (each ysonet.exe run is a fresh process), but
+            // in-process a sibling test that runs ViewState with --examples leaves that
+            // static flag on, which would block generation here. Clearing it keeps this
+            // test order-independent. (Only ViewState's flag leaks across tests; every
+            // other plugin below is run once with explicit tokens.)
+            ResetStaticBool(typeof(ysonet.Plugins.ViewStatePlugin), "showExamples");
+
+            // GetterCallGadgets reads its inner payload from a file (File.ReadAllText),
+            // so it needs one that exists.
+            string innerFixture = Path.Combine(Path.GetTempPath(), "ysonet_plugin_inner.json");
+            File.WriteAllText(innerFixture, "{}");
+
+            // Harmless hex keys (from the ViewState usage docs) for the crypto plugins.
+            const string valKey = "70DBADBFF4B7A13BE67DD0B11B177936F8F3C98BCE2E0A4F222F7A769804D451ACDB196572FFF76106F33DCEA1571D061336E68B12CF0AF62D56829D2A48F1B0";
+            const string decKey = "34C69D15ADD80DA4788E6E3D02694230CF8E9ADFDA2708EF43CAEF4C5BC73887";
+
+            var argvByPlugin = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Altserialization", new string[] { "-c", "calc.exe" } },
+                { "ApplicationTrust", new string[] { "-c", "calc.exe" } },
+                { "DotNetNuke", new string[] { "-m", "run_command", "-c", "calc.exe" } },
+                { "GetterCallGadgets", new string[] { "-g", "PropertyGrid", "-i", innerFixture } },
+                { "MachineKeySessionSecurityTokenHandler", new string[] { "-c", "calc.exe", "--validationkey", valKey, "--decryptionkey", decKey } },
+                { "NetNonRceGadgets", new string[] { "-g", "PictureBox", "-f", "Json.NET", "-i", "http://localhost/y" } },
+                { "Resx", new string[] { "-M", "BinaryFormatter", "-c", "calc.exe" } },
+                { "SessionSecurityTokenHandler", new string[] { "-c", "calc.exe" } },
+                { "SharePoint", new string[] { "--cve", "CVE-2018-8421", "-c", "calc.exe" } },
+                { "ThirdPartyGadgets", new string[] { "-g", "UnmanagedLibrary", "-f", "Json.NET", "-i", "\\\\host\\a.dll" } },
+                { "TransactionManagerReenlist", new string[] { "-c", "calc.exe" } },
+                { "ViewState", new string[] { "--dryrun", "--validationkey", valKey } },
+            };
+
+            // Not generated here, each with the reason. Keeping this explicit forces a
+            // new plugin to be classified (see the coverage guard below).
+            var excluded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "ActivatorUrl", "makes a live remoting/network call and returns a status string, not a payload" },
+                { "Clipboard", "writes the OS clipboard on an STA thread; covered by dedicated clipboard tests" },
+                { "Generic", "base plugin type, not a real plugin" },
+            };
+
+            try
+            {
+                foreach (KeyValuePair<string, string[]> kv in argvByPlugin)
+                {
+                    RunResult r = PayloadRunner.RunPlugin(kv.Key, kv.Value);
+                    AssertTrue(r.Success, "plugin " + kv.Key + " runs: " + r.ErrorMessage);
+                    AssertTrue(!RawIsEmpty(r.Raw), "plugin " + kv.Key + " produced a non-empty payload");
+                }
+
+                // Coverage guard: every discovered plugin is generated or excluded.
+                foreach (string name in PluginHelper.GetAllPluginNames())
+                {
+                    bool known = argvByPlugin.ContainsKey(name) || excluded.ContainsKey(name);
+                    AssertTrue(known, "plugin " + name + " has no generation test and no explicit exclusion (add one)");
+                }
+            }
+            finally
+            {
+                try { File.Delete(innerFixture); } catch { }
+            }
         }
 
         // ---- helpers -----------------------------------------------------------
