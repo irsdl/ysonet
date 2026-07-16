@@ -20,6 +20,15 @@ namespace ysonet.Generators
             return "Soroush Dalili";
         }
 
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "payload in m_serializedClaimsIdentities (default)"),
+                new GadgetVariant(2, "payload in ClaimsIdentity m_serializedClaims")
+            };
+        }
+
         public override List<string> Labels()
         {
             return new List<string> { GadgetTags.Bridged, GadgetTags.OnDeserialized, GadgetTags.SecondOrderDeserialization }; //inherits ClaimsPrincipal

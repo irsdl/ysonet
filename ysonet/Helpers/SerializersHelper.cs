@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Soap;
 using System.Runtime.Serialization.Json;
@@ -33,7 +34,7 @@ namespace ysonet.Helpers
             try
             {
                 Console.WriteLine("\n~~XmlSerializer:~~\n");
-                Console.WriteLine(XmlSerializer_serialize(myobj, myobj.GetType()));
+                Console.WriteLine(XmlSerializer_serialize(myobj, type));
             }
             catch (Exception e)
             {
@@ -43,7 +44,7 @@ namespace ysonet.Helpers
             try
             {
                 Console.WriteLine("\n~~DataContractSerializer:~~\n");
-                Console.WriteLine(DataContractSerializer_serialize(myobj, myobj.GetType()));
+                Console.WriteLine(DataContractSerializer_serialize(myobj, type));
             }
             catch (Exception e)
             {
@@ -409,7 +410,15 @@ namespace ysonet.Helpers
 
         public static object DataContractSerializer_test(object myobj)
         {
-            return DataContractSerializer_deserialize(DataContractSerializer_serialize(myobj), myobj.GetType());
+            try
+            {
+                return DataContractSerializer_deserialize(DataContractSerializer_serialize(myobj), myobj.GetType());
+            }
+            catch (Exception e)
+            {
+                //ignore
+                return null;
+            }
         }
 
         public static object DataContractSerializer_test(object myobj, Type type)
@@ -530,6 +539,42 @@ namespace ysonet.Helpers
         {
             object obj = XamlReader.Load(new XmlTextReader(new StringReader(str)));
             return obj;
+        }
+
+        // Deserialize XAML through the RestrictiveXamlXmlReader path, i.e. the
+        // internal XamlReader.Load(XmlReader, useRestrictiveXamlReader: true)
+        // overload. This is what the WPF clipboard paste sinks use by default
+        // since the CVE-2020-0605/0606 mitigation, so it blocks dangerous types
+        // such as ObjectDataProvider. It exists only on frameworks that carry the
+        // mitigation; on older ones the overload is absent and we say so instead of
+        // silently running the non-restrictive path.
+        public static object Xaml_deserialize_restrictive(string str)
+        {
+            MethodInfo mi = typeof(XamlReader).GetMethod(
+                "Load",
+                BindingFlags.NonPublic | BindingFlags.Static,
+                null,
+                new Type[] { typeof(XmlReader), typeof(bool) },
+                null);
+
+            if (mi == null)
+            {
+                throw new NotSupportedException(
+                    "Restrictive XamlReader.Load(XmlReader, bool) overload not found on this framework " +
+                    "(it predates the CVE-2020-0605/0606 mitigation); the payload would not be blocked here.");
+            }
+
+            using (XmlTextReader reader = new XmlTextReader(new StringReader(str)))
+            {
+                try
+                {
+                    return mi.Invoke(null, new object[] { reader, true });
+                }
+                catch (TargetInvocationException tie)
+                {
+                    throw tie.InnerException ?? tie;
+                }
+            }
         }
 
         // This to replace our bespoked marshal objects with the actual object
@@ -890,7 +935,7 @@ namespace ysonet.Helpers
             });
             MemoryStream ms = new MemoryStream();
             js.WriteObject(ms, gadget);
-            return Encoding.Default.GetString(ms.ToArray());
+            return Encoding.UTF8.GetString(ms.ToArray());
         }
 
         public static object SharpSerializer_Binary_deserialize_FromByteArray(byte[] serializedData)

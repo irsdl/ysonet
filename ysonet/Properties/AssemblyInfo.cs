@@ -1,5 +1,9 @@
 ﻿using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+
+// The test project drives the interactive core and reads the global OptionSet.
+[assembly: InternalsVisibleTo("ysonet.Tests")]
 
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
@@ -34,3 +38,9 @@ using System.Runtime.InteropServices;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
+// Human-facing product version, shown in the interactive-mode banner. Keep in step
+// with the VERSION file on each release. Scheme is vYEAR.MONTH.RELEASE (calendar
+// based) - middle number is the month, last number is the release count in that
+// month. Example: v2026.7.1 is the first release in July 2026. Chosen so the
+// version never looks like a .NET version. Edit the VERSION file to release.
+[assembly: AssemblyInformationalVersion("v2026.7.1")]

@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version string like v1.00"
+        description: "Version string like v2026.7.1 (vYEAR.MONTH.RELEASE)"
         required: true
-        default: "v1.00"
+        default: "v2026.7.1"
         type: string
       create_tag:
         description: "Create tag if it doesn't exist"
@@ -40,7 +40,9 @@ jobs:
           } else {
             $v = (Get-Content VERSION -Raw).Trim()
           }
-          if ($v -notmatch '^v\d+\.\d+$') { throw "Unexpected VERSION format: $v" }
+          # Versioning is calendar based: vYEAR.MONTH.RELEASE (middle = month,
+          # last = release count in that month). Example: v2026.7.1.
+          if ($v -notmatch '^v\d+\.\d+\.\d+$') { throw "Unexpected VERSION format: $v (expected vYEAR.MONTH.RELEASE like v2026.7.1)" }
           $tag = "ysonet/$v"
           "value=$v"  >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
@@ -57,15 +59,9 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Tag on a VERSION-change push, or on manual dispatch when asked and the tag is new.
       - name: Create annotated tag
-        if: |
-          # Define conditions for better readability
-          ${{ github.event_name == 'push' }} ||
-          ${{ 
-            github.event_name == 'workflow_dispatch' && 
-            inputs.create_tag == true && 
-            steps.tagcheck.outputs.exists == 'false' 
-          }}
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_tag == true && steps.tagcheck.outputs.exists == 'false') }}
         shell: pwsh
         run: |
           git config user.name  "github-actions[bot]"
@@ -125,6 +121,6 @@ jobs:
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0 (2026-03-14)
         with:
           tag:  ${{ steps.v.outputs.tag }}
-          name: "[ysonet] ${{ steps.v.outputs.value }}"
+          name: "YSoNet ${{ steps.v.outputs.value }}"
           generateReleaseNotes: true
           artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip"

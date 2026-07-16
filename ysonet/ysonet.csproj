@@ -142,6 +142,7 @@
       <HintPath>..\packages\SharpSerializer.3.0.1\lib\net452\Polenter.SharpSerializer.dll</HintPath>
     </Reference>
     <Reference Include="PresentationFramework" />
+    <Reference Include="PresentationCore" />
     <Reference Include="System" />
     <Reference Include="System.Buffers, Version=4.0.4.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Buffers.4.6.0\lib\net462\System.Buffers.dll</HintPath>
@@ -240,6 +241,28 @@
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\binaryutilclasses.cs" />
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\Environment.cs" />
     <Compile Include="Helpers\CommandArgSplitter.cs" />
+    <Compile Include="Helpers\Core\PayloadRunner.cs" />
+    <Compile Include="Interactive\IKeyReader.cs" />
+    <Compile Include="Interactive\ITerminal.cs" />
+    <Compile Include="Interactive\ConsoleCursor.cs" />
+    <Compile Include="Interactive\ConsoleStyle.cs" />
+    <Compile Include="Interactive\ConsoleQuiet.cs" />
+    <Compile Include="Interactive\FrameWriter.cs" />
+    <Compile Include="Interactive\LineEditBuffer.cs" />
+    <Compile Include="Interactive\Menu.cs" />
+    <Compile Include="Interactive\Picker.cs" />
+    <Compile Include="Interactive\OptionField.cs" />
+    <Compile Include="Interactive\ModuleView.cs" />
+    <Compile Include="Interactive\CommandEcho.cs" />
+    <Compile Include="Interactive\EditableField.cs" />
+    <Compile Include="Interactive\InteractiveConfig.cs" />
+    <Compile Include="Interactive\ConsoleQuickEdit.cs" />
+    <Compile Include="Interactive\PayloadEmitter.cs" />
+    <Compile Include="Interactive\ModuleEditor.cs" />
+    <Compile Include="Interactive\ModuleEditor.Columns.cs" />
+    <Compile Include="Interactive\Wizard.cs" />
+    <Compile Include="Interactive\InteractiveMode.cs" />
+    <Compile Include="Helpers\ClipboardHelper.cs" />
     <Compile Include="Helpers\Debugging.cs" />
     <Compile Include="Helpers\FormatterType.cs" />
     <Compile Include="Helpers\InputArgs.cs" />
@@ -277,6 +300,7 @@
     <Compile Include="Plugins\ClipboardPlugin.cs" />
     <Compile Include="Plugins\DotNetNukePlugin.cs" />
     <Compile Include="Plugins\base\IPlugin.cs" />
+    <Compile Include="Plugins\base\IPluginModes.cs" />
     <Compile Include="Plugins\ResxPlugin.cs" />
     <Compile Include="Plugins\SessionSecurityTokenHandlerPlugin.cs" />
     <Compile Include="Plugins\SharePointPlugin.cs" />

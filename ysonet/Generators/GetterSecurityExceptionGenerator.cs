@@ -29,6 +29,17 @@ namespace ysonet.Generators
             return "Piotr Bazydlo";
         }
 
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "PropertyGrid getter (default)"),
+                new GadgetVariant(2, "ComboBox getter (may execute code twice)"),
+                new GadgetVariant(3, "ListBox getter"),
+                new GadgetVariant(4, "CheckedListBox getter")
+            };
+        }
+
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()

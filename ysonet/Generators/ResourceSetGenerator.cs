@@ -21,6 +21,16 @@ namespace ysonet.Generators
             return "Soroush Dalili";
         }
 
+        // ResourceSet uses the ig/internalgadget option rather than var/variant.
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "TypeConfuseDelegate internal gadget (default)"),
+                new GadgetVariant(2, "TextFormattingRunProperties internal gadget")
+            };
+        }
+
         public override List<string> Labels()
         {
             return new List<string> { GadgetTags.Hidden }; // It works because we have a hashtable that holds the actual gadget!

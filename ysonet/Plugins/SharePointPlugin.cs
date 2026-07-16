@@ -25,7 +25,7 @@ using ysonet.Helpers;
 
 namespace ysonet.Plugins
 {
-    public class SharePointPlugin : IPlugin
+    public class SharePointPlugin : IPlugin, IPluginModes
     {
         static string cve = "";
         static string gadget = "TypeConfuseDelegate";
@@ -62,6 +62,59 @@ namespace ysonet.Plugins
             return options;
         }
 
+        // Interactive-only mode descriptions (see IPluginModes). The mode here is the
+        // CVE; each CVE surfaces only its relevant inner setting (a variant, a gadget,
+        // or the useurl switch). Each maps to a value of the plugin's own --cve option,
+        // so the CLI is unchanged.
+        public List<PluginMode> InteractiveModes()
+        {
+            return new List<PluginMode>
+            {
+                new PluginMode {
+                    Name = "CVE-2025-49704 (ToolShell)",
+                    Description = "ToolPane.aspx DataSet gadget; pick a variant.",
+                    Options = new string[] { "command", "variant" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2025-49704" } },
+                },
+                new PluginMode {
+                    Name = "CVE-2025-53770 (ToolShell patch bypass)",
+                    Description = "CVE-2025-49704 with the patch bypass; pick a variant.",
+                    Options = new string[] { "command", "variant" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2025-53770" } },
+                },
+                new PluginMode {
+                    Name = "CVE-2024-38018",
+                    Description = "SPObjectStateFormatter webpart; choose a BinaryFormatter gadget.",
+                    Options = new string[] { "command", "gadget" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2024-38018" } },
+                },
+                new PluginMode {
+                    Name = "CVE-2020-1147",
+                    Description = "DataSet quicklinks gadget; choose a LosFormatter gadget.",
+                    Options = new string[] { "command", "gadget" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2020-1147" } },
+                },
+                new PluginMode {
+                    Name = "CVE-2019-0604",
+                    Description = "XmlSerializer workflow; command or a XAML url (--useurl).",
+                    Options = new string[] { "command", "useurl" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2019-0604" } },
+                },
+                new PluginMode {
+                    Name = "CVE-2018-8421",
+                    Description = "Workflow markup; command or a XAML url (--useurl).",
+                    Options = new string[] { "command", "useurl" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2018-8421" } },
+                },
+            };
+        }
+
         public object Run(string[] args)
         {
 
@@ -75,7 +128,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine(e.Message);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception(e.Message);
             }
             string payload = "";
 
@@ -84,7 +137,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine("Incorrect plugin mode/arguments combination");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
             switch (cve.ToLower())
@@ -136,7 +189,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine("Incorrect plugin mode/arguments combination");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
             return payload;
@@ -157,7 +210,7 @@ namespace ysonet.Plugins
             if (!GadgetHelper.GadgetExists(gadget))
             {
                 Console.WriteLine("Gadget not supported.");
-                System.Environment.Exit(-1);
+                throw new Exception("Gadget not supported.");
             }
 
             // Use GadgetHelper to create gadget instance
@@ -165,7 +218,7 @@ namespace ysonet.Plugins
             if (generator == null)
             {
                 Console.WriteLine("Gadget not supported!");
-                System.Environment.Exit(-1);
+                throw new Exception("Gadget not supported!");
             }
 
             if (generator.IsSupported(formatter))
@@ -175,7 +228,7 @@ namespace ysonet.Plugins
             else
             {
                 Console.WriteLine("BinaryFormatter not supported by the selected gadget.");
-                System.Environment.Exit(-1);
+                throw new Exception("BinaryFormatter not supported by the selected gadget.");
             }
 
             // Base paths
@@ -294,7 +347,7 @@ runat=""server"">
                 if (dsFromFileGenerator == null)
                 {
                     Console.WriteLine("DataSetOldBehaviourFromFileGenerator not supported!");
-                    System.Environment.Exit(-1);
+                    throw new Exception("DataSetOldBehaviourFromFileGenerator not supported!");
                 }
 
                 inputArgs.ExtraInternalArguments = new List<string> {
@@ -310,7 +363,7 @@ runat=""server"">
                 if (dsGenerator == null)
                 {
                     Console.WriteLine("DataSetOldBehaviourGenerator not supported!");
-                    System.Environment.Exit(-1);
+                    throw new Exception("DataSetOldBehaviourGenerator not supported!");
                 }
 
                 inputArgs.ExtraInternalArguments = new List<string> {
@@ -357,7 +410,7 @@ runat=""server"">
             if (!GadgetHelper.GadgetExists(gadget))
             {
                 Console.WriteLine("Gadget not supported.");
-                System.Environment.Exit(-1);
+                throw new Exception("Gadget not supported.");
             }
 
             // Use GadgetHelper to create gadget instance
@@ -365,7 +418,7 @@ runat=""server"">
             if (generator == null)
             {
                 Console.WriteLine("Gadget not supported!");
-                System.Environment.Exit(-1);
+                throw new Exception("Gadget not supported!");
             }
 
             // Check Generator supports specified formatter
@@ -376,7 +429,7 @@ runat=""server"">
             else
             {
                 Console.WriteLine("LosFormatter not supported.");
-                System.Environment.Exit(-1);
+                throw new Exception("LosFormatter not supported.");
             }
 
             string payload = @"<DataSet>
@@ -518,7 +571,7 @@ PublicKeyToken=31bf3856ad364e35"">
                 if (myTFRPG == null)
                 {
                     Console.WriteLine("TextFormattingRunPropertiesGenerator not supported!");
-                    System.Environment.Exit(-1);
+                    throw new Exception("TextFormattingRunPropertiesGenerator not supported!");
                 }
                 payloadPart2 = (string)myTFRPG.GenerateWithNoTest("DataContractSerializer", inputArgs);
 

@@ -34,7 +34,7 @@ namespace ysonet.Generators
 
         public override string AdditionalInfo()
         {
-            return "Target must run a system not patched for CVE-2017-8565 (Published: 07/11/2017)";
+            return "Target must run on a system not patched for CVE-2017-8565 (Published: 07/11/2017)";
         }
 
         public override string Finders()

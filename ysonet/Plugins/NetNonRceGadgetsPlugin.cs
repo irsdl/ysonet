@@ -74,7 +74,7 @@ Gadgets:
         Formatters: Json.NET, JavaScriptSerializer, Xaml
         [Finders: Piotr Bazydlo]
 
-    (*) FileLogTraceListener - directory creation payload.May lead to DoS, when executed with admin privileges.
+    (*) FileLogTraceListener - directory creation payload. May lead to DoS, when executed with admin privileges.
         Formatters: Json.NET, JavaScriptSerializer, Xaml
         [Finders: Piotr Bazydlo]
 
@@ -121,7 +121,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the PictureBox payload");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the PictureBox payload");
             }
 
 
@@ -160,7 +160,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the InfiniteProgressPage payload");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the InfiniteProgressPage payload");
             }
 
             return payload;
@@ -196,7 +196,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Formatter " + formatter + " is not implemented for the FileLogTraceListener payload");
-                Environment.Exit(-1);
+                throw new Exception("Formatter " + formatter + " is not implemented for the FileLogTraceListener payload");
             }
 
             return payload;
@@ -228,7 +228,7 @@ Exemplary usage:
                 Console.WriteLine(e.Message);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
                 Console.WriteLine("Try 'ysonet -p " + Name() + " -l' for the list of implemented gadgets and formatters.");
-                Environment.Exit(-1);
+                throw new Exception(e.Message);
             }
 
 
@@ -250,7 +250,7 @@ Exemplary usage:
             else
             {
                 Console.WriteLine("Gadget " + gadget + " does not exist! Use -l option to show available gadgets");
-                Environment.Exit(-1);
+                throw new Exception("Gadget " + gadget + " does not exist! Use -l option to show available gadgets");
             }
 
             //minify

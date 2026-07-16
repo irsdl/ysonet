@@ -49,6 +49,19 @@ namespace ysonet.Generators
             return "Oleksandr Mirosh, Alvaro Munoz";
         }
 
+        // Variant meaning depends on the formatter (mostly the Xaml formatter).
+        // Non-Xaml formatters ignore the number and reuse variant 1.
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "plain ObjectDataProvider (default)"),
+                new GadgetVariant(2, "ResourceDictionary wrapper (Xaml) / LosFormatter inner (XmlSerializer)"),
+                new GadgetVariant(3, "ResourceDictionary Source=--xamlurl (Xaml; ignores command)"),
+                new GadgetVariant(4, "WorkflowDesigner wrapper (Xaml, STA)")
+            };
+        }
+
         public override string Contributors()
         {
             return "Alvaro Munoz, Soroush Dalili, Dane Evans";
@@ -95,9 +108,7 @@ namespace ysonet.Generators
                 {
                     if (xaml_url == "")
                     {
-                        Console.WriteLine("Url parameter was not provided.");
-                        Console.WriteLine("Try 'ysonet --fullhelp' for more information.");
-                        System.Environment.Exit(-1);
+                        throw new Exception("Url parameter (xamlurl) was not provided. Try 'ysonet --fullhelp' for more information.");
                     }
 
                     // There are loads of other objects in Presentation that use XAML URLs and they can be used here instead

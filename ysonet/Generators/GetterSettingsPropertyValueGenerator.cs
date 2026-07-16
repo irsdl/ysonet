@@ -33,6 +33,17 @@ namespace ysonet.Generators
             return "Piotr Bazydlo";
         }
 
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "PropertyGrid getter (default; only option for MessagePack)"),
+                new GadgetVariant(2, "ComboBox getter"),
+                new GadgetVariant(3, "ListBox getter"),
+                new GadgetVariant(4, "CheckedListBox getter")
+            };
+        }
+
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()
@@ -196,7 +207,7 @@ namespace ysonet.Generators
             }
             else if (formatter.ToLowerInvariant().Equals("messagepacktypeless") || formatter.ToLowerInvariant().Equals("messagepacktypelesslz4"))
             {
-                Console.WriteLine("\r\nThis version of gadget works for MessagePack >= 2.3.75\r\n");
+                Console.WriteLine("\r\nThis version of the gadget works for MessagePack >= 2.3.75\r\n");
                 if (variant_number != 1)
                 {
                     Console.WriteLine("GetterSettingsPropertyValue is implemented only for variant 1 (PropertyGrid getter chain). Switching to variant 1.\r\n");

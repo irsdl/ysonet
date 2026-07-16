@@ -66,11 +66,8 @@ namespace ysonet.Generators
                 }
                 catch (OptionException e)
                 {
-                    Console.Write("ysonet: ");
-                    Console.WriteLine(e.Message);
-                    Console.WriteLine("Extra options for " + Name() + " are as follows:");
-                    options.WriteOptionDescriptions(Console.Out);
-                    System.Environment.Exit(-1);
+                    throw new Exception("Invalid option for " + Name() + ": " + e.Message +
+                        " (see 'ysonet -g " + Name() + " --fullhelp' for the gadget options)");
                 }
             }
         }
@@ -78,6 +75,20 @@ namespace ysonet.Generators
         public virtual OptionSet Options()
         {
             return null;
+        }
+
+        // Most gadgets run a shell command. Gadgets that expect a file path, DLL,
+        // URL, or that ignore the command override this.
+        public virtual CommandInputType CommandInput()
+        {
+            return CommandInputType.ShellCommand;
+        }
+
+        // No variants by default. Gadgets with a var/ig option override this to
+        // list their selectable variants.
+        public virtual List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>();
         }
 
         public object GenerateWithInit(string formatter, InputArgs inputArgs)

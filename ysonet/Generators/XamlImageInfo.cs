@@ -30,6 +30,25 @@ namespace ysonet.Generators
             return "Piotr Bazydlo";
         }
 
+        // Default variant 1 reads XAML from a file path. Variant 2 (non-GAC) takes
+        // a shell command instead; the file-path label is the safe default.
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.FilePath;
+        }
+
+        public override List<GadgetVariant> Variants()
+        {
+            // Variants take different -c inputs, so each declares its own: variant 1
+            // reads a XAML file path, variant 2 runs a shell command. The wizard uses
+            // the per-variant input to label the prompt correctly.
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "LazyFileStream - reads XAML from a file path (default, GAC)", CommandInputType.FilePath),
+                new GadgetVariant(2, "ReadOnlyStreamFromStrings - takes a shell command (non-GAC)", CommandInputType.ShellCommand)
+            };
+        }
+
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()

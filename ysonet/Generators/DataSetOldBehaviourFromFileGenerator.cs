@@ -12,8 +12,22 @@ namespace ysonet.Generators
         private int variant_number = 1; // Add variant support
         public override string AdditionalInfo()
         {
-            var info = "Another variant of the DataSetOldBehaviour gadget. This gadget interprets the command parameter as path to the .cs file that should be compiled as exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.Windows.Forms.dll'";
+            var info = "Another variant of the DataSetOldBehaviour gadget. This gadget interprets the command parameter as the path to the .cs file that should be compiled as an exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.Windows.Forms.dll'";
             return info;
+        }
+
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.CsSourceFile;
+        }
+
+        public override List<GadgetVariant> Variants()
+        {
+            return new List<GadgetVariant>
+            {
+                new GadgetVariant(1, "default DataSet schema (default)"),
+                new GadgetVariant(2, "List<ExpandedWrapper> array schema")
+            };
         }
 
         public override string Finders()

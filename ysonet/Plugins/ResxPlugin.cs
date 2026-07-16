@@ -82,7 +82,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine(e.Message);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception(e.Message);
             }
 
             if (String.IsNullOrWhiteSpace(gadget_name))
@@ -191,7 +191,7 @@ namespace ysonet.Plugins
                         if (!generators.Contains(gadget_name, StringComparer.CurrentCultureIgnoreCase))
                         {
                             Console.WriteLine("Gadget not supported. Supported gadgets are: " + string.Join(" , ", generators.OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
-                            System.Environment.Exit(-1);
+                            throw new Exception("Gadget not supported. Supported gadgets are: " + string.Join(" , ", generators.OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
                         }
 
                         string formatter_name = "binaryformatter"; // this is what we need here
@@ -207,7 +207,7 @@ namespace ysonet.Plugins
                         catch
                         {
                             Console.WriteLine("Gadget not supported!");
-                            System.Environment.Exit(-1);
+                            throw new Exception("Gadget not supported!");
                         }
 
                         // Check Generator supports specified formatter
@@ -243,7 +243,7 @@ namespace ysonet.Plugins
                         else
                         {
                             Console.WriteLine("Formatter not supported. Supported formatters are: " + string.Join(" , ", generator.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
-                            System.Environment.Exit(-1);
+                            throw new Exception("Formatter not supported. Supported formatters are: " + string.Join(" , ", generator.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
                         }
 
 
@@ -271,7 +271,7 @@ namespace ysonet.Plugins
                 Console.Write("ysonet: ");
                 Console.WriteLine("Incorrect plugin mode/arguments combination");
                 Console.WriteLine("Try 'ysonet -p Resx --help' for more information.");
-                System.Environment.Exit(-1);
+                throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
             if (mode.ToLower() != "compileddotresources")

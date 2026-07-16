@@ -31,6 +31,11 @@ namespace ysonet.Generators
             return "Markus Wulftange";
         }
 
+        public override CommandInputType CommandInput()
+        {
+            return CommandInputType.Url;
+        }
+
         public override List<string> Labels()
         {
             return new List<string> { GadgetTags.Independent };
@@ -41,8 +46,7 @@ namespace ysonet.Generators
             var uri_string = inputArgs.Cmd;
             if (!Uri.IsWellFormedUriString(uri_string, UriKind.Absolute))
             {
-                Console.WriteLine("The cmd needs to be a Uri for this gadget.");
-                System.Environment.Exit(-1);
+                throw new Exception("The cmd needs to be a Uri for this gadget.");
             }
 
             var uri = new Uri(uri_string, UriKind.Absolute);

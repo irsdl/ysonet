@@ -1,88 +1,32 @@
-name: Prepare Major Release PR
+name: Prepare Major Release PR (retired)
+
+# RETIRED. This workflow used to auto-bump a semantic major version (vN.NN -> v(N+1).00)
+# when a PR was merged with the `major` label.
+#
+# The project now uses calendar versioning: vYEAR.MONTH.RELEASE
+#   - middle number is the month
+#   - last number is the release count in that month
+#   - example: v2026.7.1 is the first release in July 2026
+# It was chosen so the version never looks like a .NET version (v2 / v4 / v8 etc.).
+#
+# There is no "major bump" concept anymore. To cut a release, edit the VERSION file
+# directly on master; that triggers tag-build-release.yml, which tags and publishes.
+#
+# The automatic trigger is removed so this cannot run against the old scheme. The file
+# is kept (manual-dispatch only) as a documented placeholder.
 
 on:
-  pull_request:
-    types: [closed]
-    branches: [ master ]
+  workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
-  prepare:
-    if: github.event.pull_request.merged == true
+  retired:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check for `major` label
-        id: gate
+      - name: Explain
         run: |
-          labels='${{ toJson(github.event.pull_request.labels) }}'
-          echo "is_major=false" >> $GITHUB_OUTPUT
-          echo "$labels" | grep -qi '"name":"major"' && echo "is_major=true" >> $GITHUB_OUTPUT || true
-
-      - name: Stop if not major
-        if: steps.gate.outputs.is_major != 'true'
-        run: echo "Merged PR is not labeled 'major' - skipping."
-
-      - name: Checkout
-        if: steps.gate.outputs.is_major == 'true'
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3 (2026-06-02)
-        with:
-          fetch-depth: 0
-
-      - name: Bump VERSION and update projects
-        id: bump
-        if: steps.gate.outputs.is_major == 'true'
-        shell: pwsh
-        run: |
-          $versionPath = Join-Path $PWD "VERSION"
-          if (-not (Test-Path $versionPath)) { throw "VERSION file not found" }
-          $cur = (Get-Content $versionPath -Raw).Trim()
-          if ($cur -notmatch '^v(\d+)\.(\d+)$') { throw "VERSION must be vN.NN, got '$cur'" }
-          $nextMaj = [int]$Matches[1] + 1
-          $new = "v{0}.00" -f $nextMaj
-          Set-Content -NoNewline -Path $versionPath -Value $new
-          Write-Host "VERSION: $cur -> $new"
-          "version=$new" >> $env:GITHUB_OUTPUT
-
-          $info = "$new+ysonet"
-
-          # Update all .csproj files
-          Get-ChildItem -Recurse -Filter *.csproj | ForEach-Object {
-            [xml]$xml = Get-Content $_.FullName
-            $pg = $xml.Project.PropertyGroup | Select-Object -First 1
-            if (-not $pg) { $pg = $xml.CreateElement('PropertyGroup'); $xml.Project.AppendChild($pg) | Out-Null }
-
-            # AssemblyInformationalVersion = vN.NN+ysonet
-            $ainf = $pg.AssemblyInformationalVersion | Select-Object -First 1
-            if ($ainf) { $ainf.InnerText = $info } else {
-              $n = $xml.CreateElement('AssemblyInformationalVersion'); $n.InnerText = $info; $pg.AppendChild($n) | Out-Null
-            }
-
-            # Optional numeric Version (safe if you don't publish to NuGet)
-            $numeric = ($new.TrimStart('v') -replace '\.00$', '.0.0')  # v2.00 -> 2.0.0
-            $verNode = $pg.Version | Select-Object -First 1
-            if ($verNode) { $verNode.InnerText = $numeric } else {
-              $vn = $xml.CreateElement('Version'); $vn.InnerText = $numeric; $pg.AppendChild($vn) | Out-Null
-            }
-
-            $xml.Save($_.FullName)
-            Write-Host "Updated $($_.FullName)"
-          }
-
-      - name: Create Release PR
-        if: steps.gate.outputs.is_major == 'true'
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1 (2026-04-10)
-        with:
-          commit-message: "chore(release): prepare ${{ steps.bump.outputs.version }}"
-          title: "Release ${{ steps.bump.outputs.version }}"
-          body: |
-            Prepare **${{ steps.bump.outputs.version }}**.
-            - Bump `VERSION`
-            - Stamp `.csproj` `AssemblyInformationalVersion` to `${{ steps.bump.outputs.version }}+ysonet`
-          branch: release/${{ steps.bump.outputs.version }}
-          labels: release
-          signoff: true
-          delete-branch: true
+          echo "This workflow is retired. Versioning is calendar based: vYEAR.MONTH.RELEASE."
+          echo "To release, edit the VERSION file on master (e.g. v2026.7.1) and let"
+          echo "tag-build-release.yml handle tagging and publishing."
