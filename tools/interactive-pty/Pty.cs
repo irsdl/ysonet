@@ -364,7 +364,13 @@ namespace PtyTest
 
         private static int Main(string[] args)
         {
-            string exe = args.Length > 0 ? args[0] : @"..\..\ysonet\bin\Debug\ysonet.exe";
+            if (args.Length < 1)
+            {
+                Console.Error.WriteLine("Usage: interactive-pty <path-to-ysonet.exe>");
+                Console.Error.WriteLine("Example: interactive-pty ..\\..\\ysonet\\bin\\Debug\\ysonet.exe");
+                return 2;
+            }
+            string exe = System.IO.Path.GetFullPath(args[0]);
             string workDir = System.IO.Path.GetDirectoryName(exe);
 
             Native.UninheritStdHandles(); // so the child binds to the PTY, not our pipes
