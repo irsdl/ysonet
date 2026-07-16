@@ -41,7 +41,7 @@ namespace ysonet.Interactive
         public static readonly string[] NonPayloadGlobalOptions = new string[]
         {
             "runmytest", "stdin", "help", "fullhelp", "credit",
-            "searchformatter", "runallformatters"
+            "searchformatter", "runallformatters", "list"
         };
 
         // Global options the wizard collects as payload-affecting fields. Together

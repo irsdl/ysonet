@@ -132,8 +132,35 @@ parsing. All state is in static fields; parsed into an `InputArgs` object.
 `-s|--stdin` (read command from stdin), `--bgc|--bridgedgadgetchains` (comma-separated
 bridge chain), `-t|--test` (locally deserialize the payload to self-verify),
 `--outputpath`, `--minify`, `--ust|--usesimpletype`, `--raf|--runallformatters`,
-`--sf|--searchformatter`, `--debugmode`, `-h|--help`, `--fullhelp`, `--credit`,
+`--sf|--searchformatter`, `--list` (machine-readable listing, see below),
+`--debugmode`, `-h|--help`, `--fullhelp`, `--credit`,
 `--runmytest` (runs `Helpers.TestingArena.TestingArenaHome.Start` - dev only).
+
+`--list <category>` prints one name per line to stdout and exits (errors go to
+stderr). Categories: `gadgets`, `plugins`, `formatters`, `options`, `outputs`.
+Adding `-g <gadget>` narrows `formatters`/`options` to that gadget; `-p <plugin>`
+narrows `options` to that plugin. It is stable, easy to parse, and backs the shell
+tab-completion scripts in `tools/completions/` (currently `ysonet.ps1` for
+PowerShell). The data comes from `Helpers/CliListing.cs`, so it never drifts as
+gadgets/plugins/formatters are added; `Program.PrintList` handles the flag.
+
+`completion` is a first-arg subcommand (like `interactive`/`wizard`) that manages
+PowerShell tab completion for end users. The recommended path is per-session and
+needs no install: `ysonet completion powershell | Out-String | Invoke-Expression`
+(execution policy restricts script files, not IEval'd strings, so it works even
+under `Restricted`; the emitted script is prefixed with `$env:YSONET_EXE` so value
+completion works off PATH). `install`/`uninstall` persist it by adding/removing a
+managed block in the user's PowerShell profile. Persistent `install` targets
+PowerShell 7+ (pwsh) only: Windows PowerShell 5.1 is commonly AllSigned/Restricted
+(which blocks unsigned profiles) and we do not change machine policy. `install`
+checks the effective execution policy first (registry for Windows PowerShell, a
+`-NoProfile` host probe for pwsh) and refuses when it would block the profile
+(override with `install force`); it clears the OneDrive mark-of-the-web on the file
+it writes, and `uninstall` deletes the file when the block was its only content.
+`status` reports the detected shell, per-edition policy, and install state. Shell
+detection walks the parent-process chain. The PowerShell script is embedded from
+`tools/completions/ysonet.ps1` (one source of truth, checked by tests). Logic lives
+in `Helpers/CompletionCommand.cs`.
 
 ### Control flow (in order)
 1. Parse args into `InputArgs` (Cmd, IsRawCmd, Test, Minify, UseSimpleType, IsDebugMode,
@@ -420,6 +447,8 @@ Each returns XML/SOAP with an HTML comment explaining where to POST it.
 |---|---|---|
 | **GadgetHelper.cs** | Reflection discovery/instantiation of `IGenerator` gadgets; caches type + name metadata; fuzzy name matching (with/without `Generator` suffix). | `GetAllGadgetNames`, `GadgetExists`, `CreateGadgetInstance`, `GetGadgetsSupportingFormatter`, `GetGadgetsContaining`, `NormalizeGadgetName`, `ValidateAndGetExactGadgetName`, `ClearCache` |
 | **PluginHelper.cs** | Same for `IPlugin`; also captures Description + Credit. | `GetAllPluginNames`, `PluginExists`, `CreatePluginInstance`, `GetAllPluginsWithDescriptions`, `GetAllPluginsWithCredits`, `GetPluginInfo` |
+| **CliListing.cs** | Machine-readable listings behind `--list` and the shell completion scripts. Computed from live gadgets/plugins/option sets so they never drift; excludes `Generic`; cleans variant notes off formatter names. | `Gadgets`, `Plugins`, `Formatters`, `GadgetFormatters`, `GadgetOptions`, `PluginOptions`, `OptionTokens`; `OutputFormats`, `ListCategories` |
+| **CompletionCommand.cs** | The `completion` subcommand: emit/install/uninstall/status for PowerShell tab completion. Embeds `tools/completions/ysonet.ps1`, edits the PowerShell profile idempotently (marked block), and detects the shell by walking the parent-process chain. | `IsInvocation`, `Run`, `LoadPowerShellScript`, `AddOrUpdateBlock`, `RemoveBlock`, `ClassifyShell`, `DetectShell` |
 | **SerializersHelper.cs** | Central static library of serialize/deserialize/test methods for EVERY supported serializer (see below). | `ShowAll`, `TestAll`, and `<Serializer>_serialize/_deserialize/_test` families |
 | **InputArgs.cs** | Mutable carrier of parsed command + flags; splits `Cmd` into `CmdFileName`+`CmdArguments`; can read command from a file; Shallow/DeepCopy. | Props: `Cmd`, `CmdFullString`, `CmdFileName`, `CmdArguments`, `CmdFromFile`, `CmdType`, `IsRawCmd`, `Test`, `Minify`, `UseSimpleType`, `IsDebugMode`, `IsSTAThread`, `HasArguments`, `ExtraArguments`, `ExtraInternalArguments` |
 | **CommandArgSplitter.cs** | Split command into `[fileName, args]` (on first space) and escape per target context. | `SplitCommand`, `XmlStringHTMLEscape`, `XmlStringAttributeEscape`, `JsonStringEscape`; `enum CommandType {None,XML,JSON,YamlDotNet,XMLinJSON,JSONinXML}` |

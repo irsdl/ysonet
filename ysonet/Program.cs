@@ -34,6 +34,7 @@ namespace ysonet
         static bool isDebugMode = false;
         static bool isSearchFormatterAndRunMode = false;
         static bool runMyTest = false;
+        static string listCategory = "";
 
         static IEnumerable<string> generators;
         static IEnumerable<string> plugins;
@@ -54,6 +55,7 @@ namespace ysonet
                 {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple (always `true` with `--minify` for binary formatters). Default: true", v => useSimpleType =  v != null },
                 {"raf|runallformatters", "Whether to run all the gadgets with the provided formatter (ignores gadget name, output format, and the test flag arguments). This will search in formatters and also show the displayed payload length. Default: false", v => isSearchFormatterAndRunMode =  v != null },
                 {"sf|searchformatter=", "Search in all formatters to show relevant gadgets and their formatters (other parameters will be ignored).", v => searchFormatter =  v},
+                {"list=", "Print a machine-readable list (one item per line) and exit. Categories: gadgets|plugins|formatters|options|outputs. Add -g <gadget> to list that gadget's formatters/options, or -p <plugin> to list that plugin's options. Useful for shell tab-completion scripts.", v => listCategory = v },
                 {"debugmode", "Enable debugging to show exception errors and output length", v => isDebugMode  =  v != null},
                 {"h|help", "Shows this message and exit.", v => show_help = v != null },
                 {"fullhelp", "Shows this message + extra options for gadgets and plugins and exit.", v => show_fullhelp = v != null },
@@ -71,6 +73,13 @@ namespace ysonet
             {
                 int interactiveCode = ysonet.Interactive.InteractiveMode.Run();
                 System.Environment.Exit(interactiveCode);
+            }
+
+            // `ysonet completion ...` manages shell tab completion (print/install/
+            // uninstall/status). Detected as a first-arg subcommand, like interactive.
+            if (Helpers.CompletionCommand.IsInvocation(args))
+            {
+                System.Environment.Exit(Helpers.CompletionCommand.Run(args));
             }
 
             InputArgs inputArgs = new InputArgs();
@@ -100,6 +109,14 @@ namespace ysonet
                 Helpers.TestingArena.TestingArenaHome runTest = new Helpers.TestingArena.TestingArenaHome();
                 runTest.Start(inputArgs);
                 Environment.Exit(0);
+            }
+
+            // Machine-readable listing for scripts and shell completion. This is a
+            // clean early exit: it prints names to stdout, errors to stderr, and
+            // never runs the normal help/validation flow.
+            if (!string.IsNullOrEmpty(listCategory))
+            {
+                PrintList(listCategory);
             }
 
             if (show_fullhelp)
@@ -449,6 +466,87 @@ namespace ysonet
                 || string.Equals(first, "--interactive", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(first, "interactive", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(first, "wizard", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Prints a machine-readable list (one item per line) and exits. Used by
+        // shell tab-completion scripts and any tooling that needs the live set of
+        // gadgets, plugins, formatters or options. All the data comes from
+        // CliListing so it stays correct as gadgets/plugins/formatters are added.
+        private static void PrintList(string category)
+        {
+            category = (category ?? "").Trim().ToLowerInvariant();
+            List<string> items;
+
+            switch (category)
+            {
+                case "gadgets":
+                    items = CliListing.Gadgets();
+                    break;
+
+                case "plugins":
+                    items = CliListing.Plugins();
+                    break;
+
+                case "formatters":
+                    if (!string.IsNullOrEmpty(gadget_name))
+                    {
+                        string exact = GadgetHelper.ValidateAndGetExactGadgetName(GadgetHelper.NormalizeGadgetName(gadget_name));
+                        if (string.IsNullOrEmpty(exact))
+                        {
+                            Console.Error.WriteLine("Unknown gadget: " + gadget_name);
+                            Environment.Exit(-1);
+                        }
+                        items = CliListing.GadgetFormatters(exact);
+                    }
+                    else
+                    {
+                        items = CliListing.Formatters();
+                    }
+                    break;
+
+                case "options":
+                    if (!string.IsNullOrEmpty(gadget_name))
+                    {
+                        string exact = GadgetHelper.ValidateAndGetExactGadgetName(GadgetHelper.NormalizeGadgetName(gadget_name));
+                        if (string.IsNullOrEmpty(exact))
+                        {
+                            Console.Error.WriteLine("Unknown gadget: " + gadget_name);
+                            Environment.Exit(-1);
+                        }
+                        items = CliListing.GadgetOptions(exact);
+                    }
+                    else if (!string.IsNullOrEmpty(plugin_name))
+                    {
+                        string exactPlugin = PluginHelper.ValidateAndGetExactPluginName(PluginHelper.NormalizePluginName(plugin_name));
+                        if (string.IsNullOrEmpty(exactPlugin))
+                        {
+                            Console.Error.WriteLine("Unknown plugin: " + plugin_name);
+                            Environment.Exit(-1);
+                        }
+                        items = CliListing.PluginOptions(exactPlugin);
+                    }
+                    else
+                    {
+                        items = CliListing.OptionTokens(options);
+                    }
+                    break;
+
+                case "outputs":
+                    items = new List<string>(CliListing.OutputFormats);
+                    break;
+
+                default:
+                    Console.Error.WriteLine("Unknown list category: " + category);
+                    Console.Error.WriteLine("Valid categories: gadgets, plugins, formatters, options, outputs");
+                    Environment.Exit(-1);
+                    return; // unreachable, keeps the compiler happy about items
+            }
+
+            foreach (string item in items)
+            {
+                Console.WriteLine(item);
+            }
+            Environment.Exit(0);
         }
 
         private static void ProcessOutput(string outputformat, object raw, bool showOutputLength, string outputFilePath)

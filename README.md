@@ -46,6 +46,26 @@ New to this tool? The easiest way to start is interactive mode: a menu-driven wi
 
 See all options with `ysonet.exe --fullhelp`, and per-gadget or per-plugin help with `-g NameHere -help` or `-p NameHere -help`. More in [Usage and Examples](docs/usage-and-examples.md).
 
+## Tab completion (PowerShell)
+
+`ysonet.exe` can tab-complete options, gadget names (`-g`), plugin names (`-p`), formatters (`-f`), and output formats (`-o`) in PowerShell. The completion values come live from the tool, so they stay correct as gadgets and plugins are added.
+
+Enable it for the current session (works in any PowerShell, nothing written to disk, not affected by execution policy):
+
+```powershell
+.\ysonet.exe completion powershell | Out-String | Invoke-Expression
+```
+
+Then press Tab, for example `.\ysonet.exe -g A` then Tab.
+
+To make it permanent in PowerShell 7+ (pwsh):
+
+```powershell
+.\ysonet.exe completion install     # then reload with:  . $PROFILE
+```
+
+Install targets PowerShell 7+ (pwsh) only, because Windows PowerShell 5.1 is often AllSigned or Restricted and cannot load an unsigned profile; in that case use the per-session line above (it needs no policy change). Run `ysonet.exe completion status` to see what is detected, and `ysonet.exe completion uninstall` to remove it. More detail in [tools/completions/](tools/completions/README.md).
+
 ## Disclaimer
 
 This software has been created purely for the purposes of academic research and for the development of effective defensive techniques, and is not intended to be used to attack systems except where explicitly authorized. Project maintainers are not responsible or liable for misuse of the software. Use responsibly.

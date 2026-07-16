@@ -33,6 +33,14 @@ namespace ysonet.Tests
             Run("PayloadRunner.GenerateGadget is deterministic", GenerateDeterministic);
             Run("Plugin argv rebuild matches CLI output", PluginArgvRebuild);
             Run("Every global option is surfaced or excluded", OptionCompleteness);
+            Run("CliListing lists gadgets, plugins, formatters, options", CliListingBasics);
+            Run("CliListing narrows to a gadget's formatters and options", CliListingPerModule);
+            Run("PowerShell completion script covers every CLI option", CompletionScriptCoversOptions);
+            Run("PowerShell completion script value lists match the tool", CompletionScriptValueLists);
+            Run("Completion script is embedded in the exe", CompletionScriptEmbedded);
+            Run("Completion profile block installs idempotently and uninstalls", CompletionProfileBlock);
+            Run("Completion shell classifier recognizes shells", CompletionShellClassifier);
+            Run("Completion policy classifier flags signing-required policies", CompletionPolicyClassifier);
             Run("Menu navigates with arrows and Enter", MenuNavigation);
             Run("Menu digit shortcut and Escape cancel", MenuDigitAndCancel);
             Run("Picker selects by typing and cancels on Esc", PickerShowSelectAndCancel);
@@ -243,6 +251,177 @@ namespace ysonet.Tests
                 AssertTrue(covered.Contains(f.Name),
                     "global option '" + f.Name + "' must be surfaced or explicitly excluded");
             }
+        }
+
+        private static void CliListingBasics()
+        {
+            var gadgets = CliListing.Gadgets();
+            var plugins = CliListing.Plugins();
+            var formatters = CliListing.Formatters();
+            var options = CliListing.OptionTokens(ysonet.Program.options);
+
+            AssertTrue(gadgets.Count > 10, "several gadgets listed");
+            AssertTrue(plugins.Count > 5, "several plugins listed");
+            AssertTrue(formatters.Count > 5, "several formatters listed");
+            AssertTrue(options.Count > 10, "several option tokens listed");
+
+            // "Generic" is an internal placeholder and must never be offered.
+            AssertTrue(!gadgets.Contains("Generic"), "gadgets exclude Generic");
+            AssertTrue(!plugins.Contains("Generic"), "plugins exclude Generic");
+
+            // A few well-known values must be present.
+            AssertTrue(gadgets.Contains("ObjectDataProvider"), "ObjectDataProvider listed");
+            AssertTrue(formatters.Contains("BinaryFormatter"), "BinaryFormatter listed");
+            AssertTrue(formatters.Contains("Json.NET"), "Json.NET listed (dot kept)");
+            // Variant annotations must be cleaned off in the global formatter list.
+            AssertTrue(!formatters.Contains("Xaml (4)"), "no annotated formatter names");
+            AssertTrue(formatters.Contains("Xaml"), "Xaml listed cleanly");
+
+            AssertTrue(options.Contains("-g") && options.Contains("--gadget"), "gadget option tokens present");
+            AssertTrue(options.Contains("--list"), "list option token present");
+        }
+
+        private static void CliListingPerModule()
+        {
+            var odpFormatters = CliListing.GadgetFormatters("ObjectDataProvider");
+            AssertTrue(odpFormatters.Count > 3, "gadget reports its formatters");
+            AssertTrue(odpFormatters.Contains("Json.NET"), "ObjectDataProvider supports Json.NET");
+
+            var odpOptions = CliListing.GadgetOptions("ObjectDataProvider");
+            AssertTrue(odpOptions.Contains("--variant"), "ObjectDataProvider exposes --variant");
+            AssertTrue(odpOptions.Contains("--xamlurl"), "ObjectDataProvider exposes --xamlurl");
+
+            var vsOptions = CliListing.PluginOptions("ViewState");
+            AssertTrue(vsOptions.Count > 5, "ViewState plugin exposes options");
+            AssertTrue(vsOptions.Contains("-g") || vsOptions.Contains("--gadget"), "ViewState exposes a gadget option");
+
+            // Unknown names return empty, not an exception.
+            AssertEqual(0, CliListing.GadgetFormatters("NoSuchGadget").Count, "unknown gadget -> empty");
+            AssertEqual(0, CliListing.PluginOptions("NoSuchPlugin").Count, "unknown plugin -> empty");
+        }
+
+        // Drift guard: every top-level CLI option the tool defines must be known
+        // to the PowerShell completion script, so adding an option to Program.cs
+        // without updating the script fails the build.
+        private static void CompletionScriptCoversOptions()
+        {
+            string script = ReadCompletionScript();
+
+            // Dev-only options intentionally left out of completion.
+            var omitted = new HashSet<string>(StringComparer.Ordinal) { "--runmytest" };
+
+            foreach (string token in CliListing.OptionTokens(ysonet.Program.options))
+            {
+                if (omitted.Contains(token))
+                    continue;
+                // The script lists tokens as quoted literals, e.g. '--gadget'.
+                AssertTrue(script.Contains("'" + token + "'"),
+                    "completion script must know option '" + token + "' (add it to tools/completions/ysonet.ps1)");
+            }
+        }
+
+        // Drift guard: the script must read its value lists live from `--list`
+        // (not hardcode them), and its --list category set must match the tool.
+        private static void CompletionScriptValueLists()
+        {
+            string script = ReadCompletionScript();
+
+            AssertTrue(script.Contains("--list"), "script drives value lists via --list");
+
+            foreach (string category in CliListing.ListCategories)
+            {
+                AssertTrue(script.Contains("'" + category + "'"),
+                    "script must reference --list category '" + category + "'");
+            }
+        }
+
+        private static void CompletionScriptEmbedded()
+        {
+            string s = CompletionCommand.LoadPowerShellScript();
+            AssertTrue(!string.IsNullOrEmpty(s), "embedded completion script present");
+            AssertTrue(s.Contains("Register-ArgumentCompleter"), "script registers a completer");
+            AssertTrue(s.Contains("--list"), "embedded script drives values via --list");
+        }
+
+        private static void CompletionProfileBlock()
+        {
+            string exe = @"C:\tools\ysonet.exe";
+
+            // Insert into an empty profile.
+            string t0 = CompletionCommand.AddOrUpdateBlock("", exe);
+            AssertTrue(t0.Contains("$env:YSONET_EXE = 'C:\\tools\\ysonet.exe'"), "block sets exe path");
+            AssertTrue(t0.Contains("completion powershell"), "block loads the script");
+
+            // Installing again with the same exe is a no-op.
+            string t1 = CompletionCommand.AddOrUpdateBlock(t0, exe);
+            AssertEqual(t0, t1, "install is idempotent");
+
+            // A different exe path replaces in place, leaving a single block.
+            string t2 = CompletionCommand.AddOrUpdateBlock(t0, @"D:\ysonet.exe");
+            AssertEqual(1, CountOccurrences(t2, "YSONET_EXE"), "only one managed block after update");
+            AssertTrue(t2.Contains(@"D:\ysonet.exe"), "block refreshed to new exe path");
+
+            // Surrounding profile content survives install and uninstall.
+            string user = "Set-Alias ll Get-ChildItem" + Environment.NewLine;
+            string withBlock = CompletionCommand.AddOrUpdateBlock(user, exe);
+            AssertTrue(withBlock.Contains("Set-Alias ll Get-ChildItem"), "user content kept on install");
+
+            string removed = CompletionCommand.RemoveBlock(withBlock);
+            AssertTrue(removed.Contains("Set-Alias ll Get-ChildItem"), "user content kept on uninstall");
+            AssertTrue(!removed.Contains("YSONET_EXE"), "managed block gone after uninstall");
+
+            // When our block is the whole profile, removal leaves nothing, so
+            // uninstall deletes the file instead of leaving an empty one.
+            AssertTrue(string.IsNullOrWhiteSpace(CompletionCommand.RemoveBlock(t0)),
+                "block-only profile becomes empty on uninstall");
+        }
+
+        private static void CompletionPolicyClassifier()
+        {
+            AssertTrue(CompletionCommand.PolicyBlocksUnsignedProfile("AllSigned"), "AllSigned blocks");
+            AssertTrue(CompletionCommand.PolicyBlocksUnsignedProfile("Restricted"), "Restricted blocks");
+            AssertTrue(CompletionCommand.PolicyBlocksUnsignedProfile(" allsigned "), "case/space insensitive");
+            AssertTrue(!CompletionCommand.PolicyBlocksUnsignedProfile("RemoteSigned"), "RemoteSigned allows");
+            AssertTrue(!CompletionCommand.PolicyBlocksUnsignedProfile("Bypass"), "Bypass allows");
+            AssertTrue(!CompletionCommand.PolicyBlocksUnsignedProfile("Unrestricted"), "Unrestricted allows");
+            AssertTrue(!CompletionCommand.PolicyBlocksUnsignedProfile(""), "empty is not a block");
+        }
+
+        private static void CompletionShellClassifier()
+        {
+            AssertEqual(CompletionCommand.ShellKind.PowerShellCore, CompletionCommand.ClassifyShell("pwsh"), "pwsh");
+            AssertEqual(CompletionCommand.ShellKind.PowerShellCore, CompletionCommand.ClassifyShell("pwsh.exe"), "pwsh.exe");
+            AssertEqual(CompletionCommand.ShellKind.WindowsPowerShell, CompletionCommand.ClassifyShell("powershell"), "powershell");
+            AssertEqual(CompletionCommand.ShellKind.Cmd, CompletionCommand.ClassifyShell("cmd"), "cmd");
+            AssertEqual(CompletionCommand.ShellKind.Posix, CompletionCommand.ClassifyShell("bash"), "bash");
+            AssertEqual(CompletionCommand.ShellKind.Unknown, CompletionCommand.ClassifyShell("notepad"), "unknown app");
+        }
+
+        private static int CountOccurrences(string haystack, string needle)
+        {
+            int count = 0, i = 0;
+            while ((i = haystack.IndexOf(needle, i, StringComparison.Ordinal)) >= 0)
+            {
+                count++;
+                i += needle.Length;
+            }
+            return count;
+        }
+
+        // Locate tools/completions/ysonet.ps1 by walking up from the test binary,
+        // so no absolute/machine path is baked in.
+        private static string ReadCompletionScript()
+        {
+            string rel = Path.Combine("tools", "completions", "ysonet.ps1");
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            while (dir != null)
+            {
+                string candidate = Path.Combine(dir.FullName, rel);
+                if (File.Exists(candidate))
+                    return File.ReadAllText(candidate);
+                dir = dir.Parent;
+            }
+            throw new Exception("could not locate " + rel + " above " + AppDomain.CurrentDomain.BaseDirectory);
         }
 
         private static void WizardEndToEnd()

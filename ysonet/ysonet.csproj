@@ -220,6 +220,8 @@
     <Compile Include="Generators\ClaimsIdentityGenerator.cs" />
     <Compile Include="Generators\ToolboxItemContainerGenerator.cs" />
     <Compile Include="Generators\WindowsPrincipalGenerator.cs" />
+    <Compile Include="Helpers\CliListing.cs" />
+    <Compile Include="Helpers\CompletionCommand.cs" />
     <Compile Include="Helpers\GadgetHelper.cs" />
     <Compile Include="Helpers\GadgetSurrogates\GetterSettingsPropertyValueSurrogates.cs" />
     <Compile Include="Helpers\HelpText.cs" />
@@ -314,6 +316,16 @@
     <None Include="App.config" />
     <None Include="obfuscar.xml" />
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Ship the PowerShell completion script inside the exe (single source of
+         truth: the same file the tests check). `ysonet completion powershell`
+         emits it. Obfuscar keeps resource names, so the fixed LogicalName is
+         safe to look up at runtime. -->
+    <EmbeddedResource Include="..\tools\completions\ysonet.ps1">
+      <Link>Resources\ysonet.ps1</Link>
+      <LogicalName>ysonet.completions.ysonet.ps1</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.5.2">
