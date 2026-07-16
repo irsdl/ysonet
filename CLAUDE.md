@@ -54,7 +54,8 @@ Project agent tooling is tracked and public so contributors and their agents sha
 Releases use calendar versioning: `vYEAR.MONTH.RELEASE`. The middle number is the month, the last number is the release count in that month. Example: `v2026.7.1` is the first release in July 2026; `v2026.7.2` is the second that month.
 
 - This was chosen so the version never looks like a .NET version (v2 reads as .NET 2, v4 as .NET Framework 4, v8 as .NET 8). It replaced the old `vN.NN` scheme (last was v1.14).
-- Keep these two in step on each release: the `VERSION` file at repo root (read raw, no trailing newline) and `AssemblyInformationalVersion` in `ysonet/Properties/AssemblyInfo.cs` (shown in the interactive banner).
+- The `VERSION` file at the repo root (read raw, no trailing newline) is the single source of truth for the product version. Do not hardcode a version anywhere. At build time the `GenerateVersionInfo` target in `ysonet/ysonet.csproj` reads `VERSION` and generates all three assembly attributes into `obj/`: `AssemblyInformationalVersion` is the raw `vYEAR.MONTH.RELEASE` string (shown in the interactive banner), and `AssemblyVersion` / `AssemblyFileVersion` are the numeric form with the leading `v` stripped. `AssemblyInfo.cs` holds no version.
+- This applies to the `ysonet` project only. The helper projects (`ExploitClass` -> `E.dll`, and `TestConsoleApp`) keep their own separate assembly versions on purpose; do not tie them to `VERSION`.
 - To cut a release, edit the `VERSION` file on master. That triggers `.github/workflows/tag-build-release.yml`, which validates `^v\d+\.\d+\.\d+$`, tags `ysonet/vYEAR.MONTH.RELEASE`, builds Release, and publishes.
 - There is no "major bump". `prepare-major-release.yml` is retired and the `major` PR label is not used. Call out breaking changes in the PR description instead.
 - Ordinary merges do not change the version. Only editing `VERSION` does.
