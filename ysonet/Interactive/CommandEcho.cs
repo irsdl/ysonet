@@ -54,7 +54,7 @@ namespace ysonet.Interactive
             {
                 t.Add("-s");
             }
-            else if (command != null)
+            else if (!string.IsNullOrEmpty(command))
             {
                 t.Add("-c");
                 t.Add(command);

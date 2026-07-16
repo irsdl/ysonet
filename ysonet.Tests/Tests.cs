@@ -45,6 +45,7 @@ namespace ysonet.Tests
             Run("Esc at a text prompt goes back, no payload", WizardEscAtTextPrompt);
             Run("Wizard plugin path matches the core", WizardPluginPath);
             Run("Gadgets declare their command-input type", CommandInputTypes);
+            Run("Ignored-command gadget needs no -c and hides those fields", IgnoredCommandGadget);
             Run("Gadgets declare their variants", GadgetsDeclareVariants);
             Run("Variants can declare their own command-input type", VariantInputTypes);
             Run("Option heuristics recover choices/default/required", OptionHeuristics);
@@ -466,6 +467,40 @@ namespace ysonet.Tests
             AssertEqual("URL", Wizard.CommandLabel(CommandInputType.Url), "url label");
             AssertEqual("calc.exe", Wizard.CommandDefault(CommandInputType.ShellCommand), "shell default");
             AssertEqual("", Wizard.CommandDefault(CommandInputType.DllPath), "dll has no default");
+        }
+
+        private static void IgnoredCommandGadget()
+        {
+            // ActivitySurrogateDisableTypeCheck ignores -c (it just flips a protection
+            // flag). It must generate with no command, and both the CLI and the
+            // interactive editor must treat the command as unneeded.
+            const string name = "ActivitySurrogateDisableTypeCheck";
+            AssertEqual(CommandInputType.Ignored, Gadget(name).CommandInput(), "gadget ignores the command");
+
+            // Interactive: the command and rawcmd fields are hidden, command not required.
+            var editor = new ModuleEditor(null, null, true, null, null);
+            var fields = editor.BuildFieldsForTest(name);
+            EditableField cmd = FindEditable(fields, "command");
+            EditableField rawcmd = FindEditable(fields, "rawcmd");
+            AssertTrue(cmd != null && cmd.Hidden && !cmd.Required, "command field hidden and optional");
+            AssertTrue(rawcmd != null && rawcmd.Hidden, "rawcmd field hidden");
+
+            // The equivalent command line omits -c when there is no command.
+            var tokens = CommandEcho.GadgetTokens(name, "LosFormatter", "",
+                false, false, "", "", "", false, false, false, false, null);
+            AssertTrue(!tokens.Contains("-c"), "no -c token for an ignored command");
+
+            // Core generation succeeds with an empty command.
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "";
+            GenerationRequest req = new GenerationRequest();
+            req.GadgetName = name;
+            req.FormatterName = "LosFormatter";
+            req.OutputFormat = "";
+            req.InputArgs = ia;
+            RunResult r = PayloadRunner.GenerateGadget(req);
+            AssertTrue(r.Success, "generates with no command: " + r.ErrorMessage);
+            AssertTrue(r.Raw != null, "produced a payload");
         }
 
         private static IGenerator Gadget(string name)
@@ -1265,7 +1300,7 @@ namespace ysonet.Tests
             // with the current value and the caret sits at the end, so typing APPENDS
             // (it does not wipe the value). (Enter opens the gadget flow, Enter opens
             // the first gadget, Down moves to 'command', Enter edits it.)
-            var frames = DriveFrames(k => k.Enter().Enter().Down().Enter()
+            var frames = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
                 .Type("X").Escape().Escape().Escape().Escape());
             // The full value is echoed in the footer (so a long value stays visible for
             // reading/copying); the edit box itself shows it with a block caret.
@@ -1273,12 +1308,12 @@ namespace ysonet.Tests
             AssertTrue(AnyFrame(frames, "Editing command: calc.exeX"), "typing appends at the end (does not replace)");
 
             // Ctrl+U clears the whole line, so you can quickly type a fresh value.
-            var replaced = DriveFrames(k => k.Enter().Enter().Down().Enter()
+            var replaced = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
                 .CtrlU().Type("notepad").Escape().Escape().Escape().Escape());
             AssertTrue(AnyFrame(replaced, "Editing command: notepad"), "Ctrl+U clears, then typing sets a new value");
 
             // Backspacing the value away empties the box (Enter would then save empty).
-            var cleared = DriveFrames(k => k.Enter().Enter().Down().Enter()
+            var cleared = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
                 .Backspace(8).Escape().Escape().Escape().Escape()); // "calc.exe" is 8 chars
             AssertTrue(AnyFrameRowTrimmed(cleared, "Editing command:"), "backspacing the value empties the box");
         }
@@ -1288,7 +1323,7 @@ namespace ysonet.Tests
             // Ctrl+Backspace deletes the whole word to the left. Type "abc def", then
             // Ctrl+Backspace removes "def" and typing "Z" gives "abc Z" (a sentinel that
             // only arises if the word delete happened). Ctrl+U clears first.
-            var del = DriveFrames(k => k.Enter().Enter().Down().Enter()
+            var del = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
                 .CtrlU().Type("abc def").CtrlBackspace().Type("Z")
                 .Escape().Escape().Escape().Escape());
             AssertTrue(AnyFrame(del, "Editing command: abc Z"), "Ctrl+Backspace deletes the word to the left");
@@ -1296,7 +1331,7 @@ namespace ysonet.Tests
             // Ctrl+Left moves by a word, so typing lands before that word: from the end
             // of "abc def", Ctrl+Left puts the caret before "def"; typing "Z" gives
             // "abc Zdef".
-            var move = DriveFrames(k => k.Enter().Enter().Down().Enter()
+            var move = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
                 .CtrlU().Type("abc def").CtrlLeft().Type("Z")
                 .Escape().Escape().Escape().Escape());
             AssertTrue(AnyFrame(move, "Editing command: abc Zdef"), "Ctrl+Left jumps a whole word");
@@ -1308,7 +1343,7 @@ namespace ysonet.Tests
             // (no separate page). Type a long no-space value; it appears wrapped in the
             // edit box across more than one row, and in full on one line in the footer.
             string longVal = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaXY";
-            var frames = DriveFrames(k => k.Enter().Enter().Down().Enter()
+            var frames = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
                 .CtrlU().Type(longVal).Escape().Escape().Escape().Escape());
             // The tail "XY" is only reachable if the value wrapped onto a later row of
             // the box (the first row is full of 'a's), so seeing it proves in-place wrap.
@@ -1327,12 +1362,12 @@ namespace ysonet.Tests
         private static void TextEditCaretEditing()
         {
             // Left moves the caret so you can insert in the middle, not only append.
-            var mid = DriveFrames(k => k.Enter().Enter().Down().Enter()
+            var mid = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
                 .Left().Left().Type("X").Escape().Escape().Escape().Escape());
             AssertTrue(AnyFrame(mid, "Editing command: calc.eXxe"), "Left caret then type inserts in the middle");
 
             // Home jumps to the start; Delete removes the character at the caret.
-            var del = DriveFrames(k => k.Enter().Enter().Down().Enter()
+            var del = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
                 .Home().Delete().Escape().Escape().Escape().Escape());
             AssertTrue(AnyFrame(del, "Editing command: alc.exe"), "Home then Delete removes the first character");
         }
@@ -1341,7 +1376,7 @@ namespace ysonet.Tests
         {
             // Navigating onto a value setting shows its full value in the footer, so a
             // long value (truncated in the narrow column) can be read and copied out.
-            var frames = DriveFrames(k => k.Enter().Enter().Down().Escape().Escape().Escape());
+            var frames = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Escape().Escape().Escape());
             AssertTrue(AnyFrame(frames, "command = calc.exe"), "the focused setting's full value shows in the footer");
         }
 
@@ -1418,20 +1453,20 @@ namespace ysonet.Tests
             var top = run(k => k.Escape());
             show("TOP MENU", top, "What do you want to do", false);
 
-            var gadget = run(k => k.Enter().Enter().Down().Down().Escape().Escape().Escape());
+            var gadget = run(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Down().Escape().Escape().Escape());
             show("GADGET MODULES (right columns hidden)", gadget, "Gadgets", false);
             show("GADGET SETTINGS (columns)", gadget, "[ Generate and quit ]", false);
 
-            var textEdit = run(k => k.Enter().Enter().Down().Enter().Type("notepad").Escape().Escape().Escape().Escape());
+            var textEdit = run(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter().Type("notepad").Escape().Escape().Escape().Escape());
             show("EDIT A TEXT SETTING (command)", textEdit, "Edit: command", true);
 
-            var choice = run(k => k.Enter().Enter().Down().Down().Down().Enter().Escape().Escape().Escape().Escape());
+            var choice = run(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Down().Down().Enter().Escape().Escape().Escape().Escape());
             show("EDIT A CHOICE SETTING (formatter)", choice, "Edit: formatter", false);
 
-            var showCmd = run(k => k.Enter().Enter().Up().Enter().Enter().Escape().Escape().Escape());
+            var showCmd = run(k => k.Enter().Type("ObjectDataProvider").Enter().Up().Enter().Enter().Escape().Escape().Escape());
             show("SHOW YSONET COMMAND action", showCmd, "Equivalent one-line command", false);
 
-            var gen = run(k => k.Enter().Enter().Up().Up().Up().Up().Enter().Enter().Escape().Escape().Escape());
+            var gen = run(k => k.Enter().Type("ObjectDataProvider").Enter().Up().Up().Up().Up().Enter().Enter().Escape().Escape().Escape());
             show("GENERATE action output", gen, "Payload (", false);
 
             var plugin = run(k => k.Digit(2).Up().Enter().Escape().Escape().Escape());
