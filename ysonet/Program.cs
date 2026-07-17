@@ -34,6 +34,7 @@ namespace ysonet
         static bool isDebugMode = false;
         static bool isSearchFormatterAndRunMode = false;
         static bool runMyTest = false;
+        static bool checkUpdate = false;
         static string listCategory = "";
 
         static IEnumerable<string> generators;
@@ -60,6 +61,7 @@ namespace ysonet
                 {"h|help", "Shows this message and exit.", v => show_help = v != null },
                 {"fullhelp", "Shows this message + extra options for gadgets and plugins and exit.", v => show_fullhelp = v != null },
                 {"credit", "Shows the credit/history of gadgets and plugins (other parameters will be ignored).", v => show_credit =  v != null },
+                {"checkupdate", "Check GitHub for a newer YSoNet release and exit.", v => checkUpdate = v != null },
                 {"runmytest", "Runs that `Start` method of `TestingArenaHome` - useful for testing and debugging.", v => runMyTest =  v != null }
             };
 
@@ -109,6 +111,16 @@ namespace ysonet
                 Helpers.TestingArena.TestingArenaHome runTest = new Helpers.TestingArena.TestingArenaHome();
                 runTest.Start(inputArgs);
                 Environment.Exit(0);
+            }
+
+            // Check GitHub for a newer release. It needs no gadget/plugin/command,
+            // so it runs before the missing-argument handling. It does not hard-exit
+            // the process: it sets the exit code and returns, so buffered output is
+            // flushed and the download link is always visible.
+            if (checkUpdate)
+            {
+                Environment.ExitCode = CheckForUpdates();
+                return;
             }
 
             // Machine-readable listing for scripts and shell completion. This is a
@@ -971,6 +983,53 @@ namespace ysonet
             {
                 Console.WriteLine("Available plugins:");
                 Console.WriteLine(string.Join(", ", PluginHelper.GetAllPluginNames()));
+            }
+        }
+
+        // Query GitHub for the latest release and report the outcome. Always prints a
+        // link to the releases page. Returns a process exit code: 0 when the check
+        // completed (up to date, newer available, or ahead), 1 when it could not be
+        // completed (unreachable or unparseable).
+        private static int CheckForUpdates()
+        {
+            Console.WriteLine("Checking for updates...");
+            Helpers.UpdateChecker.Result r = Helpers.UpdateChecker.Check();
+
+            string current = string.IsNullOrEmpty(r.CurrentVersion) ? "unknown" : r.CurrentVersion;
+            Console.WriteLine("Current version: " + current);
+
+            switch (r.Status)
+            {
+                case Helpers.UpdateChecker.UpdateStatus.UpdateAvailable:
+                    Console.WriteLine("Latest version:  " + r.LatestVersion);
+                    Console.WriteLine("A newer version is available. Download it from:");
+                    Console.WriteLine("  " + r.ReleaseUrl);
+                    return 0;
+
+                case Helpers.UpdateChecker.UpdateStatus.UpToDate:
+                    Console.WriteLine("Latest version:  " + r.LatestVersion);
+                    Console.WriteLine("You are running the latest version.");
+                    return 0;
+
+                case Helpers.UpdateChecker.UpdateStatus.Ahead:
+                    Console.WriteLine("Latest version:  " + r.LatestVersion);
+                    Console.WriteLine("Your version is newer than the latest release. Nice time machine!");
+                    Console.WriteLine("You are probably running a local or pre-release build.");
+                    Console.WriteLine("Latest published release: " + r.ReleaseUrl);
+                    return 0;
+
+                case Helpers.UpdateChecker.UpdateStatus.Unparseable:
+                    Console.WriteLine("Could not read the latest version (the release format may have changed).");
+                    Console.WriteLine("You are probably out of date. Please check manually:");
+                    Console.WriteLine("  " + r.ReleaseUrl);
+                    return 1;
+
+                default: // Unreachable
+                    Console.WriteLine("Could not reach GitHub"
+                        + (string.IsNullOrEmpty(r.Error) ? "" : (": " + r.Error)) + ".");
+                    Console.WriteLine("Please check for updates yourself at:");
+                    Console.WriteLine("  " + r.ReleaseUrl);
+                    return 1;
             }
         }
 

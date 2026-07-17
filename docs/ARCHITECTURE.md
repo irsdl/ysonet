@@ -134,7 +134,20 @@ bridge chain), `-t|--test` (locally deserialize the payload to self-verify),
 `--outputpath`, `--minify`, `--ust|--usesimpletype`, `--raf|--runallformatters`,
 `--sf|--searchformatter`, `--list` (machine-readable listing, see below),
 `--debugmode`, `-h|--help`, `--fullhelp`, `--credit`,
+`--checkupdate` (query GitHub for a newer release and exit),
 `--runmytest` (runs `Helpers.TestingArena.TestingArenaHome.Start` - dev only).
+
+`--checkupdate` needs no gadget/plugin/command, so it runs before the missing-
+argument handling. It compares the running build's version against the newest
+GitHub release via `Helpers/UpdateChecker.cs`. It does not hard-exit the process:
+it sets `Environment.ExitCode` and returns (so buffered output flushes and the
+download link is always shown). The message depends on the outcome
+(`UpdateChecker.UpdateStatus`): up to date, a newer version is available (with the
+download link), the local build is ahead of the latest release (a local/pre-release
+"time machine" build), the version could not be read because the release format
+changed (probably out of date, check manually), or GitHub could not be reached
+(check manually). Exit code is 0 for a completed comparison and 1 for the
+unreachable/unparseable cases.
 
 `--list <category>` prints one name per line to stdout and exits (errors go to
 stderr). Categories: `gadgets`, `plugins`, `formatters`, `options`, `outputs`.
@@ -217,7 +230,8 @@ calls `Environment.Exit`; it returns a `RunResult`:
 `Main` before option parsing via `IsInteractiveInvocation` (triggers `interactive`,
 `wizard`, `-i`, `--interactive` as the FIRST arg only, so an option value cannot trigger
 it). The top menu (`Wizard.cs`) offers gadget build, plugin build, formatter search, the
-run-all-formatters sweep, credits and help. Gadget/plugin builds open the **module editor**
+run-all-formatters sweep, credits, help, and a check-for-updates entry (which calls
+`Helpers/UpdateChecker.cs`). Gadget/plugin builds open the **module editor**
 (`ModuleEditor`): pick a module, then see and change ALL its settings at once - the
 gadget/plugin options plus built-ins (formatter, command, variant, output format/file,
 flags) - each with its current value; drill into any setting to edit it; Generate when
@@ -458,6 +472,7 @@ Each returns XML/SOAP with an HTML comment explaining where to POST it.
 | **BinaryFormatterMinifier.cs** | Shrink BF payloads by round-tripping through a JSON intermediate then iteratively simplifying assembly/type names until stable; optionally re-run/test. | `MinimiseBFAndRun`, `MinimiseJsonAndRun`, `FullTypeNameMinifier`, `AssemblyOrTypeNameMinifier` |
 | **ModifiedVulnerableBinaryFormatters/** | Vendored, modified copy of .NET 4.8 `BinaryFormatter` source (referencesource, Jan 2020), security disabled, for minification/parsing. See `info.txt`. | `AdvancedBinaryFormatterParser` (`StreamToJson`, `JsonToStream`, ...), `SimpleBinaryFormatterParser`, `SimpleObjectLosFormatter`, `SimpleMinifiedObjectLosFormatter` |
 | **MachineKeyHelper.cs** | ASP.NET MachineKey Protect/Unprotect (encrypt + validation MAC), SP800-108 key derivation. Adapted from AspNetTicketBridge. | `MachineKey.Protect/Unprotect`, `SP800_108.DeriveKey`, `MachineKeyDataProtector` |
+| **UpdateChecker.cs** | Check GitHub for a newer release (backs `--checkupdate` and the interactive "Check for updates" entry). Pure version parse/compare split from the network call (injectable fetcher) so it is unit tested without a live request. Release tags are `ysonet/vYEAR.MONTH.RELEASE`. | `Check`, `CurrentVersion`, `NormalizeVersion`, `CompareVersions`, `TryParseRelease` |
 | **LocalCodeCompiler.cs** | Runtime C# compilation: from a `;`-separated file chain, load `.dll` bytes or compile first `.cs` (referencing the rest) to a library assembly. | `GetAsmBytes(fileChain)`, `CompileToAsmBytes` (default `-t:library -o+ -platform:anycpu`) |
 | **GadgetSurrogates/** | "Bait-and-switch" surrogate POCOs mirroring real gadget graphs for MessagePack (swap in real AQNs at serialize time). | `ObjectDataProviderSurrogates.cs`, `GetterSettingsPropertyValueSurrogates.cs` |
 | **MessagePackObjectDataProviderHelper.cs** | Build MessagePack Typeless ObjectDataProvider gadget by injecting real AQNs into MessagePack's private `TypelessFormatter.FullTypeNameCache`. | `CreateObjectDataProviderGadget(cmdFile, cmdArgs, useLz4)`, `Test` |

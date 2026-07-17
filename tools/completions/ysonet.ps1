@@ -49,6 +49,7 @@ $script:YsonetOptions = @(
     @{ Names = @('-h', '--help');                         Kind = 'none'      }
     @{ Names = @('--fullhelp');                           Kind = 'none'      }
     @{ Names = @('--credit');                             Kind = 'none'      }
+    @{ Names = @('--checkupdate');                        Kind = 'none'      }
 )
 
 # First-argument-only keywords that launch interactive mode.

@@ -41,7 +41,7 @@ namespace ysonet.Interactive
         public static readonly string[] NonPayloadGlobalOptions = new string[]
         {
             "runmytest", "stdin", "help", "fullhelp", "credit",
-            "searchformatter", "runallformatters", "list"
+            "searchformatter", "runallformatters", "list", "checkupdate"
         };
 
         // Global options the wizard collects as payload-affecting fields. Together
@@ -77,6 +77,7 @@ namespace ysonet.Interactive
                 "Show credits",
                 "Help",
                 "Appearance (color theme)",
+                "Check for updates",
                 "Quit"
             };
 
@@ -107,6 +108,7 @@ namespace ysonet.Interactive
                         case 4: ShowCreditsInfo(); break;
                         case 5: ShowHelpInfo(); break;
                         case 6: ChooseTheme(); break;
+                        case 7: CheckForUpdatesInfo(); break;
                     }
                 }
                 catch (WizardCancel)
@@ -126,23 +128,7 @@ namespace ysonet.Interactive
         // Best effort: falls back to the file version, then to nothing.
         internal static string ProductVersion()
         {
-            try
-            {
-                var asm = System.Reflection.Assembly.GetExecutingAssembly();
-                object[] info = asm.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false);
-                if (info.Length > 0)
-                {
-                    string v = ((System.Reflection.AssemblyInformationalVersionAttribute)info[0]).InformationalVersion;
-                    if (!string.IsNullOrEmpty(v) && v != "1.0.0.0")
-                    {
-                        int plus = v.IndexOf('+'); // drop a "+ysonet" build suffix
-                        return plus >= 0 ? v.Substring(0, plus) : v;
-                    }
-                }
-                System.Version fv = asm.GetName().Version;
-                return (fv != null && fv.ToString() != "1.0.0.0") ? ("v" + fv) : "";
-            }
-            catch { return ""; }
+            return UpdateChecker.CurrentVersion();
         }
 
         private void PrintBanner()
@@ -691,6 +677,56 @@ namespace ysonet.Interactive
             WriteLine("YSoNet is developed and maintained by Soroush Dalili (@irsdl).");
             WriteLine("YSoSerial.Net was originally developed by Alvaro Munoz (@pwntester).");
             WriteLine("Use --credit on the command line for the full per-gadget credits.");
+            Pause();
+        }
+
+        // Ask GitHub whether a newer release exists and report the result. Network
+        // errors are shown, not thrown, so the menu keeps working offline.
+        private void CheckForUpdatesInfo()
+        {
+            ConsoleCursor.ClearScreen();
+            WriteLine("");
+            ConsoleStyle.WriteLine("Check for updates", ConsoleStyle.Heading);
+            WriteLine("Checking GitHub for the latest release...");
+
+            UpdateChecker.Result r = UpdateChecker.Check();
+
+            string current = string.IsNullOrEmpty(r.CurrentVersion) ? "unknown" : r.CurrentVersion;
+            WriteLine("Current version: " + current);
+
+            switch (r.Status)
+            {
+                case UpdateChecker.UpdateStatus.UpdateAvailable:
+                    WriteLine("Latest version:  " + r.LatestVersion);
+                    ConsoleStyle.WriteLine("A newer version is available.", ConsoleStyle.Heading);
+                    ConsoleStyle.WriteLine("Download it from: " + r.ReleaseUrl, ConsoleStyle.Success);
+                    break;
+
+                case UpdateChecker.UpdateStatus.UpToDate:
+                    WriteLine("Latest version:  " + r.LatestVersion);
+                    ConsoleStyle.WriteLine("You are running the latest version.", ConsoleStyle.Success);
+                    break;
+
+                case UpdateChecker.UpdateStatus.Ahead:
+                    WriteLine("Latest version:  " + r.LatestVersion);
+                    ConsoleStyle.WriteLine("Your version is newer than the latest release. Nice time machine!", ConsoleStyle.Heading);
+                    WriteLine("You are probably running a local or pre-release build.");
+                    WriteLine("Latest published release: " + r.ReleaseUrl);
+                    break;
+
+                case UpdateChecker.UpdateStatus.Unparseable:
+                    ConsoleStyle.WriteLine("Could not read the latest version (the release format may have changed).", ConsoleStyle.Error);
+                    WriteLine("You are probably out of date. Please check manually:");
+                    WriteLine("  " + r.ReleaseUrl);
+                    break;
+
+                default: // Unreachable
+                    ConsoleStyle.WriteLine("Could not reach GitHub"
+                        + (string.IsNullOrEmpty(r.Error) ? "" : (": " + r.Error)) + ".", ConsoleStyle.Error);
+                    WriteLine("Please check for updates yourself at:");
+                    WriteLine("  " + r.ReleaseUrl);
+                    break;
+            }
             Pause();
         }
 

@@ -35,6 +35,13 @@ namespace ysonet.Tests
             Run("Every global option is surfaced or excluded", OptionCompleteness);
             Run("CliListing lists gadgets, plugins, formatters, options", CliListingBasics);
             Run("CliListing narrows to a gadget's formatters and options", CliListingPerModule);
+            Run("UpdateChecker.NormalizeVersion strips repo prefix and v", UpdateCheckerNormalize);
+            Run("UpdateChecker.LooksLikeVersion accepts only dotted numerics", UpdateCheckerLooksLikeVersion);
+            Run("UpdateChecker.CompareVersions is numeric and prefix-tolerant", UpdateCheckerCompares);
+            Run("UpdateChecker.TryParseRelease reads tag/url and rejects junk", UpdateCheckerParsesRelease);
+            Run("UpdateChecker.Check reports update/uptodate/ahead events", UpdateCheckerCheckEvents);
+            Run("UpdateChecker.Check reports unreachable and unparseable errors", UpdateCheckerCheckErrors);
+            Run("UpdateChecker.Check picks the release url and echoes current", UpdateCheckerCheckUrlAndCurrent);
             Run("PowerShell completion script covers every CLI option", CompletionScriptCoversOptions);
             Run("PowerShell completion script value lists match the tool", CompletionScriptValueLists);
             Run("Completion script is embedded in the exe", CompletionScriptEmbedded);
@@ -303,6 +310,152 @@ namespace ysonet.Tests
         // Drift guard: every top-level CLI option the tool defines must be known
         // to the PowerShell completion script, so adding an option to Program.cs
         // without updating the script fails the build.
+        private static void UpdateCheckerNormalize()
+        {
+            AssertEqual("2026.7.4", UpdateChecker.NormalizeVersion("ysonet/v2026.7.4"), "repo prefix + v stripped");
+            AssertEqual("2026.7.4", UpdateChecker.NormalizeVersion("v2026.7.4"), "leading v stripped");
+            AssertEqual("2026.7.4", UpdateChecker.NormalizeVersion("V2026.7.4"), "uppercase V stripped");
+            AssertEqual("2026.7.4", UpdateChecker.NormalizeVersion("2026.7.4"), "already bare is unchanged");
+            AssertEqual("2026.7.4", UpdateChecker.NormalizeVersion("  ysonet/v2026.7.4  "), "surrounding space trimmed");
+            AssertEqual("", UpdateChecker.NormalizeVersion(""), "empty stays empty");
+            AssertEqual("", UpdateChecker.NormalizeVersion(null), "null is safe");
+        }
+
+        private static void UpdateCheckerLooksLikeVersion()
+        {
+            AssertTrue(UpdateChecker.LooksLikeVersion("2026"), "single number is a version");
+            AssertTrue(UpdateChecker.LooksLikeVersion("2026.7"), "two parts is a version");
+            AssertTrue(UpdateChecker.LooksLikeVersion("2026.7.4"), "three parts is a version");
+            AssertTrue(!UpdateChecker.LooksLikeVersion("nightly"), "a word is not a version");
+            AssertTrue(!UpdateChecker.LooksLikeVersion("2026.7.4-rc1"), "a pre-release suffix is not a plain version");
+            AssertTrue(!UpdateChecker.LooksLikeVersion("v2026.7.4"), "the v must be normalized off first");
+            AssertTrue(!UpdateChecker.LooksLikeVersion(""), "empty is not a version");
+            AssertTrue(!UpdateChecker.LooksLikeVersion(null), "null is not a version");
+        }
+
+        private static void UpdateCheckerCompares()
+        {
+            // A newer latest at any position returns > 0.
+            AssertTrue(UpdateChecker.CompareVersions("v2026.7.4", "v2026.7.5") > 0, "patch bump is newer");
+            AssertTrue(UpdateChecker.CompareVersions("v2026.7.4", "v2026.8.1") > 0, "month bump is newer");
+            AssertTrue(UpdateChecker.CompareVersions("v2026.7.4", "v2027.1.1") > 0, "year bump is newer");
+            // Equal, tolerating the repo tag prefix and a missing trailing part.
+            AssertEqual(0, UpdateChecker.CompareVersions("v2026.7.4", "ysonet/v2026.7.4"), "same version, tag prefix");
+            AssertEqual(0, UpdateChecker.CompareVersions("v2026.7", "v2026.7.0"), "missing part counts as 0");
+            AssertEqual(0, UpdateChecker.CompareVersions("", ""), "two empties are equal");
+            // Current newer returns < 0, and the compare must be numeric not lexical.
+            AssertTrue(UpdateChecker.CompareVersions("v2026.7.5", "v2026.7.4") < 0, "older latest is not an update");
+            AssertTrue(UpdateChecker.CompareVersions("v2026.7.10", "v2026.7.9") < 0, "10 is newer than 9 (numeric)");
+            // Unknown current (empty) sorts oldest, so any real release looks newer.
+            AssertTrue(UpdateChecker.CompareVersions("", "v2026.7.4") > 0, "unknown current is treated as oldest");
+        }
+
+        private static void UpdateCheckerParsesRelease()
+        {
+            string tag, url;
+            string json = "{\"tag_name\":\"ysonet/v2026.7.5\",\"html_url\":\"https://example/releases/v2026.7.5\"}";
+            AssertTrue(UpdateChecker.TryParseRelease(json, out tag, out url), "parses valid release json");
+            AssertEqual("ysonet/v2026.7.5", tag, "tag_name read");
+            AssertEqual("https://example/releases/v2026.7.5", url, "html_url read");
+            AssertEqual("2026.7.5", UpdateChecker.NormalizeVersion(tag), "tag normalized to bare version");
+
+            // A tag with no html_url still parses; url comes back null.
+            AssertTrue(UpdateChecker.TryParseRelease("{\"tag_name\":\"ysonet/v1.2.3\"}", out tag, out url), "tag-only parses");
+            AssertEqual("ysonet/v1.2.3", tag, "tag read without url");
+            AssertTrue(url == null, "url is null when absent");
+
+            // Rejections: no tag, non-json, empty, null.
+            AssertTrue(!UpdateChecker.TryParseRelease("{\"html_url\":\"x\"}", out tag, out url), "rejects json with no tag");
+            AssertTrue(!UpdateChecker.TryParseRelease("not json", out tag, out url), "rejects non-json");
+            AssertTrue(!UpdateChecker.TryParseRelease("", out tag, out url), "rejects empty");
+            AssertTrue(!UpdateChecker.TryParseRelease(null, out tag, out url), "rejects null");
+        }
+
+        private static void UpdateCheckerCheckEvents()
+        {
+            Func<string, string> latest79 = url =>
+                "{\"tag_name\":\"ysonet/v2026.7.9\",\"html_url\":\"https://example/latest\"}";
+
+            // A newer release is available.
+            var up = UpdateChecker.Check("v2026.7.4", latest79);
+            AssertEqual(UpdateChecker.UpdateStatus.UpdateAvailable, up.Status, "newer -> UpdateAvailable");
+            AssertTrue(up.Succeeded, "update-available is a completed check");
+            AssertTrue(up.UpdateAvailable, "UpdateAvailable convenience prop is true");
+            AssertEqual("v2026.7.9", up.LatestVersion, "latest normalized to vX");
+
+            // Running the latest.
+            var same = UpdateChecker.Check("v2026.7.9", latest79);
+            AssertEqual(UpdateChecker.UpdateStatus.UpToDate, same.Status, "equal -> UpToDate");
+            AssertTrue(same.Succeeded && !same.UpdateAvailable, "up-to-date is not an update");
+
+            // Local build ahead of the latest release (the "time machine" case).
+            var ahead = UpdateChecker.Check("v2026.8.1", latest79);
+            AssertEqual(UpdateChecker.UpdateStatus.Ahead, ahead.Status, "current newer -> Ahead");
+            AssertTrue(ahead.Succeeded && !ahead.UpdateAvailable, "ahead is a completed check, not an update");
+
+            // Unknown current version -> any release looks newer.
+            var unknown = UpdateChecker.Check("", latest79);
+            AssertEqual(UpdateChecker.UpdateStatus.UpdateAvailable, unknown.Status, "unknown current -> update available");
+
+            // A tag without the repo prefix is compared just the same.
+            Func<string, string> bareTag = url => "{\"tag_name\":\"v2026.7.9\"}";
+            AssertEqual(UpdateChecker.UpdateStatus.UpToDate, UpdateChecker.Check("v2026.7.9", bareTag).Status, "bare tag compares");
+        }
+
+        private static void UpdateCheckerCheckErrors()
+        {
+            // Network failure (timeout, offline, HTTP error) is captured, never thrown.
+            Func<string, string> boom = url => { throw new Exception("timed out"); };
+            var unreachable = UpdateChecker.Check("v2026.7.4", boom);
+            AssertEqual(UpdateChecker.UpdateStatus.Unreachable, unreachable.Status, "throw -> Unreachable");
+            AssertTrue(!unreachable.Succeeded, "unreachable is not a successful check");
+            AssertTrue(unreachable.Error != null && unreachable.Error.Contains("timed out"), "error carries the reason");
+
+            // A null fetcher is treated as unreachable, not a crash.
+            var noFetch = UpdateChecker.Check("v2026.7.4", null);
+            AssertEqual(UpdateChecker.UpdateStatus.Unreachable, noFetch.Status, "null fetch -> Unreachable");
+
+            // Reached GitHub but the body is not a release object.
+            var junk = UpdateChecker.Check("v2026.7.4", url => "<html>nope</html>");
+            AssertEqual(UpdateChecker.UpdateStatus.Unparseable, junk.Status, "non-release body -> Unparseable");
+            AssertTrue(!junk.Succeeded && !string.IsNullOrEmpty(junk.Error), "unparseable is a failure with a message");
+
+            // An empty body.
+            var empty = UpdateChecker.Check("v2026.7.4", url => "");
+            AssertEqual(UpdateChecker.UpdateStatus.Unparseable, empty.Status, "empty body -> Unparseable");
+
+            // A tag present but not a recognizable version (release format changed).
+            var weird = UpdateChecker.Check("v2026.7.4", url => "{\"tag_name\":\"nightly\"}");
+            AssertEqual(UpdateChecker.UpdateStatus.Unparseable, weird.Status, "unrecognized tag -> Unparseable");
+            AssertEqual("nightly", weird.LatestVersion, "raw tag kept for display");
+
+            // A pre-release suffix cannot be compared safely -> Unparseable.
+            var rc = UpdateChecker.Check("v2026.7.4", url => "{\"tag_name\":\"ysonet/v2026.7.4-rc1\"}");
+            AssertEqual(UpdateChecker.UpdateStatus.Unparseable, rc.Status, "pre-release suffix -> Unparseable");
+        }
+
+        private static void UpdateCheckerCheckUrlAndCurrent()
+        {
+            // The API html_url is used when present.
+            var withUrl = UpdateChecker.Check("v2026.7.4",
+                url => "{\"tag_name\":\"ysonet/v2026.7.9\",\"html_url\":\"https://example/rel\"}");
+            AssertEqual("https://example/rel", withUrl.ReleaseUrl, "html_url used when present");
+
+            // Falls back to the releases page when the API gives no html_url.
+            var noUrl = UpdateChecker.Check("v2026.7.4", url => "{\"tag_name\":\"ysonet/v2026.7.9\"}");
+            AssertEqual(UpdateChecker.ReleasesPageUrl, noUrl.ReleaseUrl, "fallback url when html_url absent");
+
+            // Error paths keep the fallback link so the user always has somewhere to go.
+            var boom = UpdateChecker.Check("v2026.7.4", url => { throw new Exception("x"); });
+            AssertEqual(UpdateChecker.ReleasesPageUrl, boom.ReleaseUrl, "unreachable keeps the fallback link");
+            var junk = UpdateChecker.Check("v2026.7.4", url => "not json");
+            AssertEqual(UpdateChecker.ReleasesPageUrl, junk.ReleaseUrl, "unparseable keeps the fallback link");
+
+            // The current version is echoed back in the result for display.
+            var r = UpdateChecker.Check("v2026.7.4", url => "{\"tag_name\":\"ysonet/v2026.7.4\"}");
+            AssertEqual("v2026.7.4", r.CurrentVersion, "current version preserved");
+        }
+
         private static void CompletionScriptCoversOptions()
         {
             string script = ReadCompletionScript();

@@ -227,6 +227,7 @@
     <Compile Include="Helpers\HelpText.cs" />
     <Compile Include="Helpers\LocalCodeCompiler.cs" />
     <Compile Include="Helpers\MachineKeyHelper.cs" />
+    <Compile Include="Helpers\UpdateChecker.cs" />
     <Compile Include="Helpers\MessagePackGetterSettingsPropertyValueHelper.cs" />
     <Compile Include="Helpers\MessagePackObjectDataProviderHelper.cs" />
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\AdvancedBinaryFormatterParser.cs" />
