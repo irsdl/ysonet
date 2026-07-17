@@ -85,7 +85,7 @@ namespace ysonet.Helpers
                     {
                         // URL decoding name spaces
                         string newNamespaceValue = Uri.UnescapeDataString(namespaceValue);
-                        xmlDocument = Regex.Replace(xmlDocument, namespaceValue, newNamespaceValue);
+                        xmlDocument = xmlDocument.Replace(namespaceValue, newNamespaceValue);
                         namespaceValue = newNamespaceValue;
                     }
                     String namespaceLocalName = "";
@@ -106,7 +106,7 @@ namespace ysonet.Helpers
 
             string encodingStylePattern = @"([^\s]+):encodingStyle\s*=\s*[""']";
             Regex encodingStyleRegEx = new Regex(encodingStylePattern, RegexOptions.Compiled);
-            MatchCollection encodingStyleMatches = namespaceLocalNameRegEx.Matches(xmlDocument);
+            MatchCollection encodingStyleMatches = encodingStyleRegEx.Matches(xmlDocument);
 
             foreach (Match match in encodingStyleMatches)
             {
