@@ -141,7 +141,7 @@ namespace ysonet.Generators
                 if (inputArgs.Minify)
                 {
 
-                    payload = XmlHelper.Minify(payload, null, null, FormatterType.SoapFormatter);
+                    payload = XmlMinifier.Minify(payload, null, null, FormatterType.SoapFormatter);
 
                 }
 

@@ -241,15 +241,15 @@ xmlns:r=""clr-namespace:System.Reflection;assembly=mscorlib""
             {
                 if (inputArgs.UseSimpleType)
                 {
-                    xmlSchema = XmlHelper.Minify(xmlSchema, new string[] { }, new string[] { });
-                    xmlDiffGramXamlParser = XmlHelper.Minify(xmlDiffGramXamlParser, new string[] { }, new string[] { });
-                    xmlResourceDict = XmlHelper.Minify(xmlResourceDict, new string[] { }, new string[] { });
+                    xmlSchema = XmlMinifier.Minify(xmlSchema, new string[] { }, new string[] { });
+                    xmlDiffGramXamlParser = XmlMinifier.Minify(xmlDiffGramXamlParser, new string[] { }, new string[] { });
+                    xmlResourceDict = XmlMinifier.Minify(xmlResourceDict, new string[] { }, new string[] { });
                 }
                 else
                 {
-                    xmlSchema = XmlHelper.Minify(xmlSchema, new string[] { }, new string[] { });
-                    xmlDiffGramXamlParser = XmlHelper.Minify(xmlDiffGramXamlParser, new string[] { }, new string[] { });
-                    xmlResourceDict = XmlHelper.Minify(xmlResourceDict, new string[] { }, new string[] { });
+                    xmlSchema = XmlMinifier.Minify(xmlSchema, new string[] { }, new string[] { });
+                    xmlDiffGramXamlParser = XmlMinifier.Minify(xmlDiffGramXamlParser, new string[] { }, new string[] { });
+                    xmlResourceDict = XmlMinifier.Minify(xmlResourceDict, new string[] { }, new string[] { });
                 }
             }
 

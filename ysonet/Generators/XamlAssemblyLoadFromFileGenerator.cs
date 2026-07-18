@@ -134,7 +134,7 @@ xmlns:c=""clr-namespace:System.IO.Compression;assembly=System""
 
             if (inputArgs.Minify)
             {
-                xmlResourceDict = XmlHelper.Minify(xmlResourceDict, null, null);
+                xmlResourceDict = XmlMinifier.Minify(xmlResourceDict, null, null);
             }
 
             object obj;

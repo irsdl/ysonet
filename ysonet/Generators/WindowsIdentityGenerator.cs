@@ -116,11 +116,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = XmlHelper.Minify(payload, new string[] { "mscorlib" }, null);
+                        payload = XmlMinifier.Minify(payload, new string[] { "mscorlib" }, null);
                     }
                     else
                     {
-                        payload = XmlHelper.Minify(payload, null, null);
+                        payload = XmlMinifier.Minify(payload, null, null);
                     }
                 }
 
@@ -149,11 +149,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = XmlHelper.Minify(payload, new string[] { "mscorlib" }, null);
+                        payload = XmlMinifier.Minify(payload, new string[] { "mscorlib" }, null);
                     }
                     else
                     {
-                        payload = XmlHelper.Minify(payload, null, null);
+                        payload = XmlMinifier.Minify(payload, null, null);
                     }
                 }
 
@@ -184,11 +184,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = XmlHelper.Minify(payload, new string[] { "mscorlib" }, null, FormatterType.SoapFormatter);
+                        payload = XmlMinifier.Minify(payload, new string[] { "mscorlib" }, null, FormatterType.SoapFormatter);
                     }
                     else
                     {
-                        payload = XmlHelper.Minify(payload, null, null, FormatterType.SoapFormatter);
+                        payload = XmlMinifier.Minify(payload, null, null, FormatterType.SoapFormatter);
                     }
                 }
 

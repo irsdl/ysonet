@@ -208,13 +208,13 @@ namespace ysonet.Generators
             {
                 if (inputArgs.UseSimpleType)
                 {
-                    xmlSchema = XmlHelper.Minify(xmlSchema, new string[] { }, new string[] { });
-                    xmlDiffGramLosFormatterDeserializeCaller = XmlHelper.Minify(xmlDiffGramLosFormatterDeserializeCaller, new string[] { }, new string[] { });
+                    xmlSchema = XmlMinifier.Minify(xmlSchema, new string[] { }, new string[] { });
+                    xmlDiffGramLosFormatterDeserializeCaller = XmlMinifier.Minify(xmlDiffGramLosFormatterDeserializeCaller, new string[] { }, new string[] { });
                 }
                 else
                 {
-                    xmlSchema = XmlHelper.Minify(xmlSchema, new string[] { }, new string[] { });
-                    xmlDiffGramLosFormatterDeserializeCaller = XmlHelper.Minify(xmlDiffGramLosFormatterDeserializeCaller, new string[] { }, new string[] { });
+                    xmlSchema = XmlMinifier.Minify(xmlSchema, new string[] { }, new string[] { });
+                    xmlDiffGramLosFormatterDeserializeCaller = XmlMinifier.Minify(xmlDiffGramLosFormatterDeserializeCaller, new string[] { }, new string[] { });
                 }
             }
 

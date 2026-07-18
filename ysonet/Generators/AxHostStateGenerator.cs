@@ -67,11 +67,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = XmlHelper.Minify(payload, new string[] { "mscorlib", "Microsoft.PowerShell.Editor" }, null, FormatterType.NetDataContractXML, true);
+                        payload = XmlMinifier.Minify(payload, new string[] { "mscorlib", "Microsoft.PowerShell.Editor" }, null, FormatterType.NetDataContractXML, true);
                     }
                     else
                     {
-                        payload = XmlHelper.Minify(payload, null, null, FormatterType.NetDataContractXML, true);
+                        payload = XmlMinifier.Minify(payload, null, null, FormatterType.NetDataContractXML, true);
                     }
                 }
 

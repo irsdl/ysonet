@@ -95,11 +95,11 @@ namespace ysonet.Generators
                     if (inputArgs.UseSimpleType)
                     {
                         // System.Web needs to be there! ust seems useless here
-                        payload = XmlHelper.Minify(payload, new string[] { "" }, null);
+                        payload = XmlMinifier.Minify(payload, new string[] { "" }, null);
                     }
                     else
                     {
-                        payload = XmlHelper.Minify(payload, null, null);
+                        payload = XmlMinifier.Minify(payload, null, null);
                     }
                 }
 
@@ -130,11 +130,11 @@ namespace ysonet.Generators
                     if (inputArgs.UseSimpleType)
                     {
                         // System.Web needs to be there! ust seems useless here
-                        payload = XmlHelper.Minify(payload, new string[] { }, null);
+                        payload = XmlMinifier.Minify(payload, new string[] { }, null);
                     }
                     else
                     {
-                        payload = XmlHelper.Minify(payload, null, null);
+                        payload = XmlMinifier.Minify(payload, null, null);
                     }
                 }
 

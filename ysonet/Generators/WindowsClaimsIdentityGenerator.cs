@@ -168,11 +168,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = XmlHelper.Minify(payload, new string[] { "Microsoft.IdentityModel" }, null);
+                        payload = XmlMinifier.Minify(payload, new string[] { "Microsoft.IdentityModel" }, null);
                     }
                     else
                     {
-                        payload = XmlHelper.Minify(payload, null, null);
+                        payload = XmlMinifier.Minify(payload, null, null);
                     }
                 }
 
@@ -231,11 +231,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = XmlHelper.Minify(payload, new string[] { "Microsoft.IdentityModel" }, null);
+                        payload = XmlMinifier.Minify(payload, new string[] { "Microsoft.IdentityModel" }, null);
                     }
                     else
                     {
-                        payload = XmlHelper.Minify(payload, null, null);
+                        payload = XmlMinifier.Minify(payload, null, null);
                     }
                 }
 
@@ -284,11 +284,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = XmlHelper.Minify(payload, new string[] { "Microsoft.IdentityModel" }, null, FormatterType.SoapFormatter);
+                        payload = XmlMinifier.Minify(payload, new string[] { "Microsoft.IdentityModel" }, null, FormatterType.SoapFormatter);
                     }
                     else
                     {
-                        payload = XmlHelper.Minify(payload, null, null, FormatterType.SoapFormatter);
+                        payload = XmlMinifier.Minify(payload, null, null, FormatterType.SoapFormatter);
                     }
                 }
 

@@ -124,7 +124,7 @@ namespace ysonet.Plugins
 
             if (minify)
             {
-                payload = XmlHelper.Minify(payload, null, null);
+                payload = XmlMinifier.Minify(payload, null, null);
             }
 
             return payload;

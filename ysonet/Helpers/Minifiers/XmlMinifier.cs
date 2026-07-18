@@ -9,7 +9,7 @@ using System.Xml.Xsl;
 
 namespace ysonet.Helpers
 {
-    public class XmlHelper
+    public class XmlMinifier
     {
         public static MemoryStream Minify(Stream xmlDocumentStream, String[] looseAssemblyNames, String[] finalDiscardableRegExStringArray)
         {

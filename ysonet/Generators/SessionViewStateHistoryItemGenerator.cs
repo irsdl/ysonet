@@ -96,7 +96,7 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    payload = XmlHelper.Minify(payload, null, null);
+                    payload = XmlMinifier.Minify(payload, null, null);
                 }
 
                 if (inputArgs.Test)
@@ -121,7 +121,7 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    payload = XmlHelper.Minify(payload, null, null);
+                    payload = XmlMinifier.Minify(payload, null, null);
                 }
 
                 if (inputArgs.Test)
@@ -151,7 +151,7 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    payload = XmlHelper.Minify(payload, null, null, FormatterType.SoapFormatter);
+                    payload = XmlMinifier.Minify(payload, null, null, FormatterType.SoapFormatter);
                 }
 
                 if (inputArgs.Test)

@@ -6,7 +6,7 @@ namespace ysonet.Helpers
     /// <summary>
     /// Encodes a byte array as an XmlSerializer "ArrayOfUnsignedByte" XML fragment,
     /// with a swappable byte tag, header, and footer. Used by gadgets that embed a
-    /// compiled assembly as inline XML. Lifted out of XmlHelper so that class stays
+    /// compiled assembly as inline XML. Lifted out of XmlMinifier so that class stays
     /// a pure minifier.
     /// </summary>
     public static class XmlByteArrayEncoder

@@ -124,7 +124,7 @@ namespace ysonet.Generators
                     if (inputArgs.Minify)
                     {
                         // using discardable regex array to make it shorter!
-                        bridge = XmlHelper.Minify(bridge, null, new String[] { @"StandardErrorEncoding=.*LoadUserProfile=""False"" ", @"IsInitialLoadEnabled=""False"" " });
+                        bridge = XmlMinifier.Minify(bridge, null, new String[] { @"StandardErrorEncoding=.*LoadUserProfile=""False"" ", @"IsInitialLoadEnabled=""False"" " });
                     }
 
                     // There are loads of other objects in Presentation that use ResourceDictionary and they can all be used here instead
@@ -140,7 +140,7 @@ namespace ysonet.Generators
                 if (inputArgs.Minify)
                 {
                     // using discardable regex array to make it shorter!
-                    payload = XmlHelper.Minify(payload, null, new String[] { @"StandardErrorEncoding=.*LoadUserProfile=""False"" ", @"IsInitialLoadEnabled=""False"" " });
+                    payload = XmlMinifier.Minify(payload, null, new String[] { @"StandardErrorEncoding=.*LoadUserProfile=""False"" ", @"IsInitialLoadEnabled=""False"" " });
                 }
 
                 if (inputArgs.Test)
@@ -382,7 +382,7 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    payload = XmlHelper.Minify(payload, null, null, FormatterType.XMLSerializer, true);
+                    payload = XmlMinifier.Minify(payload, null, null, FormatterType.XMLSerializer, true);
                 }
 
 
@@ -491,7 +491,7 @@ namespace ysonet.Generators
                 }
                 if (inputArgs.Minify)
                 {
-                    payload = XmlHelper.Minify(payload, null, null, FormatterType.DataContractXML, true);
+                    payload = XmlMinifier.Minify(payload, null, null, FormatterType.DataContractXML, true);
                 }
 
                 if (inputArgs.Test)
@@ -682,7 +682,7 @@ namespace ysonet.Generators
 
                     if (inputArgs.Minify)
                     {
-                        serializedData = XmlHelper.Minify(serializedData, null, new string[] { @" name=""r""" }, FormatterType.DataContractXML, true);
+                        serializedData = XmlMinifier.Minify(serializedData, null, new string[] { @" name=""r""" }, FormatterType.DataContractXML, true);
                     }
 
 

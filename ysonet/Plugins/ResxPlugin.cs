@@ -280,7 +280,7 @@ namespace ysonet.Plugins
 
                 if (inputArgs.Minify)
                 {
-                    payload = XmlHelper.Minify(payload, null, null);
+                    payload = XmlMinifier.Minify(payload, null, null);
                 }
             }
 

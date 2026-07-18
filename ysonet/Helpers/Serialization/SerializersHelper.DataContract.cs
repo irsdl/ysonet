@@ -64,7 +64,7 @@ namespace ysonet.Helpers
                                 }
 
                                 // we need this to make it standard
-                                result = XmlHelper.XmlXSLTMinifier(dirtymarshal);
+                                result = XmlMinifier.XmlXSLTMinifier(dirtymarshal);
 
                                 result = "<" + rootTagName + " " + typeAttributeName + @"=""" + objectType.AssemblyQualifiedName + @""">" + result + "</" + rootTagName + ">";
                             }
