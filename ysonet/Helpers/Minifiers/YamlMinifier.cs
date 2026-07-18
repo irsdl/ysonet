@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace ysonet.Helpers
 {
-    public class YamlDocumentHelper
+    public class YamlMinifier
     {
         public static String Minify(String yamlString)
         {

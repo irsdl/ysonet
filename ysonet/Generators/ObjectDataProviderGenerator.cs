@@ -538,7 +538,7 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    payload = YamlDocumentHelper.Minify(payload);
+                    payload = YamlMinifier.Minify(payload);
                 }
 
                 if (inputArgs.Test)

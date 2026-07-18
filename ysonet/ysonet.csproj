@@ -276,7 +276,7 @@
     <Compile Include="Helpers\Minifiers\TypeNameMinifier.cs" />
     <Compile Include="Helpers\Minifiers\JsonMinifier.cs" />
     <Compile Include="Helpers\Minifiers\XmlMinifier.cs" />
-    <Compile Include="Helpers\Minifiers\YamlDocumentHelper.cs" />
+    <Compile Include="Helpers\Minifiers\YamlMinifier.cs" />
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\AdvancedBinaryFormatterParser.cs" />
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\Environment.cs" />
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\ObjectExtensions.cs" />
