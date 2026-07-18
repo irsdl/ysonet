@@ -5,7 +5,7 @@
 > structure. Written for contributors and AI agents alike.
 >
 > This document can lag the code between updates; the source is always authoritative.
-> Last reviewed for v2026.7.1.
+> Last reviewed for v2026.7.4.
 
 ---
 
@@ -68,7 +68,7 @@ Newtonsoft.Json 12.0.3 (Json.NET), SharpSerializer 3.0.1, YamlDotNet 4.3.2.
 - `ReachFramework.dll` (+ `-orig`), `PresentationFramework.dll`.
 - `dlls/sharepoint/19/` - SharePoint 2019 assemblies for the SharePoint plugin
   (`Microsoft.SharePoint.dll`, `Microsoft.SharePoint.ApplicationPages.dll`).
-- `Helpers/Utilities.cs` hooks `AppDomain.AssemblyResolve` to load these at runtime.
+- `Helpers/Assemblies/AssemblyResolver.cs` hooks `AppDomain.AssemblyResolve` to load these at runtime.
 
 ### Dependency policy
 Outdated libraries used *inside a gadget* (to demonstrate the issue) must stay as-is.
@@ -102,19 +102,18 @@ ysonet/
   Plugins/                       # PLUGINS (IPlugin classes) - section 6
     base/IPlugin.cs
     <14 plugin files>
-  Helpers/                       # Support code - section 7
-    GadgetHelper.cs, PluginHelper.cs      # reflection-based discovery
-    SerializersHelper.cs                  # central serialize/deserialize/test library
-    InputArgs.cs, CommandArgSplitter.cs   # command parsing + flags
-    XmlHelper.cs, JsonHelper.cs, YamlDocumentHelper.cs   # minifiers
-    BinaryFormatterMinifier.cs
+  Helpers/                       # Support code, grouped by subject - section 7
+    ClipboardHelper.cs, Debugging.cs      # root singletons (clipboard access, debug error print)
+    Assemblies/                           # AssemblyResolver (was Utilities), LocalCodeCompiler
+    Cli/                                  # CliListing, CompletionCommand, HelpText, UpdateChecker
+    Core/                                 # PayloadRunner (keeps ysonet.Helpers.Core namespace)
+    Crypto/                               # MachineKey, Sp800_108, MachineKeyDataProtector
+    Discovery/                            # GadgetRegistry (was GadgetHelper), PluginRegistry (was PluginHelper)
+    Input/                                # InputArgs, CommandArgSplitter (command parsing + flags)
+    MessagePack/                          # MessagePack gadget builders + surrogate POCOs
+    Minifiers/                            # XmlMinifier, JsonMinifier, YamlMinifier, BinaryFormatterMinifier, TypeNameMinifier
     ModifiedVulnerableBinaryFormatters/   # vendored modified BinaryFormatter (minify/parse)
-    MachineKeyHelper.cs                   # ASP.NET MachineKey Protect/Unprotect
-    LocalCodeCompiler.cs                  # runtime C# -> assembly bytes
-    GadgetSurrogates/                     # surrogate POCOs for MessagePack gadgets
-    MessagePackObjectDataProviderHelper.cs, MessagePackGetterSettingsPropertyValueHelper.cs
-    Utilities.cs, Debugging.cs, FormatterType.cs
-    HelpText.cs                           # safe --help rendering (guards an NDesk.Options wrap-loop hang)
+    Serialization/                        # SerializersHelper (+ per-format partials), FormatterType, XmlByteArrayEncoder
     TestingArena/                         # dev-only scratch, excluded from discovery
   dlls/                          # bundled non-NuGet + vulnerable DLLs (see section 2)
 ```
@@ -179,14 +178,14 @@ in `Helpers/CompletionCommand.cs`.
 1. Parse args into `InputArgs` (Cmd, IsRawCmd, Test, Minify, UseSimpleType, IsDebugMode,
    ExtraArguments = unconsumed args passed on to gadget/plugin `Options()`).
 2. `--runmytest` -> run TestingArena and exit.
-3. Populate gadget + plugin name lists via `GadgetHelper.GetAllGadgetNames()` /
-   `PluginHelper.GetAllPluginNames()` (reflection).
+3. Populate gadget + plugin name lists via `GadgetRegistry.GetAllGadgetNames()` /
+   `PluginRegistry.GetAllPluginNames()` (reflection).
 4. Gadget/plugin-specific help handling (`ShowGadgetSpecificHelp` / `ShowPluginSpecificHelp`).
 5. Missing-argument handling and validation (shows available gadgets/plugins, fuzzy match).
 6. `--searchformatter` -> `SearchFormatters()` lists which gadgets support a formatter, exit.
 7. `--credit` -> `ShowCredit()`; `--help` -> `ShowHelp()`.
 8. **Dispatch**:
-   - If `-p` set: validate, `PluginHelper.CreatePluginInstance`, `raw = plugin.Run(args)`,
+   - If `-p` set: validate, `PluginRegistry.CreatePluginInstance`, `raw = plugin.Run(args)`,
      then `ProcessOutput`.
    - Else if command + formatter + gadget present and not `--raf`: build the gadget chain
      (see below), `raw = generator.GenerateWithInit(...)`, then `ProcessOutput`.
@@ -303,10 +302,10 @@ hint carries a compact key + symbol legend.
   - **`Serialize(payloadObj, formatter, inputArgs)`** handles the four "real" .NET
     formatters natively: **BinaryFormatter, SoapFormatter, NetDataContractSerializer,
     LosFormatter**. It honors `Minify` (via `ModifiedVulnerableBinaryFormatters` /
-    `XmlHelper.Minify`) and `Test` (round-trips through the deserializer, optionally with a
+    `XmlMinifier.Minify`) and `Test` (round-trips through the deserializer, optionally with a
     custom `serializationBinder`). Text formats (Json.NET, XAML, YAML, MessagePack, etc.)
     are built by each gadget itself and tested via `SerializersHelper.*_deserialize`.
-- **Discovery**: `GadgetHelper` reflects over all loaded assemblies for `IGenerator`
+- **Discovery**: `GadgetRegistry` reflects over all loaded assemblies for `IGenerator`
   implementers (excluding `Helpers.TestingArena`). Adding a gadget = drop in a class that
   extends `GenericGenerator`; it is auto-registered. Instantiation is by
   `Activator.CreateInstance("ysonet.Generators." + className)`.
@@ -387,16 +386,16 @@ NDCS=NetDataContractSerializer, TCD=TypeConfuseDelegate, TFRP=TextFormattingRunP
 ### Contract and invocation
 - **`Plugins/base/IPlugin.cs`**: `Name()`, `Description()`, `Credit()`,
   `OptionSet Options()`, `object Run(string[] args)`.
-- **Discovery**: `PluginHelper` reflects for `IPlugin` implementers (same pattern as
-  GadgetHelper). New plugin = implement `IPlugin`; auto-registered.
+- **Discovery**: `PluginRegistry` reflects for `IPlugin` implementers (same pattern as
+  GadgetRegistry). New plugin = implement `IPlugin`; auto-registered.
 - **Invocation**: `Program.cs` validates `-p`, instantiates via
-  `PluginHelper.CreatePluginInstance`, calls `raw = plugin.Run(args)` (the FULL argv is
+  `PluginRegistry.CreatePluginInstance`, calls `raw = plugin.Run(args)` (the FULL argv is
   forwarded), then `ProcessOutput`. The return is usually a `string` (XML/JSON/base64) or
   `byte[]`. Each plugin owns its `OptionSet` and calls `options.Parse(args)` inside `Run`.
 - **Shared surface**: most gadget-backed plugins build an `InputArgs` and either call a
-  generator directly or resolve one via `GadgetHelper.CreateGadgetInstance` /
-  `Activator.CreateInstance`. Common helpers: `XmlHelper.Minify`, `JsonHelper.Minify`,
-  `SerializersHelper.*_deserialize` (test), `MachineKeyHelper`, `CommandArgSplitter`,
+  generator directly or resolve one via `GadgetRegistry.CreateGadgetInstance` /
+  `Activator.CreateInstance`. Common helpers: `XmlMinifier.Minify`, `JsonMinifier.Minify`,
+  `SerializersHelper.*_deserialize` (test), `MachineKey`/`MachineKeyDataProtector`, `CommandArgSplitter`,
   `Debugging.ShowErrors`.
 
 ### Full plugin table (14 plugins)
@@ -408,7 +407,7 @@ NDCS=NetDataContractSerializer, TCD=TypeConfuseDelegate, TFRP=TextFormattingRunP
 | **Clipboard** | `DataObject.SetData` clipboard injection (paste into e.g. PowerShell ISE). Two delivery modes via `-m/--mode`. | `-m mode` (winforms/wpfxaml), `-F format`, `--xamlvariant` (1/2), `-c`, `-t`, `--minify`, `--ust` | STA thread. **winforms** (default): TFRP wrapped in `AxHostStateMarshal`, WinForms `Clipboard.SetDataObject`. **wpfxaml**: ObjectDataProvider XAML (via `ObjectDataProviderGenerator`) placed under the WPF `Xaml` format using **WPF** `System.Windows.Clipboard`/`DataObject` (WinForms SetData would not round-trip to WPF paste); targets InkCanvas/RichTextBox paste; default-restrictive since CVE-2020-0605/0606, fires only in legacy clipboard mode. `-t` runs a faithful restrictive-vs-non-restrictive paste simulation (`SerializersHelper.Xaml_deserialize_restrictive`). |
 | **DotNetNuke** | DNN CVE-2017-9822 profile deserialization. | `-m mode` (read/write/run), `-c`, `-u`, `-f`, `--minify` | `ExpandedWrapper`+`FileSystemUtils`/`ObjectStateFormatter`; run_command uses TFRP via **LosFormatter** (no MAC). |
 | **GetterCallGadgets** | Arbitrary getter-call gadgets (Json.NET), .NET Fx & 5/6/7 with WPF. | `-l`, `-i inner`, `-g gadget`, `-m member`, `-t`, `--minify` | Reads inner JSON from file, wraps in a WinForms getter gadget. Credit: Piotr Bazydlo. |
-| **MachineKeySessionSecurityTokenHandler** | `MachineKeySessionSecurityTokenHandler.ReadToken` (exploitable when MachineKey leaked). | `-c`, `-t`, `--minify`, `--ust`, `-vk`, `-ek`, `-va`, `-da` | `<SecurityContextToken>` cookie: BF(TFRP) -> DeflateCookieTransform -> `MachineKeyHelper...Protect`. |
+| **MachineKeySessionSecurityTokenHandler** | `MachineKeySessionSecurityTokenHandler.ReadToken` (exploitable when MachineKey leaked). | `-c`, `-t`, `--minify`, `--ust`, `-vk`, `-ek`, `-va`, `-da` | `<SecurityContextToken>` cookie: BF(TFRP) -> DeflateCookieTransform -> `MachineKeyDataProtector.Protect`. |
 | **NetNonRceGadgets** | Non-RCE .NET Framework gadgets (SSRF/NTLM relay, dir-create/DoS). | `-l`, `-i`, `-g` (PictureBox/InfiniteProgressPage/FileLogTraceListener), `-f`, `-t`, `--minify` | String templates per formatter. Credit: Piotr Bazydlo. |
 | **Resx** | Generate `.RESX` / compiled `.RESOURCES` (e.g. CVE-2020-0932). | `-M mode`, `-c`, `-g gadget`, `-F unc`, `-of`, `-t`, `--minify`, `--ust` | Reflects any `IGenerator`; Soap mode uses ActivitySurrogate gadgets. Static `GetPayload(...)` reused elsewhere. |
 | **SessionSecurityTokenHandler** | `SessionSecurityTokenHandler.ReadToken` (DPAPI; rarely practical). | `-c`, `-t`, `--minify`, `--ust` | Like MachineKey variant but `ProtectedDataCookieTransform` (DPAPI). |
@@ -457,32 +456,79 @@ Each returns XML/SOAP with an HTML comment explaining where to POST it.
 
 ## 7. Helpers
 
-| Helper | Responsibility | Key methods |
+`Helpers/` is grouped into **subject folders**. The namespace stays flat
+(`ysonet.Helpers`) so folder moves touch no consumer; `Core` and `TestingArena`
+keep their own sub-namespace. Two singletons (`ClipboardHelper`, `Debugging`)
+stay at the root.
+
+### 7.1 Structure standard
+
+Follow these when adding or moving Helpers code, so the tree does not drift back
+into a junk drawer:
+
+- **A folder is a subject.** Each file belongs to exactly one. Folder names are
+  plain nouns, not .NET class words. Subjects: `Assemblies`, `Cli`, `Crypto`,
+  `Discovery`, `Input`, `MessagePack`, `Minifiers`, `Serialization` (plus the
+  unchanged `Core`, `ModifiedVulnerableBinaryFormatters`, `TestingArena`).
+- **One public type per file**, file named after the type. Split a class too big
+  to hold in the head into `partial` files named `Type.Aspect.cs` (for example
+  `SerializersHelper.Json.cs`); call sites stay unchanged.
+- **Class names state the role**: `-Minifier`, `-Registry`, `-Resolver`,
+  `-Encoder`, `-Compiler`, `-Builder`, `-Checker`. Banned: `Utilities`, `Misc`,
+  `Common`, `Manager`. Use `-Helper` only for a thin wrapper over a specific
+  framework type (for example `ClipboardHelper` wraps the WinForms clipboard).
+- **Size guideline**: aim under ~350 lines per file; over that, split by concern.
+
+Where new code goes:
+
+| Adding... | Goes in... | As... |
 |---|---|---|
-| **GadgetHelper.cs** | Reflection discovery/instantiation of `IGenerator` gadgets; caches type + name metadata; fuzzy name matching (with/without `Generator` suffix). | `GetAllGadgetNames`, `GadgetExists`, `CreateGadgetInstance`, `GetGadgetsSupportingFormatter`, `GetGadgetsContaining`, `NormalizeGadgetName`, `ValidateAndGetExactGadgetName`, `ClearCache` |
-| **PluginHelper.cs** | Same for `IPlugin`; also captures Description + Credit. | `GetAllPluginNames`, `PluginExists`, `CreatePluginInstance`, `GetAllPluginsWithDescriptions`, `GetAllPluginsWithCredits`, `GetPluginInfo` |
-| **CliListing.cs** | Machine-readable listings behind `--list` and the shell completion scripts. Computed from live gadgets/plugins/option sets so they never drift; excludes `Generic`; cleans variant notes off formatter names. | `Gadgets`, `Plugins`, `Formatters`, `GadgetFormatters`, `GadgetOptions`, `PluginOptions`, `OptionTokens`; `OutputFormats`, `ListCategories` |
-| **CompletionCommand.cs** | The `completion` subcommand: emit/install/uninstall/status for PowerShell tab completion. Embeds `tools/completions/ysonet.ps1`, edits the PowerShell profile idempotently (marked block), and detects the shell by walking the parent-process chain. | `IsInvocation`, `Run`, `LoadPowerShellScript`, `AddOrUpdateBlock`, `RemoveBlock`, `ClassifyShell`, `DetectShell` |
-| **SerializersHelper.cs** | Central static library of serialize/deserialize/test methods for EVERY supported serializer (see below). | `ShowAll`, `TestAll`, and `<Serializer>_serialize/_deserialize/_test` families |
-| **InputArgs.cs** | Mutable carrier of parsed command + flags; splits `Cmd` into `CmdFileName`+`CmdArguments`; can read command from a file; Shallow/DeepCopy. | Props: `Cmd`, `CmdFullString`, `CmdFileName`, `CmdArguments`, `CmdFromFile`, `CmdType`, `IsRawCmd`, `Test`, `Minify`, `UseSimpleType`, `IsDebugMode`, `IsSTAThread`, `HasArguments`, `ExtraArguments`, `ExtraInternalArguments` |
-| **CommandArgSplitter.cs** | Split command into `[fileName, args]` (on first space) and escape per target context. | `SplitCommand`, `XmlStringHTMLEscape`, `XmlStringAttributeEscape`, `JsonStringEscape`; `enum CommandType {None,XML,JSON,YamlDotNet,XMLinJSON,JSONinXML}` |
-| **XmlHelper.cs** | Minify/normalize XML payloads (Soap, Net/DataContract, XmlSerializer): dedupe namespaces, strip encodingStyle, XSLT whitespace strip, ref-id minification. | `Minify` (6 overloads, string & Stream), `XmlXSLTMinifier`, `ConvertBytesToArrayOfUnsignedByteXML` |
-| **JsonHelper.cs** | Minify Json.NET payloads (collapse via JsonTextWriter, strip spaces in AQNs, remove loose assembly names / discardable regexes). | `Minify(json, looseAssemblyNames, finalDiscardableRegExStringArray)` |
-| **YamlDocumentHelper.cs** | Trivial regex YAML minifier. | `Minify(yaml)` |
-| **BinaryFormatterMinifier.cs** | Shrink BF payloads by round-tripping through a JSON intermediate then iteratively simplifying assembly/type names until stable; optionally re-run/test. | `MinimiseBFAndRun`, `MinimiseJsonAndRun`, `FullTypeNameMinifier`, `AssemblyOrTypeNameMinifier` |
+| support for a new serializer/formatter | `Serialization/` | a `SerializersHelper.<Fmt>.cs` partial + a `FormatterType` entry |
+| a payload text shrinker for a format | `Minifiers/` | `<Fmt>Minifier.cs` |
+| gadget/plugin discovery or lookup | `Discovery/` | a method on `GadgetRegistry`/`PluginRegistry` |
+| a CLI feature, listing, subcommand, or help | `Cli/` | its own class |
+| parsing/holding the user's command or flags | `Input/` | `InputArgs` or `CommandArgSplitter` |
+| assembly resolution or runtime C# compile | `Assemblies/` | `AssemblyResolver` or `LocalCodeCompiler` |
+| a crypto primitive (MAC, derive, encrypt) | `Crypto/` | its own class |
+| a MessagePack gadget builder | `MessagePack/` | a builder + its surrogate |
+| a true one-off with no subject | Helpers root | a named singleton (rare; note why) |
+
+### 7.2 Helper map (by folder)
+
+| Folder / Helper | Responsibility | Key methods |
+|---|---|---|
+| **Assemblies/AssemblyResolver.cs** (was `Utilities.cs`) | Locate bundled DLLs + hook `AppDomain.AssemblyResolve` to load from `dlls/`. | `GetDllFullPath`, `AddRelativeDirToAppDomainAsmResolve`, `AddAbsoluteDirToAppDomainAsmResolve` |
+| **Assemblies/LocalCodeCompiler.cs** | Runtime C# compilation: from a `;`-separated file chain, load `.dll` bytes or compile first `.cs` (referencing the rest) to a library assembly. | `GetAsmBytes(fileChain)`, `CompileToAsmBytes` (default `-t:library -o+ -platform:anycpu`) |
+| **Cli/CliListing.cs** | Machine-readable listings behind `--list` and the shell completion scripts. Computed from live gadgets/plugins/option sets so they never drift; excludes `Generic`; cleans variant notes off formatter names. | `Gadgets`, `Plugins`, `Formatters`, `GadgetFormatters`, `GadgetOptions`, `PluginOptions`, `OptionTokens`; `OutputFormats`, `ListCategories` |
+| **Cli/CompletionCommand.cs** | The `completion` subcommand: emit/install/uninstall/status for PowerShell tab completion. Embeds `tools/completions/ysonet.ps1`, edits the PowerShell profile idempotently (marked block), and detects the shell by walking the parent-process chain. | `IsInvocation`, `Run`, `LoadPowerShellScript`, `AddOrUpdateBlock`, `RemoveBlock`, `ClassifyShell`, `DetectShell` |
+| **Cli/HelpText.cs** | Safe `--help` rendering; guards an NDesk.Options wrap-loop hang by soft-breaking over-long tokens. | `SoftBreak` |
+| **Cli/UpdateChecker.cs** | Check GitHub for a newer release (backs `--checkupdate` and the interactive "Check for updates" entry). Pure version parse/compare split from the network call (injectable fetcher) so it is unit tested without a live request. Release tags are `ysonet/vYEAR.MONTH.RELEASE`. | `Check`, `CurrentVersion`, `NormalizeVersion`, `CompareVersions`, `TryParseRelease` |
+| **Crypto/MachineKey.cs** (from `MachineKeyHelper.cs`) | ASP.NET MachineKey Protect/Unprotect (encrypt + validation MAC). Adapted from AspNetTicketBridge. | `Protect`, `Unprotect`, `BuffersAreEqual`, `HexToBinary` |
+| **Crypto/Sp800_108.cs** (from `MachineKeyHelper.cs`) | SP800-108 counter-mode key derivation (HMAC-SHA512) used by `MachineKey`. | `DeriveKey`, `DeriveKeyImpl`, `GetKeyDerivationParameters` |
+| **Crypto/MachineKeyDataProtector.cs** (from `MachineKeyHelper.cs`) | IDataProtector-style wrapper that Protect/Unprotects via `MachineKey` for fixed purposes. | ctor, `Protect`, `Unprotect` |
+| **Discovery/GadgetRegistry.cs** (was `GadgetHelper.cs`) | Reflection discovery/instantiation of `IGenerator` gadgets; caches type + name metadata; fuzzy name matching (with/without `Generator` suffix). | `GetAllGadgetNames`, `GadgetExists`, `CreateGadgetInstance`, `GetGadgetsSupportingFormatter`, `GetGadgetsContaining`, `NormalizeGadgetName`, `ValidateAndGetExactGadgetName`, `ClearCache` |
+| **Discovery/PluginRegistry.cs** (was `PluginHelper.cs`) | Same for `IPlugin`; also captures Description + Credit. | `GetAllPluginNames`, `PluginExists`, `CreatePluginInstance`, `GetAllPluginsWithDescriptions`, `GetAllPluginsWithCredits`, `GetPluginInfo` |
+| **Input/InputArgs.cs** | Mutable carrier of parsed command + flags; splits `Cmd` into `CmdFileName`+`CmdArguments`; can read command from a file; Shallow/DeepCopy. | Props: `Cmd`, `CmdFullString`, `CmdFileName`, `CmdArguments`, `CmdFromFile`, `CmdType`, `IsRawCmd`, `Test`, `Minify`, `UseSimpleType`, `IsDebugMode`, `IsSTAThread`, `HasArguments`, `ExtraArguments`, `ExtraInternalArguments` |
+| **Input/CommandArgSplitter.cs** | Split command into `[fileName, args]` (on first space) and escape per target context. | `SplitCommand`, `XmlStringHTMLEscape`, `XmlStringAttributeEscape`, `JsonStringEscape`; `enum CommandType {None,XML,JSON,YamlDotNet,XMLinJSON,JSONinXML}` |
+| **MessagePack/MessagePackObjectDataProviderHelper.cs** | Build MessagePack Typeless ObjectDataProvider gadget by injecting real AQNs into MessagePack's private `TypelessFormatter.FullTypeNameCache`. | `CreateObjectDataProviderGadget(cmdFile, cmdArgs, useLz4)`, `Test` |
+| **MessagePack/MessagePackGetterSettingsPropertyValueHelper.cs** | Same technique for GetterSettingsPropertyValue (wrapping a BF gadget). MessagePack >= 2.3.75. | `CreateGetterSettingsPropertyValueGadget(bfGadget, useLz4)`, `Test` |
+| **MessagePack/ObjectDataProviderSurrogates.cs**, **GetterSettingsPropertyValueSurrogates.cs** (from `GadgetSurrogates/`) | "Bait-and-switch" surrogate POCOs mirroring real gadget graphs for MessagePack (swap in real AQNs at serialize time). Namespace normalized to `ysonet.Helpers`. | (POCO types) |
+| **Minifiers/XmlMinifier.cs** (was `XmlHelper.cs`) | Minify/normalize XML payloads (Soap, Net/DataContract, XmlSerializer): dedupe namespaces, strip encodingStyle, XSLT whitespace strip, ref-id minification. | `Minify` (6 overloads, string & Stream), `XmlXSLTMinifier` |
+| **Minifiers/JsonMinifier.cs** (was `JsonHelper.cs`) | Minify Json.NET payloads (collapse via JsonTextWriter, strip spaces in AQNs, remove loose assembly names / discardable regexes). | `Minify(json, looseAssemblyNames, finalDiscardableRegExStringArray)` |
+| **Minifiers/YamlMinifier.cs** (was `YamlDocumentHelper.cs`) | Trivial regex YAML minifier. | `Minify(yaml)` |
+| **Minifiers/BinaryFormatterMinifier.cs** | Shrink BF payloads by round-tripping through a JSON intermediate then iteratively simplifying the graph until stable; optionally re-run/test. | `MinimiseBFAndRun`, `MinimiseJsonAndRun` |
+| **Minifiers/TypeNameMinifier.cs** (extracted from `BinaryFormatterMinifier`) | Shrink type/assembly-qualified name strings (drop Version/Culture/PublicKeyToken and spaces when the shorter form still resolves). Called by the BF minifier and the vendored writer. | `FullTypeNameMinifier`, `AssemblyOrTypeNameMinifier` |
 | **ModifiedVulnerableBinaryFormatters/** | Vendored, modified copy of .NET 4.8 `BinaryFormatter` source (referencesource, Jan 2020), security disabled, for minification/parsing. See `info.txt`. | `AdvancedBinaryFormatterParser` (`StreamToJson`, `JsonToStream`, ...), `SimpleBinaryFormatterParser`, `SimpleObjectLosFormatter`, `SimpleMinifiedObjectLosFormatter` |
-| **MachineKeyHelper.cs** | ASP.NET MachineKey Protect/Unprotect (encrypt + validation MAC), SP800-108 key derivation. Adapted from AspNetTicketBridge. | `MachineKey.Protect/Unprotect`, `SP800_108.DeriveKey`, `MachineKeyDataProtector` |
-| **UpdateChecker.cs** | Check GitHub for a newer release (backs `--checkupdate` and the interactive "Check for updates" entry). Pure version parse/compare split from the network call (injectable fetcher) so it is unit tested without a live request. Release tags are `ysonet/vYEAR.MONTH.RELEASE`. | `Check`, `CurrentVersion`, `NormalizeVersion`, `CompareVersions`, `TryParseRelease` |
-| **LocalCodeCompiler.cs** | Runtime C# compilation: from a `;`-separated file chain, load `.dll` bytes or compile first `.cs` (referencing the rest) to a library assembly. | `GetAsmBytes(fileChain)`, `CompileToAsmBytes` (default `-t:library -o+ -platform:anycpu`) |
-| **GadgetSurrogates/** | "Bait-and-switch" surrogate POCOs mirroring real gadget graphs for MessagePack (swap in real AQNs at serialize time). | `ObjectDataProviderSurrogates.cs`, `GetterSettingsPropertyValueSurrogates.cs` |
-| **MessagePackObjectDataProviderHelper.cs** | Build MessagePack Typeless ObjectDataProvider gadget by injecting real AQNs into MessagePack's private `TypelessFormatter.FullTypeNameCache`. | `CreateObjectDataProviderGadget(cmdFile, cmdArgs, useLz4)`, `Test` |
-| **MessagePackGetterSettingsPropertyValueHelper.cs** | Same technique for GetterSettingsPropertyValue (wrapping a BF gadget). MessagePack >= 2.3.75. | `CreateGetterSettingsPropertyValueGadget(bfGadget, useLz4)`, `Test` |
-| **Utilities.cs** | Locate bundled DLLs + hook `AppDomain.AssemblyResolve` to load from `dlls/`. | `GetDllFullPath`, `AddRelativeDirToAppDomainAsmResolve`, `AddAbsoluteDirToAppDomainAsmResolve` |
-| **Debugging.cs** | Print exception stack traces only when `InputArgs.IsDebugMode`. | `ShowErrors(InputArgs, Exception)` |
-| **FormatterType.cs** | Enum for minify/escape decisions. | `enum FormatterType {None,BinaryFormatter,SoapFormatter,LosFormatter,ObjectStateFormatter,DataContractXML,NetDataContractXML,XMLSerializer,JavascriptSerializer,DataContractJSON}` |
-| **TestingArena/** | **Dev-only** scratch (`TestingArenaHome.cs`, a `GenericGenerator`). Excluded from discovery (both helpers skip types whose AQN contains `Helpers.TestingArena`). Reached via `--runmytest`. Not shipped functionality. |
+| **Serialization/SerializersHelper.cs** (+ `SerializersHelper.<Fmt>.cs` partials) | Central static library of serialize/deserialize/test methods for EVERY supported serializer (see below). One `partial` file per format; `ShowAll`/`TestAll` stay in the main file. | `ShowAll`, `TestAll`, and `<Serializer>_serialize/_deserialize/_test` families |
+| **Serialization/XmlByteArrayEncoder.cs** (extracted from `XmlHelper`) | Encode a byte array as an XmlSerializer "ArrayOfUnsignedByte" XML fragment (swappable byte tag/header/footer). Used by gadgets embedding a compiled assembly as inline XML. | `ConvertBytesToArrayOfUnsignedByteXML` |
+| **Serialization/FormatterType.cs** | Enum for minify/escape decisions. | `enum FormatterType {None,BinaryFormatter,SoapFormatter,LosFormatter,ObjectStateFormatter,DataContractXML,NetDataContractXML,XMLSerializer,JavascriptSerializer,DataContractJSON}` |
+| **ClipboardHelper.cs** (root) | STA-thread OS clipboard access (thin WinForms/WPF wrapper). | (clipboard set helpers) |
+| **Debugging.cs** (root) | Print exception stack traces only when `InputArgs.IsDebugMode`. | `ShowErrors(InputArgs, Exception)` |
+| **TestingArena/** | **Dev-only** scratch (`TestingArenaHome.cs`, a `GenericGenerator`). Excluded from discovery (both registries skip types whose AQN contains `Helpers.TestingArena`). Reached via `--runmytest`. Not shipped functionality. | - |
 
 ### SerializersHelper - supported serializers/formatters
+The class is split into one `partial` file per serializer family
+(`SerializersHelper.<Fmt>.cs`); `ShowAll`/`TestAll` live in `SerializersHelper.cs`.
 Naming convention: `<Serializer>_serialize`, `_deserialize`, `_test` (round-trip validate).
 Aggregate drivers: `ShowAll(obj)` (serialize with all + print) and `TestAll(obj)`
 (round-trip all + report which succeed - used to know which formatters a gadget supports).
@@ -549,10 +595,11 @@ Both supporting projects output to ysonet's own `bin\Debug`/`bin\Release`.
   `inputArgs.Minify`. All new functions must be fully tested.
 - **New plugin**: create `Plugins/<Name>Plugin.cs` implementing `IPlugin`; own an
   `OptionSet`, parse `args` in `Run`, return a `string` or `byte[]`. Add to csproj. Reuse
-  gadgets via `GadgetHelper.CreateGadgetInstance` or the static gadget helpers.
-- **New serializer support**: add `<Serializer>_serialize/_deserialize/_test` to
-  `SerializersHelper.cs`; wire minification into `XmlHelper`/`JsonHelper`/etc. and a
-  `FormatterType` enum entry if needed.
+  gadgets via `GadgetRegistry.CreateGadgetInstance` or the static gadget helpers.
+- **New serializer support**: add a `Helpers/Serialization/SerializersHelper.<Fmt>.cs`
+  partial with the `<Serializer>_serialize/_deserialize/_test` family; wire minification
+  into the matching `Helpers/Minifiers/<Fmt>Minifier.cs` and add a `FormatterType` enum
+  entry if needed. See the "where new code goes" table in section 7.1 for the folder homes.
 
 ## 10. Conventions and gotchas
 - Writing style (docs/comments/help): clear, minimal, simple words, plain ASCII only
