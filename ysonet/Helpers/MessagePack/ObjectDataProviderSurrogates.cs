@@ -1,4 +1,4 @@
-﻿namespace ysonet.Helpers.SurrogateClasses
+﻿namespace ysonet.Helpers
 {
     /// <summary>
     /// Surrogate class for bait-and-switch version of ObjectDataProvider.
