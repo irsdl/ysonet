@@ -9,7 +9,7 @@ namespace ysonet.Helpers
     /// Helper class for plugin discovery, validation, and instantiation.
     /// Provides centralized methods for all plugin-related operations.
     /// </summary>
-    public static class PluginHelper
+    public static class PluginRegistry
     {
         private static List<Type> _cachedPluginTypes = null;
         private static List<PluginInfo> _cachedPluginInfos = null;

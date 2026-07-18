@@ -2108,9 +2108,9 @@ namespace ysonet.Tests
                 OptionSet o = g == null ? null : g.Options();
                 if (o != null) sets.Add(new KeyValuePair<string, OptionSet>("gadget " + name, o));
             }
-            foreach (string name in PluginHelper.GetAllPluginNames())
+            foreach (string name in PluginRegistry.GetAllPluginNames())
             {
-                IPlugin p = PluginHelper.CreatePluginInstance(name);
+                IPlugin p = PluginRegistry.CreatePluginInstance(name);
                 OptionSet o = p == null ? null : p.Options();
                 if (o != null) sets.Add(new KeyValuePair<string, OptionSet>("plugin " + name, o));
             }
@@ -2315,7 +2315,7 @@ namespace ysonet.Tests
                 }
 
                 // Coverage guard: every discovered plugin is generated or excluded.
-                foreach (string name in PluginHelper.GetAllPluginNames())
+                foreach (string name in PluginRegistry.GetAllPluginNames())
                 {
                     bool known = argvByPlugin.ContainsKey(name) || excluded.ContainsKey(name);
                     AssertTrue(known, "plugin " + name + " has no generation test and no explicit exclusion (add one)");

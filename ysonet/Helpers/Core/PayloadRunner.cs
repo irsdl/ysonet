@@ -151,10 +151,10 @@ namespace ysonet.Helpers.Core
             if (string.IsNullOrEmpty(pluginName))
                 return RunResult.Fail("No plugin name provided.");
 
-            if (!PluginHelper.PluginExists(pluginName))
+            if (!PluginRegistry.PluginExists(pluginName))
                 return RunResult.Fail("Plugin '" + pluginName + "' not supported.");
 
-            IPlugin plugin = PluginHelper.CreatePluginInstance(pluginName);
+            IPlugin plugin = PluginRegistry.CreatePluginInstance(pluginName);
             if (plugin == null)
                 return RunResult.Fail("Plugin " + pluginName + " not supported!");
 

@@ -145,8 +145,8 @@ namespace ysonet
             // Populate list of available gadgets using GadgetRegistry
             generators = GadgetRegistry.GetAllGadgetNames().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
 
-            // Populate list of available plugins using PluginHelper
-            plugins = PluginHelper.GetAllPluginNames().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+            // Populate list of available plugins using PluginRegistry
+            plugins = PluginRegistry.GetAllPluginNames().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
 
             // Handle gadget-specific help when a valid gadget is provided with --help or --fullhelp
             if (!string.IsNullOrEmpty(gadget_name) && (show_help || show_fullhelp) && plugin_name == "" && !show_credit && searchFormatter == "")
@@ -166,8 +166,8 @@ namespace ysonet
             if (!string.IsNullOrEmpty(plugin_name) && (show_help || show_fullhelp) && gadget_name == "" && !show_credit && searchFormatter == "")
             {
                 // Normalize plugin name and validate
-                plugin_name = PluginHelper.NormalizePluginName(plugin_name);
-                string exactPluginName = PluginHelper.ValidateAndGetExactPluginName(plugin_name);
+                plugin_name = PluginRegistry.NormalizePluginName(plugin_name);
+                string exactPluginName = PluginRegistry.ValidateAndGetExactPluginName(plugin_name);
 
                 if (!string.IsNullOrEmpty(exactPluginName))
                 {
@@ -218,8 +218,8 @@ namespace ysonet
                 // If a plugin name is provided but other params are missing (scenario B)
                 else if (!string.IsNullOrEmpty(plugin_name) && !show_help && !show_fullhelp)
                 {
-                    // Validate plugin using PluginHelper
-                    string exactPluginName = PluginHelper.ValidateAndGetExactPluginName(plugin_name);
+                    // Validate plugin using PluginRegistry
+                    string exactPluginName = PluginRegistry.ValidateAndGetExactPluginName(plugin_name);
 
                     if (!string.IsNullOrEmpty(exactPluginName))
                     {
@@ -258,8 +258,8 @@ namespace ysonet
             // Early validation for plugin parameter - show available plugins if invalid plugin is provided
             if (!string.IsNullOrEmpty(plugin_name) && gadget_name == "" && !show_credit && searchFormatter == "" && !show_help && !show_fullhelp)
             {
-                // Use PluginHelper to validate plugin exists
-                if (!PluginHelper.PluginExists(plugin_name))
+                // Use PluginRegistry to validate plugin exists
+                if (!PluginRegistry.PluginExists(plugin_name))
                 {
                     Console.WriteLine("Plugin '" + plugin_name + "' not supported.");
                     Console.WriteLine();
@@ -291,15 +291,15 @@ namespace ysonet
             // Try to execute plugin first
             if (plugin_name != "")
             {
-                // Use PluginHelper to validate plugin exists
-                if (!PluginHelper.PluginExists(plugin_name))
+                // Use PluginRegistry to validate plugin exists
+                if (!PluginRegistry.PluginExists(plugin_name))
                 {
                     Console.WriteLine("Plugin not supported. Supported plugins are: " + string.Join(" , ", plugins));
                     System.Environment.Exit(-1);
                 }
 
-                // Instantiate Plugin using PluginHelper
-                IPlugin plugin = PluginHelper.CreatePluginInstance(plugin_name);
+                // Instantiate Plugin using PluginRegistry
+                IPlugin plugin = PluginRegistry.CreatePluginInstance(plugin_name);
                 if (plugin == null)
                 {
                     Console.WriteLine("Plugin not supported!");
@@ -529,7 +529,7 @@ namespace ysonet
                     }
                     else if (!string.IsNullOrEmpty(plugin_name))
                     {
-                        string exactPlugin = PluginHelper.ValidateAndGetExactPluginName(PluginHelper.NormalizePluginName(plugin_name));
+                        string exactPlugin = PluginRegistry.ValidateAndGetExactPluginName(PluginRegistry.NormalizePluginName(plugin_name));
                         if (string.IsNullOrEmpty(exactPlugin))
                         {
                             Console.Error.WriteLine("Unknown plugin: " + plugin_name);
@@ -786,8 +786,8 @@ namespace ysonet
                 Console.WriteLine("");
                 Console.WriteLine("== PLUGINS ==");
 
-                // Use PluginHelper to get all plugins with descriptions
-                var pluginsWithDescriptions = PluginHelper.GetAllPluginsWithDescriptions();
+                // Use PluginRegistry to get all plugins with descriptions
+                var pluginsWithDescriptions = PluginRegistry.GetAllPluginsWithDescriptions();
 
                 foreach (var pluginInfo in pluginsWithDescriptions)
                 {
@@ -795,8 +795,8 @@ namespace ysonet
                     {
                         if (pluginInfo.Name != "Generic")
                         {
-                            // Use PluginHelper to create instance
-                            IPlugin pp = PluginHelper.CreatePluginInstance(pluginInfo.Name);
+                            // Use PluginRegistry to create instance
+                            IPlugin pp = PluginRegistry.CreatePluginInstance(pluginInfo.Name);
                             if (pp != null)
                             {
                                 if (show_fullhelp)
@@ -843,8 +843,8 @@ namespace ysonet
             {
                 try
                 {
-                    // Use PluginHelper to create plugin instance
-                    IPlugin pp = PluginHelper.CreatePluginInstance(plugin_name);
+                    // Use PluginRegistry to create plugin instance
+                    IPlugin pp = PluginRegistry.CreatePluginInstance(plugin_name);
                     if (pp != null)
                     {
                         Console.WriteLine("Plugin:\n");
@@ -926,8 +926,8 @@ namespace ysonet
         {
             try
             {
-                // Use PluginHelper to create instance
-                IPlugin pp = PluginHelper.CreatePluginInstance(specificPluginName);
+                // Use PluginRegistry to create instance
+                IPlugin pp = PluginRegistry.CreatePluginInstance(specificPluginName);
 
                 if (pp == null)
                 {
@@ -965,8 +965,8 @@ namespace ysonet
         {
             if (!string.IsNullOrEmpty(partialPlugin))
             {
-                // Use PluginHelper to get plugins containing the search string
-                var filteredPlugins = PluginHelper.GetPluginsContaining(partialPlugin);
+                // Use PluginRegistry to get plugins containing the search string
+                var filteredPlugins = PluginRegistry.GetPluginsContaining(partialPlugin);
 
                 if (filteredPlugins.Any())
                 {
@@ -976,13 +976,13 @@ namespace ysonet
                 else
                 {
                     Console.WriteLine($"No plugins found containing \"{partialPlugin}\". All available plugins:");
-                    Console.WriteLine(string.Join(", ", PluginHelper.GetAllPluginNames()));
+                    Console.WriteLine(string.Join(", ", PluginRegistry.GetAllPluginNames()));
                 }
             }
             else
             {
                 Console.WriteLine("Available plugins:");
-                Console.WriteLine(string.Join(", ", PluginHelper.GetAllPluginNames()));
+                Console.WriteLine(string.Join(", ", PluginRegistry.GetAllPluginNames()));
             }
         }
 
@@ -1067,8 +1067,8 @@ namespace ysonet
             Console.WriteLine("");
             Console.WriteLine("Credits for available plugins:");
 
-            // Use PluginHelper to get all plugins with credits
-            var pluginsWithCredits = PluginHelper.GetAllPluginsWithCredits();
+            // Use PluginRegistry to get all plugins with credits
+            var pluginsWithCredits = PluginRegistry.GetAllPluginsWithCredits();
 
             foreach (var pluginInfo in pluginsWithCredits)
             {

@@ -45,7 +45,7 @@ namespace ysonet.Helpers
         // All plugin names a user can pass to -p.
         public static List<string> Plugins()
         {
-            return PluginHelper.GetAllPluginNames()
+            return PluginRegistry.GetAllPluginNames()
                 .Where(n => !string.Equals(n, GenericName, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -100,7 +100,7 @@ namespace ysonet.Helpers
         // The option tokens a single plugin accepts.
         public static List<string> PluginOptions(string pluginName)
         {
-            IPlugin p = PluginHelper.CreatePluginInstance(pluginName);
+            IPlugin p = PluginRegistry.CreatePluginInstance(pluginName);
             return p == null ? new List<string>() : OptionTokens(p.Options());
         }
 

@@ -58,7 +58,7 @@ namespace ysonet.Interactive
 
         public static ModuleView FromPlugin(string pluginName)
         {
-            IPlugin p = PluginHelper.CreatePluginInstance(pluginName);
+            IPlugin p = PluginRegistry.CreatePluginInstance(pluginName);
             if (p == null)
                 return null;
 

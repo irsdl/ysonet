@@ -248,7 +248,7 @@ namespace ysonet.Interactive
 
         private bool RunPluginFlow()
         {
-            var names = new List<string>(PluginHelper.GetAllPluginNames());
+            var names = new List<string>(PluginRegistry.GetAllPluginNames());
             return new ModuleEditor(_keys, _output, false, names, _session).Run();
         }
 
