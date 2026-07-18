@@ -1,4 +1,3 @@
-using System;
 
 namespace ysonet.Interactive
 {
