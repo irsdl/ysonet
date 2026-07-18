@@ -67,20 +67,20 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                             //assembly = type.Assembly.FullName;
                             //typeInformation = type.FullName;
 
-                            typeInformation = BinaryFormatterMinifier.FullTypeNameMinifier(type.FullName, type.Assembly.FullName);
-                            assembly = BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(type.Assembly.FullName);
+                            typeInformation = TypeNameMinifier.FullTypeNameMinifier(type.FullName, type.Assembly.FullName);
+                            assembly = TypeNameMinifier.AssemblyOrTypeNameMinifier(type.Assembly.FullName);
                         }
                         else
                         {
                             //assembly = objectInfo.GetAssemblyString();
                             //typeInformation = objectInfo.GetTypeFullName();
 
-                            typeInformation = BinaryFormatterMinifier.FullTypeNameMinifier(objectInfo.GetTypeFullName(), objectInfo.GetAssemblyString());
-                            assembly = BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(objectInfo.GetAssemblyString());
+                            typeInformation = TypeNameMinifier.FullTypeNameMinifier(objectInfo.GetTypeFullName(), objectInfo.GetAssemblyString());
+                            assembly = TypeNameMinifier.AssemblyOrTypeNameMinifier(objectInfo.GetAssemblyString());
                         }
 
                         //if (assembly.Equals(Converter.urtAssemblyString))
-                        if (assembly.Equals(BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(Converter.urtAssemblyString)))
+                        if (assembly.Equals(TypeNameMinifier.AssemblyOrTypeNameMinifier(Converter.urtAssemblyString)))
                         {
                             binaryTypeEnum = BinaryTypeEnum.ObjectUrt;
                             assemId = 0;

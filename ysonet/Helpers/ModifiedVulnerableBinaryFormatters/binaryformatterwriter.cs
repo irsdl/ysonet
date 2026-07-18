@@ -640,7 +640,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         internal void WriteMemberString(NameInfo memberNameInfo, NameInfo typeNameInfo, String value)
         {
             if (!memberNameInfo.NIFullName.Contains("Signature"))
-                value = BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(value);
+                value = TypeNameMinifier.AssemblyOrTypeNameMinifier(value);
 
             InternalWriteItemNull();
             if (memberNameInfo.NIisArrayItem)

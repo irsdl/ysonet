@@ -1386,14 +1386,14 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             long assemId = 0;
             bool isNew = false;
             String assemblyString = objectInfo.GetAssemblyString();
-            assemblyString = BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(assemblyString);
+            assemblyString = TypeNameMinifier.AssemblyOrTypeNameMinifier(assemblyString);
             String serializedAssemblyString = assemblyString;
             if (assemblyString.Length == 0)
             {
                 assemId = 0;
             }
             //else if (assemblyString.Equals(Converter.urtAssemblyString))
-            else if (assemblyString.Equals(BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(Converter.urtAssemblyString)))
+            else if (assemblyString.Equals(TypeNameMinifier.AssemblyOrTypeNameMinifier(Converter.urtAssemblyString)))
             {
                 // Urt type is an assemId of 0. No assemblyString needs
                 // to be sent 

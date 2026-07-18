@@ -274,9 +274,9 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             string assemblyString = si.AssemblyName;
             */
 
-            string fullTypeName = BinaryFormatterMinifier.FullTypeNameMinifier(si.FullTypeName, si.AssemblyName);
+            string fullTypeName = TypeNameMinifier.FullTypeNameMinifier(si.FullTypeName, si.AssemblyName);
 
-            string assemblyString = BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(si.AssemblyName);
+            string assemblyString = TypeNameMinifier.AssemblyOrTypeNameMinifier(si.AssemblyName);
 
             bool hasTypeForwardedFrom = false;
 
@@ -284,7 +284,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
             {
                 typeInformation = BinaryFormatter.GetTypeInformation(si.ObjectType);
                 //fullTypeName = typeInformation.FullTypeName;
-                fullTypeName = BinaryFormatterMinifier.FullTypeNameMinifier(typeInformation.FullTypeName, typeInformation.AssemblyString);
+                fullTypeName = TypeNameMinifier.FullTypeNameMinifier(typeInformation.FullTypeName, typeInformation.AssemblyString);
                 hasTypeForwardedFrom = typeInformation.HasTypeForwardedFrom;
             }
 
@@ -294,7 +294,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
                 {
                     typeInformation = BinaryFormatter.GetTypeInformation(si.ObjectType);
                 }
-                assemblyString = BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(typeInformation.AssemblyString);
+                assemblyString = TypeNameMinifier.AssemblyOrTypeNameMinifier(typeInformation.AssemblyString);
 
                 //assemblyString = typeInformation.AssemblyString;
 
@@ -412,7 +412,7 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         {
             SerTrace.Log(this, objectInfoId, " ", objectType, " GetAssemblyString Entry isSi ", isSi, " ", cache.assemblyString);
 
-            this.binderAssemblyString = BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(binderAssemblyString);
+            this.binderAssemblyString = TypeNameMinifier.AssemblyOrTypeNameMinifier(binderAssemblyString);
             return binderAssemblyString ?? cache.assemblyString;
         }
 
@@ -951,8 +951,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
         internal SerObjectInfoCache(string typeName, string assemblyName, bool hasTypeForwardedFrom)
         {
-            this.fullTypeName = BinaryFormatterMinifier.FullTypeNameMinifier(typeName, assemblyName);
-            this.assemblyString = BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(assemblyName);
+            this.fullTypeName = TypeNameMinifier.FullTypeNameMinifier(typeName, assemblyName);
+            this.assemblyString = TypeNameMinifier.AssemblyOrTypeNameMinifier(assemblyName);
 
             //this.fullTypeName = typeName;
             //this.assemblyString = assemblyName;
@@ -963,8 +963,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
         {
             TypeInformation typeInformation = BinaryFormatter.GetTypeInformation(type);
 
-            this.fullTypeName = BinaryFormatterMinifier.FullTypeNameMinifier(typeInformation.FullTypeName, typeInformation.AssemblyString);
-            this.assemblyString = BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(typeInformation.AssemblyString);
+            this.fullTypeName = TypeNameMinifier.FullTypeNameMinifier(typeInformation.FullTypeName, typeInformation.AssemblyString);
+            this.assemblyString = TypeNameMinifier.AssemblyOrTypeNameMinifier(typeInformation.AssemblyString);
 
             //this.fullTypeName = typeInformation.FullTypeName;
             //this.assemblyString = typeInformation.AssemblyString;
@@ -1004,8 +1004,8 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
         internal TypeInformation(string fullTypeName, string assemblyString, bool hasTypeForwardedFrom)
         {
-            this.fullTypeName = BinaryFormatterMinifier.FullTypeNameMinifier(fullTypeName, assemblyString);
-            this.assemblyString = BinaryFormatterMinifier.AssemblyOrTypeNameMinifier(assemblyString);
+            this.fullTypeName = TypeNameMinifier.FullTypeNameMinifier(fullTypeName, assemblyString);
+            this.assemblyString = TypeNameMinifier.AssemblyOrTypeNameMinifier(assemblyString);
 
             //this.fullTypeName = fullTypeName;
             //this.assemblyString = assemblyString;

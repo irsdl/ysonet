@@ -273,6 +273,7 @@
     <Compile Include="Helpers\MessagePack\MessagePackObjectDataProviderHelper.cs" />
     <Compile Include="Helpers\MessagePack\ObjectDataProviderSurrogates.cs" />
     <Compile Include="Helpers\Minifiers\BinaryFormatterMinifier.cs" />
+    <Compile Include="Helpers\Minifiers\TypeNameMinifier.cs" />
     <Compile Include="Helpers\Minifiers\JsonHelper.cs" />
     <Compile Include="Helpers\Minifiers\XmlHelper.cs" />
     <Compile Include="Helpers\Minifiers\YamlDocumentHelper.cs" />
