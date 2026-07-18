@@ -75,7 +75,7 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    payload = JsonHelper.Minify(payload, new string[] { "System.IdentityModel" }, null);
+                    payload = JsonMinifier.Minify(payload, new string[] { "System.IdentityModel" }, null);
                 }
 
 

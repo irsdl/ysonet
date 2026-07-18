@@ -80,11 +80,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = JsonHelper.Minify(payload, new string[] { "mscorlib" }, new string[] { ",mscorlib" });
+                        payload = JsonMinifier.Minify(payload, new string[] { "mscorlib" }, new string[] { ",mscorlib" });
                     }
                     else
                     {
-                        payload = JsonHelper.Minify(payload, null, null);
+                        payload = JsonMinifier.Minify(payload, null, null);
                     }
                 }
 

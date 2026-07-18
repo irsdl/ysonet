@@ -205,11 +205,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = JsonHelper.Minify(payload, new String[] { "PresentationFramework", "mscorlib", "System" }, null);
+                        payload = JsonMinifier.Minify(payload, new String[] { "PresentationFramework", "mscorlib", "System" }, null);
                     }
                     else
                     {
-                        payload = JsonHelper.Minify(payload, null, null);
+                        payload = JsonMinifier.Minify(payload, null, null);
                     }
                 }
 
@@ -260,7 +260,7 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    payload = JsonHelper.Minify(payload, null, null);
+                    payload = JsonMinifier.Minify(payload, null, null);
                 }
 
                 if (inputArgs.Test)
@@ -306,7 +306,7 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    payload = JsonHelper.Minify(payload, null, null);
+                    payload = JsonMinifier.Minify(payload, null, null);
                 }
 
                 if (inputArgs.Test)
@@ -611,7 +611,7 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    payload = JsonHelper.Minify(payload, null, null);
+                    payload = JsonMinifier.Minify(payload, null, null);
                 }
 
                 if (inputArgs.Test)

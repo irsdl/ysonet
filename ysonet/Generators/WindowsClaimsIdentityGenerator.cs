@@ -120,11 +120,11 @@ namespace ysonet.Generators
 
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = JsonHelper.Minify(payload, new string[] { "Microsoft.IdentityModel" }, null);
+                        payload = JsonMinifier.Minify(payload, new string[] { "Microsoft.IdentityModel" }, null);
                     }
                     else
                     {
-                        payload = JsonHelper.Minify(payload, null, null);
+                        payload = JsonMinifier.Minify(payload, null, null);
                     }
                 }
 

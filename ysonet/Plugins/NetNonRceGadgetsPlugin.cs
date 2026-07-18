@@ -258,7 +258,7 @@ Exemplary usage:
             {
                 if (formatter.ToLower() == "json.net" || formatter.ToLower() == "javascriptserializer")
                 {
-                    payload = JsonHelper.Minify(payload, null, null);
+                    payload = JsonMinifier.Minify(payload, null, null);
                 }
             }
 

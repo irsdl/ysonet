@@ -240,7 +240,7 @@ Exemplary usage:
             if (minify)
             {
                 //If different formatters get implemented, please make sure that we verify formatter here
-                payload = JsonHelper.Minify(payload, null, null);
+                payload = JsonMinifier.Minify(payload, null, null);
             }
 
             //tests

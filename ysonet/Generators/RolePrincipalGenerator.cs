@@ -61,11 +61,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = JsonHelper.Minify(payload, new string[] { "System.Web" }, null);
+                        payload = JsonMinifier.Minify(payload, new string[] { "System.Web" }, null);
                     }
                     else
                     {
-                        payload = JsonHelper.Minify(payload, null, null);
+                        payload = JsonMinifier.Minify(payload, null, null);
                     }
                 }
 

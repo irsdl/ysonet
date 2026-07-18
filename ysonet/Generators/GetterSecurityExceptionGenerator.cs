@@ -145,11 +145,11 @@ namespace ysonet.Generators
                 {
                     if (inputArgs.UseSimpleType)
                     {
-                        payload = JsonHelper.Minify(payload, new string[] { "mscorlib" }, null);
+                        payload = JsonMinifier.Minify(payload, new string[] { "mscorlib" }, null);
                     }
                     else
                     {
-                        payload = JsonHelper.Minify(payload, null, null);
+                        payload = JsonMinifier.Minify(payload, null, null);
                     }
                 }
 

@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace ysonet.Helpers
 {
-    public class JsonHelper
+    public class JsonMinifier
     {
         public static String Minify(String jsonString, String[] LooseAssemblyNames, String[] finalDiscardableRegExStringArray)
         {
