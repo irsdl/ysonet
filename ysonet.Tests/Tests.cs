@@ -145,7 +145,7 @@ namespace ysonet.Tests
 
         private static void OptionFieldIntrospection()
         {
-            IGenerator g = GadgetHelper.CreateGadgetInstance("ObjectDataProvider");
+            IGenerator g = GadgetRegistry.CreateGadgetInstance("ObjectDataProvider");
             AssertTrue(g != null, "gadget loads");
             var fields = OptionField.FromOptionSet(g.Options());
             // ObjectDataProvider has var|variant= and xamlurl=
@@ -841,7 +841,7 @@ namespace ysonet.Tests
 
         private static IGenerator Gadget(string name)
         {
-            IGenerator g = GadgetHelper.CreateGadgetInstance(name);
+            IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
             if (g == null)
                 throw new Exception("gadget not found: " + name);
             return g;
@@ -2102,9 +2102,9 @@ namespace ysonet.Tests
         {
             var sets = new List<KeyValuePair<string, OptionSet>>();
 
-            foreach (string name in GadgetHelper.GetAllGadgetNames())
+            foreach (string name in GadgetRegistry.GetAllGadgetNames())
             {
-                IGenerator g = GadgetHelper.CreateGadgetInstance(name);
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
                 OptionSet o = g == null ? null : g.Options();
                 if (o != null) sets.Add(new KeyValuePair<string, OptionSet>("gadget " + name, o));
             }
@@ -2177,7 +2177,7 @@ namespace ysonet.Tests
 
             try
             {
-                string[] names = GadgetHelper.GetAllGadgetNames();
+                string[] names = GadgetRegistry.GetAllGadgetNames();
                 AssertTrue(names.Length > 0, "found gadgets to generate");
 
                 foreach (string name in names)
@@ -2186,7 +2186,7 @@ namespace ysonet.Tests
                     // it too); it has no payload to produce.
                     if (name == "Generic") continue;
 
-                    IGenerator g = GadgetHelper.CreateGadgetInstance(name);
+                    IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
                     AssertTrue(g != null, "gadget loads: " + name);
 
                     List<string> formatters = g.SupportedFormatters();

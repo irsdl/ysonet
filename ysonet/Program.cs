@@ -142,8 +142,8 @@ namespace ysonet
                 gadget_name = "<ignored>";
             }
 
-            // Populate list of available gadgets using GadgetHelper
-            generators = GadgetHelper.GetAllGadgetNames().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+            // Populate list of available gadgets using GadgetRegistry
+            generators = GadgetRegistry.GetAllGadgetNames().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
 
             // Populate list of available plugins using PluginHelper
             plugins = PluginHelper.GetAllPluginNames().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
@@ -152,8 +152,8 @@ namespace ysonet
             if (!string.IsNullOrEmpty(gadget_name) && (show_help || show_fullhelp) && plugin_name == "" && !show_credit && searchFormatter == "")
             {
                 // Normalize gadget name and validate
-                gadget_name = GadgetHelper.NormalizeGadgetName(gadget_name);
-                string exactGadgetName = GadgetHelper.ValidateAndGetExactGadgetName(gadget_name);
+                gadget_name = GadgetRegistry.NormalizeGadgetName(gadget_name);
+                string exactGadgetName = GadgetRegistry.ValidateAndGetExactGadgetName(gadget_name);
 
                 if (!string.IsNullOrEmpty(exactGadgetName))
                 {
@@ -182,10 +182,10 @@ namespace ysonet
             bool commandIgnored = false;
             if (!string.IsNullOrEmpty(gadget_name) && plugin_name == "")
             {
-                string exactForCmd = GadgetHelper.ValidateAndGetExactGadgetName(gadget_name);
+                string exactForCmd = GadgetRegistry.ValidateAndGetExactGadgetName(gadget_name);
                 if (!string.IsNullOrEmpty(exactForCmd))
                 {
-                    IGenerator gForCmd = GadgetHelper.CreateGadgetInstance(exactForCmd);
+                    IGenerator gForCmd = GadgetRegistry.CreateGadgetInstance(exactForCmd);
                     if (gForCmd != null && gForCmd.CommandInput() == CommandInputType.Ignored)
                         commandIgnored = true;
                 }
@@ -198,8 +198,8 @@ namespace ysonet
                 // If a gadget name is provided but other params are missing (scenario A)
                 if (!string.IsNullOrEmpty(gadget_name) && !show_help && !show_fullhelp)
                 {
-                    // Validate gadget using GadgetHelper
-                    string exactGadgetName = GadgetHelper.ValidateAndGetExactGadgetName(gadget_name);
+                    // Validate gadget using GadgetRegistry
+                    string exactGadgetName = GadgetRegistry.ValidateAndGetExactGadgetName(gadget_name);
 
                     if (!string.IsNullOrEmpty(exactGadgetName))
                     {
@@ -245,8 +245,8 @@ namespace ysonet
             // Early validation for gadget parameter - show available gadgets if invalid gadget is provided
             if (!string.IsNullOrEmpty(gadget_name) && plugin_name == "" && !show_credit && searchFormatter == "" && !show_help && !show_fullhelp)
             {
-                // Use GadgetHelper to validate gadget exists
-                if (!GadgetHelper.GadgetExists(gadget_name))
+                // Use GadgetRegistry to validate gadget exists
+                if (!GadgetRegistry.GadgetExists(gadget_name))
                 {
                     Console.WriteLine("Gadget '" + gadget_name + "' not supported.");
                     Console.WriteLine();
@@ -383,8 +383,8 @@ namespace ysonet
                 Console.WriteLine("## Payloads with formatters contains \"" + formatter_name + "\" ##");
                 int counter = 0;
 
-                // Use GadgetHelper to get all gadget names
-                var gadgetNames = GadgetHelper.GetAllGadgetNames();
+                // Use GadgetRegistry to get all gadget names
+                var gadgetNames = GadgetRegistry.GetAllGadgetNames();
 
                 foreach (string gadgetName in gadgetNames)
                 {
@@ -392,8 +392,8 @@ namespace ysonet
                     {
                         if (gadgetName != "Generic")
                         {
-                            // Use GadgetHelper to create instance
-                            IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                            // Use GadgetRegistry to create instance
+                            IGenerator gg = GadgetRegistry.CreateGadgetInstance(gadgetName);
                             if (gg != null)
                             {
                                 foreach (string formatter in gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase))
@@ -502,7 +502,7 @@ namespace ysonet
                 case "formatters":
                     if (!string.IsNullOrEmpty(gadget_name))
                     {
-                        string exact = GadgetHelper.ValidateAndGetExactGadgetName(GadgetHelper.NormalizeGadgetName(gadget_name));
+                        string exact = GadgetRegistry.ValidateAndGetExactGadgetName(GadgetRegistry.NormalizeGadgetName(gadget_name));
                         if (string.IsNullOrEmpty(exact))
                         {
                             Console.Error.WriteLine("Unknown gadget: " + gadget_name);
@@ -519,7 +519,7 @@ namespace ysonet
                 case "options":
                     if (!string.IsNullOrEmpty(gadget_name))
                     {
-                        string exact = GadgetHelper.ValidateAndGetExactGadgetName(GadgetHelper.NormalizeGadgetName(gadget_name));
+                        string exact = GadgetRegistry.ValidateAndGetExactGadgetName(GadgetRegistry.NormalizeGadgetName(gadget_name));
                         if (string.IsNullOrEmpty(exact))
                         {
                             Console.Error.WriteLine("Unknown gadget: " + gadget_name);
@@ -661,8 +661,8 @@ namespace ysonet
         {
             Console.WriteLine("Formatter search result for \"" + formatter_name + "\":\n");
 
-            // Use GadgetHelper to get all gadget names
-            var gadgetNames = GadgetHelper.GetAllGadgetNames();
+            // Use GadgetRegistry to get all gadget names
+            var gadgetNames = GadgetRegistry.GetAllGadgetNames();
 
             foreach (string gadgetName in gadgetNames)
             {
@@ -670,8 +670,8 @@ namespace ysonet
                 {
                     if (gadgetName != "Generic")
                     {
-                        // Use GadgetHelper to create instance
-                        IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                        // Use GadgetRegistry to create instance
+                        IGenerator gg = GadgetRegistry.CreateGadgetInstance(gadgetName);
                         if (gg != null)
                         {
                             Boolean gadgetSelected = false;
@@ -708,8 +708,8 @@ namespace ysonet
             {
                 Console.WriteLine("== GADGETS ==");
 
-                // Use GadgetHelper to get all gadget names
-                var gadgetNames = GadgetHelper.GetAllGadgetNames();
+                // Use GadgetRegistry to get all gadget names
+                var gadgetNames = GadgetRegistry.GetAllGadgetNames();
 
                 foreach (string gadgetName in gadgetNames)
                 {
@@ -717,8 +717,8 @@ namespace ysonet
                     {
                         if (gadgetName != "Generic")
                         {
-                            // Use GadgetHelper to create instance
-                            IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                            // Use GadgetRegistry to create instance
+                            IGenerator gg = GadgetRegistry.CreateGadgetInstance(gadgetName);
                             if (gg != null)
                             {
                                 if (gg.Labels().Contains(GadgetTags.Hidden) && !show_fullhelp)
@@ -869,8 +869,8 @@ namespace ysonet
         {
             try
             {
-                // Use GadgetHelper to create instance
-                IGenerator gg = GadgetHelper.CreateGadgetInstance(specificGadgetName);
+                // Use GadgetRegistry to create instance
+                IGenerator gg = GadgetRegistry.CreateGadgetInstance(specificGadgetName);
 
                 if (gg == null)
                 {
@@ -1040,8 +1040,8 @@ namespace ysonet
             Console.WriteLine("");
             Console.WriteLine("Credits for available gadgets:");
 
-            // Use GadgetHelper to get all gadget names
-            var gadgetNames = GadgetHelper.GetAllGadgetNames();
+            // Use GadgetRegistry to get all gadget names
+            var gadgetNames = GadgetRegistry.GetAllGadgetNames();
 
             foreach (string gadgetName in gadgetNames)
             {
@@ -1049,8 +1049,8 @@ namespace ysonet
                 {
                     if (gadgetName != "Generic")
                     {
-                        // Use GadgetHelper to create instance
-                        IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                        // Use GadgetRegistry to create instance
+                        IGenerator gg = GadgetRegistry.CreateGadgetInstance(gadgetName);
                         if (gg != null)
                         {
                             Console.WriteLine("\t" + gg.Name());
@@ -1099,13 +1099,13 @@ namespace ysonet
         {
             if (!string.IsNullOrEmpty(formatter))
             {
-                // Use GadgetHelper to get gadgets that support the specific formatter
-                var formatterFilteredGadgets = GadgetHelper.GetGadgetsSupportingFormatter(formatter);
+                // Use GadgetRegistry to get gadgets that support the specific formatter
+                var formatterFilteredGadgets = GadgetRegistry.GetGadgetsSupportingFormatter(formatter);
 
                 if (!string.IsNullOrEmpty(partialGadget))
                 {
                     // Filter by partial gadget name as well
-                    var gadgetsContaining = GadgetHelper.GetGadgetsContaining(partialGadget);
+                    var gadgetsContaining = GadgetRegistry.GetGadgetsContaining(partialGadget);
                     formatterFilteredGadgets = formatterFilteredGadgets.Intersect(gadgetsContaining).ToArray();
                 }
 
@@ -1124,10 +1124,10 @@ namespace ysonet
                 else
                 {
                     Console.WriteLine($"No gadgets found for the formatter \"{formatter}\". All available gadgets are:");
-                    var allGadgets = GadgetHelper.GetAllGadgetNames();
+                    var allGadgets = GadgetRegistry.GetAllGadgetNames();
                     foreach (var gadgetName in allGadgets)
                     {
-                        var instance = GadgetHelper.CreateGadgetInstance(gadgetName);
+                        var instance = GadgetRegistry.CreateGadgetInstance(gadgetName);
                         if (instance != null)
                         {
                             Console.WriteLine($"{instance.Name()} ({string.Join(", ", instance.SupportedFormatters())})");
@@ -1139,8 +1139,8 @@ namespace ysonet
             {
                 if (!string.IsNullOrEmpty(partialGadget))
                 {
-                    // Use GadgetHelper to get gadgets containing the search string
-                    var filteredGadgets = GadgetHelper.GetGadgetsContaining(partialGadget);
+                    // Use GadgetRegistry to get gadgets containing the search string
+                    var filteredGadgets = GadgetRegistry.GetGadgetsContaining(partialGadget);
 
                     if (filteredGadgets.Any())
                     {
@@ -1150,13 +1150,13 @@ namespace ysonet
                     else
                     {
                         Console.WriteLine($"No gadgets found containing \"{partialGadget}\". All available gadgets:");
-                        Console.WriteLine(string.Join(", ", GadgetHelper.GetAllGadgetNames()));
+                        Console.WriteLine(string.Join(", ", GadgetRegistry.GetAllGadgetNames()));
                     }
                 }
                 else
                 {
                     Console.WriteLine("Available gadgets:");
-                    Console.WriteLine(string.Join(", ", GadgetHelper.GetAllGadgetNames()));
+                    Console.WriteLine(string.Join(", ", GadgetRegistry.GetAllGadgetNames()));
                 }
             }
         }

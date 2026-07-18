@@ -36,7 +36,7 @@ namespace ysonet.Helpers
         // All gadget names a user can pass to -g.
         public static List<string> Gadgets()
         {
-            return GadgetHelper.GetAllGadgetNames()
+            return GadgetRegistry.GetAllGadgetNames()
                 .Where(n => !string.Equals(n, GenericName, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -58,12 +58,12 @@ namespace ysonet.Helpers
         public static List<string> Formatters()
         {
             var set = new HashSet<string>(StringComparer.Ordinal);
-            foreach (string name in GadgetHelper.GetAllGadgetNames())
+            foreach (string name in GadgetRegistry.GetAllGadgetNames())
             {
                 if (string.Equals(name, GenericName, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                IGenerator g = GadgetHelper.CreateGadgetInstance(name);
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
                 if (g == null)
                     continue;
 
@@ -81,7 +81,7 @@ namespace ysonet.Helpers
         // variant annotations) since that is exactly what the gadget reports.
         public static List<string> GadgetFormatters(string gadgetName)
         {
-            IGenerator g = GadgetHelper.CreateGadgetInstance(gadgetName);
+            IGenerator g = GadgetRegistry.CreateGadgetInstance(gadgetName);
             if (g == null)
                 return new List<string>();
 
@@ -93,7 +93,7 @@ namespace ysonet.Helpers
         // The extra option tokens a single gadget accepts (e.g. --variant).
         public static List<string> GadgetOptions(string gadgetName)
         {
-            IGenerator g = GadgetHelper.CreateGadgetInstance(gadgetName);
+            IGenerator g = GadgetRegistry.CreateGadgetInstance(gadgetName);
             return g == null ? new List<string>() : OptionTokens(g.Options());
         }
 

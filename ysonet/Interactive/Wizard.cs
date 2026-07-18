@@ -238,7 +238,7 @@ namespace ysonet.Interactive
         private bool RunGadgetFlow()
         {
             var names = new List<string>();
-            foreach (string n in GadgetHelper.GetAllGadgetNames())
+            foreach (string n in GadgetRegistry.GetAllGadgetNames())
                 if (n != "Generic")
                     names.Add(n);
             return new ModuleEditor(_keys, _output, true, names, _session).Run();
@@ -277,11 +277,11 @@ namespace ysonet.Interactive
 
             WriteLine("");
             WriteLine("Gadgets with a formatter containing \"" + term + "\":");
-            foreach (string gadgetName in GadgetHelper.GetAllGadgetNames())
+            foreach (string gadgetName in GadgetRegistry.GetAllGadgetNames())
             {
                 if (gadgetName == "Generic")
                     continue;
-                IGenerator gg = GadgetHelper.CreateGadgetInstance(gadgetName);
+                IGenerator gg = GadgetRegistry.CreateGadgetInstance(gadgetName);
                 if (gg == null)
                     continue;
                 var hits = new List<string>();
@@ -310,11 +310,11 @@ namespace ysonet.Interactive
 
             // Load all gadgets once.
             var gadgets = new List<IGenerator>();
-            foreach (string name in GadgetHelper.GetAllGadgetNames())
+            foreach (string name in GadgetRegistry.GetAllGadgetNames())
             {
                 if (name == "Generic")
                     continue;
-                IGenerator gg = GadgetHelper.CreateGadgetInstance(name);
+                IGenerator gg = GadgetRegistry.CreateGadgetInstance(name);
                 if (gg != null)
                     gadgets.Add(gg);
             }

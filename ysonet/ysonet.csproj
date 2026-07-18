@@ -264,7 +264,7 @@
     <Compile Include="Helpers\Crypto\MachineKey.cs" />
     <Compile Include="Helpers\Crypto\MachineKeyDataProtector.cs" />
     <Compile Include="Helpers\Crypto\Sp800_108.cs" />
-    <Compile Include="Helpers\Discovery\GadgetHelper.cs" />
+    <Compile Include="Helpers\Discovery\GadgetRegistry.cs" />
     <Compile Include="Helpers\Discovery\PluginHelper.cs" />
     <Compile Include="Helpers\Input\CommandArgSplitter.cs" />
     <Compile Include="Helpers\Input\InputArgs.cs" />

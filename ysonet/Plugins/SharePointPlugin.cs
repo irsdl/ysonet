@@ -206,15 +206,15 @@ namespace ysonet.Plugins
             string formatter = "binaryformatter";
             byte[] binaryformatterPayload = new byte[] { };
 
-            // Use GadgetHelper to validate gadget exists
-            if (!GadgetHelper.GadgetExists(gadget))
+            // Use GadgetRegistry to validate gadget exists
+            if (!GadgetRegistry.GadgetExists(gadget))
             {
                 Console.WriteLine("Gadget not supported.");
                 throw new Exception("Gadget not supported.");
             }
 
-            // Use GadgetHelper to create gadget instance
-            IGenerator generator = GadgetHelper.CreateGadgetInstance(gadget);
+            // Use GadgetRegistry to create gadget instance
+            IGenerator generator = GadgetRegistry.CreateGadgetInstance(gadget);
             if (generator == null)
             {
                 Console.WriteLine("Gadget not supported!");
@@ -342,8 +342,8 @@ runat=""server"">
 
             if (variant == 2)
             {
-                // Variant 2: Use GadgetHelper to create DataSetOldBehaviourFromFileGenerator variant 2 (run code)
-                IGenerator dsFromFileGenerator = GadgetHelper.CreateGadgetInstance("DataSetOldBehaviourFromFile");
+                // Variant 2: Use GadgetRegistry to create DataSetOldBehaviourFromFileGenerator variant 2 (run code)
+                IGenerator dsFromFileGenerator = GadgetRegistry.CreateGadgetInstance("DataSetOldBehaviourFromFile");
                 if (dsFromFileGenerator == null)
                 {
                     Console.WriteLine("DataSetOldBehaviourFromFileGenerator not supported!");
@@ -358,8 +358,8 @@ runat=""server"">
             }
             else
             {
-                // Variant 1 (default): Use GadgetHelper to create DataSetOldBehaviourGenerator variant 1 (run command)
-                IGenerator dsGenerator = GadgetHelper.CreateGadgetInstance("DataSetOldBehaviour");
+                // Variant 1 (default): Use GadgetRegistry to create DataSetOldBehaviourGenerator variant 1 (run command)
+                IGenerator dsGenerator = GadgetRegistry.CreateGadgetInstance("DataSetOldBehaviour");
                 if (dsGenerator == null)
                 {
                     Console.WriteLine("DataSetOldBehaviourGenerator not supported!");
@@ -406,15 +406,15 @@ runat=""server"">
             string formatter = "losformatter";
             string losFormatterPayload = "";
 
-            // Use GadgetHelper to validate gadget exists
-            if (!GadgetHelper.GadgetExists(gadget))
+            // Use GadgetRegistry to validate gadget exists
+            if (!GadgetRegistry.GadgetExists(gadget))
             {
                 Console.WriteLine("Gadget not supported.");
                 throw new Exception("Gadget not supported.");
             }
 
-            // Use GadgetHelper to create gadget instance
-            IGenerator generator = GadgetHelper.CreateGadgetInstance(gadget);
+            // Use GadgetRegistry to create gadget instance
+            IGenerator generator = GadgetRegistry.CreateGadgetInstance(gadget);
             if (generator == null)
             {
                 Console.WriteLine("Gadget not supported!");
@@ -566,8 +566,8 @@ PublicKeyToken=31bf3856ad364e35"">
                 payloadPart1 = typeof(Microsoft.VisualStudio.Text.Formatting.TextFormattingRunProperties).AssemblyQualifiedName + ":";
                 payloadPart1 = payloadPart1.Replace(" ", "");
 
-                // Use GadgetHelper to create TextFormattingRunPropertiesGenerator
-                IGenerator myTFRPG = GadgetHelper.CreateGadgetInstance("TextFormattingRunProperties");
+                // Use GadgetRegistry to create TextFormattingRunPropertiesGenerator
+                IGenerator myTFRPG = GadgetRegistry.CreateGadgetInstance("TextFormattingRunProperties");
                 if (myTFRPG == null)
                 {
                     Console.WriteLine("TextFormattingRunPropertiesGenerator not supported!");

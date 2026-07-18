@@ -38,7 +38,7 @@ namespace ysonet.Interactive
 
         public static ModuleView FromGadget(string gadgetName)
         {
-            IGenerator g = GadgetHelper.CreateGadgetInstance(gadgetName);
+            IGenerator g = GadgetRegistry.CreateGadgetInstance(gadgetName);
             if (g == null)
                 return null;
 

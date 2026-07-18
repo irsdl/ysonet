@@ -244,8 +244,8 @@ Exemplary usage:
             InputArgs inputArgs = new InputArgs();
             inputArgs.Cmd = input;
 
-            // Use GadgetHelper to create TypeConfuseDelegateGenerator instance
-            IGenerator generator = GadgetHelper.CreateGadgetInstance("TypeConfuseDelegate");
+            // Use GadgetRegistry to create TypeConfuseDelegateGenerator instance
+            IGenerator generator = GadgetRegistry.CreateGadgetInstance("TypeConfuseDelegate");
             if (generator == null)
             {
                 Console.WriteLine("TypeConfuseDelegateGenerator not supported!");

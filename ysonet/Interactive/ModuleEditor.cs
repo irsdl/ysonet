@@ -1151,7 +1151,7 @@ namespace ysonet.Interactive
         private static List<string> GadgetNames()
         {
             var names = new List<string>();
-            foreach (string n in GadgetHelper.GetAllGadgetNames())
+            foreach (string n in GadgetRegistry.GetAllGadgetNames())
                 if (n != "Generic")
                     names.Add(n);
             return names;
@@ -1164,11 +1164,11 @@ namespace ysonet.Interactive
         private static List<string> BridgeGadgetNames()
         {
             var names = new List<string>();
-            foreach (string n in GadgetHelper.GetAllGadgetNames())
+            foreach (string n in GadgetRegistry.GetAllGadgetNames())
             {
                 if (n == "Generic")
                     continue;
-                IGenerator g = GadgetHelper.CreateGadgetInstance(n);
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(n);
                 if (g != null && g.Labels() != null && g.Labels().Contains(GadgetTags.Bridged))
                     names.Add(n);
             }

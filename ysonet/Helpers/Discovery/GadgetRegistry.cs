@@ -9,7 +9,7 @@ namespace ysonet.Helpers
     /// Helper class for gadget discovery, validation, and instantiation.
     /// Provides centralized methods for all gadget-related operations.
     /// </summary>
-    public static class GadgetHelper
+    public static class GadgetRegistry
     {
         private static List<Type> _cachedGadgetTypes = null;
         private static List<GadgetInfo> _cachedGadgetInfos = null;

@@ -91,20 +91,20 @@ namespace ysonet.Helpers.Core
                     current_formatter_name = req.FormatterName;
                 }
 
-                if (!GadgetHelper.GadgetExists(current_gadget_name))
+                if (!GadgetRegistry.GadgetExists(current_gadget_name))
                     return RunResult.Fail("Gadget '" + current_gadget_name + "' not supported.");
 
-                IGenerator generator = GadgetHelper.CreateGadgetInstance(current_gadget_name);
+                IGenerator generator = GadgetRegistry.CreateGadgetInstance(current_gadget_name);
                 if (generator == null)
                     return RunResult.Fail("Gadget " + current_gadget_name + " not supported!");
 
                 if (!string.IsNullOrEmpty(consumer_gadget_name))
                 {
                     // the consumer has its own requirements that must be satisfied
-                    if (!GadgetHelper.GadgetExists(consumer_gadget_name))
+                    if (!GadgetRegistry.GadgetExists(consumer_gadget_name))
                         return RunResult.Fail("Bridged gadget '" + consumer_gadget_name + "' not supported.");
 
-                    IGenerator consumer_gadget = GadgetHelper.CreateGadgetInstance(consumer_gadget_name);
+                    IGenerator consumer_gadget = GadgetRegistry.CreateGadgetInstance(consumer_gadget_name);
                     if (consumer_gadget == null)
                         return RunResult.Fail("Bridged gadget " + consumer_gadget_name + " not supported!");
 
