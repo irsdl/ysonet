@@ -255,7 +255,7 @@
     <Compile Include="Helpers\ClipboardHelper.cs" />
     <Compile Include="Helpers\Debugging.cs" />
     <Compile Include="Helpers\Assemblies\LocalCodeCompiler.cs" />
-    <Compile Include="Helpers\Assemblies\Utilities.cs" />
+    <Compile Include="Helpers\Assemblies\AssemblyResolver.cs" />
     <Compile Include="Helpers\Cli\CliListing.cs" />
     <Compile Include="Helpers\Cli\CompletionCommand.cs" />
     <Compile Include="Helpers\Cli\HelpText.cs" />

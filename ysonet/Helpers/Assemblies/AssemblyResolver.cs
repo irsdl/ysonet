@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace ysonet.Helpers
 {
-    public static class Utilities
+    public static class AssemblyResolver
     {
         public static string GetDllFullPath(string relPath, bool checkExists)
         {
