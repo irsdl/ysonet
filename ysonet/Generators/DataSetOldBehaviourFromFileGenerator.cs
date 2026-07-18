@@ -198,7 +198,7 @@ namespace ysonet.Generators
             }
             else
             {
-                var xml_asmDataList = XmlHelper.ConvertBytesToArrayOfUnsignedByteXML(asmData, "s:Byte", "", "");
+                var xml_asmDataList = XmlByteArrayEncoder.ConvertBytesToArrayOfUnsignedByteXML(asmData, "s:Byte", "", "");
 
                 xmlResourceDict = @"<ResourceDictionary
 xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""

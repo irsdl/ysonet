@@ -121,7 +121,7 @@ namespace ysonet.Plugins
 
             byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
             DeflateCookieTransform myDeflateCookieTransform = new DeflateCookieTransform();
-            MachineKeyHelper.MachineKeyDataProtector Protector = new MachineKeyHelper.MachineKeyDataProtector(validationKey, decryptionKey, decryptionAlg, validationAlg, purposes);
+            MachineKeyDataProtector Protector = new MachineKeyDataProtector(validationKey, decryptionKey, decryptionAlg, validationAlg, purposes);
             byte[] deflateEncoded = myDeflateCookieTransform.Encode(serializedData);
             byte[] encryptedEncoded = Protector.Protect(deflateEncoded);
             payload = String.Format(payload, Convert.ToBase64String(encryptedEncoded));

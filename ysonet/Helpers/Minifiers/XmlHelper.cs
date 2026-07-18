@@ -545,19 +545,5 @@ Not sure why this one did not work so I had to change $vtheElem/descendant::* to
 
             return xmlDocument;
         }
-
-        public static string ConvertBytesToArrayOfUnsignedByteXML(byte[] input, string byteTag, string header, string footer)
-        {
-            var inputAsList = input.ToList();
-            var result = SerializersHelper.XmlSerializer_serialize(inputAsList);
-            result = Regex.Replace(result, @"<\?xml[^>]*>", header);
-            result = Regex.Replace(result, @"</?ArrayOfUnsignedByte[^>]*>", footer);
-            result = Regex.Replace(result, @"\s", "");
-            if (!string.IsNullOrEmpty(byteTag))
-            {
-                result = result.Replace("unsignedByte", byteTag);
-            }
-            return result;
-        }
     }
 }

@@ -307,7 +307,7 @@ namespace ysonet.Plugins
 
             // we are setting the given machineKey parameters dynamically in this application to make the process easier
             // thanks to stackoverflow #18446385 for the tips!
-            // We probably can/should use the MachineKeyHelper methods to create a valid ViewState but the following is more natural as we are in .NET!
+            // We probably can/should use the MachineKey helper methods to create a valid ViewState but the following is more natural as we are in .NET!
             object[] emptyArray = new object[] { };
 
             var machineKeySectionType = systemWebAsm.GetType("System.Web.Configuration.MachineKeySection");

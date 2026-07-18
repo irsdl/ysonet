@@ -261,7 +261,9 @@
     <Compile Include="Helpers\Cli\HelpText.cs" />
     <Compile Include="Helpers\Cli\UpdateChecker.cs" />
     <Compile Include="Helpers\Core\PayloadRunner.cs" />
-    <Compile Include="Helpers\Crypto\MachineKeyHelper.cs" />
+    <Compile Include="Helpers\Crypto\MachineKey.cs" />
+    <Compile Include="Helpers\Crypto\MachineKeyDataProtector.cs" />
+    <Compile Include="Helpers\Crypto\Sp800_108.cs" />
     <Compile Include="Helpers\Discovery\GadgetHelper.cs" />
     <Compile Include="Helpers\Discovery\PluginHelper.cs" />
     <Compile Include="Helpers\Input\CommandArgSplitter.cs" />
@@ -293,6 +295,7 @@
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\binaryutilclasses.cs" />
     <Compile Include="Helpers\Serialization\FormatterType.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.cs" />
+    <Compile Include="Helpers\Serialization\XmlByteArrayEncoder.cs" />
     <Compile Include="Helpers\TestingArena\TestingArenaHome.cs" />
     <Compile Include="Plugins\GetterCallGadgetsPlugin.cs" />
     <Compile Include="Plugins\MachineKeySessionSecurityTokenHandlerPlugin.cs" />
