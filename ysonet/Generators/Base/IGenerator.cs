@@ -45,6 +45,13 @@ namespace ysonet.Generators
         public string Label;
         public CommandInputType? Input;
 
+        // Formatters this ONE variant cannot produce, even though the gadget lists
+        // them in SupportedFormatters(). Empty (the default) means the variant
+        // supports everything the gadget lists. A variant only ever NARROWS the
+        // gadget's advertised formatters, never adds one, so this is the natural
+        // encoding: "what this variant opts out of". Declared with Without(...).
+        public readonly List<string> UnsupportedFormatters = new List<string>();
+
         public GadgetVariant(int number, string label)
         {
             Number = number;
@@ -64,6 +71,41 @@ namespace ysonet.Generators
         public CommandInputType EffectiveInput(CommandInputType gadgetDefault)
         {
             return Input.HasValue ? Input.Value : gadgetDefault;
+        }
+
+        // Fluent opt-out: declare the formatters this variant cannot produce. Returns
+        // this so it chains in Variants(), e.g.
+        //   new GadgetVariant(1, "...").Without(Formatters.SoapFormatter)
+        public GadgetVariant Without(params string[] formatters)
+        {
+            if (formatters != null)
+            {
+                foreach (string f in formatters)
+                    if (!string.IsNullOrEmpty(f))
+                        UnsupportedFormatters.Add(f);
+            }
+            return this;
+        }
+
+        // True unless this variant opted out of the formatter. Compares the first
+        // whitespace token, case-insensitively, the same way IsSupported and the
+        // wizard's FormatterTokens match a formatter, so a listed value like
+        // "SoapFormatter (2)" still matches the "SoapFormatter" opt-out.
+        public bool SupportsFormatter(string formatter)
+        {
+            string token = FirstToken(formatter);
+            foreach (string f in UnsupportedFormatters)
+                if (string.Equals(FirstToken(f), token, StringComparison.OrdinalIgnoreCase))
+                    return false;
+            return true;
+        }
+
+        private static string FirstToken(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return "";
+            string[] parts = s.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 0 ? parts[0] : "";
         }
     }
 

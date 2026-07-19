@@ -330,6 +330,7 @@ namespace ysonet.Interactive
         internal List<string> PluginArgvForTest() { string of, op; return PluginArgv(out of, out op); }
         internal static void CommitTextForTest(EditableField f, string raw) { CommitText(f, raw); }
         internal string MissingRequiredCommandProblemForTest() { return MissingRequiredCommandProblem(); }
+        internal string MissingVariantFormatterProblemForTest() { return MissingVariantFormatterProblem(); }
         internal List<string> MissingRequiredModeProblemsForTest() { return MissingRequiredModeProblems(); }
 
         private bool LoadModule(string name)
@@ -885,6 +886,39 @@ namespace ysonet.Interactive
             return null;
         }
 
+        // The variant+formatter mismatch as a ready-to-print line, or null when the
+        // pair is fine (or the module has no variants). The chosen variant declared
+        // (via GadgetVariant.Without) that it cannot produce the chosen formatter,
+        // even though the gadget lists it across all variants. We validate this at
+        // generate - the maintainer's chosen UX - next to the missing-command check,
+        // so a bad pair blocks with a precise message instead of a deep framework
+        // exception (e.g. SoapFormatter cannot serialize the generic type in the
+        // TypeConfuseDelegate variant).
+        private string MissingVariantFormatterProblem()
+        {
+            if (!_isGadget || _formatter == null || _view == null)
+                return null;
+            if (_view.Variants == null || _view.Variants.Count == 0)
+                return null;
+            OptionField variantOpt = _view.VariantField();
+            if (variantOpt == null)
+                return null;
+            int num;
+            if (!int.TryParse(variantOpt.Value, out num))
+                return null;
+            GadgetVariant current = null;
+            foreach (GadgetVariant v in _view.Variants)
+                if (v.Number == num) { current = v; break; }
+            if (current == null)
+                return null;
+
+            string formatter = _formatter.Value;
+            if (string.IsNullOrEmpty(formatter) || current.SupportsFormatter(formatter))
+                return null;
+            return "formatter (" + formatter + "): not supported by variant " + current.Number
+                + " (" + current.Label + "). Pick a different formatter or variant.";
+        }
+
         // A concrete, copyable example of what the -c value should look like for each
         // input type, so a blocked message shows the shape of the answer, not just that
         // one is missing.
@@ -950,6 +984,9 @@ namespace ysonet.Interactive
             string cmdProblem = MissingRequiredCommandProblem();
             if (cmdProblem != null)
                 problems.Add(cmdProblem);
+            string variantFormatterProblem = MissingVariantFormatterProblem();
+            if (variantFormatterProblem != null)
+                problems.Add(variantFormatterProblem);
             List<string> modeProblems = MissingRequiredModeProblems();
             if (modeProblems != null)
                 problems.AddRange(modeProblems);

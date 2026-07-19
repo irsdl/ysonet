@@ -23,7 +23,11 @@ namespace ysonet.Generators
         {
             return new List<GadgetVariant>
             {
-                new GadgetVariant(1, "TypeConfuseDelegate wrapper (default)"),
+                // Variant 1 wraps the XAML in TypeConfuseDelegate, whose gadget object
+                // is a generic SortedSet<string>. SoapFormatter cannot serialize a
+                // generic type, so this variant opts out of SoapFormatter (variant 2,
+                // TextFormattingRunProperties, is not generic and serializes fine).
+                new GadgetVariant(1, "TypeConfuseDelegate wrapper (default)").Without(Formatters.SoapFormatter),
                 new GadgetVariant(2, "TextFormattingRunProperties wrapper")
             };
         }
@@ -62,6 +66,11 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
+            // Reject an impossible variant+formatter pair (e.g. variant 1 + SoapFormatter)
+            // before the expensive .cs compile below, with a clear message instead of a
+            // deep framework exception.
+            GuardVariantFormatter(variant_number, formatter);
+
             var files = inputArgs.Cmd;
             byte[] asmData = LocalCodeCompiler.GetAsmBytes(files);
             byte[] gzipAsmData = Gzip(asmData);
@@ -145,6 +154,8 @@ xmlns:c=""clr-namespace:System.IO.Compression;assembly=System""
             }
             else
             {
+                // TypeConfuseDelegate wrapper: a generic SortedSet<string> (see
+                // GetXamlGadget), so SoapFormatter is opted out for this variant above.
                 obj = TypeConfuseDelegateGenerator.GetXamlGadget(xmlResourceDict);
             }
 

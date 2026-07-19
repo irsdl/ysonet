@@ -91,6 +91,31 @@ namespace ysonet.Generators
             return new List<GadgetVariant>();
         }
 
+        // Reject a variant+formatter pair the chosen variant declared it cannot
+        // produce (via GadgetVariant.Without in Variants()). Call it at the top of
+        // Generate(), after Init() has parsed the variant number. It turns an
+        // impossible pair into one clear message (naming the formatter, variant, and
+        // gadget) instead of a deep framework exception - e.g. SoapFormatter cannot
+        // serialize the generic SortedSet that TypeConfuseDelegate builds. On the
+        // non-UI paths (CLI, sweep, bridged, tests) PayloadRunner wraps this throw
+        // into a clean RunResult.Fail; the interactive editor validates the same rule
+        // up front. An unknown variant number or an empty opt-out list is a no-op.
+        protected void GuardVariantFormatter(int variantNumber, string formatter)
+        {
+            GadgetVariant match = null;
+            foreach (GadgetVariant v in Variants())
+            {
+                if (v.Number == variantNumber)
+                {
+                    match = v;
+                    break;
+                }
+            }
+            if (match != null && !match.SupportsFormatter(formatter))
+                throw new Exception(formatter + " is not supported by variant " + match.Number
+                    + " (" + match.Label + ") of " + Name() + ".");
+        }
+
         public object GenerateWithInit(string formatter, InputArgs inputArgs)
         {
             Init(inputArgs);

@@ -37,6 +37,14 @@ gadget, parse a `var|variant=` option into an `int`, list them in `Variants()`
 as `GadgetVariant` entries, and branch in `Generate`. Do not add a whole new
 gadget class just for a variant.
 
+If one variant cannot produce a formatter the gadget lists (e.g. it wraps the
+payload in a generic type that SoapFormatter cannot serialize), declare it on that
+variant with `.Without(Formatters.X)` and call
+`GuardVariantFormatter(variant_number, formatter)` at the top of `Generate()`. Do
+NOT edit `SupportedFormatters()` to restrict it: that list is the gadget-wide union
+across all variants. The guard turns the impossible pair into a clear message on the
+CLI/sweep paths, and the interactive editor validates the same rule at generate.
+
 ## Other rules
 - Labels: use the `GadgetTags.*` constants.
 - If `-c` is not a shell command, override `CommandInput()` (file, DLL, URL, or

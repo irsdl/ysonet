@@ -63,6 +63,10 @@ namespace ysonet.Tests
             Run("Ignored-command gadget needs no -c and hides those fields", IgnoredCommandGadget);
             Run("Gadgets declare their variants", GadgetsDeclareVariants);
             Run("Variants can declare their own command-input type", VariantInputTypes);
+            Run("Variant formatter opt-out narrows first-token, case-insensitive", VariantFormatterOptOutDataModel);
+            Run("Affected gadgets opt variant 1 out of SoapFormatter (union kept)", VariantFormatterOptOutWiring);
+            Run("Editor blocks a variant+formatter mismatch at generate", EditorBlocksVariantFormatterMismatch);
+            Run("Guard rejects variant+formatter mismatch on the non-UI path", GuardBlocksVariantFormatterOnNonUiPath);
             Run("Option heuristics recover choices/default/required", OptionHeuristics);
             Run("Editor builds plugin fields with defaults and a gadget picker", EditorPluginFields);
             Run("Editor exposes actions and marks module-own options", EditorActionsAndOwnership);
@@ -893,6 +897,106 @@ namespace ysonet.Tests
             var ov = odp.Variants();
             AssertEqual(odp.CommandInput(), ov[0].EffectiveInput(odp.CommandInput()), "ODP variant inherits the gadget input");
             AssertTrue(!ov[0].Input.HasValue, "ODP variant declares no per-variant input");
+        }
+
+        private static void VariantFormatterOptOutDataModel()
+        {
+            // The per-variant opt-out data model: a variant can NARROW the gadget's
+            // formatters, and the check is first-token and case-insensitive, matching
+            // IsSupported / the wizard's FormatterTokens.
+            var narrowed = new GadgetVariant(1, "x").Without("SoapFormatter");
+            AssertTrue(!narrowed.SupportsFormatter("SoapFormatter"), "an opted-out formatter is not supported");
+            AssertTrue(narrowed.SupportsFormatter("BinaryFormatter"), "a different formatter is still supported");
+            // Robust token match: a listed value carrying a suffix still matches the opt-out.
+            AssertTrue(!narrowed.SupportsFormatter("SoapFormatter (2)"), "opt-out matches on the first token, not the whole string");
+            AssertTrue(!new GadgetVariant(1, "x").Without("SoapFormatter").SupportsFormatter("soapformatter"), "opt-out is case-insensitive");
+
+            // A variant with no opt-out supports every formatter (the default, empty list).
+            var open = new GadgetVariant(2, "y");
+            AssertEqual(0, open.UnsupportedFormatters.Count, "the opt-out list defaults to empty");
+            AssertTrue(open.SupportsFormatter("SoapFormatter"), "no opt-out means every formatter is supported");
+            AssertTrue(open.SupportsFormatter("BinaryFormatter"), "no opt-out means every formatter is supported (2)");
+        }
+
+        private static void VariantFormatterOptOutWiring()
+        {
+            // The two affected gadgets: variant 1 (TypeConfuseDelegate, a generic
+            // SortedSet) opts out of SoapFormatter; variant 2 (TextFormattingRunProperties)
+            // does not. The gadget-level union still advertises SoapFormatter.
+            foreach (string name in new string[] { "ActivitySurrogateDisableTypeCheck", "XamlAssemblyLoadFromFile" })
+            {
+                var vs = Gadget(name).Variants();
+                AssertEqual(2, vs.Count, name + " declares 2 variants");
+                AssertTrue(vs[0].UnsupportedFormatters.Contains("SoapFormatter"), name + " variant 1 declares the SoapFormatter opt-out");
+                AssertTrue(!vs[0].SupportsFormatter("SoapFormatter"), name + " variant 1 does not support SoapFormatter");
+                AssertTrue(vs[0].SupportsFormatter("BinaryFormatter"), name + " variant 1 still supports BinaryFormatter");
+                AssertEqual(0, vs[1].UnsupportedFormatters.Count, name + " variant 2 has no opt-out");
+                AssertTrue(vs[1].SupportsFormatter("SoapFormatter"), name + " variant 2 supports SoapFormatter");
+                AssertTrue(Gadget(name).IsSupported("SoapFormatter"), name + " still lists SoapFormatter at the gadget level (union)");
+            }
+        }
+
+        private static void EditorBlocksVariantFormatterMismatch()
+        {
+            // The editor validates a variant+formatter mismatch at generate: variant 1 of
+            // ActivitySurrogateDisableTypeCheck cannot produce SoapFormatter, so the editor
+            // blocks with a precise line naming the setting, the formatter, and the variant.
+            var ed = new ModuleEditor(null, null, true, null, null);
+            var fields = ed.BuildFieldsForTest("ActivitySurrogateDisableTypeCheck");
+
+            // Default variant is 1; pick the opted-out formatter.
+            FindEditable(fields, "formatter").Value = "SoapFormatter";
+            string p = ed.MissingVariantFormatterProblemForTest();
+            AssertTrue(p != null, "variant 1 + SoapFormatter is reported as a problem");
+            AssertTrue(p.Contains("formatter") && p.Contains("SoapFormatter") && p.Contains("variant 1"),
+                "the problem names the setting, the formatter, and the variant: " + p);
+
+            // A supported formatter on the same variant is fine.
+            FindEditable(fields, "formatter").Value = "BinaryFormatter";
+            AssertTrue(ed.MissingVariantFormatterProblemForTest() == null, "variant 1 + BinaryFormatter is fine");
+
+            // Switching to variant 2 (TextFormattingRunProperties) makes Soap fine again.
+            FindEditable(fields, "formatter").Value = "SoapFormatter";
+            string v2label = Gadget("ActivitySurrogateDisableTypeCheck").Variants()[1].Label;
+            FindEditable(fields, "variant").Value = v2label;
+            AssertTrue(ed.MissingVariantFormatterProblemForTest() == null, "variant 2 + SoapFormatter is fine");
+        }
+
+        private static void GuardBlocksVariantFormatterOnNonUiPath()
+        {
+            // The non-UI guard (GuardVariantFormatter in Generate) turns the impossible
+            // variant 1 + SoapFormatter pair into a clean RunResult.Fail carrying the
+            // guard message, not the raw framework "Generic Types" string. This drives
+            // the same PayloadRunner.GenerateGadget path the CLI uses.
+            // ActivitySurrogateDisableTypeCheck ignores -c (no file compile), so it is fast.
+            RunResult v1soap = GenerateWithVariant("ActivitySurrogateDisableTypeCheck", "SoapFormatter", 1);
+            AssertTrue(!v1soap.Success, "variant 1 + SoapFormatter fails");
+            AssertTrue((v1soap.ErrorMessage ?? "").IndexOf("is not supported by variant 1", StringComparison.OrdinalIgnoreCase) >= 0,
+                "the guard fired, not the raw framework error: " + v1soap.ErrorMessage);
+
+            // An unaffected formatter on the same variant still generates.
+            RunResult v1bin = GenerateWithVariant("ActivitySurrogateDisableTypeCheck", "BinaryFormatter", 1);
+            AssertTrue(v1bin.Success, "variant 1 + BinaryFormatter still generates: " + v1bin.ErrorMessage);
+
+            // Variant 2 (TextFormattingRunProperties) is not generic, so Soap works.
+            RunResult v2soap = GenerateWithVariant("ActivitySurrogateDisableTypeCheck", "SoapFormatter", 2);
+            AssertTrue(v2soap.Success, "variant 2 + SoapFormatter generates: " + v2soap.ErrorMessage);
+        }
+
+        // Drive PayloadRunner.GenerateGadget for one gadget/formatter/variant with a
+        // never-executed placeholder command (Test=false), the same as a matrix cell.
+        private static RunResult GenerateWithVariant(string gadget, string formatter, int variant)
+        {
+            InputArgs ia = CalcInput();
+            ia.ExtraArguments = new List<string> { "--variant", variant.ToString() };
+            GenerationRequest req = new GenerationRequest
+            {
+                GadgetName = gadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            };
+            return PayloadRunner.GenerateGadget(req);
         }
 
         private static void OptionHeuristics()
@@ -2486,12 +2590,14 @@ namespace ysonet.Tests
                 // SoapFormatter cannot serialize a generic type. Variant 1 of these gadgets is
                 // TypeConfuseDelegate, whose payload contains a generic SortedSet, so no Soap
                 // payload can be produced; variant 2 (TextFormattingRunProperties) is not generic
-                // and serializes fine. A cleaner fix would be per-variant formatter support (a
-                // design change), flagged for the maintainer.
+                // and serializes fine. Per-variant formatter support (GadgetVariant.Without +
+                // GuardVariantFormatter) now catches this pair up front, so we assert the guard's
+                // stable phrase - proving the guard fires BEFORE the deep framework exception and
+                // the impossible combo is still tested (not silently skipped).
                 { "ActivitySurrogateDisableTypeCheck|SoapFormatter|variant1",
-                    "Soap Serializer does not support serializing Generic Types" },
+                    "is not supported by variant 1" },
                 { "XamlAssemblyLoadFromFile|SoapFormatter|variant1",
-                    "Soap Serializer does not support serializing Generic Types" },
+                    "is not supported by variant 1" },
             };
 
             string csFixture = MakeTempFile("ysonet_matrix_fixture.cs",

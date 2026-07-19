@@ -445,6 +445,11 @@ namespace ysonet.Generators
             Delegate da = new Comparison<string>(String.Compare);
             Comparison<string> d = (Comparison<string>)MulticastDelegate.Combine(da, da);
             IComparer<string> comp = Comparer<string>.Create(d);
+            // This gadget is a generic SortedSet<string>. SoapFormatter cannot serialize
+            // a generic type, so any gadget variant that wraps its XAML here must declare
+            // .Without(Formatters.SoapFormatter) in Variants() and call
+            // GuardVariantFormatter in Generate() (see ActivitySurrogateDisableTypeCheck
+            // and XamlAssemblyLoadFromFile).
             SortedSet<string> set = new SortedSet<string>(comp);
             set.Add(xaml_payload);
             set.Add("");

@@ -5,7 +5,7 @@
 > structure. Written for contributors and AI agents alike.
 >
 > This document can lag the code between updates; the source is always authoritative.
-> Last reviewed for v2026.7.4.
+> Last reviewed for v2026.7.5.
 
 ---
 
@@ -240,7 +240,10 @@ redirected output and the tests). Option choices/defaults/required are best-effo
 from each option's help text (`EditableField` heuristics) since NDesk.Options records none
 of them; a Choice always allows a custom value so a wrong guess never blocks the user.
 `GadgetVariant.Input` lets a variant declare its own `-c` meaning (XamlImageInfo v1 = file,
-v2 = command). Prompts go to stderr, only the payload to stdout; the equivalent `ysonet.exe`
+v2 = command). A variant can also declare `UnsupportedFormatters` (via `.Without(...)`, checked
+by `SupportsFormatter`) to opt out of a formatter the gadget lists across all variants; the
+editor validates this at generate (see the blocked-generate note below). Prompts go to stderr,
+only the payload to stdout; the equivalent `ysonet.exe`
 command is echoed. IO is injected (IKeyReader + output Stream) so it is testable without a
 terminal (`ModuleEditor.ForceFallback` pins the deterministic panel in tests). In the live
 columns, typing narrows the current column by case-insensitive substring (modules and
@@ -266,9 +269,11 @@ no meaning depends on color alone (required = `*` + "(required)", selection = ">
 actions = "[ ... ]" buttons grouped at the bottom with the primary Generate in the success
 color, errors = a "[!]" report); Home/End/PageUp/PageDown navigate the columns and the picker
 (Menu already had Home/End); a blocked generate prints an enumerated "[!] Not ready" report,
-one bullet per missing setting with its expected input and an example (`ReportBlocked`,
-`MissingRequiredCommandProblem`/`CommandExample`, `MissingRequiredModeProblems`); the footer
-hint carries a compact key + symbol legend.
+one bullet per problem with its expected input and an example (`ReportBlocked`,
+`MissingRequiredCommandProblem`/`CommandExample`, `MissingRequiredModeProblems`,
+`MissingVariantFormatterProblem` - the last blocks an impossible variant+formatter pair, e.g.
+variant 1 + SoapFormatter, with a clear message instead of a deep framework exception); the
+footer hint carries a compact key + symbol legend.
 
 ---
 
@@ -305,6 +310,15 @@ hint carries a compact key + symbol legend.
     `XmlMinifier.Minify`) and `Test` (round-trips through the deserializer, optionally with a
     custom `serializationBinder`). Text formats (Json.NET, XAML, YAML, MessagePack, etc.)
     are built by each gadget itself and tested via `SerializersHelper.*_deserialize`.
+  - **`GuardVariantFormatter(variantNumber, formatter)`** enforces a per-variant formatter
+    opt-out. `GadgetVariant` carries an optional `UnsupportedFormatters` list (declared with
+    `.Without(...)` in `Variants()`); a gadget calls this at the top of `Generate()` to reject
+    a variant+formatter pair the chosen variant cannot produce, with one clear message instead
+    of a deep framework exception. `SupportedFormatters()` stays the gadget-wide union; a
+    variant only narrows it. Used by `ActivitySurrogateDisableTypeCheck` and
+    `XamlAssemblyLoadFromFile` (variant 1 is TypeConfuseDelegate, a generic `SortedSet` that
+    SoapFormatter cannot serialize). On the CLI/sweep paths `PayloadRunner` wraps the throw
+    into a clean `RunResult.Fail`; the interactive editor validates the same rule up front.
 - **Discovery**: `GadgetRegistry` reflects over all loaded assemblies for `IGenerator`
   implementers (excluding `Helpers.TestingArena`). Adding a gadget = drop in a class that
   extends `GenericGenerator`; it is auto-registered. Instantiation is by
