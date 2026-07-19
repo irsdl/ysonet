@@ -102,23 +102,33 @@ namespace ysonet.Helpers
 
             }
 
-            // removing soap encodingStyle as it's not being used
-
-            string encodingStylePattern = @"([^\s]+):encodingStyle\s*=\s*[""']";
-            Regex encodingStyleRegEx = new Regex(encodingStylePattern, RegexOptions.Compiled);
-            MatchCollection encodingStyleMatches = encodingStyleRegEx.Matches(xmlDocument);
-
-            foreach (Match match in encodingStyleMatches)
+            // removing soap encodingStyle as it's not being used.
+            // Guard: only scan when the document actually has an encodingStyle attribute.
+            // The loop below only edits a soap-envelope prefix, which cannot exist without
+            // this substring, so skipping is a no-op. It also avoids running the regex over
+            // large payloads such as an inline byte-array assembly.
+            if (xmlDocument.IndexOf("encodingStyle", StringComparison.Ordinal) >= 0)
             {
-                GroupCollection groups = match.Groups;
-                String namespaceLocalName = groups[1].Value;
+                // A namespace prefix is a single NCName: bound the capture to non-tag,
+                // non-colon characters so it cannot backtrack across element boundaries.
+                // With the old [^\s]+, a long whitespace-free run (an inline assembly) made
+                // this O(n^2). A real prefix never contains < > : = " ' or /.
+                string encodingStylePattern = @"([^\s:<>""'=/]+):encodingStyle\s*=\s*[""']";
+                Regex encodingStyleRegEx = new Regex(encodingStylePattern, RegexOptions.Compiled);
+                MatchCollection encodingStyleMatches = encodingStyleRegEx.Matches(xmlDocument);
 
-                var namespaceValue = namespaceLocalNames.FirstOrDefault(x => x.Value == namespaceLocalName).Key;
-
-                if (namespaceValue != null && namespaceValue.Equals("http://schemas.xmlsoap.org/soap/envelope/"))
+                foreach (Match match in encodingStyleMatches)
                 {
-                    // so encodingStyle is useless
-                    xmlDocument = Regex.Replace(xmlDocument, namespaceLocalName + @":encodingStyle\s*=\s*[""'][^""']*[""']", "");
+                    GroupCollection groups = match.Groups;
+                    String namespaceLocalName = groups[1].Value;
+
+                    var namespaceValue = namespaceLocalNames.FirstOrDefault(x => x.Value == namespaceLocalName).Key;
+
+                    if (namespaceValue != null && namespaceValue.Equals("http://schemas.xmlsoap.org/soap/envelope/"))
+                    {
+                        // so encodingStyle is useless
+                        xmlDocument = Regex.Replace(xmlDocument, namespaceLocalName + @":encodingStyle\s*=\s*[""'][^""']*[""']", "");
+                    }
                 }
             }
 

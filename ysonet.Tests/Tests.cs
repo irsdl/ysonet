@@ -114,6 +114,7 @@ namespace ysonet.Tests
             Run("Restrictive XAML load blocks the ObjectDataProvider gadget", RestrictiveXamlBlocksGadget);
             Run("Option help renders without hanging for every plugin and gadget", OptionHelpNeverHangs);
             Run("SoftBreak wraps over-long help tokens (NDesk hang guard)", SoftBreakWrapsLongTokens);
+            Run("XmlMinifier strips soap encodingStyle without O(n^2) backtracking", XmlMinifierEncodingStyle);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
 
@@ -2282,6 +2283,69 @@ namespace ysonet.Tests
             AssertEqual(null, HelpText.SoftBreak(null), "null text is safe");
         }
 
+        // Regression lock for the XmlMinifier "remove soap encodingStyle" fix in
+        // XmlParserNamespaceMinifier. Two parts of the fix are covered:
+        //  - a guard that skips the scan when no encodingStyle attribute is present, and
+        //  - a tighter prefix class so the scan cannot backtrack O(n^2) across a long
+        //    whitespace-free run (an inline compiled assembly).
+        // Before the fix, minifying such a payload took ~112s (DataSetOldBehaviourFromFile
+        // --minify). This test runs on fixed strings, so it is immune to the per-compile
+        // MVID nondeterminism of a real payload, and it needs no compile and no subprocess.
+        private static void XmlMinifierEncodingStyle()
+        {
+            // A long whitespace-free run of <s:Byte> elements, exactly the shape the file
+            // gadgets embed for the inline byte-array assembly. It has no whitespace (so the
+            // old [^\s]+ prefix class ran across the whole run, O(n^2)) but it DOES carry the
+            // < > : boundaries of real markup (so the tighter class stops at each element and
+            // the other minifier passes stay linear). 4000 elements make the old regex take
+            // far longer than the 20s backstop, while the fixed path stays about a second.
+            StringBuilder run = new StringBuilder();
+            for (int i = 0; i < 4000; i++) run.Append("<s:Byte>77</s:Byte>");
+            string bigNoEnc =
+                "<root xmlns:s=\"http://microsoft.com/wsdl/types/\"><data>" + run + "</data></root>";
+
+            // 1) Perf / no-hang: big run, NO encodingStyle. The guard skips the block, so it
+            // is instant; before the fix the regex scanned it O(n^2) (~110s). Run on a
+            // background thread with a wall-clock backstop so a regression fails fast instead
+            // of hanging the suite (same shape as OptionHelpNeverHangs).
+            string noEncResult = null;
+            Exception threadErr = null;
+            System.Threading.Thread t = new System.Threading.Thread(delegate ()
+            {
+                try { noEncResult = XmlMinifier.Minify(bigNoEnc, null, null); }
+                catch (Exception e) { threadErr = e; }
+            });
+            t.IsBackground = true; // a genuine hang must not keep the test process alive
+            t.Start();
+            bool done = t.Join(System.TimeSpan.FromSeconds(20));
+            AssertTrue(done, "XmlMinifier hung on a long whitespace-free run (encodingStyle O(n^2) regression)");
+            AssertTrue(threadErr == null, "XmlMinifier threw on a big inline-assembly run: " + (threadErr == null ? "" : threadErr.Message));
+            AssertTrue(!string.IsNullOrEmpty(noEncResult), "big-run minify produced a non-empty result");
+            // The result must still be well-formed XML.
+            System.Xml.XmlDocument parsed = new System.Xml.XmlDocument();
+            parsed.LoadXml(noEncResult);
+
+            // 2) Soap encodingStyle IS still removed: the tighter class matches a real
+            // soap-envelope prefix identically. Declare SOAP-ENV as the soap-envelope
+            // namespace and put encodingStyle on an element; the minified output must not
+            // contain "encodingStyle" any more.
+            string soapDoc =
+                "<root xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\">"
+                + "<item SOAP-ENV:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">x</item></root>";
+            string soapResult = XmlMinifier.Minify(soapDoc, null, null);
+            AssertTrue(soapResult.IndexOf("encodingStyle", StringComparison.Ordinal) < 0,
+                "soap-envelope encodingStyle is stripped by the minifier");
+
+            // 3) A NON soap-envelope encodingStyle is preserved: only the soap-envelope one
+            // is stripped. foo maps to a non-soap namespace, so its encodingStyle stays.
+            string nonSoapDoc =
+                "<root xmlns:foo=\"http://example.com/notsoap\">"
+                + "<item foo:encodingStyle=\"http://example.com/enc\">x</item></root>";
+            string nonSoapResult = XmlMinifier.Minify(nonSoapDoc, null, null);
+            AssertTrue(nonSoapResult.IndexOf("encodingStyle", StringComparison.Ordinal) >= 0,
+                "a non soap-envelope encodingStyle attribute is left untouched");
+        }
+
         // Every gadget must actually produce a non-empty payload from valid inputs,
         // not merely declare that it supports a formatter. Data-driven, so a newly
         // added gadget is covered automatically. For each gadget it picks a sample
@@ -2608,7 +2672,6 @@ namespace ysonet.Tests
             var failures = new List<string>();
             int cells = 0;
             int expectedFailures = 0;
-            int perfSkipped = 0;
             try
             {
                 foreach (string name in GadgetRegistry.GetAllGadgetNames())
@@ -2640,22 +2703,6 @@ namespace ysonet.Tests
                                 bool minify = m == 1;
                                 CommandInputType inType = (variant == null)
                                     ? g.CommandInput() : variant.EffectiveInput(g.CommandInput());
-
-                                // DataSetOldBehaviourFromFile's minify pass is a known PERFORMANCE
-                                // problem, not a failure: the BinaryFormatter minifier iterates over
-                                // its embedded compiled assembly for ~2 minutes PER cell (it still
-                                // produces a valid payload). It is left out of the default run to keep
-                                // the FULL suite practical - visibly (logged + counted below), not
-                                // silently. Its non-minify generation is covered here, and the minify
-                                // path is covered by every other gadget, including the fast
-                                // ActivitySurrogateSelectorFromFile / XamlAssemblyLoadFromFile compile
-                                // gadgets. Flagged for the maintainer as a minifier perf issue.
-                                if (minify && name == "DataSetOldBehaviourFromFile")
-                                {
-                                    perfSkipped++;
-                                    if (trace) { Console.Error.WriteLine("    [perf-skip] " + name + " -f " + formatter + " (minify) ~2min/cell"); Console.Error.Flush(); }
-                                    continue;
-                                }
 
                                 string expectedError = ExpectedGadgetFailure(expectedGadgetFailures, name, formatter, variant, minify);
 
@@ -2716,8 +2763,6 @@ namespace ysonet.Tests
                 try { File.Delete(csFixture); } catch { }
             }
 
-            if (perfSkipped > 0)
-                Console.Error.WriteLine("  [note] " + perfSkipped + " DataSetOldBehaviourFromFile minify cell(s) left out for performance (~2min/cell BinaryFormatter-minifier issue; they generate a valid payload). Flagged for the maintainer.");
             AssertTrue(cells > 100, "matrix exercised many cells (was " + cells + ")");
             AssertTrue(expectedFailures >= 2,
                 "the known SoapFormatter-generics limitation cells were exercised (was " + expectedFailures + ")");
@@ -3256,23 +3301,36 @@ namespace ysonet.Tests
         // proof, independent of the subprocess exit code.
         private static void FireSelfClosingCs(string gadget, List<string> failures, ref int fired, ref int skipped, bool trace)
         {
+            FireSelfClosingCs(gadget, failures, ref fired, ref skipped, trace, false);
+        }
+
+        // The 6-arg overload also fires the MINIFIED payload. For the compiled-assembly
+        // gadgets this locks the XmlMinifier perf fix end-to-end: DataSetOldBehaviourFromFile
+        // --minify used to take ~112s (encodingStyle O(n^2) regex), now it is fast and its
+        // minified payload must still execute.
+        private static void FireSelfClosingCs(string gadget, List<string> failures, ref int fired, ref int skipped, bool trace, bool minify)
+        {
+            string label = gadget + (minify ? " (minify)" : "");
             string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
             if (!File.Exists(exe))
             {
                 skipped++;
-                Console.Error.WriteLine("  [skip] fire " + gadget + " (self-cs): ysonet.exe not found beside the test exe");
+                Console.Error.WriteLine("  [skip] fire " + label + " (self-cs): ysonet.exe not found beside the test exe");
                 return;
             }
 
-            string marker = MarkerPath(gadget + "_selfcs");
-            string cs = Path.Combine(Path.GetTempPath(), "ysonet_selfcs_" + gadget + ".cs");
+            // Distinct marker/cs per minify state so a red test is unambiguous and the two
+            // fires for one gadget never share files.
+            string marker = MarkerPath(gadget + (minify ? "_min" : "") + "_selfcs");
+            string cs = Path.Combine(Path.GetTempPath(), "ysonet_selfcs_" + (minify ? "min_" : "") + gadget + ".cs");
             SafeDelete(marker);
             File.WriteAllText(cs, "public class E { public E() { System.IO.File.WriteAllText(@\"" + marker + "\", \"x\"); } }");
-            if (trace) { Console.Error.WriteLine("    [fire] " + gadget + " (self-cs subprocess)"); Console.Error.Flush(); }
+            if (trace) { Console.Error.WriteLine("    [fire] " + label + " (self-cs subprocess)"); Console.Error.Flush(); }
             try
             {
+                string extra = minify ? " --minify" : "";
                 var psi = new System.Diagnostics.ProcessStartInfo(exe,
-                    "-g " + gadget + " -f BinaryFormatter -c \"" + cs + "\" -t");
+                    "-g " + gadget + " -f BinaryFormatter -c \"" + cs + "\" -t" + extra);
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 psi.RedirectStandardOutput = true;
@@ -3287,9 +3345,9 @@ namespace ysonet.Tests
                     if (!proc.WaitForExit(40000)) { try { proc.Kill(); } catch { } }
                 }
                 if (WaitForFile(marker, 2000)) fired++;
-                else failures.Add("fire " + gadget + " (self-cs subprocess): marker not created");
+                else failures.Add("fire " + label + " (self-cs subprocess): marker not created");
             }
-            catch (Exception ex) { failures.Add("fire " + gadget + " (self-cs): " + ex.Message); }
+            catch (Exception ex) { failures.Add("fire " + label + " (self-cs): " + ex.Message); }
             finally { SafeDelete(marker); SafeDelete(cs); }
         }
 
@@ -3408,6 +3466,12 @@ namespace ysonet.Tests
             FireSelfClosingCs("ActivitySurrogateSelectorFromFile", failures, ref fired, ref skipped, trace);
             FireSelfClosingCs("XamlAssemblyLoadFromFile", failures, ref fired, ref skipped, trace);
             FireSelfClosingCs("DataSetOldBehaviourFromFile", failures, ref fired, ref skipped, trace);
+            // Same three gadgets, MINIFIED. DataSetOldBehaviourFromFile --minify was the
+            // ~112s XmlMinifier perf case; its minified payload must generate fast and still
+            // fire. The other two were already fast and are cheap to cover.
+            FireSelfClosingCs("ActivitySurrogateSelectorFromFile", failures, ref fired, ref skipped, trace, true);
+            FireSelfClosingCs("XamlAssemblyLoadFromFile", failures, ref fired, ref skipped, trace, true);
+            FireSelfClosingCs("DataSetOldBehaviourFromFile", failures, ref fired, ref skipped, trace, true);
 
             // ---- Plugin MARKER via each plugin's own -t self-test path. ----
             FirePluginMarker("Altserialization", new[] { "-M", "HttpStaticObjectsCollection" }, failures, ref fired, trace);
