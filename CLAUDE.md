@@ -20,6 +20,31 @@ All three projects (ysonet, ExploitClass, TestConsoleApp) target .NET Framework 
 - Users need 4.7.2 or any newer 4.x (4.8, 4.8.1). A 4.x app runs on that version or higher, so newer runtimes are fine.
 - Do not drop below 4.7.2 and do not raise the target without a clear reason. (The possible future .NET 2 fork is a separate track and cannot carry these modern packages.)
 
+## Running tests
+
+### Test integrity policy (read first)
+
+Never weaken a test to get a green tick. Do NOT skip, ignore, comment out, loosen an assertion, or delete a failing test just to make the suite pass. When a test fails:
+
+1. Investigate why it failed. A failing test usually means a real bug in the product code, or an environment/setup problem, not a wrong test.
+2. Fix the root cause. If the bug is in the tool, fix the tool. If the input or setup was wrong, fix that.
+3. A test may only be changed or removed when you are ABSOLUTELY SURE it is testing the wrong thing, and only with the maintainer's approval. Do not decide this on your own.
+4. If a combination is genuinely impossible (a real framework limitation, not our bug), ASSERT the expected failure so the behavior is still tested, instead of silently skipping. A conditional skip is only for a capability the current machine truly lacks (for example a patched framework), and it must log a clear reason and still test everything it can.
+
+This applies to AI agents and humans alike.
+
+Tests live in `ysonet.Tests` (a self-contained console runner, no framework). They run on every Debug build as a post-build step, and also stand alone at `ysonet\bin\Debug\ysonet.Tests.exe`. A failed test fails the build. Two tiers:
+
+- NORMAL (default): the fast unit/interactive/core tests plus a cheap per-gadget and per-plugin smoke. Runs on every `msbuild ysonet.sln -p:Configuration=Debug`.
+- FULL (opt-in): the exhaustive combination suite (every gadget x formatter x variant x minify, payload firing into test-owned sinks, output encodings, bridged chains, and the plugin matrix). Slower and flashy, so it is opt-in. Gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` env var.
+
+Coverage norm when you add things:
+- A new gadget/formatter/variant is covered automatically by the generation matrix.
+- A new gadget's runtime EFFECT should be added to the execution matrix in `PayloadsFireIntoTestSinks` (pick its sink: marker file, loopback listener, temp dir, or self-closing `.cs`).
+- A new PLUGIN MODE is NOT auto-covered: add a row to the curated table in `PluginFullMatrixGenerates` (a coverage guard fails the build if a whole new plugin is neither in the matrix nor excluded).
+
+AI instruction: when the user says "run full tests" (or "run the full suite"), set `YSONET_FULL_TESTS=1` and build Debug (or run `ysonet.Tests.exe --full`), then report the Passed/Failed summary. A normal request needs only the default Debug build.
+
 ## Outdated libraries
 This project intentionally uses outdated libraries to demonstrate deserialization issues.
 - Outdated library used inside a gadget (to show the issue): not a security bug. Leave it as is.
@@ -43,6 +68,12 @@ The maintainers are authorized, ethical security researchers (recognized by comp
 
 ## Dev tooling hygiene
 Project agent tooling is tracked and public so contributors and their agents share it: `CLAUDE.md`, `AGENTS.md`, and any skills or agents under `.claude/`. Keep them free of anything machine-specific or sensitive (see "No local artifacts in commits" below). Only personal local settings (`.claude/settings.local.json`) and the private `dev-kitchen/` working area stay out of git.
+
+## Surfacing open items and next steps
+
+When work leaves open items - a decision the maintainer must make, a follow-up, a known limitation, a "worth doing later" fix - write each as its own short markdown file in `dev-kitchen/todo/` (create the folder if needed), with a `README.md` index. Each file states the decision, options with short pros and cons, a recommendation, and references to the code/test locations.
+
+Do NOT bury these only in a committed plan file or in code comments. Commits are frequent, so changed and committed documents are hard for the maintainer to spot; they need one clear, uncommitted place to see what to decide or do next. `dev-kitchen/` is git-ignored, so these stay dev-only and always show up in the working tree. When an item is decided, move it to `dev-kitchen/to-be-implemented/` (to build) or delete it (rejected).
 
 ## Git workflow
 

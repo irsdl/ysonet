@@ -1,8 +1,8 @@
 using System;
 using System.IO;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Runtime.Serialization;
 using System.Xml;
 
 namespace ysonet.Helpers

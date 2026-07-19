@@ -337,7 +337,7 @@ tagged `Bridged` but does NOT override `SupportedBridgedFormatter()`, so it repo
 | **GetterCompilerResults** | Json.NET | GetterChain, Independent | No | `var` (1-4) | `CompilerResults.get_CompiledAssembly` -> DLL load, via WinForms getter gadget. |
 | **GetterSecurityException** | Json.NET | Bridged, GetterChain | Yes (BF) | `var` (1-4) | `SecurityException.get_Method` -> BF, via getter gadget. |
 | **GetterSettingsPropertyValue** | Json.NET, Xaml, MessagePackTypeless(+Lz4) | Bridged, GetterChain | Yes (BF) | `var` (MessagePack only var1) | `SettingsPropertyValue.get_PropertyValue` -> BF; also XAML + MessagePack encodings. |
-| **ObjRef** | BF, Soap, ObjectStateFormatter, Los | Independent | No | - | `ObjRef` -> RemotingProxy callback to attacker remoting server (URL in `-c`). |
+| **ObjRef** | BF, Soap, Los | Independent | No | - | `ObjRef` -> RemotingProxy callback to attacker remoting server (URL in `-c`). |
 | **ObjectDataProvider** | Xaml(4), Json.NET, FastJson, JavaScriptSerializer, XmlSerializer(2), DataContractSerializer(2), YamlDotNet<5, FsPickler, SharpSerializerBinary/Xml, MessagePackTypeless(+Lz4) | Independent | No | `var`, `xamlurl` | Canonical WPF `ObjectDataProvider` -> `Process.Start` across many text serializers. Workhorse leaf gadget. |
 | **PSObject** (Patched/) | BF, Soap, NDCS, Los | (none) | No | - | CVE-2017-8565 PSObject CliXml -> XamlReader. Loads recompiled vulnerable `System.Management.Automation.dll`, uses custom `LocalBinder`. |
 | **ResourceSet** | BF, NDCS, Los | **Hidden** | No | `ig` (1 TCD, 2 TFRP) | `ResourceSet` Hashtable holds the real gadget. Research/edge-case. |
@@ -575,12 +575,39 @@ this benign EXE (instead of calc/cmd) to confirm a gadget fires and see the args
 
 .NET Framework 4.7.2 console EXE, self-contained test runner (no external test framework,
 so no new NuGet dependency). `ProjectReference` to `ysonet`; `InternalsVisibleTo("ysonet.Tests")`
-exposes the global `OptionSet`. Covers the interactive/core additions: `Picker.Filter`,
-`OptionField` introspection + argv rebuild, `CommandEcho`, `PayloadRunner.Encode`,
-deterministic generation, plugin argv rebuild, option completeness vs the live `OptionSet`,
-and a wizard end-to-end driven by a scripted `IKeyReader`. Exits non-zero on any failure.
-Run it from `ysonet\bin\Debug` (or copy the exe there) so bundled DLLs resolve.
-Both supporting projects output to ysonet's own `bin\Debug`/`bin\Release`.
+exposes the global `OptionSet`. Exits non-zero on any failure. It runs on every Debug build as
+a post-build step and also stands alone at `ysonet\bin\Debug\ysonet.Tests.exe`; run it from
+`ysonet\bin\Debug` so the bundled DLLs resolve. The post-build step reuses `ysonet.exe.config`
+as `ysonet.Tests.exe.config`, so the test process gets the same binding redirects (MessagePack
+needs them). Both supporting projects output to ysonet's own `bin\Debug`/`bin\Release`.
+
+Two test tiers (gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` env var):
+
+- NORMAL (default, every Debug build): the fast unit/interactive/core tests (`Picker.Filter`,
+  `OptionField` introspection + argv rebuild, `CommandEcho`, `PayloadRunner.Encode`,
+  deterministic generation, option completeness vs the live `OptionSet`, a scripted-`IKeyReader`
+  wizard end-to-end, the clipboard execution tests) plus a cheap per-gadget and per-plugin smoke
+  (`EveryGadgetGeneratesAPayload`, `EverySafePluginGeneratesAPayload`).
+- FULL (opt-in; set `YSONET_FULL_TESTS=1` then build Debug, or run `ysonet.Tests.exe --full`):
+  five exhaustive combination tests, safe throughout (self-closing commands / never-executed
+  values, loopback-only listeners, temp fixtures cleaned up):
+  - `GadgetFullMatrixGenerates` - every gadget x formatter x variant x minify generates
+    non-empty. A curated `expectedGadgetSkips` table holds the few advertised-but-invalid cells,
+    each with a written reason; a new gadget/formatter/variant is picked up automatically.
+  - `PayloadsFireIntoTestSinks` - fires every payload whose effect a test-OWNED sink can observe:
+    a MARKER file (`cmd /c echo x > marker`, most gadgets and the fireable plugins via their
+    `-t`), a self-closing `.cs` compiled and run for the `*FromFile` gadgets (in a subprocess,
+    since that code can crash its host), a loopback LISTENER on `127.0.0.1:0` (SSRF/callback:
+    NetNonRce PictureBox/InfiniteProgressPage, ObjectDataProvider `--xamlurl`, ObjRef remoting),
+    and a TEMP DIR (NetNonRce FileLogTraceListener). Also checks minify correctness and
+    `--usesimpletype`. Mono-only and patched-framework gadgets self-skip.
+  - `OutputEncodingPerFormatter` - one representative gadget per formatter; every output encoding
+    decodes back to the raw bytes, on both a byte[] and a string anchor, plus a string-returning
+    and a byte[]-returning plugin.
+  - `BridgedChainsGenerate` - every `--bgc` consumer generates a chain; the two non-consumers are
+    rejected; one chain fires end to end.
+  - `PluginFullMatrixGenerates` - a curated per-plugin argv table (one row per mode / CVE /
+    inner-gadget), plus a coverage guard so a whole new plugin cannot slip through.
 
 ---
 
@@ -600,6 +627,11 @@ Both supporting projects output to ysonet's own `bin\Debug`/`bin\Release`.
   partial with the `<Serializer>_serialize/_deserialize/_test` family; wire minification
   into the matching `Helpers/Minifiers/<Fmt>Minifier.cs` and add a `FormatterType` enum
   entry if needed. See the "where new code goes" table in section 7.1 for the folder homes.
+- **New test coverage**: tests live in `ysonet.Tests/Tests.cs` (section 8). NORMAL-tier tests
+  run on every Debug build. The FULL tier auto-covers a new gadget/formatter/variant via the
+  generation matrix; add a new gadget's runtime EFFECT to the execution matrix
+  (`PayloadsFireIntoTestSinks`, pick its sink) and a new PLUGIN MODE to the curated
+  `PluginFullMatrixGenerates` table (its coverage guard fails the build otherwise).
 
 ## 10. Conventions and gotchas
 - Writing style (docs/comments/help): clear, minimal, simple words, plain ASCII only

@@ -678,16 +678,41 @@ namespace ysonet.Interactive
                 list.Add(_bridged);
             }
 
-            list.Add(new EditableField { Label = "[ Generate ]", Kind = FieldKind.Action, ActionId = "generate",
-                Help = "Build the payload with the settings above, then keep editing." });
-            list.Add(new EditableField { Label = "[ Generate and quit ]", Kind = FieldKind.Action, ActionId = "generatequit",
-                Help = "Build the payload and leave interactive mode, so the payload is the last thing shown." });
-            list.Add(new EditableField { Label = "[ Copy payload to clipboard ]", Kind = FieldKind.Action, ActionId = "clipboard",
-                Help = "Build the payload and copy it to the clipboard (it is also emitted as usual)." });
-            list.Add(new EditableField { Label = "[ Show ysonet command ]", Kind = FieldKind.Action, ActionId = "showcmd",
-                Help = "Print the equivalent one-line ysonet.exe command, without generating." });
-            list.Add(new EditableField { Label = "[ Reset settings to defaults ]", Kind = FieldKind.Action, ActionId = "reset",
-                Help = "Set every setting of this module back to its default value." });
+            list.Add(new EditableField
+            {
+                Label = "[ Generate ]",
+                Kind = FieldKind.Action,
+                ActionId = "generate",
+                Help = "Build the payload with the settings above, then keep editing."
+            });
+            list.Add(new EditableField
+            {
+                Label = "[ Generate and quit ]",
+                Kind = FieldKind.Action,
+                ActionId = "generatequit",
+                Help = "Build the payload and leave interactive mode, so the payload is the last thing shown."
+            });
+            list.Add(new EditableField
+            {
+                Label = "[ Copy payload to clipboard ]",
+                Kind = FieldKind.Action,
+                ActionId = "clipboard",
+                Help = "Build the payload and copy it to the clipboard (it is also emitted as usual)."
+            });
+            list.Add(new EditableField
+            {
+                Label = "[ Show ysonet command ]",
+                Kind = FieldKind.Action,
+                ActionId = "showcmd",
+                Help = "Print the equivalent one-line ysonet.exe command, without generating."
+            });
+            list.Add(new EditableField
+            {
+                Label = "[ Reset settings to defaults ]",
+                Kind = FieldKind.Action,
+                ActionId = "reset",
+                Help = "Set every setting of this module back to its default value."
+            });
         }
 
         private static EditableField Flag(string label, string help)

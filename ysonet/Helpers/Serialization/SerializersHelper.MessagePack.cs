@@ -1,6 +1,6 @@
-using System;
 using MessagePack;
 using MessagePack.Resolvers;
+using System;
 
 namespace ysonet.Helpers
 {

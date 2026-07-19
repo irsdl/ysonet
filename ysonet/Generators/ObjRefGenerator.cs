@@ -83,7 +83,7 @@ namespace ysonet.Generators
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "BinaryFormatter", "SoapFormatter", "ObjectStateFormatter", "LosFormatter" };
+            return new List<string> { "BinaryFormatter", "SoapFormatter", "LosFormatter" };
         }
 
         [Serializable]

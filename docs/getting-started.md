@@ -52,6 +52,34 @@ msbuild ysonet.sln -p:Configuration=Release
 
 The Release build string-encrypts `ysonet.exe` to reduce false antivirus detections. Payloads are not affected. To build without it, add `-p:ObfuscateRelease=false` to the `msbuild` command. Debug builds are never obfuscated.
 
+## Testing
+
+The tests are a self-contained console runner in `ysonet.Tests` (no external test framework). A Debug build runs them automatically as a post-build step, and a failed test fails the build:
+
+```powershell
+msbuild ysonet.sln -p:Configuration=Debug
+```
+
+There are two tiers:
+
+- NORMAL (default): the fast unit, interactive, and core tests plus a cheap smoke that every gadget and plugin still produces a payload. This is what the Debug build above runs.
+- FULL (opt-in): the exhaustive combination suite - every gadget x formatter x variant (minify off and on), payloads fired into test-owned sinks (a marker file, a loopback listener, a temp directory, a self-closing `.cs`), output encodings per formatter, bridged gadget chains (`--bgc`), and the plugin mode/CVE/inner-gadget matrix. It is slower (low minutes) and flashes many self-closing `cmd` windows and binds loopback sockets, so it does not run on a normal build.
+
+Run the FULL suite before a release, or when you change a gadget, plugin, serializer, or formatter. Two ways:
+
+```powershell
+# either set the env var, then build Debug (the post-build step inherits it):
+$env:YSONET_FULL_TESTS = 1
+msbuild ysonet.sln -p:Configuration=Debug
+
+# or run the test runner directly:
+.\ysonet\bin\Debug\ysonet.Tests.exe --full
+```
+
+Everything the FULL suite runs is safe: every command is self-closing or is a value that is never executed, every listener is loopback-only, and every fixture is a temp file that is cleaned up. Nothing opens calc or leaves an app running.
+
+Test policy and how to extend: never weaken a test to make it pass (investigate and fix the root cause; see the "Test integrity policy" in [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md)). A new gadget/formatter/variant is covered automatically by the generation matrix; a new gadget's runtime EFFECT and a new PLUGIN MODE must be added by hand. See [Architecture](ARCHITECTURE.md) (the `ysonet.Tests` section and "How to add things") for where each kind of coverage goes.
+
 ## v2 branch
 
 The v2 branch is a copy of ysoserial.net (15/03/2018) changed to work with .NET Framework 2.0 by [irsdl](https://github.com/irsdl). Although it can be used with applications that use .NET Framework 2.0, it also requires .NET Framework 3.5 on the target box because the gadgets depend on it. This will be resolved if new gadgets in .NET Framework 2.0 are identified in the future.

@@ -72,6 +72,12 @@ This software has been created purely for the purposes of academic research and 
 
 This software is a personal project and not related to any companies, including the project owner's and contributors' employers.
 
+## Building and testing
+
+- Build from source: `nuget restore ysonet.sln` then `msbuild ysonet.sln -p:Configuration=Release` (or `Debug`). Full steps in [Getting Started](docs/getting-started.md#build-from-source).
+- Tests: a Debug build runs the fast test suite automatically (a failed test fails the build). To run the exhaustive FULL suite (every gadget x formatter x variant, payload firing into test-owned sinks, bridged chains, and the plugin matrix), set `YSONET_FULL_TESTS=1` and build Debug, or run `ysonet\bin\Debug\ysonet.Tests.exe --full`. See [Getting Started -> Testing](docs/getting-started.md#testing).
+- Extending the project (new gadgets, plugins, serializers, or test cases): start with the code map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ("How to add things" and the `ysonet.Tests` section) and [CONTRIBUTING.md](CONTRIBUTING.md). Never weaken a test to make it pass - see the "Test integrity policy" in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Contributing
 
 **Canonical repository:** `https://github.com/irsdl/ysonet`

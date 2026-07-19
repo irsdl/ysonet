@@ -1,5 +1,5 @@
-using System.Collections.Generic;
 using NDesk.Options;
+using System.Collections.Generic;
 
 namespace ysonet.Interactive
 {

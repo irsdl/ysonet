@@ -253,8 +253,26 @@ namespace ysonet.Helpers
         }
 
 
+        // SoapFormatter can emit an element whose local name starts with a digit (for
+        // example a spoofed type name like "0, Culture=neutral, ..."). A leading digit is
+        // not a valid XML NCName, so the strict XmlDocument.LoadXml below rejects it even
+        // though SoapFormatter itself round-trips it. Re-encode ONLY that leading digit as
+        // SoapFormatter's own _xHHHH_ escape (its reader decodes _xHHHH_ back to the same
+        // character), so the payload is byte-for-byte equivalent once deserialized but the
+        // XML now parses. Every other character and every already-valid name is untouched.
+        private static String EncodeLeadingDigitInElementNames(String xmlDocument)
+        {
+            return Regex.Replace(xmlDocument, @"(<\/?(?:[\w.\-]+:)?)([0-9])", delegate (Match m)
+            {
+                int code = m.Groups[2].Value[0];
+                return m.Groups[1].Value + "_x" + code.ToString("X4") + "_";
+            });
+        }
+
         public static String XmlXSLTMinifier(String xmlDocument)
         {
+            xmlDocument = EncodeLeadingDigitInElementNames(xmlDocument);
+
             XmlDocument minifiedXMLDoc = new XmlDocument();
             minifiedXMLDoc.LoadXml(xmlDocument);
 

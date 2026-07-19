@@ -37,6 +37,8 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <!-- For the FULL-tier ObjRef firing test: register a loopback remoting client channel. -->
+    <Reference Include="System.Runtime.Remoting" />
     <Reference Include="NDesk.Options, Version=0.2.1.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\NDesk.Options.0.2.1\lib\NDesk.Options.dll</HintPath>
     </Reference>
@@ -74,6 +76,14 @@
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(YsonetOutDir)" OverwriteReadOnlyFiles="true" />
     <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(YsonetOutDir)"
           OverwriteReadOnlyFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    <!-- The test exe runs from ysonet's output dir so the bundled DLLs resolve. Give it the
+         same binding redirects as ysonet.exe by reusing ysonet.exe.config as
+         ysonet.Tests.exe.config (single source of truth). The FULL suite needs these to load
+         MessagePack's dependencies (System.Runtime.CompilerServices.Unsafe, System.Memory). -->
+    <Copy SourceFiles="$(YsonetOutDir)\ysonet.exe.config"
+          DestinationFiles="$(YsonetOutDir)\ysonet.Tests.exe.config"
+          OverwriteReadOnlyFiles="true"
+          Condition="Exists('$(YsonetOutDir)\ysonet.exe.config')" />
     <Exec Command="&quot;$(YsonetOutDir)\ysonet.Tests.exe&quot;" WorkingDirectory="$(YsonetOutDir)" />
   </Target>
 </Project>

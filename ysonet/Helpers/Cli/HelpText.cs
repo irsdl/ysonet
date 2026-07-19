@@ -1,6 +1,6 @@
+using NDesk.Options;
 using System.IO;
 using System.Text;
-using NDesk.Options;
 
 namespace ysonet.Helpers
 {
