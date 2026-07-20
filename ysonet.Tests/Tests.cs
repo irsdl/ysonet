@@ -115,6 +115,7 @@ namespace ysonet.Tests
             Run("Option help renders without hanging for every plugin and gadget", OptionHelpNeverHangs);
             Run("SoftBreak wraps over-long help tokens (NDesk hang guard)", SoftBreakWrapsLongTokens);
             Run("XmlMinifier strips soap encodingStyle without O(n^2) backtracking", XmlMinifierEncodingStyle);
+            Run("XmlMinifier scales linearly on a big inline-assembly payload", XmlMinifierScalesOnBigPayload);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
 
@@ -2283,49 +2284,14 @@ namespace ysonet.Tests
             AssertEqual(null, HelpText.SoftBreak(null), "null text is safe");
         }
 
-        // Regression lock for the XmlMinifier "remove soap encodingStyle" fix in
-        // XmlParserNamespaceMinifier. Two parts of the fix are covered:
-        //  - a guard that skips the scan when no encodingStyle attribute is present, and
-        //  - a tighter prefix class so the scan cannot backtrack O(n^2) across a long
-        //    whitespace-free run (an inline compiled assembly).
-        // Before the fix, minifying such a payload took ~112s (DataSetOldBehaviourFromFile
-        // --minify). This test runs on fixed strings, so it is immune to the per-compile
-        // MVID nondeterminism of a real payload, and it needs no compile and no subprocess.
+        // Correctness lock for the XmlMinifier "remove soap encodingStyle" fix in
+        // XmlParserNamespaceMinifier: the tighter NCName prefix class must still strip a real
+        // soap-envelope encodingStyle, and must still leave a non-soap encodingStyle alone.
+        // (The performance side of that fix, and the XSLT namespace fix, are locked by
+        // XmlMinifierScalesOnBigPayload below.) These run on fixed strings, no compile.
         private static void XmlMinifierEncodingStyle()
         {
-            // A long whitespace-free run of <s:Byte> elements, exactly the shape the file
-            // gadgets embed for the inline byte-array assembly. It has no whitespace (so the
-            // old [^\s]+ prefix class ran across the whole run, O(n^2)) but it DOES carry the
-            // < > : boundaries of real markup (so the tighter class stops at each element and
-            // the other minifier passes stay linear). 4000 elements make the old regex take
-            // far longer than the 20s backstop, while the fixed path stays about a second.
-            StringBuilder run = new StringBuilder();
-            for (int i = 0; i < 4000; i++) run.Append("<s:Byte>77</s:Byte>");
-            string bigNoEnc =
-                "<root xmlns:s=\"http://microsoft.com/wsdl/types/\"><data>" + run + "</data></root>";
-
-            // 1) Perf / no-hang: big run, NO encodingStyle. The guard skips the block, so it
-            // is instant; before the fix the regex scanned it O(n^2) (~110s). Run on a
-            // background thread with a wall-clock backstop so a regression fails fast instead
-            // of hanging the suite (same shape as OptionHelpNeverHangs).
-            string noEncResult = null;
-            Exception threadErr = null;
-            System.Threading.Thread t = new System.Threading.Thread(delegate ()
-            {
-                try { noEncResult = XmlMinifier.Minify(bigNoEnc, null, null); }
-                catch (Exception e) { threadErr = e; }
-            });
-            t.IsBackground = true; // a genuine hang must not keep the test process alive
-            t.Start();
-            bool done = t.Join(System.TimeSpan.FromSeconds(20));
-            AssertTrue(done, "XmlMinifier hung on a long whitespace-free run (encodingStyle O(n^2) regression)");
-            AssertTrue(threadErr == null, "XmlMinifier threw on a big inline-assembly run: " + (threadErr == null ? "" : threadErr.Message));
-            AssertTrue(!string.IsNullOrEmpty(noEncResult), "big-run minify produced a non-empty result");
-            // The result must still be well-formed XML.
-            System.Xml.XmlDocument parsed = new System.Xml.XmlDocument();
-            parsed.LoadXml(noEncResult);
-
-            // 2) Soap encodingStyle IS still removed: the tighter class matches a real
+            // 1) Soap encodingStyle IS still removed: the tighter class matches a real
             // soap-envelope prefix identically. Declare SOAP-ENV as the soap-envelope
             // namespace and put encodingStyle on an element; the minified output must not
             // contain "encodingStyle" any more.
@@ -2336,7 +2302,7 @@ namespace ysonet.Tests
             AssertTrue(soapResult.IndexOf("encodingStyle", StringComparison.Ordinal) < 0,
                 "soap-envelope encodingStyle is stripped by the minifier");
 
-            // 3) A NON soap-envelope encodingStyle is preserved: only the soap-envelope one
+            // 2) A NON soap-envelope encodingStyle is preserved: only the soap-envelope one
             // is stripped. foo maps to a non-soap namespace, so its encodingStyle stays.
             string nonSoapDoc =
                 "<root xmlns:foo=\"http://example.com/notsoap\">"
@@ -2344,6 +2310,57 @@ namespace ysonet.Tests
             string nonSoapResult = XmlMinifier.Minify(nonSoapDoc, null, null);
             AssertTrue(nonSoapResult.IndexOf("encodingStyle", StringComparison.Ordinal) >= 0,
                 "a non soap-envelope encodingStyle attribute is left untouched");
+        }
+
+        // Big-payload performance lock for XmlMinifier. This is the shape the file gadgets
+        // (DataSetOldBehaviourFromFile and friends) embed: a ResourceDictionary whose
+        // ObjectDataProvider carries the inline compiled assembly as a long whitespace-free
+        // run of <s:Byte> elements. Two separate O(n^2) bugs used to make minifying it blow
+        // up (DataSetOldBehaviourFromFile --minify was ~112s at a small size, ~200s+ at a
+        // larger one):
+        //   1. the "remove soap encodingStyle" regex backtracked over the whitespace-free run
+        //      (fixed with a guard + a tighter prefix class), and
+        //   2. the XSLT "drop unused namespaces" pass ran a //* document scan once per element
+        //      for the reserved xml namespace, which is O(elements^2) (fixed by excluding the
+        //      xml namespace, a no-op for the output).
+        // Both bugs make this run far longer than the backstop, so the test would fail fast on
+        // a regression. It is a genuinely BIG payload (tens of thousands of elements) so the
+        // quadratic behaviour, not just a constant, is what is measured. Runs on a background
+        // thread with a wall-clock backstop, same shape as OptionHelpNeverHangs.
+        private static void XmlMinifierScalesOnBigPayload()
+        {
+            // ~30000 byte elements (~0.5 MB). Whitespace-free, exactly like the real encoder
+            // output. All of the declared prefixes (default, x, s, r) ARE used, so only the
+            // fixed code keeps the pass linear; a regression of either O(n^2) bug hangs it.
+            StringBuilder bytes = new StringBuilder();
+            for (int i = 0; i < 30000; i++) bytes.Append("<s:Byte>77</s:Byte>");
+            string bigResourceDict =
+                "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+                + " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+                + " xmlns:s=\"clr-namespace:System;assembly=mscorlib\""
+                + " xmlns:r=\"clr-namespace:System.Reflection;assembly=mscorlib\">"
+                + "<ObjectDataProvider x:Key=\"asmLoad\" ObjectType=\"{x:Type r:Assembly}\" MethodName=\"Load\">"
+                + "<x:Array Type=\"s:Byte\">" + bytes + "</x:Array>"
+                + "</ObjectDataProvider></ResourceDictionary>";
+
+            string result = null;
+            Exception threadErr = null;
+            System.Threading.Thread t = new System.Threading.Thread(delegate ()
+            {
+                try { result = XmlMinifier.Minify(bigResourceDict, null, null); }
+                catch (Exception e) { threadErr = e; }
+            });
+            t.IsBackground = true; // a genuine hang must not keep the test process alive
+            t.Start();
+            bool done = t.Join(System.TimeSpan.FromSeconds(20));
+            AssertTrue(done, "XmlMinifier hung on a big inline-assembly payload (O(n^2) regression in the encodingStyle scan or the XSLT namespace pass)");
+            AssertTrue(threadErr == null, "XmlMinifier threw on a big inline-assembly payload: " + (threadErr == null ? "" : threadErr.Message));
+            AssertTrue(!string.IsNullOrEmpty(result), "big-payload minify produced a non-empty result");
+            // The payload must survive: still well-formed XML and still carrying the byte array.
+            System.Xml.XmlDocument parsed = new System.Xml.XmlDocument();
+            parsed.LoadXml(result);
+            AssertTrue(result.IndexOf("Byte", StringComparison.Ordinal) >= 0,
+                "the minified big payload still contains its byte array");
         }
 
         // Every gadget must actually produce a non-empty payload from valid inputs,

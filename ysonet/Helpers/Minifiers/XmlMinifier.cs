@@ -372,7 +372,15 @@ namespace ysonet.Helpers
   <xsl:element name=""{name()}"" namespace=""{namespace-uri()}"">
    <xsl:variable name=""vtheElem"" select="".""/>
 
-   <xsl:for-each select=""namespace::*"">
+<!--
+Skip the reserved 'xml' namespace node. It is implicitly in scope on EVERY element
+and is never written out (XmlWriter never emits xmlns:xml), so re-declaring it is a
+no-op for output. Including it made the //* usage test below run once per element for
+a namespace that never matches, which is O(n^2) on a large payload (an inline
+byte-array assembly with tens of thousands of <s:Byte> elements). Excluding it keeps
+this pass linear with no change to the produced XML.
+-->
+   <xsl:for-each select=""namespace::*[name() != 'xml']"">
      <xsl:variable name=""vPrefix"" select=""name()""/>
 <!--
 Not sure why this one did not work so I had to change $vtheElem/descendant::* to //*
