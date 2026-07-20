@@ -3589,6 +3589,13 @@ namespace ysonet.Tests
                     Type ptype = instance == null ? null : instance.GetType();
                     bool hasMinify = PluginHasMinify(instance);
 
+                    // A .Shrinks() cell relies on the second (minify) pass to compare sizes; if the
+                    // plugin has no --minify option that pass never runs and the shrink assertion
+                    // would silently be a no-op. Fail loudly so the tag can never be dead weight.
+                    if (cell.ExpectShrink && !hasMinify)
+                        failures.Add(cell.Plugin + " " + string.Join(" ", cell.Argv)
+                            + " -> tagged .Shrinks() but the plugin exposes no --minify option");
+
                     // minify off, then on where supported
                     int passes = hasMinify ? 2 : 1;
                     object rawPayload = null; // minify-off payload, to size-compare against minify-on
