@@ -9,6 +9,7 @@ Sites: [ysonet.net](https://ysonet.net) or [ysonet.com](https://ysonet.com) (bot
 - [Getting Started](getting-started.md) - install, build from source, and the interactive mode wizard.
 - [Usage and Examples](usage-and-examples.md) - command-line options, notes, and worked examples.
 - [Gadgets and Plugins](gadgets-and-plugins.md) - the gadget list, the plugin list, and plugin options.
+- [Minification Savings](minification-savings.md) - a worked example of how much `--minify` shrinks each gadget and plugin payload.
 - [References](references.md) - background reading, talks, related tools, and uses in the wild.
 - [Credits](credits.md) - who built the tool and found the gadgets and plugins.
 - [Architecture](ARCHITECTURE.md) - full code map of the project, for contributors and agents.
