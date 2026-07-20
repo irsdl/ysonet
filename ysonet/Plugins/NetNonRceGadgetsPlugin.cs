@@ -281,6 +281,12 @@ Exemplary usage:
                 {
                     payload = JsonMinifier.Minify(payload, null, null);
                 }
+                else if (formatter.ToLower() == "xaml")
+                {
+                    // The Xaml payloads are XML; without this branch --minify was a no-op for
+                    // them (only the two JSON formatters were handled).
+                    payload = XmlMinifier.Minify(payload, null, null);
+                }
             }
 
             //tests

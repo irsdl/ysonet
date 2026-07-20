@@ -123,6 +123,7 @@ namespace ysonet.Tests
             Run("Byte-array encoder emits the compact bare <Byte> tag", ByteArrayEncoderEmitsBareTag);
             Run("GetterSettingsPropertyValue Xaml uses the compact byte array", GspvXamlUsesCompactByteArray);
             Run("DataSetOldBehaviourFromFile --compressed shrinks via a GZip payload chain", DataSetFromFileCompressedIsSmaller);
+            Run("NetNonRceGadgets Xaml payloads are minified with --minify", NetNonRceXamlMinifies);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
 
@@ -2520,6 +2521,37 @@ namespace ysonet.Tests
                 "surviving content is kept after the guarded re-parse: " + malformed);
         }
 
+        // Locks the NetNonRceGadgets Xaml minify path. Its --minify block used to handle only
+        // the two JSON formatters, so the Xaml (XML) payloads passed through unchanged. All three
+        // gadgets must now come out smaller AND well-formed when minified. Firing the minified
+        // Xaml is covered in PayloadsFireIntoTestSinks.
+        private static void NetNonRceXamlMinifies()
+        {
+            Type ptype = PluginRegistry.CreatePluginInstance("NetNonRceGadgets").GetType();
+            foreach (string gadget in new[] { "PictureBox", "InfiniteProgressPage", "FileLogTraceListener" })
+            {
+                ResetPluginStatics(ptype);
+                RunResult plain = PayloadRunner.RunPlugin("NetNonRceGadgets", new[] { "-g", gadget, "-f", "Xaml", "-i", "http://localhost/y" });
+                ResetPluginStatics(ptype);
+                RunResult min = PayloadRunner.RunPlugin("NetNonRceGadgets", new[] { "-g", gadget, "-f", "Xaml", "-i", "http://localhost/y", "--minify" });
+                AssertTrue(plain.Success && min.Success, gadget + " Xaml generates: " + plain.ErrorMessage + " / " + min.ErrorMessage);
+                AssertTrue(RawLength(min.Raw) < RawLength(plain.Raw),
+                    gadget + " Xaml is minified (" + RawLength(min.Raw) + " < " + RawLength(plain.Raw) + ")");
+                AssertTrue(XmlWellFormednessError(min.Raw) == null,
+                    gadget + " minified Xaml is well-formed XML");
+            }
+        }
+
+        // Byte length of a raw payload whether it is a string or a byte[].
+        private static int RawLength(object raw)
+        {
+            string s = raw as string;
+            if (s != null) return s.Length;
+            byte[] b = raw as byte[];
+            if (b != null) return b.Length;
+            return 0;
+        }
+
         // Locks the DataSetOldBehaviourFromFile --compressed option (GZip-in-payload). The
         // compressed payload must be smaller than the plain inline-byte-array form AND carry the
         // GZipStream decompress chain that reconstitutes the assembly at deserialization time.
@@ -3848,11 +3880,16 @@ namespace ysonet.Tests
             // and JavaScriptSerializer paths honour a Windows path with backslashes too). ----
             foreach (string fmt in new[] { "Json.NET", "JavaScriptSerializer", "Xaml" })
                 FireNetNonRceTempDir(fmt, failures, ref fired, trace);
+            // Xaml --minify: the newly minified Xaml path must still fire (not just be smaller).
+            FireNetNonRceTempDir("Xaml", true, failures, ref fired, trace);
 
             // ---- LISTENER: SSRF/callback payloads connect to a loopback capture proxy. ----
             foreach (string gadget in new[] { "PictureBox", "InfiniteProgressPage" })
+            {
                 foreach (string fmt in new[] { "Json.NET", "JavaScriptSerializer", "Xaml" })
                     FireNetNonRceListener(gadget, fmt, failures, ref fired, trace);
+                FireNetNonRceListener(gadget, "Xaml", true, failures, ref fired, trace);
+            }
 
             // ObjectDataProvider variant 3 is the xamlurl SSRF variant: it fetches the URL on load.
             FireOdpXamlUrlListener(failures, ref fired, trace);
@@ -3868,38 +3905,54 @@ namespace ysonet.Tests
 
         private static void FireNetNonRceTempDir(string formatter, List<string> failures, ref int fired, bool trace)
         {
-            string dir = Path.Combine(Path.GetTempPath(), "ysonet_firedir_" + formatter.Replace(".", ""));
+            FireNetNonRceTempDir(formatter, false, failures, ref fired, trace);
+        }
+
+        private static void FireNetNonRceTempDir(string formatter, bool minify, List<string> failures, ref int fired, bool trace)
+        {
+            string label = "NetNonRce FileLogTraceListener " + formatter + (minify ? " --minify" : "");
+            string dir = Path.Combine(Path.GetTempPath(), "ysonet_firedir_" + formatter.Replace(".", "") + (minify ? "_min" : ""));
             SafeDeleteDir(dir);
-            if (trace) { Console.Error.WriteLine("    [fire] NetNonRce FileLogTraceListener " + formatter + " (tempdir)"); Console.Error.Flush(); }
+            if (trace) { Console.Error.WriteLine("    [fire] " + label + " (tempdir)"); Console.Error.Flush(); }
             try
             {
-                var argv = new[] { "-g", "FileLogTraceListener", "-f", formatter, "-i", dir, "-t" };
+                var argv = minify
+                    ? new[] { "-g", "FileLogTraceListener", "-f", formatter, "-i", dir, "-t", "--minify" }
+                    : new[] { "-g", "FileLogTraceListener", "-f", formatter, "-i", dir, "-t" };
                 IPlugin p = PluginRegistry.CreatePluginInstance("NetNonRceGadgets");
                 ResetPluginStatics(p == null ? null : p.GetType());
                 RunSTA(delegate { PayloadRunner.RunPlugin("NetNonRceGadgets", argv); });
                 bool ok = WaitForDir(dir, 3000);
                 if (ok) fired++;
-                else failures.Add("fire NetNonRce FileLogTraceListener " + formatter + ": directory not created");
+                else failures.Add("fire " + label + ": directory not created");
             }
-            catch (Exception ex) { failures.Add("fire NetNonRce FileLogTraceListener " + formatter + ": " + ex.Message); }
+            catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
             finally { SafeDeleteDir(dir); }
         }
 
         private static void FireNetNonRceListener(string gadget, string formatter, List<string> failures, ref int fired, bool trace)
         {
-            if (trace) { Console.Error.WriteLine("    [fire] NetNonRce " + gadget + " " + formatter + " (listener)"); Console.Error.Flush(); }
+            FireNetNonRceListener(gadget, formatter, false, failures, ref fired, trace);
+        }
+
+        private static void FireNetNonRceListener(string gadget, string formatter, bool minify, List<string> failures, ref int fired, bool trace)
+        {
+            string label = "NetNonRce " + gadget + " " + formatter + (minify ? " --minify" : "");
+            if (trace) { Console.Error.WriteLine("    [fire] " + label + " (listener)"); Console.Error.Flush(); }
             using (var listener = new LoopbackListener())
             {
                 try
                 {
-                    var argv = new[] { "-g", gadget, "-f", formatter, "-i", listener.HttpUrl, "-t" };
+                    var argv = minify
+                        ? new[] { "-g", gadget, "-f", formatter, "-i", listener.HttpUrl, "-t", "--minify" }
+                        : new[] { "-g", gadget, "-f", formatter, "-i", listener.HttpUrl, "-t" };
                     IPlugin p = PluginRegistry.CreatePluginInstance("NetNonRceGadgets");
                     ResetPluginStatics(p == null ? null : p.GetType());
                     RunSTA(delegate { PayloadRunner.RunPlugin("NetNonRceGadgets", argv); });
                     if (listener.Fired(3000)) fired++;
-                    else failures.Add("fire NetNonRce " + gadget + " " + formatter + ": listener not hit");
+                    else failures.Add("fire " + label + ": listener not hit");
                 }
-                catch (Exception ex) { failures.Add("fire NetNonRce " + gadget + " " + formatter + ": " + ex.Message); }
+                catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
             }
         }
 
