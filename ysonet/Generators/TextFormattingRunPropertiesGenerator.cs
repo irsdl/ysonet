@@ -243,10 +243,33 @@ namespace ysonet.Generators
 
                 String xamlPayload = SerializersHelper.Xaml_serialize(odp);
 
+                if (inputArgs.Minify)
+                {
+                    // Shrink the embedded XAML first, then collapse the outer JSON below.
+                    // Without this the Json.NET payload was never minified at all. The
+                    // discardable regexes drop the default ProcessStartInfo attributes and
+                    // IsInitialLoadEnabled, exactly like the ObjectDataProvider generator's own
+                    // Xaml branch, so this matches the compact XAML the SOAP/DataContract
+                    // branches already emit.
+                    xamlPayload = XmlMinifier.Minify(xamlPayload, null, new String[] { @"StandardErrorEncoding=.*LoadUserProfile=""False"" ", @"IsInitialLoadEnabled=""False"" " });
+                }
+
                 String payload = @"{
     '$type':'Microsoft.VisualStudio.Text.Formatting.TextFormattingRunProperties, Microsoft.PowerShell.Editor, Version=3.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35',
     'ForegroundBrush':'" + xamlPayload + @"'
 }";
+
+                if (inputArgs.Minify)
+                {
+                    if (inputArgs.UseSimpleType)
+                    {
+                        payload = JsonMinifier.Minify(payload, new string[] { "mscorlib", "Microsoft.PowerShell.Editor" }, null);
+                    }
+                    else
+                    {
+                        payload = JsonMinifier.Minify(payload, null, null);
+                    }
+                }
 
                 if (inputArgs.Test)
                 {

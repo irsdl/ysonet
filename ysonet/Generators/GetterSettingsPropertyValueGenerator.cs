@@ -169,10 +169,15 @@ namespace ysonet.Generators
             {
 
                 String bfBytes = XamlWriter.Save(binaryFormatterPayload);
-                bfBytes = bfBytes.Replace("<Byte[] xmlns=\"clr-namespace:System;assembly=mscorlib\">", "<assembly:Array Type=\"s:Byte\">");
+                // Declare the System namespace as the DEFAULT on the array element so each byte
+                // element can stay the bare <Byte>...</Byte> that XamlWriter emits, instead of
+                // repeating an "s:" prefix on every one. That prefix costs 4 bytes per array
+                // element (open + close tag); on a payload with thousands of bytes this saves
+                // several KB for the price of one extra xmlns on the array. The children resolve
+                // to System.Byte via the default namespace; "assembly:" and "s:" (for Type) are
+                // still in scope from the SettingsPropertyValue ancestor.
+                bfBytes = bfBytes.Replace("<Byte[] xmlns=\"clr-namespace:System;assembly=mscorlib\">", "<assembly:Array Type=\"s:Byte\" xmlns=\"clr-namespace:System;assembly=mscorlib\">");
                 bfBytes = bfBytes.Replace("</Byte[]>", "</assembly:Array>");
-                bfBytes = bfBytes.Replace("<Byte>", "<s:Byte>");
-                bfBytes = bfBytes.Replace("</Byte>", "</s:Byte>");
 
                 if (variant_number == 2)
                 {

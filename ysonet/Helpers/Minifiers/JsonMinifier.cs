@@ -34,6 +34,11 @@ namespace ysonet.Helpers
                 finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([\w])", "$1$2");
                 finalVal = Regex.Replace(finalVal, @"([\w])[\s]+([^\w])", "$1$2");
                 finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([^\w])", "$1$2");
+                // Drop a leading space the three passes above cannot reach (they need a
+                // captured char on its left). The leftmost-match rule guarantees the char
+                // just before the run is a non-word, non-space char, e.g. the outer assembly
+                // of a generic type "]], System.Data.Services", so the space is safe to drop.
+                finalVal = Regex.Replace(finalVal, @"^\s+", "");
                 return finalVal;
             });
 

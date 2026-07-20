@@ -209,6 +209,13 @@ namespace ysonet.Helpers
                     finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([\w])", "$1$2");
                     finalVal = Regex.Replace(finalVal, @"([\w])[\s]+([^\w])", "$1$2");
                     finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([^\w])", "$1$2");
+                    // The run can begin with whitespace, e.g. the outer assembly of a generic
+                    // type: "]], System.Data.Services". The three passes above cannot touch that
+                    // leading space because they need a captured character on its left, which is
+                    // outside the match. The lookbehind (and the leftmost-match rule) guarantees
+                    // the character just before the run is a non-word, non-space char, so this
+                    // leading space always sits between two non-word chars and is safe to drop.
+                    finalVal = Regex.Replace(finalVal, @"^\s+", "");
                     return finalVal;
                 });
             }
@@ -229,11 +236,42 @@ namespace ysonet.Helpers
                 }
             }
 
+            bool discardablesChangedDoc = false;
             if (finalDiscardableRegExStringArray != null)
             {
                 foreach (String dRegEx in finalDiscardableRegExStringArray)
                 {
+                    String beforeDiscard = xmlDocument;
                     xmlDocument = Regex.Replace(xmlDocument, dRegEx, "");
+                    if (beforeDiscard.Length != xmlDocument.Length)
+                        discardablesChangedDoc = true;
+                }
+            }
+
+            // A discardable regex can delete the only use of a namespace prefix. For example
+            // dropping the ProcessStartInfo defaults and IsInitialLoadEnabled from an
+            // ObjectDataProvider payload orphans the "xaml" namespace declaration. The XSLT
+            // unused-namespace pass already ran (in XmlXSLTMinifier, before this method), so
+            // re-run it here to drop any declaration the discards just orphaned. Only do this
+            // when a discard actually changed the document and we are not building a CDATA
+            // payload: some discardable regexes intentionally strip closing tags (ResourceSet)
+            // and leave non-well-formed XML, so guard the re-parse and keep the discarded text
+            // if it throws. For an already-minified, still-well-formed document the XSLT pass is
+            // a no-op except for removing the newly orphaned namespaces.
+            if (discardablesChangedDoc && !useCDATA)
+            {
+                try
+                {
+                    xmlDocument = XmlXSLTMinifier(xmlDocument);
+                    // XmlWriter re-emits empty elements as "<x />"; drop that space before the
+                    // self-closing bracket again, the same way the top of this method does. The
+                    // regex is anchored to the element/attribute structure so it never touches a
+                    // " />" that appears inside an attribute value.
+                    xmlDocument = Regex.Replace(xmlDocument, @"(\<\/?[\w\:_]+([\s/]+[a-zA-Z0-9\.\-\:=_]+\s*=\s*(""[^""]*""|'[^']*'))*)\s+(\/?>)", "$1$+");
+                }
+                catch
+                {
+                    // not well-formed after the discards (by design for some payloads); keep it.
                 }
             }
 
