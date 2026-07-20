@@ -122,6 +122,7 @@ namespace ysonet.Tests
             Run("XmlMinifier removes a namespace orphaned by a discardable regex (guarded)", XmlMinifierRemovesNamespaceOrphanedByDiscard);
             Run("Byte-array encoder emits the compact bare <Byte> tag", ByteArrayEncoderEmitsBareTag);
             Run("GetterSettingsPropertyValue Xaml uses the compact byte array", GspvXamlUsesCompactByteArray);
+            Run("GetterSettingsPropertyValue Xaml is minified with --minify", GspvXamlMinifies);
             Run("DataSetOldBehaviourFromFile --compressed shrinks via a GZip payload chain", DataSetFromFileCompressedIsSmaller);
             Run("NetNonRceGadgets Xaml payloads are minified with --minify", NetNonRceXamlMinifies);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
@@ -2632,19 +2633,9 @@ namespace ysonet.Tests
         // covered by the FULL PayloadsFireIntoTestSinks matrix.
         private static void GspvXamlUsesCompactByteArray()
         {
-            InputArgs ia = new InputArgs();
-            ia.Cmd = "calc.exe"; // command string only; generation does not run it
-            ia.Minify = true;
-            GenerationRequest req = new GenerationRequest
-            {
-                GadgetName = "GetterSettingsPropertyValue",
-                FormatterName = "Xaml",
-                OutputFormat = "",
-                InputArgs = ia,
-            };
-            RunResult r = PayloadRunner.GenerateGadget(req);
-            AssertTrue(r.Success, "gspv Xaml generates: " + r.ErrorMessage);
-            string xaml = r.Raw as string;
+            // Lock the byte encoding on the un-minified form, where the exact tags are stable
+            // (the minifier renames the "s"/"assembly" prefixes, so assert those there instead).
+            string xaml = GenerateGspvXaml(false);
             AssertTrue(!string.IsNullOrEmpty(xaml), "gspv Xaml is a non-empty string");
             AssertTrue(xaml.IndexOf("<Byte>", StringComparison.Ordinal) >= 0,
                 "gspv uses the bare <Byte> element (compact form)");
@@ -2653,6 +2644,54 @@ namespace ysonet.Tests
             AssertTrue(xaml.IndexOf("Type=\"s:Byte\" xmlns=\"clr-namespace:System;assembly=mscorlib\"", StringComparison.Ordinal) >= 0,
                 "the byte array declares the System namespace as its default so bare <Byte> resolves");
             AssertTrue(XmlWellFormednessError(xaml) == null, "gspv Xaml stays well-formed XML");
+        }
+
+        // Locks the GetterSettingsPropertyValue Xaml structural minify. Its Xaml branch used to
+        // skip the minifier entirely (the byte array dominates, but the namespaces/prefixes were
+        // never shrunk). The minify path first collapses the two same-element duplicate namespaces
+        // the XmlMinifier dedup cannot handle, then minifies. The minified payload must be smaller,
+        // stay well-formed, and keep the compact bare <Byte> array. Firing the minified payload is
+        // covered in PayloadsFireIntoTestSinks.
+        private static void GspvXamlMinifies()
+        {
+            string plain = GenerateGspvXaml(false);
+            string min = GenerateGspvXaml(true);
+            AssertTrue(!string.IsNullOrEmpty(plain) && !string.IsNullOrEmpty(min), "gspv Xaml generates both ways");
+            AssertTrue(min.Length < plain.Length,
+                "gspv Xaml is minified (" + min.Length + " < " + plain.Length + ")");
+            AssertTrue(XmlWellFormednessError(min) == null, "minified gspv Xaml is well-formed");
+            AssertTrue(min.IndexOf("<Byte>", StringComparison.Ordinal) >= 0,
+                "the compact bare <Byte> array survives minification");
+            AssertTrue(min.IndexOf("<s:Byte>", StringComparison.Ordinal) < 0,
+                "minification does not reintroduce the s:Byte prefix");
+            // Structural lock: the byte array shrinks with --minify even without this fix (the
+            // inner BF blob is minified), so also prove the XAML STRUCTURE was minified. The
+            // verbose "assembly" namespace prefix (present twice in the raw template) is renamed
+            // to a single letter, so it must be gone; the same-element duplicate xmlns:x too.
+            AssertTrue(plain.IndexOf("xmlns:assembly=", StringComparison.Ordinal) >= 0,
+                "sanity: the un-minified template still has the verbose xmlns:assembly");
+            AssertTrue(min.IndexOf("xmlns:assembly=", StringComparison.Ordinal) < 0,
+                "the verbose namespace prefixes are shortened (structural minify ran)");
+            AssertTrue(min.IndexOf("xmlns:x=", StringComparison.Ordinal) < 0,
+                "the same-element duplicate xmlns:x is collapsed before minifying");
+        }
+
+        // Generate a GetterSettingsPropertyValue Xaml payload as a string (command is a value
+        // only; generation never runs it).
+        private static string GenerateGspvXaml(bool minify)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.Minify = minify;
+            RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "GetterSettingsPropertyValue",
+                FormatterName = "Xaml",
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+            AssertTrue(r.Success, "gspv Xaml generates: " + r.ErrorMessage);
+            return r.Raw as string;
         }
 
         // Every gadget must actually produce a non-empty payload from valid inputs,

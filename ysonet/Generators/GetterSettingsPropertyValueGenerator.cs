@@ -196,6 +196,31 @@ namespace ysonet.Generators
                     payload = "<PropertyGrid UseCompatibleTextRendering=\"True\" Location=\"0, 0\" Name=\"\" TabIndex=\"0\" xmlns=\"clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms\" xmlns:sc=\"clr-namespace:System.Configuration;assembly=System\" xmlns:assembly=\"http://schemas.microsoft.com/winfx/2006/xaml\"><PropertyGrid.SelectedObject><sc:SettingsPropertyValue xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" IsDirty=\"False\" Deserialized=\"False\" xmlns=\"clr-namespace:System.Configuration;assembly=System\" xmlns:b=\"clr-namespace:System.Configuration;assembly=System\" xmlns:assembly=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:s=\"clr-namespace:System;assembly=mscorlib\"><x:Arguments><b:SettingsProperty><x:Arguments><s:String>test</s:String></x:Arguments></b:SettingsProperty></x:Arguments><sc:SettingsPropertyValue.SerializedValue>" + bfBytes + "</sc:SettingsPropertyValue.SerializedValue></sc:SettingsPropertyValue></PropertyGrid.SelectedObject></PropertyGrid>";
                 }
 
+                if (inputArgs.Minify)
+                {
+                    // The SettingsPropertyValue element declares the xaml namespace under two
+                    // prefixes (x and assembly) and System.Configuration under two (the default
+                    // and b). XmlMinifier's namespace dedup cannot collapse two prefixes for one
+                    // URI on the SAME element (it would produce a duplicate xmlns and throw), so
+                    // collapse them here first (x -> assembly, b -> sc), then minify. The byte
+                    // array dominates this payload, so the structural saving is small but real.
+                    // Guarded: if the template shape ever changes so this leaves a same-element
+                    // duplicate, keep the un-minified payload instead of failing generation.
+                    try
+                    {
+                        string deduped = payload
+                            .Replace(" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"", "")
+                            .Replace("<x:Arguments", "<assembly:Arguments").Replace("</x:Arguments>", "</assembly:Arguments>")
+                            .Replace(" xmlns:b=\"clr-namespace:System.Configuration;assembly=System\"", "")
+                            .Replace("<b:SettingsProperty", "<sc:SettingsProperty").Replace("</b:SettingsProperty>", "</sc:SettingsProperty>");
+                        payload = XmlMinifier.Minify(deduped, null, null);
+                    }
+                    catch
+                    {
+                        // template shape changed; keep the payload as-is (valid, just not minified)
+                    }
+                }
+
                 if (inputArgs.Test)
                 {
                     try
