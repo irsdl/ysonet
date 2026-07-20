@@ -330,8 +330,8 @@ A gadget tagged `Bridged` accepts an upstream serialized payload via `BridgedPay
 `TextFormattingRunPropertiesGenerator` or `TypeConfuseDelegateGenerator` via
 `GenerateWithNoTest`). `SupportedBridgedFormatter()` states which format the bridge expects
 to receive. Most bridges consume **BinaryFormatter**; **`DataSetOldBehaviour`** and
-**`SessionViewStateHistoryItem`** consume **LosFormatter**. Caveat: `WindowsPrincipal` is
-tagged `Bridged` but does NOT override `SupportedBridgedFormatter()`, so it reports `None`.
+**`SessionViewStateHistoryItem`** consume **LosFormatter**. Every gadget tagged `Bridged`
+declares a real `SupportedBridgedFormatter()`, so all of them can be a `--bgc` consumer.
 
 ### Full gadget table (29 gadgets)
 | Name | Formatters | Labels | Bridge? (accepts) | Extra options | Purpose |
@@ -364,7 +364,7 @@ tagged `Bridged` but does NOT override `SupportedBridgedFormatter()`, so it repo
 | **TypeConfuseDelegateMono** | BF, NDCS, Los | Independent | No | - | Mono variant using `delegates` field. |
 | **WindowsClaimsIdentity** | BF(3), Json.NET(2), DCS(2), NDCS(3), Soap(2), Los(3) | Bridged, **NotInGAC** | Yes (BF) | `var` (1-3) | `Microsoft.IdentityModel.Claims.WindowsClaimsIdentity` .actor/.bootstrapContext -> BF. Needs non-GAC Microsoft.IdentityModel. |
 | **WindowsIdentity** | BF, Json.NET, DCS, NDCS, Soap, Los | Bridged | Yes (BF) | - | `WindowsIdentity`->ClaimsIdentity.actor -> BF during ISerializable callback. |
-| **WindowsPrincipal** | BF, Json.NET, DCS, DataContractJsonSerializer, NDCS, Soap, Los | Bridged (no bridged-formatter override) | Yes (None) | - | Double hop: `WindowsPrincipal.m_identity`->`WindowsIdentity.Actor.BootstrapContext` (TFRP) -> BF. |
+| **WindowsPrincipal** | BF, Json.NET, DCS, DataContractJsonSerializer, NDCS, Soap, Los | Bridged | Yes (BF) | - | Double hop: `WindowsPrincipal.m_identity`->`WindowsIdentity.Actor.BootstrapContext` (bridged BF, else default TFRP) -> BF. |
 | **XamlAssemblyLoadFromFile** | BF, Soap, NDCS, Los | Variant | No (compiles file) | `var` (1 TCD, 2 TFRP) | Compiles `-c` `.cs`, gzip+base64 embeds in XAML that decompresses+Assembly.Load+instantiates. |
 | **XamlImageInfo** | Json.NET | var1 in GAC / var2 not | No | `var` (1 GAC, 2 non-GAC) | `ManifestImages+XamlImageInfo` ctor -> `XamlReader.Load(Stream)`. Var2 needs Microsoft.Web.Deployment.dll. |
 
@@ -618,8 +618,8 @@ Two test tiers (gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` 
   - `OutputEncodingPerFormatter` - one representative gadget per formatter; every output encoding
     decodes back to the raw bytes, on both a byte[] and a string anchor, plus a string-returning
     and a byte[]-returning plugin.
-  - `BridgedChainsGenerate` - every `--bgc` consumer generates a chain; the two non-consumers are
-    rejected; one chain fires end to end.
+  - `BridgedChainsGenerate` - every `--bgc` consumer generates a chain (incl. `WindowsPrincipal`);
+    a non-Bridged gadget is rejected; two chains (via AxHostState and via WindowsPrincipal) fire end to end.
   - `PluginFullMatrixGenerates` - a curated per-plugin argv table (one row per mode / CVE /
     inner-gadget), plus a coverage guard so a whole new plugin cannot slip through.
 
@@ -652,7 +652,7 @@ Two test tiers (gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` 
   (no em-dashes / unicode punctuation).
 - `TestingArena/` and `--runmytest` are dev-only (not shipped functionality).
 - Bridge-format asymmetry: most bridges want BinaryFormatter; `DataSetOldBehaviour` and
-  `SessionViewStateHistoryItem` want LosFormatter; `WindowsPrincipal` reports `None`.
+  `SessionViewStateHistoryItem` want LosFormatter.
 - `Deterministic=false` in the csproj. Target `.NET Framework 4.7.2`.
 - The `Generic` gadget name is special-cased out in several Program.cs loops (guard when
   iterating gadgets).

