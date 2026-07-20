@@ -193,15 +193,25 @@ namespace ysonet.Helpers
             // clr-namespace:System.Diagnostics; assembly=system
             // {         x:Type      Diag:Process   }
             // Int32 Compare(System.String, System.String)
-            xmlDocument = Regex.Replace(xmlDocument, @"([a-zA-Z0-9\.\-\:=_\s]+[;,]\s*)+([a-zA-Z0-9\.\-\:=_\s]+)[""'\]\<]", delegate (Match m)
+            //
+            // This block can only match when a ';' or ',' is present (the (...)+ needs one),
+            // so skip it otherwise. That keeps a long whitespace-free run (an inline hex blob,
+            // e.g. the ApplicationTrust Data="..." attribute) from being re-scanned from every
+            // start position, which was O(n^2). The (?<![class]) prefix anchors the match to a
+            // run boundary so even a document that DOES contain ';'/',' stays linear. Both are
+            // no-ops for the output: leftmost matching already starts at a run boundary.
+            if (xmlDocument.IndexOf(';') >= 0 || xmlDocument.IndexOf(',') >= 0)
             {
-                // we do not want to remove spaces when two alphanumeric strings are next to each other
-                String finalVal = m.Value;
-                finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([\w])", "$1$2");
-                finalVal = Regex.Replace(finalVal, @"([\w])[\s]+([^\w])", "$1$2");
-                finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([^\w])", "$1$2");
-                return finalVal;
-            });
+                xmlDocument = Regex.Replace(xmlDocument, @"(?<![a-zA-Z0-9\.\-\:=_\s])([a-zA-Z0-9\.\-\:=_\s]+[;,]\s*)+([a-zA-Z0-9\.\-\:=_\s]+)[""'\]\<]", delegate (Match m)
+                {
+                    // we do not want to remove spaces when two alphanumeric strings are next to each other
+                    String finalVal = m.Value;
+                    finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([\w])", "$1$2");
+                    finalVal = Regex.Replace(finalVal, @"([\w])[\s]+([^\w])", "$1$2");
+                    finalVal = Regex.Replace(finalVal, @"([^\w])[\s]+([^\w])", "$1$2");
+                    return finalVal;
+                });
+            }
 
             xmlDocument = Regex.Replace(xmlDocument, @"([""'])\s*\{\s*([^&""'}\s]+)\s+([^&""'}\s]+)\s*\}\s*([""'])", "$1{$2 $3}$4");
 

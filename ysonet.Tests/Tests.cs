@@ -116,6 +116,8 @@ namespace ysonet.Tests
             Run("SoftBreak wraps over-long help tokens (NDesk hang guard)", SoftBreakWrapsLongTokens);
             Run("XmlMinifier strips soap encodingStyle without O(n^2) backtracking", XmlMinifierEncodingStyle);
             Run("XmlMinifier scales linearly on a big inline-assembly payload", XmlMinifierScalesOnBigPayload);
+            Run("XmlMinifier dirty-match pass scales on a big hex attribute", XmlMinifierDirtyMatchScalesOnHexAttribute);
+            Run("XmlMinifier dirty-match pass output is unchanged by the guard+lookbehind fix", XmlMinifierDirtyMatchOutputUnchanged);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
 
@@ -2361,6 +2363,105 @@ namespace ysonet.Tests
             parsed.LoadXml(result);
             AssertTrue(result.IndexOf("Byte", StringComparison.Ordinal) >= 0,
                 "the minified big payload still contains its byte array");
+        }
+
+        // Performance lock for the XmlDirtyMatchReplaceMinifier "remove spaces around
+        // separators" pass (the third regex). It used to be O(n^2) on a long whitespace-free
+        // run of class characters inside a quoted attribute (the ApplicationTrust hex
+        // Data="..." shape): the greedy class run was consumed from every start position and
+        // then failed to find a ';'/','. The plain XmlMinifierScalesOnBigPayload above does
+        // NOT catch this, because its <s:Byte> run is broken by '<'/'>' every few chars, so no
+        // single class-run is long. This test fires the exact worst case. Two payloads lock
+        // the two independent fix mechanisms:
+        //   GUARD path: no ';'/',' anywhere, so the whole block is skipped. A lookbehind-only
+        //     revert still passes this; a guard revert would still be linear thanks to the
+        //     lookbehind, so this case mainly exercises the guard's fast path.
+        //   LOOKBEHIND path: a comma is present, so the guard does NOT skip the block. Only the
+        //     negative-lookbehind anchor keeps the big run linear here; a lookbehind revert
+        //     reintroduces the O(n^2) blow-up and this case would exceed the backstop.
+        // Both are ~40s+ on the pre-fix code and near-instant on the fixed code, so a real
+        // regression fails fast. Background thread + 20s wall-clock backstop, same shape as
+        // XmlMinifierScalesOnBigPayload.
+        private static void XmlMinifierDirtyMatchScalesOnHexAttribute()
+        {
+            string bigRun = new string('A', 40000);
+
+            // GUARD path: one long whitespace-free run, no ';'/',' anywhere, terminated by '"'.
+            string guardDoc = "<ExtraInfo Data=\"" + bigRun + "\"></ExtraInfo>";
+            RunMinifyWithBackstop(guardDoc, "guard path (pure hex, no ';'/',')");
+
+            // LOOKBEHIND path: same big run, but a comma elsewhere means the guard cannot skip
+            // the block, so only the lookbehind keeps it linear. Wrapped in a single root so it
+            // is well-formed XML for the XSLT pass.
+            string lookbehindDoc = "<root><n Type=\"x, Version=1\"/><ExtraInfo Data=\"" + bigRun + "\"></ExtraInfo></root>";
+            RunMinifyWithBackstop(lookbehindDoc, "lookbehind path (big run + a comma elsewhere)");
+        }
+
+        // Helper: run XmlMinifier.Minify on a background thread with a 20s wall-clock backstop
+        // and assert it finished, did not throw, is non-empty, and still carries its big run.
+        private static void RunMinifyWithBackstop(string doc, string label)
+        {
+            string result = null;
+            Exception threadErr = null;
+            System.Threading.Thread t = new System.Threading.Thread(delegate ()
+            {
+                try { result = XmlMinifier.Minify(doc, null, null); }
+                catch (Exception e) { threadErr = e; }
+            });
+            t.IsBackground = true; // a genuine hang must not keep the test process alive
+            t.Start();
+            bool done = t.Join(System.TimeSpan.FromSeconds(20));
+            AssertTrue(done, "XmlMinifier dirty-match pass hung on the " + label + " (O(n^2) regression in the separator regex)");
+            AssertTrue(threadErr == null, "XmlMinifier threw on the " + label + ": " + (threadErr == null ? "" : threadErr.Message));
+            AssertTrue(!string.IsNullOrEmpty(result), "dirty-match minify produced a non-empty result on the " + label);
+            AssertTrue(result.IndexOf(new string('A', 1000), StringComparison.Ordinal) >= 0,
+                "the minified payload still contains its big run on the " + label);
+        }
+
+        // Output-equivalence lock for the XmlDirtyMatchReplaceMinifier guard+lookbehind fix.
+        // The golden strings were captured from the CURRENT pre-fix build (before the fix was
+        // applied), so an exact match proves the fix did not change any real minifier output.
+        // These are the exact shapes the fix's correctness argument reasons about: assembly
+        // qualified names, clr-namespace, the { x:Type } markup extension, a method signature,
+        // a spaced list, and a pure-hex attribute (the guard path). Fixed strings, no compile.
+        private static void XmlMinifierDirtyMatchOutputUnchanged()
+        {
+            // Assembly-qualified name with commas: spaces after the commas are removed.
+            AssertEqual(
+                "<r Type=\"Microsoft.IdentityModel,Version=3.5.0.0,Culture=neutral,PublicKeyToken=31bf3856ad364e35\"/>",
+                XmlMinifier.Minify("<r Type=\"Microsoft.IdentityModel, Version=3.5.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35\"/>", null, null),
+                "AQN commas minify unchanged");
+
+            // clr-namespace with a semicolon separator: space after ';' removed.
+            AssertEqual(
+                "<r Type=\"clr-namespace:System.Diagnostics;assembly=system\"/>",
+                XmlMinifier.Minify("<r Type=\"clr-namespace:System.Diagnostics; assembly=system\"/>", null, null),
+                "clr-namespace semicolon minify unchanged");
+
+            // { x:Type Diag:Process } markup extension: braces tightened, inner space kept.
+            AssertEqual(
+                "<r Value=\"{x:Type Diag:Process}\"/>",
+                XmlMinifier.Minify("<r Value=\"{ x:Type Diag:Process }\"/>", null, null),
+                "x:Type markup extension minify unchanged");
+
+            // Method signature with a comma: unchanged, because the ')' terminator is not in the
+            // regex's terminator class, so the pre-fix regex never matched it either.
+            AssertEqual(
+                "<r Sig=\"Int32 Compare(System.String, System.String)\"/>",
+                XmlMinifier.Minify("<r Sig=\"Int32 Compare(System.String, System.String)\"/>", null, null),
+                "method signature minify unchanged");
+
+            // Spaced list with both separators: all spaces removed.
+            AssertEqual(
+                "<r List=\"foo,bar;baz\"/>",
+                XmlMinifier.Minify("<r List=\"foo , bar ; baz\"/>", null, null),
+                "spaced list minify unchanged");
+
+            // Pure-hex attribute, no ';'/',' (guard path): passes through unchanged.
+            AssertEqual(
+                "<r Data=\"AABBCCDDEEFF00112233445566778899\"/>",
+                XmlMinifier.Minify("<r Data=\"AABBCCDDEEFF00112233445566778899\"/>", null, null),
+                "pure-hex attribute minify unchanged (guard path)");
         }
 
         // Every gadget must actually produce a non-empty payload from valid inputs,
