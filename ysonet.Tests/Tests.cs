@@ -2455,6 +2455,38 @@ namespace ysonet.Tests
             return false; // some other non-null object counts as produced
         }
 
+        // Well-formedness check for a payload whose output is XML (soap, Net/DataContract,
+        // XmlSerializer, XAML). Returns null when the payload is well-formed OR is not XML
+        // output at all (binary, base64, JSON, YAML - those do not start with '<', so we skip
+        // them); returns the parser error when the payload IS XML but does not parse. Used to
+        // prove the minifier never produces malformed XML. Fragment conformance so a payload
+        // that is a bare element (no XML declaration, as the minifier emits) is still accepted.
+        private static string XmlWellFormednessError(object raw)
+        {
+            string text = raw as string;
+            if (text == null && raw is byte[])
+            {
+                try { text = Encoding.UTF8.GetString((byte[])raw); } catch { return null; }
+            }
+            if (text == null) return null;
+            text = text.Trim();
+            if (text.Length > 0 && text[0] == (char)0xFEFF) text = text.Substring(1).Trim(); // drop a UTF-8 BOM
+            if (text.Length == 0 || text[0] != '<') return null; // not XML output; nothing to check
+            try
+            {
+                var settings = new System.Xml.XmlReaderSettings
+                {
+                    ConformanceLevel = System.Xml.ConformanceLevel.Fragment,
+                    DtdProcessing = System.Xml.DtdProcessing.Ignore,
+                };
+                using (StringReader sr = new StringReader(text))
+                using (System.Xml.XmlReader xr = System.Xml.XmlReader.Create(sr, settings))
+                    while (xr.Read()) { }
+                return null; // well-formed
+            }
+            catch (Exception ex) { return ex.Message; }
+        }
+
         // Every plugin that can generate a payload offline must actually do so with
         // valid inputs. The remaining plugins are excluded explicitly with a reason.
         // A coverage guard fails if a plugin is neither generated nor excluded, so a
@@ -2681,6 +2713,18 @@ namespace ysonet.Tests
                     "is not supported by variant 1" },
             };
 
+            // Cells whose MINIFIED output is XML but intentionally NOT standalone well-formed,
+            // so the minified-XML parse check below skips them. Only ResourceSet's
+            // NetDataContractSerializer path: its generator passes "</Values></Table></w>" as a
+            // discardable string, deliberately dropping those trailing closing tags to shrink the
+            // payload (see ResourceSetGenerator.cs). The NetDataContractSerializer deserializer
+            // tolerates the truncated document - the generator's own -t path deserializes it - so
+            // this is by design, not a minifier bug. Keyed by "gadget|formatter".
+            var wellFormedExempt = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "ResourceSet|NetDataContractSerializer",
+            };
+
             string csFixture = MakeTempFile("ysonet_matrix_fixture.cs",
                 "public class YsonetTestFixture { public YsonetTestFixture() { } }");
             string dllFixture = new Uri(typeof(OptionSet).Assembly.CodeBase).LocalPath;
@@ -2769,6 +2813,16 @@ namespace ysonet.Tests
                                 {
                                     if (!r.Success) failures.Add(cellDesc + " -> " + r.ErrorMessage);
                                     else if (RawIsEmpty(r.Raw)) failures.Add(cellDesc + " -> empty payload");
+                                    else if (minify && !wellFormedExempt.Contains(name + "|" + formatter))
+                                    {
+                                        // A minified payload whose output is XML must stay well-formed
+                                        // XML - the minifier must never break it. Non-XML outputs
+                                        // (binary/base64/JSON/YAML) are skipped by the helper; the
+                                        // documented intentional-fragment cells are exempt above.
+                                        string xmlErr = XmlWellFormednessError(r.Raw);
+                                        if (xmlErr != null)
+                                            failures.Add(cellDesc + " -> minified XML is not well-formed: " + xmlErr);
+                                    }
                                 }
                             }
                         }
@@ -3292,6 +3346,7 @@ namespace ysonet.Tests
                     if (deserAs == "bf") SerializersHelper.BinaryFormatter_deserialize((byte[])r.Raw);
                     else if (deserAs == "xaml") SerializersHelper.Xaml_deserialize((string)r.Raw);
                     else if (deserAs == "json") SerializersHelper.JsonNet_deserialize((string)r.Raw);
+                    else if (deserAs == "ndc") SerializersHelper.NetDataContractSerializer_deserialize((string)r.Raw);
                 });
 
                 if (WaitForFile(marker, 3000)) fired++;
@@ -3471,13 +3526,28 @@ namespace ysonet.Tests
             FireGadgetMarker("GetterSettingsPropertyValue", "Json.NET", 0, false, false, "json", true, failures, ref fired, ref skipped, trace);
             FireGadgetMarker("GetterSettingsPropertyValue", "Xaml", 0, false, false, "xaml", true, failures, ref fired, ref skipped, trace);
 
-            // Minify CORRECTNESS: a minified payload must still fire, not just be non-empty.
-            FireGadgetMarker("TextFormattingRunProperties", "BinaryFormatter", 0, true, false, "bf", true, failures, ref fired, ref skipped, trace);
-            FireGadgetMarker("TypeConfuseDelegate", "BinaryFormatter", 0, true, false, "bf", true, failures, ref fired, ref skipped, trace);
-            FireGadgetMarker("AxHostState", "BinaryFormatter", 0, true, false, "bf", true, failures, ref fired, ref skipped, trace);
+            // Minify CORRECTNESS: a minified payload must still FIRE, not merely be non-empty.
+            // Fire EVERY BinaryFormatter marker gadget again with --minify (the BinaryFormatter
+            // minify path), so the minifier is proven not to break execution for any of them.
+            foreach (string g in bfMarkerGadgets)
+                FireGadgetMarker(g, "BinaryFormatter", 0, true, false, "bf", true, failures, ref fired, ref skipped, trace);
+            // The Xaml (XmlMinifier) and Json.NET (JsonMinifier) deserialize paths, minified too,
+            // so all three minifier families are covered end-to-end, not just BinaryFormatter.
+            FireGadgetMarker("ObjectDataProvider", "Xaml", 1, true, false, "xaml", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GetterSettingsPropertyValue", "Xaml", 0, true, false, "xaml", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GetterSecurityException", "Json.NET", 0, true, false, "json", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GetterSettingsPropertyValue", "Json.NET", 0, true, false, "json", true, failures, ref fired, ref skipped, trace);
 
-            // --usesimpletype on a Json.NET-family payload must still fire.
+            // --usesimpletype on a Json.NET-family payload must still fire (minified).
             FireGadgetMarker("GetterSecurityException", "Json.NET", 0, true, true, "json", true, failures, ref fired, ref skipped, trace);
+
+            // ResourceSet via NetDataContractSerializer, non-minified AND minified. The minified
+            // form is the INTENTIONAL fragment the matrix well-formedness check exempts (its
+            // generator discards </Values></Table></w>). Firing both proves that truncated
+            // fragment still deserializes and executes, so the exemption is backed by a real
+            // firing rather than only skipped.
+            FireGadgetMarker("ResourceSet", "NetDataContractSerializer", 0, false, false, "ndc", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("ResourceSet", "NetDataContractSerializer", 0, true, false, "ndc", true, failures, ref fired, ref skipped, trace);
 
             // ---- SELF_CLOSING_CS: compile-and-run gadgets whose compiled ctor writes the marker. ----
             FireSelfClosingCs("ActivitySurrogateSelectorFromFile", failures, ref fired, ref skipped, trace);
