@@ -7,6 +7,16 @@ namespace ysonet.Generators
 {
     public class GetterSecurityExceptionGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): a WinForms getter chain reaches a
+        // BinaryFormatter sink (SecurityException). Framework built-in types. All
+        // variants share this capability.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         // SecurityException + Getter call gadget
         // SecurityException.get_Method leads to the BinaryFormatter.Deserialize
 

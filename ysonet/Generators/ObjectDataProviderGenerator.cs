@@ -25,6 +25,18 @@ namespace ysonet.Generators
 {
     public class ObjectDataProviderGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): the default paths run Process.Start
+        // via the WPF ObjectDataProvider (code execution). Variant 3 (Xaml only)
+        // instead references a remote/file XAML resource, so it is declared as a
+        // variant override below (network + nested deserialization).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
+                    GadgetRequirement.NetFramework);
+        }
+
         private int variant_number = 1; // Default
         private string xaml_url = "";
 
@@ -57,7 +69,12 @@ namespace ysonet.Generators
             {
                 new GadgetVariant(1, "plain ObjectDataProvider (default)"),
                 new GadgetVariant(2, "ResourceDictionary wrapper (Xaml) / LosFormatter inner (XmlSerializer)"),
-                new GadgetVariant(3, "ResourceDictionary Source=--xamlurl (Xaml; ignores command)"),
+                new GadgetVariant(3, "ResourceDictionary Source=--xamlurl (Xaml; ignores command)")
+                    .WithFacets(new GadgetFacetSet()
+                        .WithKinds(PayloadKind.Network, PayloadKind.NestedDeserialization)
+                        .WithInputs(PayloadInput.RemoteUrl, PayloadInput.LocalFile, PayloadInput.UncPath)
+                        .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
+                            GadgetRequirement.NetFramework)),
                 new GadgetVariant(4, "WorkflowDesigner wrapper (Xaml, STA)")
             };
         }

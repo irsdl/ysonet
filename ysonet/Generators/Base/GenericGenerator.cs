@@ -91,6 +91,15 @@ namespace ysonet.Generators
             return new List<GadgetVariant>();
         }
 
+        // Broad discovery facets. The honest default is "uncategorized" on kind and
+        // requirements, with input left to derive from CommandInput(). A gadget
+        // overrides this to declare what its source, tests, and help actually prove.
+        // Category search only; never affects generation.
+        public virtual GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet();
+        }
+
         // Reject a variant+formatter pair the chosen variant declared it cannot
         // produce (via GadgetVariant.Without in Variants()). Call it at the top of
         // Generate(), after Init() has parsed the variant number. It turns an

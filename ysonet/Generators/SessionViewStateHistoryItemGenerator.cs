@@ -10,6 +10,15 @@ namespace ysonet.Generators
 {
     public class SessionViewStateHistoryItemGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): feeds an inner LosFormatter via
+        // SessionViewStateHistoryItem (System.Web.Mobile, built-in).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         public override List<string> SupportedFormatters()
         {
             return new List<string> { "BinaryFormatter", "NetDataContractSerializer", "SoapFormatter", "LosFormatter", "Json.NET", "DataContractSerializer" };

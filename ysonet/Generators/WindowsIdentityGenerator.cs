@@ -8,6 +8,15 @@ namespace ysonet.Generators
 {
     public class WindowsIdentityGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): carries a BinaryFormatter payload
+        // in WindowsIdentity (mscorlib, built-in).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         // Bridge from BinaryFormatter constructor/callback to BinaryFormatter
         // Usefule for Json.NET since it invokes ISerializable callbacks during deserialization
 

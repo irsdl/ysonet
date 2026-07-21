@@ -26,6 +26,17 @@ namespace ysonet.Generators
 
     class ObjRefGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): the proven mechanism is an
+        // outbound .NET Remoting call to the given URL (SSRF/callback). Uses
+        // System.Runtime.Remoting (built-in). The second-stage code execution needs
+        // an attacker-controlled remoting server, so it is not claimed here.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.Network)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         public override string Finders()
         {
             return "Markus Wulftange";

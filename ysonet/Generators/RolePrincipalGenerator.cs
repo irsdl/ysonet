@@ -7,6 +7,15 @@ namespace ysonet.Generators
 {
     public class RolePrincipalGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): carries a BinaryFormatter payload
+        // in RolePrincipal (System.Web, built-in).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         public override List<string> SupportedFormatters()
         {
             return new List<string> { "BinaryFormatter", "Json.NET", "DataContractSerializer", "NetDataContractSerializer", "SoapFormatter", "LosFormatter" };

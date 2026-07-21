@@ -31,6 +31,17 @@ namespace ysonet.Generators
 
     public class PSObjectGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): runs a command via XamlReader
+        // (ObjectDataProvider). Needs System.Management.Automation (PowerShell) on the
+        // target (extra-assembly) and WPF; relies on unpatched CVE-2017-8565.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf,
+                    GadgetRequirement.NetFramework);
+        }
+
 
         public override string AdditionalInfo()
         {

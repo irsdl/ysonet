@@ -5,7 +5,7 @@
 > structure. Written for contributors and AI agents alike.
 >
 > This document can lag the code between updates; the source is always authoritative.
-> Last reviewed for v2026.7.5.
+> Last reviewed for v2026.7.7 (added the gadget category facets and discovery).
 
 ---
 
@@ -132,6 +132,7 @@ parsing. All state is in static fields; parsed into an `InputArgs` object.
 bridge chain), `-t|--test` (locally deserialize the payload to self-verify),
 `--outputpath`, `--minify`, `--ust|--usesimpletype`, `--raf|--runallformatters`,
 `--sf|--searchformatter`, `--list` (machine-readable listing, see below),
+`--category` (repeatable gadget discovery filter, see below),
 `--debugmode`, `-h|--help`, `--fullhelp`, `--credit`,
 `--checkupdate` (query GitHub for a newer release and exit),
 `--runmytest` (runs `Helpers.TestingArena.TestingArenaHome.Start` - dev only).
@@ -156,6 +157,19 @@ tab-completion scripts in `tools/completions/` (currently `ysonet.ps1` for
 PowerShell). The data comes from `Helpers/CliListing.cs`, so it never drifts as
 gadgets/plugins/formatters are added; `Program.PrintList` handles the flag.
 
+`--category=AXIS=VALUE` (repeatable) is the gadget discovery filter. Axes are
+`kind`, `formatter`, `input`, `requirement`; repeating an axis is OR, different
+axes are AND, and one gadget-or-variant unit must satisfy the whole query. Alone
+it prints a human query summary and the matching gadgets with their categories;
+with `--list gadgets` it prints matching names only (for scripts). It is
+discovery-only, so combining it with payload generation, formatter search,
+run-all, help, credit, update, or the dev test mode is an error, not an ignored
+option (`Program.DispatchCategory`, dispatched before any other mode). The four
+broad axes and the reader/query live in `Helpers/Discovery/GadgetFacetReader.cs`
+and `GadgetCategoryQuery.cs`; the human search and the shared category help
+rendering live in `Helpers/Cli/GadgetCategoryCommand.cs`. See section 5 for the
+`Facets()` metadata contract, and section 4.1 for the interactive filter.
+
 `completion` is a first-arg subcommand (like `interactive`/`wizard`) that manages
 PowerShell tab completion for end users. The recommended path is per-session and
 needs no install: `ysonet completion powershell | Out-String | Invoke-Expression`
@@ -177,21 +191,23 @@ in `Helpers/CompletionCommand.cs`.
 ### Control flow (in order)
 1. Parse args into `InputArgs` (Cmd, IsRawCmd, Test, Minify, UseSimpleType, IsDebugMode,
    ExtraArguments = unconsumed args passed on to gadget/plugin `Options()`).
-2. `--runmytest` -> run TestingArena and exit.
-3. Populate gadget + plugin name lists via `GadgetRegistry.GetAllGadgetNames()` /
+2. `--category` present -> `DispatchCategory()` (discovery-only search or filtered
+   `--list gadgets`; rejects being combined with any build/help/other mode) and exit.
+3. `--runmytest` -> run TestingArena and exit.
+4. Populate gadget + plugin name lists via `GadgetRegistry.GetAllGadgetNames()` /
    `PluginRegistry.GetAllPluginNames()` (reflection).
-4. Gadget/plugin-specific help handling (`ShowGadgetSpecificHelp` / `ShowPluginSpecificHelp`).
-5. Missing-argument handling and validation (shows available gadgets/plugins, fuzzy match).
-6. `--searchformatter` -> `SearchFormatters()` lists which gadgets support a formatter, exit.
-7. `--credit` -> `ShowCredit()`; `--help` -> `ShowHelp()`.
-8. **Dispatch**:
+5. Gadget/plugin-specific help handling (`ShowGadgetSpecificHelp` / `ShowPluginSpecificHelp`).
+6. Missing-argument handling and validation (shows available gadgets/plugins, fuzzy match).
+7. `--searchformatter` -> `SearchFormatters()` lists which gadgets support a formatter, exit.
+8. `--credit` -> `ShowCredit()`; `--help` -> `ShowHelp()`.
+9. **Dispatch**:
    - If `-p` set: validate, `PluginRegistry.CreatePluginInstance`, `raw = plugin.Run(args)`,
      then `ProcessOutput`.
    - Else if command + formatter + gadget present and not `--raf`: build the gadget chain
      (see below), `raw = generator.GenerateWithInit(...)`, then `ProcessOutput`.
    - Else if `--raf` (runallformatters): loop every gadget, generate for every matching
      formatter, print each with length.
-9. `ProcessOutput(outputformat, raw, showLen, path[, loopCount, prefix, suffix])`:
+10. `ProcessOutput(outputformat, raw, showLen, path[, loopCount, prefix, suffix])`:
    converts `raw` (`string` or `byte[]`) to the requested output encoding
    (base64 / urlencode / hex / raw) and writes to console or appends to a file.
    `GetDefaultOutputFormat()` picks base64 for BinaryFormatter/ObjectStateFormatter/
@@ -228,9 +244,18 @@ calls `Environment.Exit`; it returns a `RunResult`:
 **Interactive mode** (`Interactive/`, wizard-first) is an extra entry mode, detected in
 `Main` before option parsing via `IsInteractiveInvocation` (triggers `interactive`,
 `wizard`, `-i`, `--interactive` as the FIRST arg only, so an option value cannot trigger
-it). The top menu (`Wizard.cs`) offers gadget build, plugin build, formatter search, the
-run-all-formatters sweep, credits, help, and a check-for-updates entry (which calls
-`Helpers/UpdateChecker.cs`). Gadget/plugin builds open the **module editor**
+it). The top menu (`Wizard.cs`) offers gadget build, a **find-a-gadget-by-category**
+discovery flow, plugin build, formatter search, the run-all-formatters sweep, credits,
+help, and a check-for-updates entry (which calls `Helpers/UpdateChecker.cs`). The
+category flow (`Interactive/CategoryFilter.cs`) is a separate, optional path, so the
+existing build-by-name path is untouched: it shows a four-axis checklist (payload kind,
+formatter, accepted input, requirements) with live match counts, OR within an axis and
+AND across, values that cannot match under the other axes shown disabled as `(0)`, then
+opens the module editor with only the matching gadgets and a read-only summary of why
+each matched (a `RunCategoryFlow` loop, so Esc out of the editor returns to the filter
+with selections kept for the session). The pure state/counting model
+(`CategoryFilterModel`) is unit-tested without a console. Gadget/plugin builds open the
+**module editor**
 (`ModuleEditor`): pick a module, then see and change ALL its settings at once - the
 gadget/plugin options plus built-ins (formatter, command, variant, output format/file,
 flags) - each with its current value; drill into any setting to edit it; Generate when
@@ -284,7 +309,7 @@ footer hint carries a compact key + symbol legend.
   `Finders()`, `Contributors()`, `Labels()`, `SupportedFormatters()`,
   `SupportedBridgedFormatter()`, `BridgedPayload` property, the `Generate*` family
   (`Generate`, `GenerateWithInit`, `GenerateWithNoTest`), the `Serialize*` family,
-  `IsSupported()`, `Options()`, `Init()`, `CommandInput()`. Also defines the
+  `IsSupported()`, `Options()`, `Init()`, `CommandInput()`, `Facets()`. Also defines the
   **`CommandInputType`** enum (ShellCommand / CsSourceFile / DllPath / Url / FilePath /
   Ignored) - what the gadget expects in `-c`. `GenericGenerator` defaults to
   `ShellCommand`; gadgets that expect a file/DLL/URL or ignore the command override it
@@ -295,6 +320,24 @@ footer hint carries a compact key + symbol legend.
   - **`GadgetTags`**: `Independent`, `Bridged`, `Subclass`, `Variant`, `GetterChain`,
     `OnDeserialized`, `SecondOrderDeserialization`, `NotInGAC`, `Hidden`, `None`.
   - **`Formatters`**: canonical formatter name strings.
+  - **Category facets** (broad discovery metadata, category search only; never affects
+    generation): `PayloadKind` (uncategorized / code-execution / file-system / network /
+    information-disclosure / denial-of-service / nested-deserialization / other),
+    `PayloadInput` (uncategorized / command / local-file / unc-path / remote-url /
+    source-code-file / assembly-file / none / other), `GadgetRequirement`
+    (uncategorized / built-in / extra-assembly / wpf / net-framework / modern-dotnet /
+    other), and `GadgetFacetSet` (a small fluent bundle: `WithKinds/WithInputs/
+    WithRequirements`). A gadget overrides `Facets()` to declare what its code, labels,
+    and help prove; the default is honest-`uncategorized` on kind and requirements with
+    the input derived from `CommandInput()`. `GadgetVariant.WithFacets(...)` gives one
+    variant a complete override when it differs (e.g. XamlImageInfo v1 = nested
+    deserialization / local-or-UNC file, v2 = code execution / command / extra assembly).
+    `Helpers/Discovery/GadgetFacetReader.cs` expands a gadget into one normalized,
+    validated capability unit per variant, derives the input, applies variant formatter
+    exclusions, and owns the display labels; `GadgetCategoryQuery.cs` is the shared
+    four-axis parse/match model. Keep exact behavior, assembly names, and versions in
+    `AdditionalInfo()`/`Labels()`, not in a new facet value; add a new constant only when
+    several gadgets need a stable group that no existing value fits.
 - **`Generators/Base/GenericGenerator.cs`** (abstract) implements everything except three
   abstract members each gadget must provide: `Generate(formatter, inputArgs)`, `Finders()`,
   `SupportedFormatters()`. Defaults:
@@ -370,6 +413,22 @@ declares a real `SupportedBridgedFormatter()`, so all of them can be a `--bgc` c
 
 (Abbrev: BF=BinaryFormatter, Los=LosFormatter, Soap=SoapFormatter, DCS=DataContractSerializer,
 NDCS=NetDataContractSerializer, TCD=TypeConfuseDelegate, TFRP=TextFormattingRunProperties.)
+
+**Broad categories** (from each gadget's `Facets()`; use `--category` or `--fullhelp`
+for the exact per-gadget/per-variant values). By payload kind:
+- **code-execution**: ActivitySurrogateSelector(+FromFile), BaseActivationFactory,
+  DataSetOldBehaviourFromFile, GetterCompilerResults, ObjectDataProvider (variants
+  1/2/4), PSObject, ResourceSet, TextFormattingRunProperties, TypeConfuseDelegate(+Mono),
+  XamlAssemblyLoadFromFile, XamlImageInfo (variant 2).
+- **nested-deserialization** (a BF/Los container feeding another deserializer): AxHostState,
+  Claims/GenericPrincipal/*Identity family, DataSet(+TypeSpoof), DataSetOldBehaviour,
+  GetterSecurityException, GetterSettingsPropertyValue, RolePrincipal, SessionSecurityToken,
+  SessionViewStateHistoryItem, ToolboxItemContainer, Windows* family, XamlImageInfo (variant 1).
+- **network**: ObjRef (outbound remoting), ObjectDataProvider (variant 3, `--xamlurl`).
+- **other**: ActivitySurrogateDisableTypeCheck (flips a protection flag, no direct effect).
+Requirements note broad target needs (built-in vs extra-assembly / wpf / net-framework /
+modern-dotnet), and accepted input is normally derived from `CommandInput()` (a variant can
+declare local-file + unc-path, etc.). Nothing here changes generation; it only powers search.
 
 ### Things to know about gadgets
 - **Workhorse leaf gadgets**: `ObjectDataProvider` and `TextFormattingRunProperties`.
@@ -601,7 +660,12 @@ Two test tiers (gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` 
   `OptionField` introspection + argv rebuild, `CommandEcho`, `PayloadRunner.Encode`,
   deterministic generation, option completeness vs the live `OptionSet`, a scripted-`IKeyReader`
   wizard end-to-end, the clipboard execution tests) plus a cheap per-gadget and per-plugin smoke
-  (`EveryGadgetGeneratesAPayload`, `EverySafePluginGeneratesAPayload`).
+  (`EveryGadgetGeneratesAPayload`, `EverySafePluginGeneratesAPayload`). The category facets are
+  covered here too: metadata (vocabulary, per-gadget capability expansion, input derivation,
+  uncategorized-cannot-mix, variant inheritance/override, a locked audit table), the query model,
+  the normal-CLI `--category` dispatch (search / filtered list / mode rejection, run against a
+  `ysonet.exe` subprocess), the help category lines, and the interactive filter (model behaviors
+  plus scripted-key driver and an end-to-end flow that generates the same payload as the direct path).
 - FULL (opt-in; set `YSONET_FULL_TESTS=1` then build Debug, or run `ysonet.Tests.exe --full`):
   five exhaustive combination tests, safe throughout (self-closing commands / never-executed
   values, loopback-only listeners, temp fixtures cleaned up):

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using ysonet.Generators;
+using ysonet.Helpers;
 using ysonet.Plugins;
 
 namespace ysonet.Interactive
@@ -933,6 +935,17 @@ namespace ysonet.Interactive
                 if (!string.IsNullOrEmpty(v.BridgedFormatter))
                     lines.AddRange(Wrap("Bridge formatter: " + v.BridgedFormatter, width));
                 lines.AddRange(Wrap("Command input: " + Wizard.CommandLabel(v.CommandInput), width));
+
+                // Broad category summary (one compact line per capability unit). On the
+                // category discovery path, a header notes it matched the active filter.
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                if (g != null)
+                {
+                    if (_matchQuery != null && !_matchQuery.IsEmpty)
+                        lines.AddRange(Wrap("Matched filter: " + _matchQuery.Describe(), width));
+                    foreach (string cl in GadgetCategoryCommand.CompactLines(g, ""))
+                        lines.AddRange(Wrap(cl, width));
+                }
             }
             else
             {

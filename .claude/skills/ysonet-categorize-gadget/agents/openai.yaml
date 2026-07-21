@@ -1,0 +1,4 @@
+interface:
+  display_name: "Categorize ysonet Gadget"
+  short_description: "Classify gadget kind, input, and requirements"
+  default_prompt: "Use $ysonet-categorize-gadget to classify this gadget and its variants."

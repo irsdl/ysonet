@@ -9,6 +9,18 @@ namespace ysonet.Generators
 {
     public class ResourceSetGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): a single serialized stream whose
+        // embedded gadget fires Process.Start (code execution). Internal gadget 1
+        // (TypeConfuseDelegate) is framework built-in; internal gadget 2
+        // (TextFormattingRunProperties) needs Microsoft.PowerShell.Editor and WPF,
+        // declared as a variant override in Variants().
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         private int internalgadget = 1; // Default
 
         public override List<string> SupportedFormatters()
@@ -28,6 +40,10 @@ namespace ysonet.Generators
             {
                 new GadgetVariant(1, "TypeConfuseDelegate internal gadget (default)"),
                 new GadgetVariant(2, "TextFormattingRunProperties internal gadget")
+                    .WithFacets(new GadgetFacetSet()
+                        .WithKinds(PayloadKind.CodeExecution)
+                        .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf,
+                            GadgetRequirement.NetFramework))
             };
         }
 

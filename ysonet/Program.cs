@@ -37,6 +37,10 @@ namespace ysonet
         static bool checkUpdate = false;
         static string listCategory = "";
 
+        // Repeatable --category=axis=value discovery filter. Collected raw here and
+        // parsed once in Main. Internal so the parser test can drive Program.options.
+        internal static readonly List<string> rawCategoryValues = new List<string>();
+
         static IEnumerable<string> generators;
         static IEnumerable<string> plugins;
 
@@ -57,6 +61,7 @@ namespace ysonet
                 {"raf|runallformatters", "Whether to run all the gadgets with the provided formatter (ignores gadget name, output format, and the test flag arguments). This will search in formatters and also show the displayed payload length. Default: false", v => isSearchFormatterAndRunMode =  v != null },
                 {"sf|searchformatter=", "Search in all formatters to show relevant gadgets and their formatters (other parameters will be ignored).", v => searchFormatter =  v},
                 {"list=", "Print a machine-readable list (one item per line) and exit. Categories: gadgets|plugins|formatters|options|outputs. Add -g <gadget> to list that gadget's formatters/options, or -p <plugin> to list that plugin's options. Useful for shell tab-completion scripts.", v => listCategory = v },
+                {"category=", "Find gadgets by category (repeatable): --category=axis=value where axis is kind|formatter|input|requirement. Repeat for OR within an axis and AND across axes. Alone it prints matching gadgets and their categories; with '--list gadgets' it prints matching names only. Example: --category=kind=code-execution --category=formatter=Json.NET", v => rawCategoryValues.Add(v) },
                 {"debugmode", "Enable debugging to show exception errors and output length", v => isDebugMode  =  v != null},
                 {"h|help", "Shows this message and exit.", v => show_help = v != null },
                 {"fullhelp", "Shows this message + extra options for gadgets and plugins and exit.", v => show_fullhelp = v != null },
@@ -104,6 +109,14 @@ namespace ysonet
                 Console.WriteLine(e.Message);
                 Console.WriteLine("Try 'ysonet --help' for more information.");
                 System.Environment.Exit(-1);
+            }
+
+            // Category discovery is parsed and dispatched before any other mode so
+            // its incompatibility checks apply to all of them. It is discovery-only:
+            // it never generates a payload.
+            if (rawCategoryValues.Count > 0)
+            {
+                DispatchCategory();
             }
 
             if (runMyTest)
@@ -480,6 +493,48 @@ namespace ysonet
                 || string.Equals(first, "wizard", StringComparison.OrdinalIgnoreCase);
         }
 
+        // Parse the repeated --category=axis=value values and dispatch. Two shapes:
+        //  - with '--list gadgets': print matching names only (for scripts);
+        //  - standalone: print a human query summary and the matching gadgets.
+        // A category query is discovery-only, so combining it with a build, search,
+        // help, credit, update, or dev mode is an error, not an ignored option.
+        // Always exits the process.
+        private static void DispatchCategory()
+        {
+            GadgetCategoryQuery query;
+            string error;
+            if (!GadgetCategoryQuery.TryParse(rawCategoryValues, out query, out error))
+            {
+                Console.Error.WriteLine(error);
+                Environment.Exit(1);
+            }
+
+            if (!string.IsNullOrEmpty(listCategory))
+            {
+                string listCat = listCategory.Trim().ToLowerInvariant();
+                if (listCat != "gadgets")
+                {
+                    Console.Error.WriteLine("--category can only filter the 'gadgets' listing, not '"
+                        + listCategory + "'.");
+                    Environment.Exit(1);
+                }
+                foreach (string name in CliListing.Gadgets(query))
+                    Console.WriteLine(name);
+                Environment.Exit(0);
+            }
+
+            if (gadget_name != "" || plugin_name != "" || searchFormatter != ""
+                || isSearchFormatterAndRunMode || show_help || show_fullhelp
+                || show_credit || checkUpdate || runMyTest)
+            {
+                Console.Error.WriteLine("--category is a discovery option and cannot be combined with "
+                    + "payload generation, formatter search, run-all, help, credit, update, or test modes.");
+                Environment.Exit(1);
+            }
+
+            Environment.Exit(GadgetCategoryCommand.RunHumanSearch(query));
+        }
+
         // Prints a machine-readable list (one item per line) and exits. Used by
         // shell tab-completion scripts and any tooling that needs the live set of
         // gadgets, plugins, formatters or options. All the data comes from
@@ -768,11 +823,18 @@ namespace ysonet
                                         Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
                                         Console.WriteLine(baseTextWriter.ToString());
                                     }
+
+                                    // Detailed categories per capability unit (full help).
+                                    foreach (string cl in GadgetCategoryCommand.DetailedLines(gg, "\t\t\t", null))
+                                        Console.WriteLine(cl);
                                 }
                                 else
                                 {
                                     // Normal help mode - concise format: name (formatters)
                                     Console.WriteLine("\t(*) " + gg.Name() + " (" + string.Join(", ", gg.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)) + ")");
+                                    // One compact category line per capability unit.
+                                    foreach (string cl in GadgetCategoryCommand.CompactLines(gg, "\t\t"))
+                                        Console.WriteLine(cl);
                                 }
                             }
                         }
@@ -910,6 +972,10 @@ namespace ysonet
                     Console.Write("\t\t\t"); // this is easier than using string builder and adding spacing to each line!
                     Console.WriteLine(baseTextWriter.ToString());
                 }
+
+                // Detailed categories per capability unit.
+                foreach (string cl in GadgetCategoryCommand.DetailedLines(gg, "\t\t\t", null))
+                    Console.WriteLine(cl);
             }
             catch
             {
@@ -1131,6 +1197,8 @@ namespace ysonet
                         if (instance != null)
                         {
                             Console.WriteLine($"{instance.Name()} ({string.Join(", ", instance.SupportedFormatters())})");
+                            foreach (string cl in GadgetCategoryCommand.CompactLines(instance, "\t"))
+                                Console.WriteLine(cl);
                         }
                     }
                 }

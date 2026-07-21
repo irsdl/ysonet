@@ -18,6 +18,17 @@ namespace ysonet.Generators
 
     internal class DataSetOldBehaviourGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): feeds an inner LosFormatter through
+        // an ExpandedWrapper that uses the WPF ObjectDataProvider; DataSet and the
+        // wrapper are framework built-in. Both variants share this capability.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
+                    GadgetRequirement.NetFramework);
+        }
+
         private int variant_number = 1; // Add variant support
         string spoofedAssembly = "";
 

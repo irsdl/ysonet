@@ -41,7 +41,10 @@ namespace ysonet.Interactive
         public static readonly string[] NonPayloadGlobalOptions = new string[]
         {
             "runmytest", "stdin", "help", "fullhelp", "credit",
-            "searchformatter", "runallformatters", "list", "checkupdate"
+            "searchformatter", "runallformatters", "list", "checkupdate",
+            // category discovery is reached through the top menu, not as a payload
+            // field.
+            "category"
         };
 
         // Global options the wizard collects as payload-affecting fields. Together
@@ -71,6 +74,7 @@ namespace ysonet.Interactive
             var topItems = new List<string>
             {
                 "Build a gadget payload",
+                "Find a gadget by category",
                 "Build a plugin payload",
                 "Search formatters (which gadgets support a formatter)",
                 "Run all formatters (one formatter across all gadgets)",
@@ -102,13 +106,14 @@ namespace ysonet.Interactive
                     switch (choice)
                     {
                         case 0: if (RunGadgetFlow()) return 0; break;
-                        case 1: if (RunPluginFlow()) return 0; break;
-                        case 2: SearchFormattersInfo(); break;
-                        case 3: RunAllFormattersInfo(); break;
-                        case 4: ShowCreditsInfo(); break;
-                        case 5: ShowHelpInfo(); break;
-                        case 6: ChooseTheme(); break;
-                        case 7: CheckForUpdatesInfo(); break;
+                        case 1: if (RunCategoryFlow()) return 0; break;
+                        case 2: if (RunPluginFlow()) return 0; break;
+                        case 3: SearchFormattersInfo(); break;
+                        case 4: RunAllFormattersInfo(); break;
+                        case 5: ShowCreditsInfo(); break;
+                        case 6: ShowHelpInfo(); break;
+                        case 7: ChooseTheme(); break;
+                        case 8: CheckForUpdatesInfo(); break;
                     }
                 }
                 catch (WizardCancel)
@@ -242,6 +247,30 @@ namespace ysonet.Interactive
                 if (n != "Generic")
                     names.Add(n);
             return new ModuleEditor(_keys, _output, true, names, _session).Run();
+        }
+
+        // ---- Category discovery path ------------------------------------------
+
+        // Optional discovery flow: pick category filters, then open the module editor
+        // with only the matching gadgets and a read-only summary of why they matched.
+        // Backing out (Esc/Back) or matching nothing returns to the top menu without
+        // touching the existing build-by-name path.
+        private bool RunCategoryFlow()
+        {
+            while (true)
+            {
+                ConsoleCursor.ClearScreen();
+                var filter = new CategoryFilter(_keys, _session.CategorySelections);
+                CategoryFilterResult result = filter.Run();
+                if (result == null)
+                    return false; // Back or Esc at the filter: return to the top menu
+                if (result.Names == null || result.Names.Count == 0)
+                    continue;     // nothing matched: back to the filter to adjust
+                if (new ModuleEditor(_keys, _output, true, result.Names, _session, result.Query).Run())
+                    return true;  // generate-and-quit
+                // Esc out of the filtered editor: loop back to the filter with the
+                // selections still applied (kept in the session).
+            }
         }
 
         // ---- Plugin path -------------------------------------------------------

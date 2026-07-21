@@ -9,6 +9,16 @@ namespace ysonet.Generators
 {
     public class WindowsClaimsIdentityGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): BinaryFormatter sink in
+        // Microsoft.IdentityModel WindowsClaimsIdentity, which is not in the default
+        // GAC (extra-assembly). All variants share this capability.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.NetFramework);
+        }
+
         private int variant_number = 1; // Default
         public override string AdditionalInfo()
         {

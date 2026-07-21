@@ -27,6 +27,13 @@ namespace ysonet.Generators
         void Init(InputArgs inputArgs);
         CommandInputType CommandInput();
         List<GadgetVariant> Variants();
+
+        // Broad discovery metadata: which payload family this builds, what input a
+        // user can provide, and what the target must have. Used only for the
+        // category search (normal CLI and interactive); it never affects
+        // generation. Every gadget inherits a safe "uncategorized" default from
+        // GenericGenerator, so this adds no migration burden.
+        GadgetFacetSet Facets();
     }
 
     // One selectable variant of a gadget (the value passed to its var/ig option).
@@ -51,6 +58,15 @@ namespace ysonet.Generators
         // gadget's advertised formatters, never adds one, so this is the natural
         // encoding: "what this variant opts out of". Declared with Without(...).
         public readonly List<string> UnsupportedFormatters = new List<string>();
+
+        // Optional full facet override for THIS variant, used only by the category
+        // search. Null (the default) means the variant inherits the gadget's
+        // Facets(). When a variant's capability differs from the gadget (e.g.
+        // XamlImageInfo variant 1 reads a file, variant 2 runs a command), it
+        // declares a complete GadgetFacetSet here with WithFacets(...). Inputs may
+        // stay null inside the override so they derive from the variant's effective
+        // CommandInputType.
+        public GadgetFacetSet FacetOverride;
 
         public GadgetVariant(int number, string label)
         {
@@ -107,6 +123,15 @@ namespace ysonet.Generators
             string[] parts = s.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             return parts.Length > 0 ? parts[0] : "";
         }
+
+        // Fluent full facet override for this variant. Returns this so it chains in
+        // Variants(), e.g. new GadgetVariant(1, "...").WithFacets(new GadgetFacetSet()
+        // .WithKinds(PayloadKind.NestedDeserialization)).
+        public GadgetVariant WithFacets(GadgetFacetSet facets)
+        {
+            FacetOverride = facets;
+            return this;
+        }
     }
 
     // What the gadget expects in the -c (command) argument. Lets callers (the
@@ -155,5 +180,111 @@ namespace ysonet.Generators
         XmlSerializer = "XmlSerializer",
         YamlDotNet = "YamlDotNet",
         None = "";
+    }
+
+    // ---- Broad discovery categories (facets) --------------------------------
+    //
+    // These four axes power the category search only. They are deliberately
+    // broad: a gadget declares the normal capability it builds, not every
+    // theoretical outcome. Exact behavior, assembly names, and versions stay in
+    // AdditionalInfo(), Labels(), and the full help. Add a new constant only when
+    // several gadgets need a stable discovery group that no existing value fits.
+
+    // The broad payload family. A capability can prove more than one kind.
+    public static class PayloadKind
+    {
+        public const string
+            Uncategorized = "uncategorized",       // not reviewed or evidence missing
+            CodeExecution = "code-execution",      // runs code / loads an executing assembly
+            FileSystem = "file-system",            // reads, writes, or deletes files
+            Network = "network",                   // SSRF, NTLM/SMB, DNS, callbacks
+            InformationDisclosure = "information-disclosure",
+            DenialOfService = "denial-of-service",
+            NestedDeserialization = "nested-deserialization", // feeds another deserializer
+            Other = "other";                       // known result, no broad family fits
+
+        public static readonly string[] All =
+        {
+            Uncategorized, CodeExecution, FileSystem, Network,
+            InformationDisclosure, DenialOfService, NestedDeserialization, Other
+        };
+    }
+
+    // What the user can provide to build or direct this payload. Normally derived
+    // from the effective CommandInputType; declared only when broader/different.
+    public static class PayloadInput
+    {
+        public const string
+            Uncategorized = "uncategorized",
+            Command = "command",
+            LocalFile = "local-file",
+            UncPath = "unc-path",
+            RemoteUrl = "remote-url",
+            SourceCodeFile = "source-code-file",
+            AssemblyFile = "assembly-file",
+            None = "none",                         // the gadget ignores user input
+            Other = "other";
+
+        public static readonly string[] All =
+        {
+            Uncategorized, Command, LocalFile, UncPath, RemoteUrl,
+            SourceCodeFile, AssemblyFile, None, Other
+        };
+    }
+
+    // Broad target needs, not a full compatibility matrix.
+    public static class GadgetRequirement
+    {
+        public const string
+            Uncategorized = "uncategorized",
+            BuiltIn = "built-in",                  // types shipped with the stated runtime
+            ExtraAssembly = "extra-assembly",      // an app or third-party assembly is needed
+            Wpf = "wpf",
+            NetFramework = "net-framework",
+            ModernDotNet = "modern-dotnet",
+            Other = "other";
+
+        public static readonly string[] All =
+        {
+            Uncategorized, BuiltIn, ExtraAssembly, Wpf,
+            NetFramework, ModernDotNet, Other
+        };
+    }
+
+    // A small, declarative facet bundle a gadget (or a variant, via WithFacets)
+    // attaches with Facets(). Kinds and Requirements default to "uncategorized";
+    // Inputs defaults to null, meaning "derive from the effective
+    // CommandInputType". Each fluent setter REPLACES its axis, so the default
+    // "uncategorized" can never remain beside a real value by accident.
+    public sealed class GadgetFacetSet
+    {
+        public List<string> Kinds;
+        public List<string> Inputs;        // null => derive from CommandInputType
+        public List<string> Requirements;
+
+        public GadgetFacetSet()
+        {
+            Kinds = new List<string> { PayloadKind.Uncategorized };
+            Inputs = null;
+            Requirements = new List<string> { GadgetRequirement.Uncategorized };
+        }
+
+        public GadgetFacetSet WithKinds(params string[] values)
+        {
+            Kinds = new List<string>(values ?? new string[0]);
+            return this;
+        }
+
+        public GadgetFacetSet WithInputs(params string[] values)
+        {
+            Inputs = new List<string>(values ?? new string[0]);
+            return this;
+        }
+
+        public GadgetFacetSet WithRequirements(params string[] values)
+        {
+            Requirements = new List<string>(values ?? new string[0]);
+            return this;
+        }
     }
 }

@@ -35,6 +35,17 @@ namespace ysonet.Generators
 
     public class TextFormattingRunPropertiesGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): XAML (ObjectDataProvider) fires
+        // Process.Start via XamlReader.Load. The key type ships in
+        // Microsoft.PowerShell.Editor (extra-assembly) and it uses WPF.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf,
+                    GadgetRequirement.NetFramework);
+        }
+
         private string xaml_url = "";
         private bool hasRootDCS = false;
 

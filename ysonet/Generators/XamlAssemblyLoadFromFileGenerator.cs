@@ -9,6 +9,19 @@ namespace ysonet.Generators
 {
     public class XamlAssemblyLoadFromFileGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): compiles the -c .cs file, then a
+        // XAML ResourceDictionary does Assembly.Load + instantiate (code execution).
+        // Uses WPF and framework built-in types. Variant 2
+        // (TextFormattingRunProperties) also needs Microsoft.PowerShell.Editor,
+        // declared as a variant override in Variants().
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
+                    GadgetRequirement.NetFramework);
+        }
+
         public override string AdditionalInfo()
         {
             return "Loads assembly using XAML. This gadget interprets the command parameter as the path to the .cs file that should be compiled as an exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.Windows.Forms.dll'";
@@ -29,6 +42,10 @@ namespace ysonet.Generators
                 // TextFormattingRunProperties, is not generic and serializes fine).
                 new GadgetVariant(1, "TypeConfuseDelegate wrapper (default)").Without(Formatters.SoapFormatter),
                 new GadgetVariant(2, "TextFormattingRunProperties wrapper")
+                    .WithFacets(new GadgetFacetSet()
+                        .WithKinds(PayloadKind.CodeExecution)
+                        .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf,
+                            GadgetRequirement.NetFramework))
             };
         }
 

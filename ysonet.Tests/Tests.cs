@@ -128,6 +128,39 @@ namespace ysonet.Tests
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
 
+            // ---- Category facets (metadata + discovery) ----
+            Run("Facet vocabulary is broad, unique, and labelled", FacetVocabularyIsBroadAndValid);
+            Run("Every gadget expands to normalized capability units", EveryGadgetExpandsToCapabilities);
+            Run("Default facets are honest (uncategorized + derived input)", DefaultFacetsAreHonest);
+            Run("Input derivation covers all CommandInputType values", InputDerivationCoversCommandInputTypes);
+            Run("Explicit inputs replace the derived input", ExplicitInputsReplaceDerivedInput);
+            Run("Uncategorized cannot mix with a real value; unknowns rejected", UncategorizedCannotMix);
+            Run("Variant facets inherit or fully override the gadget set", VariantFacetInheritanceAndOverride);
+            Run("Variant formatter exclusions reach capability units", VariantFormatterAndInputAreEffective);
+            Run("One capability must satisfy every axis (no cross-variant match)", OneCapabilityMustMatchAllAxes);
+            Run("Multiple values OR within an axis; axes AND across", MultipleValuesUnionAndAxesIntersection);
+            Run("Representative gadget facets are locked (audit table)", ExistingFacetAudit);
+            Run("Category query parses all axes case-insensitively", CategoryQueryParsesAllAxes);
+            Run("Category query rejects malformed values with guidance", CategoryQueryRejectsMalformedValues);
+            Run("Category query collapses duplicates", CategoryQueryCombinesSelections);
+            Run("Program.options collects repeated --category values", CategoryOptionParsesRepeated);
+            Run("Filtered gadget list is sorted machine-readable names", FilteredGadgetListIsMachineReadable);
+            Run("Unfiltered gadget list is unchanged by the overload", UnfilteredGadgetListIsUnchanged);
+            Run("Category search shows matching units and reports no matches", CategoryCommandShowsMatchingUnitsAndNoMatches);
+            Run("Category CLI dispatch: search, list, and mode rejection", CategoryCliDispatch);
+            Run("Help shows compact and detailed categories", HelpShowsCategories);
+
+            // ---- Interactive category filter ----
+            Run("Filter model: default all, union, intersection, counts", CategoryFilterModelBehaviors);
+            Run("Filter driver selects a value and persists it in the session", CategoryFilterDriverSelectsAndPersists);
+            Run("Filter driver Esc discards the axis draft", CategoryFilterEscDiscardsAxisDraft);
+            Run("Filter driver Clear all resets selections", CategoryFilterClearAll);
+            Run("Filter disables values impossible under other axes", CategoryFilterDisablesImpossibleValues);
+            Run("Gadget preview shows the category summary", ModuleViewShowsCategorySummary);
+            Run("Category flow generates the same payload and returns to the filter", CategoryFlowGeneratesSamePayload);
+            Run("Plugin flow has no category screen", PluginFlowHasNoCategoryScreen);
+            Run("Existing gadget flow reaches the picker with no extra input", ExistingGadgetFlowReachesPickerDirectly);
+
             // FULL tier (opt-in): the exhaustive combination suite. It is slower and
             // flashes many self-closing cmd windows / binds loopback sockets, so it
             // never runs on a normal Debug build. Enable it with the --full arg or the
@@ -792,7 +825,7 @@ namespace ysonet.Tests
         private static void WizardPluginPath()
         {
             var keys = new ScriptedKeyReader();
-            keys.Digit(2);                          // top -> plugin (index 1)
+            keys.Digit(3);                          // top -> plugin (now index 2, after the category item)
             keys.Type("ApplicationTrust").Enter();  // module picker
             keys.Type("command").Enter();           // open the command setting
             keys.TypeLine("calc.exe");              // set it
@@ -1690,7 +1723,7 @@ namespace ysonet.Tests
             AssertTrue(AnyFrame(gadget, "Command input:"), "the gadget info states what the command means");
 
             // On the plugin module list, the info panel lists the plugin's options.
-            var plugin = DriveFrames(k => k.Digit(2).Escape().Escape());
+            var plugin = DriveFrames(k => k.Digit(3).Escape().Escape());
             AssertTrue(AnyFrame(plugin, "- Info"), "the info panel header shows for the highlighted plugin");
             AssertTrue(AnyFrame(plugin, "Options:"), "the plugin info lists its options");
         }
@@ -1756,12 +1789,12 @@ namespace ysonet.Tests
         {
             AssertTrue(AnyFrame(DriveFrames(k => k.Escape()), "Build a gadget payload"), "top menu renders");
             AssertTrue(AnyFrame(DriveFrames(k => k.Enter().Enter().Escape().Escape().Escape()), "[ Generate and quit ]"), "gadget settings render");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(2).Up().Enter().Escape().Escape().Escape()), "ViewState Settings"), "plugin settings render");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(3).Type("Json").Enter().Enter().Escape()), "Gadgets with a formatter"), "search formatters renders");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(4).Escape().Escape()), "What kind of input"), "run-all-formatters renders");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(6).Enter().Escape()), "Pick 'gadget'"), "help renders");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(5).Enter().Escape()), "developed and maintained"), "credits render");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(7).Down().Escape().Escape()), "Pick a color theme"), "theme picker renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(3).Up().Enter().Escape().Escape().Escape()), "ViewState Settings"), "plugin settings render");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(4).Type("Json").Enter().Enter().Escape()), "Gadgets with a formatter"), "search formatters renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(5).Escape().Escape()), "What kind of input"), "run-all-formatters renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(7).Enter().Escape()), "Pick 'gadget'"), "help renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(6).Enter().Escape()), "developed and maintained"), "credits render");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(8).Down().Escape().Escape()), "Pick a color theme"), "theme picker renders");
         }
 
         private static void TextEditAppends()
@@ -1939,19 +1972,19 @@ namespace ysonet.Tests
             var gen = run(k => k.Enter().Type("ObjectDataProvider").Enter().Up().Up().Up().Up().Enter().Enter().Escape().Escape().Escape());
             show("GENERATE action output", gen, "Payload (", false);
 
-            var plugin = run(k => k.Digit(2).Up().Enter().Escape().Escape().Escape());
+            var plugin = run(k => k.Digit(3).Up().Enter().Escape().Escape().Escape());
             show("PLUGIN SETTINGS (ViewState)", plugin, "ViewState Settings", false);
 
-            var theme = run(k => k.Digit(7).Down().Down().Escape().Escape());
+            var theme = run(k => k.Digit(8).Down().Down().Escape().Escape());
             show("THEME PICKER (live preview)", theme, "Pick a color theme", false);
 
-            var search = run(k => k.Digit(3).Type("Json").Enter().Enter().Escape());
+            var search = run(k => k.Digit(4).Type("Json").Enter().Enter().Escape());
             show("SEARCH FORMATTERS", search, "Gadgets with a formatter", true);
 
-            var help = run(k => k.Digit(6).Enter().Escape());
+            var help = run(k => k.Digit(7).Enter().Escape());
             show("HELP", help, "Pick 'gadget'", false);
 
-            var credits = run(k => k.Digit(5).Enter().Escape());
+            var credits = run(k => k.Digit(6).Enter().Escape());
             show("CREDITS", credits, "developed and maintained", false);
         }
 
@@ -2016,7 +2049,7 @@ namespace ysonet.Tests
             // reject a shell command (they expect a file/URL/DLL). It must now run
             // to completion, skip those gracefully, and emit nothing to stdout.
             var keys = new ScriptedKeyReader();
-            keys.Digit(4);                     // top menu -> Run all formatters (index 3)
+            keys.Digit(5);                     // top menu -> Run all formatters (now index 4)
             keys.Enter();                      // input type -> Shell command (index 0)
             keys.Type("BinaryFormatter").Enter(); // formatter picker filter + pick
             keys.TypeLine("calc.exe");         // command
@@ -2042,7 +2075,7 @@ namespace ysonet.Tests
                 Directory.Delete(folder, true);
 
             var keys = new ScriptedKeyReader();
-            keys.Digit(4);                     // top -> Run all formatters
+            keys.Digit(5);                     // top -> Run all formatters (now index 4)
             keys.Enter();                      // input type -> Shell command (index 0)
             keys.Type("BinaryFormatter").Enter(); // formatter picker filter + pick
             keys.TypeLine("calc.exe");         // command
@@ -4463,6 +4496,580 @@ namespace ysonet.Tests
         {
             if (!object.Equals(expected, actual))
                 throw new Exception(msg + " (expected '" + expected + "', got '" + actual + "')");
+        }
+
+        // ---- Category facet tests ---------------------------------------------
+
+        private static void FacetVocabularyIsBroadAndValid()
+        {
+            foreach (var vocab in new[] { PayloadKind.All, PayloadInput.All, GadgetRequirement.All })
+            {
+                AssertTrue(vocab.Length >= 5, "an axis has a broad vocabulary");
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (string v in vocab)
+                {
+                    AssertTrue(!string.IsNullOrEmpty(v), "no empty vocabulary value");
+                    AssertTrue(seen.Add(v), "vocabulary value '" + v + "' is unique");
+                    AssertTrue(!string.IsNullOrEmpty(GadgetFacetReader.Label(v)), "value '" + v + "' has a label");
+                }
+                AssertTrue(seen.Contains("uncategorized"), "axis includes uncategorized");
+                AssertTrue(seen.Contains("other"), "axis includes other");
+            }
+            // The removed, over-narrow effect/target values must not have crept back.
+            foreach (string gone in new[] { "file-delete", "ntlm-smb", "dns", "working-directory-change", "target-location" })
+                foreach (var vocab in new[] { PayloadKind.All, PayloadInput.All, GadgetRequirement.All })
+                    AssertTrue(Array.IndexOf(vocab, gone) < 0, "removed value '" + gone + "' is absent");
+        }
+
+        private static void EveryGadgetExpandsToCapabilities()
+        {
+            var all = GadgetFacetReader.ExpandAll();
+            AssertTrue(all.Count > 25, "gadgets expand to many capability units");
+            AssertTrue(!all.Exists(c => string.Equals(c.GadgetName, "Generic", StringComparison.OrdinalIgnoreCase)),
+                "the Generic placeholder is excluded");
+
+            foreach (string name in CliListing.Gadgets())
+            {
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                int variantCount = g.Variants() == null ? 0 : g.Variants().Count;
+                int expectedUnits = variantCount == 0 ? 1 : variantCount;
+                var units = GadgetFacetReader.Expand(g);
+                AssertEqual(expectedUnits, units.Count, name + " expands to one unit per variant");
+                foreach (var c in units)
+                {
+                    AssertTrue(c.Kinds.Count > 0, name + " has a kind");
+                    AssertTrue(c.Inputs.Count > 0, name + " has an accepted input");
+                    AssertTrue(c.Requirements.Count > 0, name + " has requirements");
+                    AssertTrue(c.Formatters.Count > 0, name + " has formatter tokens");
+                }
+            }
+        }
+
+        private static void DefaultFacetsAreHonest()
+        {
+            var def = new GadgetFacetSet();
+            AssertSetEqual(def.Kinds, new[] { "uncategorized" }, "default kind is uncategorized");
+            AssertSetEqual(def.Requirements, new[] { "uncategorized" }, "default requirements are uncategorized");
+            AssertTrue(def.Inputs == null, "default inputs are null (derive from CommandInputType)");
+
+            var cap = GadgetFacetReader.BuildCapability("X", null, null, new GadgetFacetSet(),
+                CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" });
+            AssertSetEqual(cap.Kinds, new[] { "uncategorized" }, "default kind normalizes to uncategorized");
+            AssertSetEqual(cap.Inputs, new[] { PayloadInput.Command }, "shell command derives to command");
+        }
+
+        private static void InputDerivationCoversCommandInputTypes()
+        {
+            AssertEqual(PayloadInput.Command, GadgetFacetReader.DeriveInput(CommandInputType.ShellCommand), "shell->command");
+            AssertEqual(PayloadInput.SourceCodeFile, GadgetFacetReader.DeriveInput(CommandInputType.CsSourceFile), "cs->source-code-file");
+            AssertEqual(PayloadInput.AssemblyFile, GadgetFacetReader.DeriveInput(CommandInputType.DllPath), "dll->assembly-file");
+            AssertEqual(PayloadInput.RemoteUrl, GadgetFacetReader.DeriveInput(CommandInputType.Url), "url->remote-url");
+            AssertEqual(PayloadInput.LocalFile, GadgetFacetReader.DeriveInput(CommandInputType.FilePath), "file->local-file");
+            AssertEqual(PayloadInput.None, GadgetFacetReader.DeriveInput(CommandInputType.Ignored), "ignored->none");
+        }
+
+        private static void ExplicitInputsReplaceDerivedInput()
+        {
+            var set = new GadgetFacetSet().WithInputs(PayloadInput.LocalFile, PayloadInput.UncPath);
+            var cap = GadgetFacetReader.BuildCapability("X", null, null, set,
+                CommandInputType.FilePath, new List<string> { "Json.NET" });
+            AssertSetEqual(cap.Inputs, new[] { PayloadInput.LocalFile, PayloadInput.UncPath },
+                "explicit inputs win over the derived single value");
+        }
+
+        private static void UncategorizedCannotMix()
+        {
+            AssertThrows(() => GadgetFacetReader.BuildCapability("X", null, null,
+                new GadgetFacetSet().WithKinds(PayloadKind.Uncategorized, PayloadKind.CodeExecution),
+                CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" }),
+                "uncategorized mixed with a real kind is rejected");
+
+            AssertThrows(() => GadgetFacetReader.BuildCapability("X", null, null,
+                new GadgetFacetSet().WithRequirements("made-up-value"),
+                CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" }),
+                "an unknown requirement value is rejected");
+
+            AssertThrows(() => GadgetFacetReader.BuildCapability("X", null, null,
+                new GadgetFacetSet().WithInputs(PayloadInput.Uncategorized, PayloadInput.Command),
+                CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" }),
+                "uncategorized mixed with a real input is rejected");
+        }
+
+        private static void VariantFacetInheritanceAndOverride()
+        {
+            // Inheritance across a subclass: ActivitySurrogateSelectorFromFile inherits
+            // the parent's code-execution facets and derives source-code-file input.
+            var fromFile = FindCap("ActivitySurrogateSelectorFromFile", 1);
+            AssertTrue(fromFile != null, "subclass gadget expands");
+            AssertSetEqual(fromFile.Kinds, new[] { PayloadKind.CodeExecution }, "subclass inherits parent kind");
+            AssertSetEqual(fromFile.Inputs, new[] { PayloadInput.SourceCodeFile }, "subclass derives source-code-file");
+
+            // Within a gadget: variant 1 inherits, variant 2 overrides the requirements.
+            var v1 = FindCap("ActivitySurrogateDisableTypeCheck", 1);
+            var v2 = FindCap("ActivitySurrogateDisableTypeCheck", 2);
+            AssertTrue(v1 != null && v2 != null, "both variants expand");
+            AssertTrue(v1.Requirements.Contains(GadgetRequirement.BuiltIn), "variant 1 inherits built-in");
+            AssertTrue(!v1.Requirements.Contains(GadgetRequirement.ExtraAssembly), "variant 1 is not extra-assembly");
+            AssertTrue(v2.Requirements.Contains(GadgetRequirement.ExtraAssembly), "variant 2 override adds extra-assembly");
+        }
+
+        private static void VariantFormatterAndInputAreEffective()
+        {
+            // Variant 1 of XamlAssemblyLoadFromFile opts out of SoapFormatter; variant 2
+            // keeps it. The reader must apply the per-variant formatter exclusion.
+            var v1 = FindCap("XamlAssemblyLoadFromFile", 1);
+            var v2 = FindCap("XamlAssemblyLoadFromFile", 2);
+            AssertTrue(v1 != null && v2 != null, "both variants expand");
+            AssertTrue(!v1.Formatters.Contains("SoapFormatter"), "variant 1 excludes SoapFormatter");
+            AssertTrue(v2.Formatters.Contains("SoapFormatter"), "variant 2 keeps SoapFormatter");
+        }
+
+        private static void OneCapabilityMustMatchAllAxes()
+        {
+            // XamlImageInfo variant 1 = local-file + nested-deserialization; variant 2 =
+            // command + code-execution. No single unit is local-file AND code-execution,
+            // so the correlated query must NOT match, but each axis alone must.
+            var both = new GadgetCategoryQuery();
+            both.Add(CategoryAxis.Input, PayloadInput.LocalFile);
+            both.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            AssertTrue(!GadgetCategoryCommand.MatchingGadgetNames(both).Contains("XamlImageInfo"),
+                "no single unit is both local-file and code-execution");
+
+            var inputOnly = new GadgetCategoryQuery();
+            inputOnly.Add(CategoryAxis.Input, PayloadInput.LocalFile);
+            AssertTrue(GadgetCategoryCommand.MatchingGadgetNames(inputOnly).Contains("XamlImageInfo"),
+                "local-file alone matches XamlImageInfo variant 1");
+        }
+
+        private static void MultipleValuesUnionAndAxesIntersection()
+        {
+            var ce = new GadgetCategoryQuery(); ce.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            var net = new GadgetCategoryQuery(); net.Add(CategoryAxis.Kind, PayloadKind.Network);
+            var either = new GadgetCategoryQuery();
+            either.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            either.Add(CategoryAxis.Kind, PayloadKind.Network);
+
+            int nCe = CliListing.Gadgets(ce).Count;
+            int nNet = CliListing.Gadgets(net).Count;
+            int nEither = CliListing.Gadgets(either).Count;
+            AssertTrue(nCe > 0 && nNet > 0, "both single-value queries match something");
+            AssertTrue(nEither >= nCe && nEither >= nNet, "OR within an axis is a union");
+
+            var ceJson = new GadgetCategoryQuery();
+            ceJson.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            ceJson.Add(CategoryAxis.Formatter, "Json.NET");
+            int nCeJson = CliListing.Gadgets(ceJson).Count;
+            AssertTrue(nCeJson <= nCe, "adding a second axis (AND) can only narrow");
+        }
+
+        private static void ExistingFacetAudit()
+        {
+            // Lock representative units so a future edit that silently changes a
+            // gadget's broad category fails loudly.
+            AssertCap("TypeConfuseDelegate", null,
+                new[] { PayloadKind.CodeExecution },
+                new[] { PayloadInput.Command },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework });
+
+            AssertCap("WindowsClaimsIdentity", 1,
+                new[] { PayloadKind.NestedDeserialization },
+                new[] { PayloadInput.Command },
+                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.NetFramework });
+
+            AssertCap("ObjRef", null,
+                new[] { PayloadKind.Network },
+                new[] { PayloadInput.RemoteUrl },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework });
+
+            AssertCap("DataSetOldBehaviourFromFile", 1,
+                new[] { PayloadKind.CodeExecution },
+                new[] { PayloadInput.SourceCodeFile },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+
+            AssertCap("XamlImageInfo", 1,
+                new[] { PayloadKind.NestedDeserialization },
+                new[] { PayloadInput.LocalFile, PayloadInput.UncPath },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+
+            AssertCap("XamlImageInfo", 2,
+                new[] { PayloadKind.CodeExecution, PayloadKind.NestedDeserialization },
+                new[] { PayloadInput.Command },
+                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+        }
+
+        private static void CategoryQueryParsesAllAxes()
+        {
+            GadgetCategoryQuery q; string err;
+            bool ok = GadgetCategoryQuery.TryParse(
+                new[] { "KIND=Code-Execution", "formatter=json.net", "input=UNC-PATH", "Requirement=extra-assembly" },
+                out q, out err);
+            AssertTrue(ok, "valid axes parse: " + err);
+            AssertTrue(q.Kinds.Contains(PayloadKind.CodeExecution), "kind parsed case-insensitively");
+            AssertTrue(q.Formatters.Contains("Json.NET"), "formatter canonicalized to Json.NET");
+            AssertTrue(q.Inputs.Contains(PayloadInput.UncPath), "input parsed");
+            AssertTrue(q.Requirements.Contains(GadgetRequirement.ExtraAssembly), "requirement parsed");
+        }
+
+        private static void CategoryQueryRejectsMalformedValues()
+        {
+            GadgetCategoryQuery q; string err;
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "" }, out q, out err), "empty rejected");
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "kindcodeexec" }, out q, out err), "missing = rejected");
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "foo=bar" }, out q, out err), "unknown axis rejected");
+            AssertTrue(err.Contains("kind") && err.Contains("formatter"), "axis error lists valid axes");
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "kind=banana" }, out q, out err), "unknown kind rejected");
+            AssertTrue(err.Contains(PayloadKind.CodeExecution), "value error lists valid values");
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "formatter=NoSuchFmt" }, out q, out err), "unknown formatter rejected");
+        }
+
+        private static void CategoryQueryCombinesSelections()
+        {
+            GadgetCategoryQuery q; string err;
+            AssertTrue(GadgetCategoryQuery.TryParse(new[] { "kind=network", "kind=network" }, out q, out err), "parses");
+            AssertEqual(1, q.Kinds.Count, "duplicate values collapse to one");
+        }
+
+        private static void CategoryOptionParsesRepeated()
+        {
+            ysonet.Program.rawCategoryValues.Clear();
+            try
+            {
+                ysonet.Program.options.Parse(new[] { "--category=kind=network", "--category=formatter=Json.NET" });
+                AssertEqual(2, ysonet.Program.rawCategoryValues.Count, "two --category values collected");
+                AssertTrue(ysonet.Program.rawCategoryValues.Contains("kind=network"), "first value captured");
+            }
+            finally
+            {
+                ysonet.Program.rawCategoryValues.Clear();
+            }
+        }
+
+        private static void FilteredGadgetListIsMachineReadable()
+        {
+            GadgetCategoryQuery q; string err;
+            GadgetCategoryQuery.TryParse(new[] { "kind=code-execution" }, out q, out err);
+            var names = CliListing.Gadgets(q);
+            AssertTrue(names.Count > 0, "filtered list is non-empty");
+            var sorted = new List<string>(names);
+            sorted.Sort(StringComparer.OrdinalIgnoreCase);
+            AssertTrue(names.Count == new HashSet<string>(names).Count, "names are unique");
+            for (int i = 0; i < names.Count; i++)
+                AssertEqual(sorted[i], names[i], "names are sorted");
+            AssertTrue(names.Contains("TypeConfuseDelegate"), "a code-execution gadget is listed");
+            AssertTrue(!names.Contains("WindowsPrincipal"), "a pure nested-deserialization gadget is excluded");
+            AssertTrue(!names.Contains("Generic"), "Generic is excluded");
+        }
+
+        private static void UnfilteredGadgetListIsUnchanged()
+        {
+            var baseline = CliListing.Gadgets();
+            var viaNull = CliListing.Gadgets((GadgetCategoryQuery)null);
+            var viaEmpty = CliListing.Gadgets(new GadgetCategoryQuery());
+            AssertEqual(baseline.Count, viaNull.Count, "null query returns the full list");
+            AssertEqual(baseline.Count, viaEmpty.Count, "empty query returns the full list");
+            for (int i = 0; i < baseline.Count; i++)
+            {
+                AssertEqual(baseline[i], viaNull[i], "null query order matches");
+                AssertEqual(baseline[i], viaEmpty[i], "empty query order matches");
+            }
+        }
+
+        private static void CategoryCommandShowsMatchingUnitsAndNoMatches()
+        {
+            // Matching search: ObjRef is the network gadget; its detailed unit shows.
+            var netQ = new GadgetCategoryQuery();
+            netQ.Add(CategoryAxis.Kind, PayloadKind.Network);
+            string outText, errText;
+            int code = CaptureConsole(() => GadgetCategoryCommand.RunHumanSearch(netQ), out outText, out errText);
+            AssertEqual(0, code, "a matching search exits 0");
+            AssertTrue(outText.Contains("(*) ObjRef"), "matching gadget printed to stdout");
+            AssertTrue(outText.Contains("Kind: Network"), "matching unit is detailed");
+
+            // No-match search: a valid but unused vocabulary value.
+            var dosQ = new GadgetCategoryQuery();
+            dosQ.Add(CategoryAxis.Kind, PayloadKind.DenialOfService);
+            code = CaptureConsole(() => GadgetCategoryCommand.RunHumanSearch(dosQ), out outText, out errText);
+            AssertEqual(1, code, "a no-match search exits 1");
+            AssertTrue(string.IsNullOrEmpty(outText.Trim()), "no-match leaves stdout empty");
+            AssertTrue(errText.Contains("No gadgets match"), "no-match explanation on stderr");
+        }
+
+        private static void CategoryCliDispatch()
+        {
+            int exit; string so, se;
+            if (!TryRunYsonet("--category=kind=code-execution", out exit, out so, out se))
+            {
+                Console.Error.WriteLine("  [skip] CategoryCliDispatch: ysonet.exe not found beside the test exe");
+                return;
+            }
+            AssertEqual(0, exit, "standalone search exits 0");
+            AssertTrue(so.Contains("(*) TypeConfuseDelegate"), "standalone search prints matches to stdout");
+
+            TryRunYsonet("--category=kind=denial-of-service", out exit, out so, out se);
+            AssertEqual(1, exit, "no-match search exits 1");
+
+            TryRunYsonet("--category=bad=x", out exit, out so, out se);
+            AssertEqual(1, exit, "malformed axis exits 1");
+            AssertTrue(se.Contains("kind") && se.Contains("formatter"), "malformed axis error lists valid axes");
+
+            TryRunYsonet("-g ObjectDataProvider -f Json.NET -c calc.exe --category=kind=network", out exit, out so, out se);
+            AssertEqual(1, exit, "category with payload generation is rejected");
+            AssertTrue(se.Contains("discovery option"), "rejection explains the conflict");
+
+            TryRunYsonet("--list gadgets --category=input=unc-path", out exit, out so, out se);
+            AssertEqual(0, exit, "list gadgets with a category exits 0");
+            AssertTrue(!so.Contains("(*)") && !so.Contains("Categories"), "filtered list prints names only");
+            AssertTrue(so.Contains("XamlImageInfo"), "filtered list includes a unc-path gadget");
+
+            TryRunYsonet("--list plugins --category=kind=network", out exit, out so, out se);
+            AssertEqual(1, exit, "only the gadgets listing accepts a category query");
+        }
+
+        private static void HelpShowsCategories()
+        {
+            int exit; string so, se;
+            if (!TryRunYsonet("--help", out exit, out so, out se))
+            {
+                Console.Error.WriteLine("  [skip] HelpShowsCategories: ysonet.exe not found beside the test exe");
+                return;
+            }
+            AssertTrue(so.Contains("Categories"), "normal help shows compact categories");
+
+            TryRunYsonet("-g XamlImageInfo --fullhelp", out exit, out so, out se);
+            AssertEqual(0, exit, "gadget-specific full help exits 0");
+            AssertTrue(so.Contains("Categories [variant 1]:"), "specific help shows per-variant categories");
+            AssertTrue(so.Contains("Kind:") && so.Contains("Accepted input:"), "specific help details all axes");
+        }
+
+        // ---- interactive category filter tests --------------------------------
+
+        private static void CategoryFilterModelBehaviors()
+        {
+            var model = CategoryFilterModel.Load(new GadgetCategoryQuery());
+            AssertEqual(CliListing.Gadgets().Count, model.MatchingNames().Count, "no filter shows all gadgets");
+            AssertTrue(model.CountForValue(CategoryAxis.Kind, PayloadKind.CodeExecution) > 0, "code-execution has gadgets");
+
+            var ce = new GadgetCategoryQuery(); ce.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            var both = ce.Clone(); both.Add(CategoryAxis.Kind, PayloadKind.Network);
+            AssertTrue(model.MatchingNames(both).Count >= model.MatchingNames(ce).Count, "union within an axis is >= single");
+
+            var ceJson = ce.Clone(); ceJson.Add(CategoryAxis.Formatter, "Json.NET");
+            AssertTrue(model.MatchingNames(ceJson).Count <= model.MatchingNames(ce).Count, "a second axis (AND) narrows");
+        }
+
+        private static void CategoryFilterDriverSelectsAndPersists()
+        {
+            var applied = new GadgetCategoryQuery();
+            var model = CategoryFilterModel.Load(applied);
+            var kindValues = model.ValuesForAxis(CategoryAxis.Kind);
+            AssertTrue(kindValues.Count > 0, "kind axis has values");
+            string first = kindValues[0];
+
+            var keys = new ScriptedKeyReader();
+            keys.Down();     // focus Show(0) -> Payload kind(1)
+            keys.Enter();    // open the kind checklist (highlight on the first value)
+            keys.Type(" ");  // Space toggles the first value
+            keys.Enter();    // apply -> back to the main screen
+            keys.Home();     // focus -> Show
+            keys.Enter();    // Show -> return the result
+
+            var filter = new CategoryFilter(keys, model);
+            CategoryFilterResult result = WithSwallowedError(() => filter.Run());
+            AssertTrue(result != null, "Show returns a result");
+            var exp = new GadgetCategoryQuery(); exp.Add(CategoryAxis.Kind, first);
+            AssertEqual(model.MatchingNames(exp).Count, result.Names.Count, "result matches the model for that value");
+            AssertTrue(applied.Kinds.Contains(first), "the selection persisted into the session query");
+        }
+
+        private static void CategoryFilterEscDiscardsAxisDraft()
+        {
+            var applied = new GadgetCategoryQuery();
+            var model = CategoryFilterModel.Load(applied);
+            var keys = new ScriptedKeyReader();
+            keys.Down().Enter();  // open the kind checklist
+            keys.Type(" ");       // toggle the first value into the draft
+            keys.Escape();        // discard the draft -> main
+            keys.Escape();        // Esc at main -> return null
+            var filter = new CategoryFilter(keys, model);
+            var result = WithSwallowedError(() => filter.Run());
+            AssertTrue(result == null, "Esc at the main screen returns null");
+            AssertEqual(0, applied.Kinds.Count, "Esc discarded the axis draft");
+        }
+
+        private static void CategoryFilterClearAll()
+        {
+            var applied = new GadgetCategoryQuery();
+            applied.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            var model = CategoryFilterModel.Load(applied);
+            var keys = new ScriptedKeyReader();
+            keys.Down().Down().Down().Down().Down(); // focus -> [ Clear all ] (row 5)
+            keys.Enter();                            // clear all
+            keys.Escape();                           // exit
+            var filter = new CategoryFilter(keys, model);
+            WithSwallowedError(() => filter.Run());
+            AssertEqual(0, applied.Kinds.Count, "Clear all emptied the selections");
+        }
+
+        private static void CategoryFilterDisablesImpossibleValues()
+        {
+            var applied = new GadgetCategoryQuery();
+            applied.Add(CategoryAxis.Kind, PayloadKind.Network);
+            var model = CategoryFilterModel.Load(applied);
+            AssertEqual(0, model.CountForValue(CategoryAxis.Requirement, GadgetRequirement.ExtraAssembly),
+                "no network gadget needs an extra assembly");
+
+            var reqValues = model.ValuesForAxis(CategoryAxis.Requirement);
+            int idx = reqValues.IndexOf(GadgetRequirement.ExtraAssembly);
+            AssertTrue(idx >= 0, "extra-assembly is a catalog value");
+
+            var keys = new ScriptedKeyReader();
+            keys.Down().Down().Down().Down();  // focus -> Requirements (row 4)
+            keys.Enter();                      // open the checklist
+            for (int i = 0; i < idx; i++) keys.Down();
+            keys.Type(" ");                    // Space on a disabled value: no-op
+            keys.Enter();                      // apply (draft is still empty)
+            keys.Escape();                     // exit
+            var filter = new CategoryFilter(keys, model);
+            WithSwallowedError(() => filter.Run());
+            AssertEqual(0, applied.Requirements.Count, "an impossible value cannot be selected");
+        }
+
+        private static void ModuleViewShowsCategorySummary()
+        {
+            ModuleView v = ModuleView.FromGadget("XamlImageInfo");
+            AssertTrue(v != null, "gadget view loads");
+            AssertTrue(v.PreviewText().Contains("Categories"), "the gadget preview shows a category summary");
+        }
+
+        private static void CategoryFlowGeneratesSamePayload()
+        {
+            var kindValues = CategoryFilterModel.Load(new GadgetCategoryQuery()).ValuesForAxis(CategoryAxis.Kind);
+            int ceIdx = kindValues.IndexOf(PayloadKind.CodeExecution);
+            AssertTrue(ceIdx >= 0, "code-execution is a catalog value");
+
+            var keys = new ScriptedKeyReader();
+            keys.Digit(2);                            // top -> Find a gadget by category (index 1)
+            keys.Down();                              // main focus Show -> Payload kind
+            keys.Enter();                             // open the kind checklist
+            for (int i = 0; i < ceIdx; i++) keys.Down();
+            keys.Type(" ");                           // select code-execution
+            keys.Enter();                             // apply
+            keys.Home().Enter();                      // Show -> open the filtered editor
+            keys.Type("ObjectDataProvider").Enter();  // module picker
+            keys.Type("formatter").Enter();           // open the formatter setting
+            keys.Digit(2);                            // Json.NET
+            keys.Type("Generate").Enter();            // generate
+            keys.Escape();                            // leave the form
+            keys.Escape();                            // leave the module list -> back to the filter
+            keys.Escape();                            // Esc at the filter -> top menu
+            keys.Escape();                            // quit
+
+            string stderr;
+            byte[] got = DriveWizard(keys, out stderr);
+            byte[] expected = GenerateOdpJson("calc.exe");
+            AssertTrue(got.Length > 0, "category flow produced a payload");
+            AssertTrue(BytesEqual(got, expected), "filtered payload equals the core payload");
+            AssertTrue(CountOccurrences(stderr, "Filter gadgets (optional)") >= 2,
+                "the editor Esc returned to the filter (shown at least twice)");
+        }
+
+        private static void PluginFlowHasNoCategoryScreen()
+        {
+            var keys = new ScriptedKeyReader();
+            keys.Digit(3);   // top -> Build a plugin payload (index 2)
+            keys.Escape();   // module list -> top
+            keys.Escape();   // quit
+            string stderr;
+            DriveWizard(keys, out stderr);
+            AssertTrue(stderr.Contains("Pick a plugin"), "plugin flow opens its picker directly");
+            AssertTrue(!stderr.Contains("Filter gadgets (optional)"), "plugin flow shows no category filter");
+        }
+
+        private static void ExistingGadgetFlowReachesPickerDirectly()
+        {
+            var keys = new ScriptedKeyReader();
+            keys.Enter();    // top -> Build a gadget payload (index 0)
+            keys.Escape();   // module list -> top
+            keys.Escape();   // quit
+            string stderr;
+            DriveWizard(keys, out stderr);
+            AssertTrue(stderr.Contains("Pick a gadget"), "the build path opens the gadget picker directly");
+            AssertTrue(!stderr.Contains("Filter gadgets (optional)"), "the direct build path shows no filter");
+        }
+
+        // ---- category test helpers --------------------------------------------
+
+        private static GadgetCapability FindCap(string gadget, int? variant)
+        {
+            foreach (var c in GadgetFacetReader.ExpandAll())
+                if (string.Equals(c.GadgetName, gadget, StringComparison.OrdinalIgnoreCase)
+                    && c.VariantNumber == variant)
+                    return c;
+            return null;
+        }
+
+        private static void AssertCap(string gadget, int? variant, string[] kinds, string[] inputs, string[] requirements)
+        {
+            var c = FindCap(gadget, variant);
+            AssertTrue(c != null, gadget + (variant.HasValue ? (" variant " + variant) : "") + " expands");
+            AssertSetEqual(c.Kinds, kinds, gadget + " kinds");
+            AssertSetEqual(c.Inputs, inputs, gadget + " inputs");
+            AssertSetEqual(c.Requirements, requirements, gadget + " requirements");
+        }
+
+        private static void AssertSetEqual(List<string> actual, string[] expected, string msg)
+        {
+            var a = new HashSet<string>(actual ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            var e = new HashSet<string>(expected, StringComparer.OrdinalIgnoreCase);
+            AssertTrue(a.SetEquals(e), msg + " (expected [" + string.Join(",", expected)
+                + "], got [" + string.Join(",", (actual ?? new List<string>()).ToArray()) + "])");
+        }
+
+        private static void AssertThrows(Action a, string msg)
+        {
+            bool threw = false;
+            try { a(); } catch { threw = true; }
+            AssertTrue(threw, msg);
+        }
+
+        private static int CaptureConsole(Func<int> action, out string outText, out string errText)
+        {
+            TextWriter prevOut = Console.Out, prevErr = Console.Error;
+            var so = new StringWriter();
+            var se = new StringWriter();
+            Console.SetOut(so);
+            Console.SetError(se);
+            try { return action(); }
+            finally
+            {
+                Console.SetOut(prevOut);
+                Console.SetError(prevErr);
+                outText = so.ToString();
+                errText = se.ToString();
+            }
+        }
+
+        // Run ysonet.exe (built beside the test exe) with the given argument string.
+        // Returns false if the exe is not found, so the caller can skip cleanly.
+        private static bool TryRunYsonet(string args, out int exit, out string outText, out string errText)
+        {
+            exit = 0; outText = ""; errText = "";
+            string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
+            if (!File.Exists(exe))
+                return false;
+            var psi = new System.Diagnostics.ProcessStartInfo(exe, args);
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            psi.RedirectStandardOutput = true;
+            psi.RedirectStandardError = true;
+            using (var proc = System.Diagnostics.Process.Start(psi))
+            {
+                outText = proc.StandardOutput.ReadToEnd();
+                errText = proc.StandardError.ReadToEnd();
+                if (!proc.WaitForExit(20000)) { try { proc.Kill(); } catch { } }
+                try { exit = proc.ExitCode; } catch { exit = -999; }
+            }
+            return true;
         }
     }
 

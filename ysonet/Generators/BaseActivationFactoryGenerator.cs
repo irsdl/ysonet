@@ -6,6 +6,18 @@ namespace ysonet.Generators
 {
     public class BaseActivationFactoryGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): loads a native DLL via
+        // LoadLibraryExW (code execution). Accepts a DLL path, including a remote UNC
+        // path. Uses WinRT.BaseActivationFactory (PresentationFramework/WPF) on modern
+        // .NET.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithInputs(PayloadInput.AssemblyFile, PayloadInput.UncPath)
+                .WithRequirements(GadgetRequirement.Wpf, GadgetRequirement.ModernDotNet);
+        }
+
         // BaseActivationFactory
         // Gadget for .NET 5/6/7 with WPF enabled or Microsoft.WindowsDesktop.App\PresentationFramework.dll available
         // BaseActivationFactory constructor leads to kernel32!LoadLibraryExW call, one can load remote native DLL (C/C++)

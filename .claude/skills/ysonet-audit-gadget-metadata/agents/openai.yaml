@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit ysonet Gadget Metadata"
+  short_description: "Find and fix inconsistent gadget metadata"
+  default_prompt: "Use $ysonet-audit-gadget-metadata to audit gadget categories, variants, help, and documentation."

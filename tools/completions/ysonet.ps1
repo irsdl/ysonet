@@ -45,6 +45,7 @@ $script:YsonetOptions = @(
     @{ Names = @('--raf', '--runallformatters');          Kind = 'none'      }
     @{ Names = @('--sf', '--searchformatter');            Kind = 'formatter' }
     @{ Names = @('--list');                               Kind = 'listcat'   }
+    @{ Names = @('--category');                           Kind = 'text'      }
     @{ Names = @('--debugmode');                          Kind = 'none'      }
     @{ Names = @('-h', '--help');                         Kind = 'none'      }
     @{ Names = @('--fullhelp');                           Kind = 'none'      }

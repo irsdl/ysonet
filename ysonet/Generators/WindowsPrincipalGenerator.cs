@@ -9,6 +9,15 @@ namespace ysonet.Generators
 {
     public class WindowsPrincipalGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): second-order BinaryFormatter sink
+        // via WindowsPrincipal/WindowsIdentity (mscorlib, built-in).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         // A double "Fook Sao" from BinaryFormatter constructor/callback to BinaryFormatter
         // Useful for Json.NET since it invokes ISerializable callbacks during deserialization
 

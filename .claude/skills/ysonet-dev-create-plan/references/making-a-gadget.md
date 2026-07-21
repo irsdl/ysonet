@@ -47,6 +47,14 @@ CLI/sweep paths, and the interactive editor validates the same rule at generate.
 
 ## Other rules
 - Labels: use the `GadgetTags.*` constants.
+- Categories: when the facet API is present, use
+  `$ysonet-categorize-gadget` to classify the gadget and each variant. Multiple
+  values are allowed; keep an unproven axis as `uncategorized` instead of
+  guessing.
+- Consistency: after adding or changing facet metadata, use
+  `$ysonet-audit-gadget-metadata` to check code, variant, help, documentation, and
+  test agreement. It fixes clear issues when authorized and asks only when the
+  evidence leaves a material ambiguity.
 - If `-c` is not a shell command, override `CommandInput()` (file, DLL, URL, or
   ignored).
 - A bridged gadget adds `GadgetTags.Bridged`, overrides

@@ -8,6 +8,17 @@ namespace ysonet.Generators
 {
     public class GetterSettingsPropertyValueGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): a WinForms getter chain reaches a
+        // BinaryFormatter sink (SettingsPropertyValue). Framework built-in types. WPF
+        // is only needed on the Xaml formatter path, not the primary chain, so it is
+        // not claimed here. All variants share this capability.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         // SettingsPropertyValue + Getter call gadget
         // SettingsPropertyValue.get_PropertyValue leads to the BinaryFormatter.Deserialize
 

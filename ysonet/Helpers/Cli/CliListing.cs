@@ -2,7 +2,6 @@ using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using ysonet.Generators;
 using ysonet.Plugins;
 
@@ -40,6 +39,17 @@ namespace ysonet.Helpers
                 .Where(n => !string.Equals(n, GenericName, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+        }
+
+        // Gadget names that match a category query, sorted and unique. An empty (or
+        // null) query returns the same set as the parameterless Gadgets(), so
+        // `--list gadgets` without a filter is byte-for-byte unchanged. The Generic
+        // placeholder is excluded by the reader.
+        public static List<string> Gadgets(GadgetCategoryQuery query)
+        {
+            if (query == null || query.IsEmpty)
+                return Gadgets();
+            return GadgetCategoryCommand.MatchingGadgetNames(query);
         }
 
         // All plugin names a user can pass to -p.
@@ -133,13 +143,11 @@ namespace ysonet.Helpers
         }
 
         // Keep only the leading formatter token, dropping " (2)", " < 5.0.0" and
-        // similar notes. Mirrors the split Program.SearchFormatters uses. The
-        // character class keeps word chars plus . _ - so "Json.NET" stays intact.
+        // similar notes. Delegates to GadgetFacetReader so the CLI listing and the
+        // category search share one cleaner and can never drift apart.
         private static string CleanFormatter(string formatter)
         {
-            if (string.IsNullOrEmpty(formatter))
-                return "";
-            return Regex.Split(formatter, @"[^\w$_\-.]")[0];
+            return GadgetFacetReader.CleanFormatter(formatter);
         }
     }
 }

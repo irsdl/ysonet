@@ -7,6 +7,17 @@ namespace ysonet.Generators
 {
     public class GetterCompilerResultsGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): loads an executing assembly via a
+        // WinForms getter chain (CompilerResults). Accepts a DLL path, local on .NET
+        // Framework or a remote UNC path on modern .NET. All variants share this.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithInputs(PayloadInput.AssemblyFile, PayloadInput.UncPath)
+                .WithRequirements(GadgetRequirement.NetFramework, GadgetRequirement.ModernDotNet);
+        }
+
         // CompilerResults + Getter call gadget
         // CompilerResults.get_CompiledAssembly leads to the DLL Load: remote DLL loading for .NET 5/6/7 and local DLL loading for .NET Framework
         // .NET 5/6/7 requires WPF enabled, as getter-call gadgets exist in WPF assemblies

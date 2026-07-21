@@ -15,6 +15,12 @@ namespace ysonet.Interactive
     {
         public string LastShellCommand = "calc.exe";
 
+        // The category filter selections, kept for the whole wizard session so
+        // re-entering "Find a gadget by category" remembers the last filter until the
+        // user clears it. Session only; never persisted.
+        public readonly ysonet.Helpers.GadgetCategoryQuery CategorySelections =
+            new ysonet.Helpers.GadgetCategoryQuery();
+
         // Remembered setting values, keyed by setting label (case-insensitive), so a
         // value the user changed in one module pre-fills the same-named setting in the
         // next. Session only and in memory: never written to disk, because shared
@@ -85,6 +91,11 @@ namespace ysonet.Interactive
         private List<PluginMode> _modes;
         private EditableField _modeField;
 
+        // Read-only match context: when the editor was opened from the category
+        // discovery flow, this is the query the gadgets were filtered by, so the
+        // module preview can show why each gadget matched. Null on the normal path.
+        private readonly GadgetCategoryQuery _matchQuery;
+
         public ModuleEditor(IKeyReader keys, Stream output, bool isGadget, List<string> moduleNames, WizardSession session)
         {
             _keys = keys ?? new ConsoleKeyReader();
@@ -94,6 +105,15 @@ namespace ysonet.Interactive
             _session = session ?? new WizardSession();
             _menu = new Menu(_keys);
             _picker = new Picker(_keys);
+        }
+
+        // Overload used by the category discovery flow: same editor, plus a read-only
+        // query so the preview can show why each filtered gadget matched.
+        public ModuleEditor(IKeyReader keys, Stream output, bool isGadget, List<string> moduleNames,
+            WizardSession session, GadgetCategoryQuery matchQuery)
+            : this(keys, output, isGadget, moduleNames, session)
+        {
+            _matchQuery = matchQuery;
         }
 
         // Forces the single-panel presentation regardless of the console. Set by the
@@ -1240,7 +1260,24 @@ namespace ysonet.Interactive
         private string PreviewModule(string name)
         {
             ModuleView v = _isGadget ? ModuleView.FromGadget(name) : ModuleView.FromPlugin(name);
-            return v == null ? "" : v.PreviewText();
+            if (v == null)
+                return "";
+            string text = v.PreviewText();
+
+            // On the category discovery path, append the units that matched the filter,
+            // so the preview shows why this gadget is in the list.
+            if (_isGadget && _matchQuery != null && !_matchQuery.IsEmpty)
+            {
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                if (g != null)
+                {
+                    var matched = GadgetCategoryCommand.DetailedLines(g, "  ", _matchQuery);
+                    if (matched.Count > 0)
+                        text += "\r\n  Matched your filter (" + _matchQuery.Describe() + "):\r\n"
+                            + string.Join("\r\n", matched.ToArray());
+                }
+            }
+            return text;
         }
 
         // Read a line via the key reader so Esc cancels the edit (returns null).

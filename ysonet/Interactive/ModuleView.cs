@@ -91,6 +91,12 @@ namespace ysonet.Interactive
                     lines.Add("  Labels: " + string.Join(", ", Labels.ToArray()));
                 if (!string.IsNullOrEmpty(BridgedFormatter))
                     lines.Add("  Bridge formatter: " + BridgedFormatter);
+
+                // Broad category summary (one compact line per capability unit).
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(Name);
+                if (g != null)
+                    foreach (string cl in GadgetCategoryCommand.CompactLines(g, "  "))
+                        lines.Add(cl);
             }
 
             if (OptionFields != null && OptionFields.Count > 0)

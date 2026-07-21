@@ -20,6 +20,18 @@ namespace ysonet.Generators
 
         private int variant_number = 1; // Default
 
+        // Discovery facets (category search only). The two variants differ, so each
+        // declares a full override in Variants(): variant 1 reads a XAML file (local
+        // or UNC) and is GAC/built-in; variant 2 delivers XAML directly to run a
+        // command and needs Microsoft.Web.Deployment.dll.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
+                    GadgetRequirement.NetFramework);
+        }
+
         public override List<string> SupportedFormatters()
         {
             return new List<string> { "Json.NET" }; // MessagePack may work too, but it may have issues with the XamlImageInfo constructor (to be verified)
@@ -44,8 +56,17 @@ namespace ysonet.Generators
             // the per-variant input to label the prompt correctly.
             return new List<GadgetVariant>
             {
-                new GadgetVariant(1, "LazyFileStream - reads XAML from a file path (default, GAC)", CommandInputType.FilePath),
+                new GadgetVariant(1, "LazyFileStream - reads XAML from a file path (default, GAC)", CommandInputType.FilePath)
+                    .WithFacets(new GadgetFacetSet()
+                        .WithKinds(PayloadKind.NestedDeserialization)
+                        .WithInputs(PayloadInput.LocalFile, PayloadInput.UncPath)
+                        .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
+                            GadgetRequirement.NetFramework)),
                 new GadgetVariant(2, "ReadOnlyStreamFromStrings - takes a shell command (non-GAC)", CommandInputType.ShellCommand)
+                    .WithFacets(new GadgetFacetSet()
+                        .WithKinds(PayloadKind.CodeExecution, PayloadKind.NestedDeserialization)
+                        .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf,
+                            GadgetRequirement.NetFramework))
             };
         }
 

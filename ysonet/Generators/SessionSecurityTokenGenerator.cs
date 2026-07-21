@@ -11,6 +11,15 @@ namespace ysonet.Generators
 {
     public class SessionSecurityTokenGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): carries a BinaryFormatter payload
+        // in SessionSecurityToken (System.IdentityModel, built-in).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         // Although it looks similar to WindowsIdentityGenerator but "actor" does not work in this context 
 
         public override List<string> SupportedFormatters()

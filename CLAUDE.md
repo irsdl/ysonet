@@ -50,6 +50,17 @@ This project intentionally uses outdated libraries to demonstrate deserializatio
 - Outdated library used inside a gadget (to show the issue): not a security bug. Leave it as is.
 - Outdated library used in the tool's own normal functionality (not part of a gadget payload): can and should be upgraded. Any upgrade must follow the Dependency freshness policy below.
 
+## Gadget categories (facets)
+
+Every gadget declares broad discovery metadata via `Facets()` (payload kind, accepted input, requirements; the formatter axis comes from `SupportedFormatters()`). This powers the `--category` search and the interactive "Find a gadget by category" flow only; it never affects generation. When you add or change a gadget:
+
+- Use the broad vocabulary in `Generators/Base/IGenerator.cs` (`PayloadKind`, `PayloadInput`, `GadgetRequirement`). Do not invent a narrow value for one CVE, sink, or primitive.
+- Derive accepted input from `CommandInput()` where possible; declare `WithInputs(...)` only when the real accepted forms are broader or different (e.g. local-file plus unc-path).
+- Declare a per-variant difference with `GadgetVariant.WithFacets(...)`; a null override inherits the gadget set.
+- Use `uncategorized` for an axis the code, tests, and help do not prove; use `other` only for a known result that fits no broad family. Never mix `uncategorized` with a real value on the same axis.
+- Keep exact behavior, assembly names, and versions in `AdditionalInfo()`/`Labels()`, not in a facet value.
+- Run the `ysonet-audit-gadget-metadata` skill (and `ysonet-categorize-gadget` for a new gadget) after changing metadata. The metadata tests in `ysonet.Tests` lock the vocabulary, the per-gadget expansion, and a representative audit table.
+
 ## Dependency freshness policy
 
 Applies to everything we pull in and update: NuGet packages used in the tool's own functionality (not gadget payloads) and GitHub Actions in `.github/workflows/`. This is a supply-chain safety rule.
