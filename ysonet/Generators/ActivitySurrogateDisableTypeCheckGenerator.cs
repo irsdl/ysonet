@@ -6,6 +6,19 @@ namespace ysonet.Generators
 {
     public class ActivitySurrogateDisableTypeCheckGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): does not run a user command; it
+        // flips a config flag to disable ActivitySurrogateSelector's type check. That
+        // known result fits no broad family, so kind is "other". Uses WPF and
+        // framework types. Variant 2 (TextFormattingRunProperties) additionally needs
+        // Microsoft.PowerShell.Editor (declared as a variant override below).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.Other)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
+                    GadgetRequirement.NetFramework);
+        }
+
         public override string AdditionalInfo()
         {
             return "Disables 4.8+ type protections for ActivitySurrogateSelector, command is ignored";
@@ -26,6 +39,10 @@ namespace ysonet.Generators
                 // TextFormattingRunProperties, is not generic and serializes fine).
                 new GadgetVariant(1, "TypeConfuseDelegate wrapper (default)").Without(Formatters.SoapFormatter),
                 new GadgetVariant(2, "TextFormattingRunProperties wrapper")
+                    .WithFacets(new GadgetFacetSet()
+                        .WithKinds(PayloadKind.Other)
+                        .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf,
+                            GadgetRequirement.NetFramework))
             };
         }
 

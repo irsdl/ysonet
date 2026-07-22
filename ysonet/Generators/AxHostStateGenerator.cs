@@ -9,6 +9,15 @@ namespace ysonet.Generators
 {
     public class AxHostStateGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): wraps a BinaryFormatter payload
+        // in AxHost.State; the wrapper type is framework built-in.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         public override string Finders()
         {
             return "Soroush Dalili";

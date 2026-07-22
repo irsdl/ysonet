@@ -10,6 +10,15 @@ namespace ysonet.Generators
 {
     public class TypeConfuseDelegateGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): runs a command directly via a
+        // delegate/type confusion in a SortedSet (mscorlib/System, built-in).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         public override string Finders()
         {
             return "James Forshaw";

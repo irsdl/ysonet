@@ -242,6 +242,7 @@
     <Compile Include="Interactive\Menu.cs" />
     <Compile Include="Interactive\Picker.cs" />
     <Compile Include="Interactive\OptionField.cs" />
+    <Compile Include="Interactive\CategoryFilter.cs" />
     <Compile Include="Interactive\ModuleView.cs" />
     <Compile Include="Interactive\CommandEcho.cs" />
     <Compile Include="Interactive\EditableField.cs" />
@@ -258,12 +259,15 @@
     <Compile Include="Helpers\Assemblies\AssemblyResolver.cs" />
     <Compile Include="Helpers\Cli\CliListing.cs" />
     <Compile Include="Helpers\Cli\CompletionCommand.cs" />
+    <Compile Include="Helpers\Cli\GadgetCategoryCommand.cs" />
     <Compile Include="Helpers\Cli\HelpText.cs" />
     <Compile Include="Helpers\Cli\UpdateChecker.cs" />
     <Compile Include="Helpers\Core\PayloadRunner.cs" />
     <Compile Include="Helpers\Crypto\MachineKey.cs" />
     <Compile Include="Helpers\Crypto\MachineKeyDataProtector.cs" />
     <Compile Include="Helpers\Crypto\Sp800_108.cs" />
+    <Compile Include="Helpers\Discovery\GadgetCategoryQuery.cs" />
+    <Compile Include="Helpers\Discovery\GadgetFacetReader.cs" />
     <Compile Include="Helpers\Discovery\GadgetRegistry.cs" />
     <Compile Include="Helpers\Discovery\PluginRegistry.cs" />
     <Compile Include="Helpers\Input\CommandArgSplitter.cs" />

@@ -5,7 +5,7 @@
 > structure. Written for contributors and AI agents alike.
 >
 > This document can lag the code between updates; the source is always authoritative.
-> Last reviewed for v2026.7.5.
+> Last reviewed for v2026.7.8 (SharePoint CVE-2026-50522 added as a first-class deflate-only WS-Federation mode; session-token handler secret requirements scoped to their own transforms).
 
 ---
 
@@ -98,7 +98,7 @@ ysonet/
     Base/IGenerator.cs           #   interface + GadgetTags + Formatters constants
     Base/GenericGenerator.cs     #   abstract base: Serialize(), Init(), flow helpers
     Patched/PSObjectGenerator.cs #   the one gadget needing a recompiled vulnerable DLL
-    <29 gadget files>
+    <31 gadget files>
   Plugins/                       # PLUGINS (IPlugin classes) - section 6
     base/IPlugin.cs
     <14 plugin files>
@@ -132,6 +132,7 @@ parsing. All state is in static fields; parsed into an `InputArgs` object.
 bridge chain), `-t|--test` (locally deserialize the payload to self-verify),
 `--outputpath`, `--minify`, `--ust|--usesimpletype`, `--raf|--runallformatters`,
 `--sf|--searchformatter`, `--list` (machine-readable listing, see below),
+`--category` (repeatable gadget discovery filter, see below),
 `--debugmode`, `-h|--help`, `--fullhelp`, `--credit`,
 `--checkupdate` (query GitHub for a newer release and exit),
 `--runmytest` (runs `Helpers.TestingArena.TestingArenaHome.Start` - dev only).
@@ -156,6 +157,19 @@ tab-completion scripts in `tools/completions/` (currently `ysonet.ps1` for
 PowerShell). The data comes from `Helpers/CliListing.cs`, so it never drifts as
 gadgets/plugins/formatters are added; `Program.PrintList` handles the flag.
 
+`--category=AXIS=VALUE` (repeatable) is the gadget discovery filter. Axes are
+`kind`, `formatter`, `input`, `requirement`; repeating an axis is OR, different
+axes are AND, and one gadget-or-variant unit must satisfy the whole query. Alone
+it prints a human query summary and the matching gadgets with their categories;
+with `--list gadgets` it prints matching names only (for scripts). It is
+discovery-only, so combining it with payload generation, formatter search,
+run-all, help, credit, update, or the dev test mode is an error, not an ignored
+option (`Program.DispatchCategory`, dispatched before any other mode). The four
+broad axes and the reader/query live in `Helpers/Discovery/GadgetFacetReader.cs`
+and `GadgetCategoryQuery.cs`; the human search and the shared category help
+rendering live in `Helpers/Cli/GadgetCategoryCommand.cs`. See section 5 for the
+`Facets()` metadata contract, and section 4.1 for the interactive filter.
+
 `completion` is a first-arg subcommand (like `interactive`/`wizard`) that manages
 PowerShell tab completion for end users. The recommended path is per-session and
 needs no install: `ysonet completion powershell | Out-String | Invoke-Expression`
@@ -177,21 +191,23 @@ in `Helpers/CompletionCommand.cs`.
 ### Control flow (in order)
 1. Parse args into `InputArgs` (Cmd, IsRawCmd, Test, Minify, UseSimpleType, IsDebugMode,
    ExtraArguments = unconsumed args passed on to gadget/plugin `Options()`).
-2. `--runmytest` -> run TestingArena and exit.
-3. Populate gadget + plugin name lists via `GadgetRegistry.GetAllGadgetNames()` /
+2. `--category` present -> `DispatchCategory()` (discovery-only search or filtered
+   `--list gadgets`; rejects being combined with any build/help/other mode) and exit.
+3. `--runmytest` -> run TestingArena and exit.
+4. Populate gadget + plugin name lists via `GadgetRegistry.GetAllGadgetNames()` /
    `PluginRegistry.GetAllPluginNames()` (reflection).
-4. Gadget/plugin-specific help handling (`ShowGadgetSpecificHelp` / `ShowPluginSpecificHelp`).
-5. Missing-argument handling and validation (shows available gadgets/plugins, fuzzy match).
-6. `--searchformatter` -> `SearchFormatters()` lists which gadgets support a formatter, exit.
-7. `--credit` -> `ShowCredit()`; `--help` -> `ShowHelp()`.
-8. **Dispatch**:
+5. Gadget/plugin-specific help handling (`ShowGadgetSpecificHelp` / `ShowPluginSpecificHelp`).
+6. Missing-argument handling and validation (shows available gadgets/plugins, fuzzy match).
+7. `--searchformatter` -> `SearchFormatters()` lists which gadgets support a formatter, exit.
+8. `--credit` -> `ShowCredit()`; `--help` -> `ShowHelp()`.
+9. **Dispatch**:
    - If `-p` set: validate, `PluginRegistry.CreatePluginInstance`, `raw = plugin.Run(args)`,
      then `ProcessOutput`.
    - Else if command + formatter + gadget present and not `--raf`: build the gadget chain
      (see below), `raw = generator.GenerateWithInit(...)`, then `ProcessOutput`.
    - Else if `--raf` (runallformatters): loop every gadget, generate for every matching
      formatter, print each with length.
-9. `ProcessOutput(outputformat, raw, showLen, path[, loopCount, prefix, suffix])`:
+10. `ProcessOutput(outputformat, raw, showLen, path[, loopCount, prefix, suffix])`:
    converts `raw` (`string` or `byte[]`) to the requested output encoding
    (base64 / urlencode / hex / raw) and writes to console or appends to a file.
    `GetDefaultOutputFormat()` picks base64 for BinaryFormatter/ObjectStateFormatter/
@@ -230,7 +246,18 @@ calls `Environment.Exit`; it returns a `RunResult`:
 `wizard`, `-i`, `--interactive` as the FIRST arg only, so an option value cannot trigger
 it). The top menu (`Wizard.cs`) offers gadget build, plugin build, formatter search, the
 run-all-formatters sweep, credits, help, and a check-for-updates entry (which calls
-`Helpers/UpdateChecker.cs`). Gadget/plugin builds open the **module editor**
+`Helpers/UpdateChecker.cs`). The gadget picker can be narrowed by category **on request,
+inside** the "Build a gadget payload" flow (not a separate top-menu path): the module
+list carries a `[ Filter by category... ]` row (bottom) and, in the live columns, a
+`Ctrl+F` shortcut; both open `Interactive/CategoryFilter.cs`, a four-axis checklist
+(payload kind, formatter, accepted input, requirements) with live match counts, OR within
+an axis and AND across, values that cannot match under the other axes shown disabled as
+`(0)`. Applying narrows the picker to the matching gadgets (the picker title shows "N of
+M" and each preview shows why it matched); a `[ Reset category filter ]` row clears it.
+The selections live in the session (`WizardSession.CategorySelections`) so the filter
+persists across builds until reset. Plugins never get a filter. The pure state/counting
+model (`CategoryFilterModel`) is unit-tested without a console. Gadget/plugin builds open the
+**module editor**
 (`ModuleEditor`): pick a module, then see and change ALL its settings at once - the
 gadget/plugin options plus built-ins (formatter, command, variant, output format/file,
 flags) - each with its current value; drill into any setting to edit it; Generate when
@@ -275,6 +302,21 @@ one bullet per problem with its expected input and an example (`ReportBlocked`,
 variant 1 + SoapFormatter, with a clear message instead of a deep framework exception); the
 footer hint carries a compact key + symbol legend.
 
+**Screen-redraw convention (follow this for any interactive menu/screen).** A screen calls
+`ConsoleCursor.ClearScreen()` ONCE when it is entered or re-entered, then redraws IN PLACE with
+`ConsoleCursor.MoveUp(lines)` for navigation within that same screen (do not clear on every
+keypress - it flickers). A sub-screen (e.g. an axis checklist opened from a parent menu) clears
+on its own entry, and the parent clears again when control returns, wiping the sub-screen. Never
+append a screen beneath the previous one: `MoveUp` only redraws in place within one screen, so a
+parent -> child -> parent transition without a clear leaves both drawn and the menu appears twice
+on one real console (the "menu repeats down the screen" stacking bug, fixed once in
+`CategoryFilter`). On a redirected console (tests) `ClearScreen`/`MoveUp` are no-ops and output
+appends, so a redirected-console test does NOT catch this - a real regression test must drive the
+`VirtualTerminal` harness (which has real cursor control) and assert the screen title never
+appears on two rows of one captured frame (see `CategoryFilterDoesNotStack`). The canonical note
+lives on the `Menu` class comment (`Interactive/Menu.cs`); mirror `Wizard.Run` and
+`CategoryFilter.Run`/`EditAxis`.
+
 ---
 
 ## 5. Gadgets (Generators)
@@ -284,7 +326,7 @@ footer hint carries a compact key + symbol legend.
   `Finders()`, `Contributors()`, `Labels()`, `SupportedFormatters()`,
   `SupportedBridgedFormatter()`, `BridgedPayload` property, the `Generate*` family
   (`Generate`, `GenerateWithInit`, `GenerateWithNoTest`), the `Serialize*` family,
-  `IsSupported()`, `Options()`, `Init()`, `CommandInput()`. Also defines the
+  `IsSupported()`, `Options()`, `Init()`, `CommandInput()`, `Facets()`. Also defines the
   **`CommandInputType`** enum (ShellCommand / CsSourceFile / DllPath / Url / FilePath /
   Ignored) - what the gadget expects in `-c`. `GenericGenerator` defaults to
   `ShellCommand`; gadgets that expect a file/DLL/URL or ignore the command override it
@@ -295,6 +337,24 @@ footer hint carries a compact key + symbol legend.
   - **`GadgetTags`**: `Independent`, `Bridged`, `Subclass`, `Variant`, `GetterChain`,
     `OnDeserialized`, `SecondOrderDeserialization`, `NotInGAC`, `Hidden`, `None`.
   - **`Formatters`**: canonical formatter name strings.
+  - **Category facets** (broad discovery metadata, category search only; never affects
+    generation): `PayloadKind` (uncategorized / code-execution / file-system / network /
+    information-disclosure / denial-of-service / nested-deserialization / other),
+    `PayloadInput` (uncategorized / command / local-file / unc-path / remote-url /
+    source-code-file / assembly-file / none / other), `GadgetRequirement`
+    (uncategorized / built-in / extra-assembly / wpf / net-framework / modern-dotnet /
+    other), and `GadgetFacetSet` (a small fluent bundle: `WithKinds/WithInputs/
+    WithRequirements`). A gadget overrides `Facets()` to declare what its code, labels,
+    and help prove; the default is honest-`uncategorized` on kind and requirements with
+    the input derived from `CommandInput()`. `GadgetVariant.WithFacets(...)` gives one
+    variant a complete override when it differs (e.g. XamlImageInfo v1 = nested
+    deserialization / local-or-UNC file, v2 = code execution / command / extra assembly).
+    `Helpers/Discovery/GadgetFacetReader.cs` expands a gadget into one normalized,
+    validated capability unit per variant, derives the input, applies variant formatter
+    exclusions, and owns the display labels; `GadgetCategoryQuery.cs` is the shared
+    four-axis parse/match model. Keep exact behavior, assembly names, and versions in
+    `AdditionalInfo()`/`Labels()`, not in a new facet value; add a new constant only when
+    several gadgets need a stable group that no existing value fits.
 - **`Generators/Base/GenericGenerator.cs`** (abstract) implements everything except three
   abstract members each gadget must provide: `Generate(formatter, inputArgs)`, `Finders()`,
   `SupportedFormatters()`. Defaults:
@@ -333,7 +393,7 @@ to receive. Most bridges consume **BinaryFormatter**; **`DataSetOldBehaviour`** 
 **`SessionViewStateHistoryItem`** consume **LosFormatter**. Every gadget tagged `Bridged`
 declares a real `SupportedBridgedFormatter()`, so all of them can be a `--bgc` consumer.
 
-### Full gadget table (29 gadgets)
+### Full gadget table (31 gadgets)
 | Name | Formatters | Labels | Bridge? (accepts) | Extra options | Purpose |
 |---|---|---|---|---|---|
 | **ActivitySurrogateSelector** | BinaryFormatter, SoapFormatter, LosFormatter | Independent | No | `var` (1/2) | Reads `e.dll` beside exe; ActivitySurrogateSelector + LINQ enumerator chain to load+instantiate ExploitClass. Ignores `-c`. |
@@ -370,6 +430,22 @@ declares a real `SupportedBridgedFormatter()`, so all of them can be a `--bgc` c
 
 (Abbrev: BF=BinaryFormatter, Los=LosFormatter, Soap=SoapFormatter, DCS=DataContractSerializer,
 NDCS=NetDataContractSerializer, TCD=TypeConfuseDelegate, TFRP=TextFormattingRunProperties.)
+
+**Broad categories** (from each gadget's `Facets()`; use `--category` or `--fullhelp`
+for the exact per-gadget/per-variant values). By payload kind:
+- **code-execution**: ActivitySurrogateSelector(+FromFile), BaseActivationFactory,
+  DataSetOldBehaviourFromFile, GetterCompilerResults, ObjectDataProvider (variants
+  1/2/4), PSObject, ResourceSet, TextFormattingRunProperties, TypeConfuseDelegate(+Mono),
+  XamlAssemblyLoadFromFile, XamlImageInfo (variant 2).
+- **nested-deserialization** (a BF/Los container feeding another deserializer): AxHostState,
+  Claims/GenericPrincipal/*Identity family, DataSet(+TypeSpoof), DataSetOldBehaviour,
+  GetterSecurityException, GetterSettingsPropertyValue, RolePrincipal, SessionSecurityToken,
+  SessionViewStateHistoryItem, ToolboxItemContainer, Windows* family, XamlImageInfo (variant 1).
+- **network**: ObjRef (outbound remoting), ObjectDataProvider (variant 3, `--xamlurl`).
+- **other**: ActivitySurrogateDisableTypeCheck (flips a protection flag, no direct effect).
+Requirements note broad target needs (built-in vs extra-assembly / wpf / net-framework /
+modern-dotnet), and accepted input is normally derived from `CommandInput()` (a variant can
+declare local-file + unc-path, etc.). Nothing here changes generation; it only powers search.
 
 ### Things to know about gadgets
 - **Workhorse leaf gadgets**: `ObjectDataProvider` and `TextFormattingRunProperties`.
@@ -416,19 +492,25 @@ NDCS=NetDataContractSerializer, TCD=TypeConfuseDelegate, TFRP=TextFormattingRunP
 | Name | Purpose / Target | Key options | Notes |
 |---|---|---|---|
 | **ActivatorUrl** | Send payload to a remote activated object (.NET Remoting, `typeFilterLevel=Full`). Fires over the network, prints no payload. | `-c`, `-u url`, `-s` (TCP channel security) | Uses `TypeConfuseDelegateGadget`, `System.Runtime.Remoting` TcpChannel. Credit: Harrison Neal. |
-| **Altserialization** | `HttpStaticObjectsCollection.Deserialize` / `SessionStateItemCollection`. | `-M mode`, `-o`, `-c`, `-t`, `--minify`, `--ust` | Returns `byte[]`. Session=TCD; Http=TFRP with byte-splicing to fix the BinaryReader header. `--minify` on Session also byte-splices, so the minified BF blob is carried (System.Web's own Serialize would ignore minify); default Session serializes the gadget object. Credit: Soroush Dalili. |
-| **ApplicationTrust** | `ApplicationTrust.FromXml` XML payload. | `-c`, `-t`, `--minify`, `--ust` | Hex-encoded BF blob (TFRP) in `<ExtraInfo Data=...>`. |
-| **Clipboard** | `DataObject.SetData` clipboard injection (paste into e.g. PowerShell ISE). Two delivery modes via `-m/--mode`. | `-m mode` (winforms/wpfxaml), `-F format`, `--xamlvariant` (1/2), `-c`, `-t`, `--minify`, `--ust` | STA thread. **winforms** (default): TFRP wrapped in `AxHostStateMarshal`, WinForms `Clipboard.SetDataObject`. **wpfxaml**: ObjectDataProvider XAML (via `ObjectDataProviderGenerator`) placed under the WPF `Xaml` format using **WPF** `System.Windows.Clipboard`/`DataObject` (WinForms SetData would not round-trip to WPF paste); targets InkCanvas/RichTextBox paste; default-restrictive since CVE-2020-0605/0606, fires only in legacy clipboard mode. `-t` runs a faithful restrictive-vs-non-restrictive paste simulation (`SerializersHelper.Xaml_deserialize_restrictive`). |
-| **DotNetNuke** | DNN CVE-2017-9822 profile deserialization. | `-m mode` (read/write/run), `-c`, `-u`, `-f`, `--minify` | `ExpandedWrapper`+`FileSystemUtils`/`ObjectStateFormatter`; run_command uses TFRP via **LosFormatter** (no MAC). |
+| **Altserialization** | `HttpStaticObjectsCollection.Deserialize` / `SessionStateItemCollection`. | `-M mode`, `-o`, `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Returns `byte[]`. Session=TCD; Http=TFRP with byte-splicing to fix the BinaryReader header. `--minify` on Session also byte-splices, so the minified BF blob is carried (System.Web's own Serialize would ignore minify); default Session serializes the gadget object. Credit: Soroush Dalili. |
+| **ApplicationTrust** | `ApplicationTrust.FromXml` XML payload. | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd`, `--no-comment` | Hex-encoded BF blob (TFRP) in `<ExtraInfo Data=...>`. `--no-comment` drops the optional commented-out `<DefaultGrant>` example. |
+| **Clipboard** | `DataObject.SetData` clipboard injection (paste into e.g. PowerShell ISE). Two delivery modes via `-m/--mode`. | `-m mode` (winforms/wpfxaml), `-F format`, `--xamlvariant` (1/2), `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | STA thread. **winforms** (default): TFRP wrapped in `AxHostStateMarshal`, WinForms `Clipboard.SetDataObject`. **wpfxaml**: ObjectDataProvider XAML (via `ObjectDataProviderGenerator`) placed under the WPF `Xaml` format using **WPF** `System.Windows.Clipboard`/`DataObject` (WinForms SetData would not round-trip to WPF paste); targets InkCanvas/RichTextBox paste; default-restrictive since CVE-2020-0605/0606, fires only in legacy clipboard mode. `-t` runs a faithful restrictive-vs-non-restrictive paste simulation (`SerializersHelper.Xaml_deserialize_restrictive`). |
+| **DotNetNuke** | DNN CVE-2017-9822 profile deserialization. | `-m mode` (read/write/run), `-c`, `-u`, `-f`, `--minify`, `--rawcmd` | `ExpandedWrapper`+`FileSystemUtils`/`ObjectStateFormatter`; run_command uses TFRP via **LosFormatter** (no MAC). |
 | **GetterCallGadgets** | Arbitrary getter-call gadgets (Json.NET), .NET Fx & 5/6/7 with WPF. | `-l`, `-i inner`, `-g gadget`, `-m member`, `-t`, `--minify` | Reads inner JSON from file, wraps in a WinForms getter gadget. Credit: Piotr Bazydlo. |
-| **MachineKeySessionSecurityTokenHandler** | `MachineKeySessionSecurityTokenHandler.ReadToken` (exploitable when MachineKey leaked). | `-c`, `-t`, `--minify`, `--ust`, `-vk`, `-ek`, `-va`, `-da` | `<SecurityContextToken>` cookie: BF(TFRP) -> DeflateCookieTransform -> `MachineKeyDataProtector.Protect`. |
+| **MachineKeySessionSecurityTokenHandler** | `MachineKeySessionSecurityTokenHandler.ReadToken` (exploitable when MachineKey leaked). | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd`, `-vk`, `-ek`, `-va`, `-da` | `<SecurityContextToken>` cookie: BF(TFRP) -> DeflateCookieTransform -> `MachineKeyDataProtector.Protect`. MachineKey material is required by this named handler's own transform, not by every SessionSecurityToken sink (cf. SharePoint CVE-2026-50522, deflate-only). |
 | **NetNonRceGadgets** | Non-RCE .NET Framework gadgets (SSRF/NTLM relay, dir-create/DoS). | `-l`, `-i`, `-g` (PictureBox/InfiniteProgressPage/FileLogTraceListener), `-f`, `-t`, `--minify` | String templates per formatter. Credit: Piotr Bazydlo. |
-| **Resx** | Generate `.RESX` / compiled `.RESOURCES` (e.g. CVE-2020-0932). | `-M mode`, `-c`, `-g gadget`, `-F unc`, `-of`, `-t`, `--minify`, `--ust` | Reflects any `IGenerator`; Soap mode uses ActivitySurrogate gadgets. Static `GetPayload(...)` reused elsewhere. |
-| **SessionSecurityTokenHandler** | `SessionSecurityTokenHandler.ReadToken` (DPAPI; rarely practical). | `-c`, `-t`, `--minify`, `--ust` | Like MachineKey variant but `ProtectedDataCookieTransform` (DPAPI). |
+| **Resx** | Generate `.RESX` / compiled `.RESOURCES` (e.g. CVE-2020-0932). | `-M mode`, `-c`, `-g gadget`, `-F unc`, `-of`, `-t`, `--minify`, `--ust`, `--rawcmd` | Reflects any `IGenerator`; Soap mode uses ActivitySurrogate gadgets. Static `GetPayload(...)` reused elsewhere. |
+| **SessionSecurityTokenHandler** | `SessionSecurityTokenHandler.ReadToken` (DPAPI; rarely practical). | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Like MachineKey variant but `ProtectedDataCookieTransform` (DPAPI). DPAPI is required by the default handler's own transform, not by every SessionSecurityToken sink. |
 | **ThirdPartyGadgets** | 3rd-party lib gadgets (Grpc, MongoDB, Xunit, ActiveMQ, AWSSDK, Cosmos, App Insights, NLog, Google Apis). | `-l`, `-i`, `-g`, `-f` (Json.NET), `-r` (strip Version/Culture/PublicKeyToken), `-t`, `--minify` | Mostly string templates; ActiveMQ one uses `TypeConfuseDelegate` BF b64 in a PropertyGrid getter chain. Credit: Piotr Bazydlo. |
-| **TransactionManagerReenlist** | `TransactionManager.Reenlist(Guid, byte[], ...)`. | `-c`, `-t`, `--minify`, `--ust` | Returns `byte[]` = TFRP BF blob + 5-byte header. |
+| **TransactionManagerReenlist** | `TransactionManager.Reenlist(Guid, byte[], ...)`. | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Returns `byte[]` = TFRP BF blob + 5-byte header. |
 | **ViewState** | ASP.NET `__VIEWSTATE` forgery with a known MachineKey. | many (see below) | Most intricate plugin. Credit: Soroush Dalili. |
-| **SharePoint** | Multiple SharePoint CVEs. | `--cve`, `--useurl`, `-g`, `-c`, `--var` | One plugin, six CVE branches (see below). |
+| **SharePoint** | Multiple SharePoint CVEs. | `--cve`, `--useurl`, `-g`, `-c`, `--target`, `--formbody`, `--rawcmd`, `--minify`, `--ust`, `--no-comment`, `--var` | One plugin, seven CVE branches (see below). |
+
+Command-flag convention: every command-taking plugin exposes `--rawcmd` (run the command
+verbatim instead of wrapping it as `cmd /c <command>`), `--minify`, and `--ust`, threading
+them into `InputArgs` rather than hardcoding. Plugins that append an explanatory HTML/XML
+comment (SharePoint, ApplicationTrust) also expose `--no-comment` to emit just the payload.
+These flags mirror the global CLI flags of the same name used on the gadget path.
 
 ### ViewState plugin (deep)
 Forges a valid `__VIEWSTATE` when validation/decryption keys + algorithms are known (e.g.
@@ -448,9 +530,19 @@ reflection), `GenerateViewStateLegacy_2_to_4` (<= .NET 4.0, `MachineKeySection` 
 `,IsolateApps` derivation, and URL-encodes output unless `--showraw`.
 
 ### SharePoint plugin (deep)
-One plugin, six CVE branches by `--cve` (+ hidden `cve-2025-53770` alias). Options:
-`--cve`, `--useurl`, `-g` (default `TypeConfuseDelegate`), `-c`, `--var` (49704 only).
-Each returns XML/SOAP with an HTML comment explaining where to POST it.
+One plugin, seven CVE branches by `--cve` (`cve-2025-53770` is a first-class mode, the 49704 patch bypass). Options:
+`--cve`, `--useurl`, `-g` (default `TypeConfuseDelegate`), `-c`, `--target` (2026-50522 only),
+`--formbody` (2026-50522 only), `--var` (49704 only), plus the shared command flags
+`--rawcmd`, `--minify`, `--ust` (honored by the four gadget-based CVEs: 2024-38018,
+2025-49704, 2025-53770, 2020-1147, 2026-50522) and `--no-comment`.
+Each returns XML/SOAP with an HTML comment explaining where to POST it; `--no-comment`
+outputs just the serialized payload/token with no comment. CVE-2026-50522 follows the same
+convention by default (the `wresult` token plus a delivery comment); its opt-in `--formbody`
+instead returns a bare URL-encoded form body, with no comment (an appended comment would
+corrupt it).
+Behavior note: like every other command-taking plugin, `--rawcmd` defaults off, so `-c`
+is wrapped as `cmd /c <command>`. Pass `--rawcmd` to run the command verbatim (this was
+the old hardcoded SharePoint default).
 - **CVE-2018-8421**: XOML workflow SOAP with XAML `ObjectDataProvider`->`Process.Start`;
   `--useurl` swaps to remote `ResourceDictionary` Source.
 - **CVE-2019-0604**: `ExpandedWrapper`+`XamlReader.Parse`, hex-encoded `__bp...` blob;
@@ -465,6 +557,20 @@ Each returns XML/SOAP with an HTML comment explaining where to POST it.
   PerformancePoint template; `useBypass` injects trailing whitespace into
   `Namespace`/`Tagprefix` to bypass the 49704 patch; sent as `MSOTlPn_DWP` to
   `ToolPane.aspx?DisplayMode=Edit`.
+- **CVE-2026-50522**: pre-auth SharePoint WS-Federation trust endpoint. Pipeline is
+  `BF(gadget) -> DeflateCookieTransform.Encode -> Base64 -> SCT Cookie -> RSTR XML`. Uses
+  any BinaryFormatter-capable `-g` gadget. Default output is the `wresult` token XML plus a
+  delivery comment showing the `wa`/`wctx`/`wresult` POST (matching the other modes, since
+  `wctx` is transport and not part of the payload); `--target` is optional here and only
+  fills the comment's `wctx` example. Opt-in `--formbody` instead emits the complete
+  `wa=wsignin1.0&wctx=<target>&wresult=<RSTR/SCT XML>` body and REQUIRES `--target`. When
+  given, `--target` must be an absolute http/https base URL (user info, query, and fragment
+  are rejected) used only as the `wctx` value; it is never contacted. POST as
+  `application/x-www-form-urlencoded` to `/_trust/default.aspx`. This PoC path is
+  deflate-only: NO DPAPI or MachineKey secret is needed, unlike the
+  Session/MachineKey session-token handler plugins. The RSTR/SCT XML is built with
+  `XmlWriter`, not string interpolation. Credit: splitline of DEVCORE Research Team
+  (ZDI-26-412).
 
 ---
 
@@ -601,7 +707,12 @@ Two test tiers (gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` 
   `OptionField` introspection + argv rebuild, `CommandEcho`, `PayloadRunner.Encode`,
   deterministic generation, option completeness vs the live `OptionSet`, a scripted-`IKeyReader`
   wizard end-to-end, the clipboard execution tests) plus a cheap per-gadget and per-plugin smoke
-  (`EveryGadgetGeneratesAPayload`, `EverySafePluginGeneratesAPayload`).
+  (`EveryGadgetGeneratesAPayload`, `EverySafePluginGeneratesAPayload`). The category facets are
+  covered here too: metadata (vocabulary, per-gadget capability expansion, input derivation,
+  uncategorized-cannot-mix, variant inheritance/override, a locked audit table), the query model,
+  the normal-CLI `--category` dispatch (search / filtered list / mode rejection, run against a
+  `ysonet.exe` subprocess), the help category lines, and the interactive filter (model behaviors
+  plus scripted-key driver and an end-to-end flow that generates the same payload as the direct path).
 - FULL (opt-in; set `YSONET_FULL_TESTS=1` then build Debug, or run `ysonet.Tests.exe --full`):
   five exhaustive combination tests, safe throughout (self-closing commands / never-executed
   values, loopback-only listeners, temp fixtures cleaned up):

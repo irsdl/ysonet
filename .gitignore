@@ -278,3 +278,4 @@ nuget.config
 # Local test/benchmark output
 BenchmarkDotNet.Artifacts/
 TestResults/
+temp/

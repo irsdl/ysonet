@@ -24,6 +24,7 @@ namespace ysonet.Plugins
         static bool test = false;
         static bool minify = false;
         static bool useSimpleType = true;
+        static bool rawcmd = false;
 
         static OptionSet options = new OptionSet()
             {
@@ -31,6 +32,7 @@ namespace ysonet.Plugins
                 {"t|test", "whether to run payload locally. Default: false", v => test =  v != null },
                 {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
                 {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
+                {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
             };
 
         public string Name()
@@ -63,6 +65,7 @@ namespace ysonet.Plugins
                 inputArgs.Cmd = command;
                 inputArgs.Minify = minify;
                 inputArgs.UseSimpleType = useSimpleType;
+                inputArgs.IsRawCmd = rawcmd;
                 inputArgs.Test = test;
             }
             catch (OptionException e)

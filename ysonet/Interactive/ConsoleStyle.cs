@@ -91,8 +91,16 @@ namespace ysonet.Interactive
 
         private static ITerminal T { get { return Term.Current; } }
 
+        // Test-only override: when set, ColorsOn() returns this value, so a rendering
+        // test can exercise the colored path (the per-cell selection bar) deterministically
+        // regardless of the ambient NO_COLOR env var or the active theme. Null in
+        // production. Scoped and restored by the test that sets it.
+        internal static bool? ColorOverrideForTest = null;
+
         private static bool ColorsOn()
         {
+            if (ColorOverrideForTest.HasValue)
+                return ColorOverrideForTest.Value;
             if (!_colorAllowedByEnv || _monochrome)
                 return false;
             try { return T.CanControl; }

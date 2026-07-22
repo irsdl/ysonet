@@ -6,6 +6,35 @@ Next version of ysoserial.net. Target: .NET Framework 4+. A future fork may targ
 
 A thorough code map (architecture, all gadgets, all plugins, all helpers, build/deps) lives at `docs/ARCHITECTURE.md`. Read it first to understand the codebase instead of re-discovering the structure. Update it when the structure changes. It is public and tracked in git, so keep dev-only notes (CLAUDE.md, dev-kitchen, .claude) out of it.
 
+## Memory Management
+
+Maintain a structured, git-tracked memory system rooted at `.claude/memory/`, shared with all contributors and their agents. It is checked into git, so keep it free of local or sensitive data (see "No local artifacts in commits").
+
+- `.claude/memory/memory.md` is the index: one row per memory file with a short description and a last-updated date. Update it whenever you add or change a memory file.
+- Topic files (for example `interactive-ui.md`, `testing.md`) hold the entries.
+
+### Rules
+0. Never record local or sensitive data (absolute local paths like `C:\Users\...`, keys, tokens, usernames).
+1. When you learn something worth remembering, write it to the right topic file immediately.
+2. Keep `memory.md` a current index: one line per file with a description and a last-updated date.
+3. Entries use the format `date - what - why`. Nothing more.
+4. At the start of every session, read `.claude/memory/memory.md`, then load each file listed in the index. Load additional topic files when they are relevant to the task.
+5. If a file does not exist yet, create it.
+6. Before removing or changing an existing memory entry, confirm with the user first: show the current content and the proposed change.
+
+### Maintenance protocol
+When the user says "reorganize memory":
+1. Read all files under `.claude/memory/`.
+2. Remove duplicates and outdated entries.
+3. Merge entries that belong together.
+4. Split files that cover too many topics.
+5. Re-sort entries by date within each file.
+6. Update the `memory.md` index.
+7. Show the user a summary of what changed.
+
+### Session bootstrap
+At the start of every session, read `.claude/memory/memory.md` and then each file its index references, so accumulated knowledge is in context.
+
 ## Project goals
 - Stay fully functional and user friendly.
 - Support as many gadgets and plugins as possible, wherever applicable.
@@ -49,6 +78,17 @@ AI instruction: when the user says "run full tests" (or "run the full suite"), s
 This project intentionally uses outdated libraries to demonstrate deserialization issues.
 - Outdated library used inside a gadget (to show the issue): not a security bug. Leave it as is.
 - Outdated library used in the tool's own normal functionality (not part of a gadget payload): can and should be upgraded. Any upgrade must follow the Dependency freshness policy below.
+
+## Gadget categories (facets)
+
+Every gadget declares broad discovery metadata via `Facets()` (payload kind, accepted input, requirements; the formatter axis comes from `SupportedFormatters()`). This powers the `--category` search and the interactive "Find a gadget by category" flow only; it never affects generation. When you add or change a gadget:
+
+- Use the broad vocabulary in `Generators/Base/IGenerator.cs` (`PayloadKind`, `PayloadInput`, `GadgetRequirement`). Do not invent a narrow value for one CVE, sink, or primitive.
+- Derive accepted input from `CommandInput()` where possible; declare `WithInputs(...)` only when the real accepted forms are broader or different (e.g. local-file plus unc-path).
+- Declare a per-variant difference with `GadgetVariant.WithFacets(...)`; a null override inherits the gadget set.
+- Use `uncategorized` for an axis the code, tests, and help do not prove; use `other` only for a known result that fits no broad family. Never mix `uncategorized` with a real value on the same axis.
+- Keep exact behavior, assembly names, and versions in `AdditionalInfo()`/`Labels()`, not in a facet value.
+- Run the `ysonet-audit-gadget-metadata` skill (and `ysonet-categorize-gadget` for a new gadget) after changing metadata. The metadata tests in `ysonet.Tests` lock the vocabulary, the per-gadget expansion, and a representative audit table.
 
 ## Dependency freshness policy
 
@@ -110,9 +150,9 @@ Releases use calendar versioning: `vYEAR.MONTH.RELEASE`. The middle number is th
 
 Never commit anything tied to the developer's own machine or environment. This keeps the public repo clean and avoids leaking local folder names, usernames, and internal codenames.
 
-- No absolute local paths in code, tests, tooling, comments, or config. This includes anything like `C:\Users\...`, `C:\root\...`, a home directory, or a temp path. Use relative paths, take the path as an argument, or read it from an environment variable instead. Dev/test helpers must default to a relative path or require the path to be passed in, never a hardcoded machine path.
+- No absolute local paths in code, tests, tooling, comments, or config. This includes anything like `C:\Users\...`, `C:\root\...`, `/mnt/c/`, a home directory, or a temp path. Use relative paths, take the path as an argument, or read it from an environment variable instead. Dev/test helpers must default to a relative path or require the path to be passed in, never a hardcoded machine path.
 - No temp or build-output files. Do not track `bin/`, `obj/`, `*.tmp`, `*.bak`, `*.user`, `*.suo`, `*.log`, editor swap files, `.DS_Store`, `Thumbs.db`, or `*.FileListAbsolute.txt`. These belong in `.gitignore`, not in commits.
-- Before staging, scan the diff for the above. A quick check: `git grep -niE 'C:\\\\|/Users/|GithubRepos|AppData|scratchpad'` over tracked files should return nothing but intended gadget/example content.
+- Before staging, scan the diff for the above. A quick check: `git grep -niE '[A-Z]:\\\\|/Users/|Code|GithubRepos|AppData|scratchpad'` over tracked files should return nothing but intended gadget/example content.
 - Remember a push sends the whole branch history, not just the current tree. If a local path slips into an earlier commit, it must be scrubbed from history (not just fixed forward) before that branch is pushed.
 
 ## GitHub Actions workflow policy

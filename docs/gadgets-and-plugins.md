@@ -62,7 +62,7 @@ MachineKeySessionSecurityTokenHandler (Generates XML payload for the MachineKeyS
 NetNonRceGadgets (Implements Non-RCE gadgets for .NET Framework)
 Resx (Generates RESX and .RESOURCES files)
 SessionSecurityTokenHandler (Generates XML payload for the SessionSecurityTokenHandler class)
-SharePoint (Generates payloads for the following SharePoint CVEs: CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421)
+SharePoint (Generates payloads for the following SharePoint CVEs: CVE-2026-50522, CVE-2025-53770, CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421)
 ThirdPartyGadgets (Implements gadgets for 3rd Party Libraries)
 TransactionManagerReenlist (Generates payload for the TransactionManager.Reenlist method)
 ViewState (Generates a ViewState using known MachineKey parameters)
@@ -88,5 +88,5 @@ Options:
   -u, --url=VALUE            the url to fetch the file from in write_file mode.
   -f, --file=VALUE           the file to read in read_file mode or the file to write to in write_file mode.
       --minify               Whether to minify the payloads where applicable (experimental). Default: false
-      --ust, --usesimpletype This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true
+      --rawcmd               Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).
 ```

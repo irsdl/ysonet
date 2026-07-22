@@ -50,6 +50,21 @@ Options:
                              Search in all formatters to show relevant
                                gadgets and their formatters (other parameters
                                will be ignored).
+      --list=VALUE           Print a machine-readable list (one item per line)
+                               and exit. Categories:
+                               gadgets|plugins|formatters|options|outputs. Add
+                               -g <gadget> to list that gadget's
+                               formatters/options, or -p <plugin> to list that
+                               plugin's options. Useful for shell tab-completion
+                               scripts.
+      --category=VALUE       Find gadgets by category (repeatable):
+                               --category=axis=value where axis is
+                               kind|formatter|input|requirement. Repeat for OR
+                               within an axis and AND across axes. Alone it
+                               prints matching gadgets and their categories;
+                               with '--list gadgets' it prints matching names
+                               only. Example: --category=kind=code-execution
+                               --category=formatter=Json.NET
       --debugmode            Enable debugging to show exception errors and
                                output length
   -h, --help                 Shows this message and exit.
@@ -57,11 +72,29 @@ Options:
                                and plugins and exit.
       --credit               Shows the credit/history of gadgets and plugins
                                (other parameters will be ignored).
+      --checkupdate          Check GitHub for a newer YSoNet release and exit.
       --runmytest            Runs that `Start` method of `TestingArenaHome` -
                                useful for testing and debugging.
 ```
 
 Note: Machine authentication code (MAC) key modifier is not used for LosFormatter in YSoNet. Therefore, LosFormatter (base64 encoded) can be used to create ObjectStateFormatter payloads.
+
+## Find a gadget by category
+
+Every gadget declares broad discovery metadata: its payload `kind`, the `formatter` (serializer) it supports, the `input` it accepts, and its target `requirement`. Use `--category=axis=value` to find gadgets by these facets. This is discovery only; it does not build a payload.
+
+- Axes: `kind`, `formatter`, `input`, `requirement`.
+- Repeat the same axis for OR; use different axes for AND. One gadget (or one of its variants) must match the whole query.
+
+```bash
+# Show all code-execution gadgets that support Json.NET, with their categories
+./ysonet.exe --category=kind=code-execution --category=formatter=Json.NET
+
+# Print only the matching gadget names (for scripts), by adding --list gadgets
+./ysonet.exe --list gadgets --category=kind=network
+```
+
+Interactive mode has the same filter. Inside the "Build a gadget payload" flow, pick `[ Filter by category... ]` (or press `Ctrl+F` in the live columns) to open a checklist over the four axes with live match counts, then narrow the gadget list to what matches.
 
 ## Tips
 

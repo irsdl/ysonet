@@ -7,6 +7,15 @@ namespace ysonet.Generators
 {
     public class ToolboxItemContainerGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): BinaryFormatter-in-BinaryFormatter
+        // via ToolboxItemContainer (System.Drawing.Design, built-in).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         // Yet another Formatter Bridge Gadget with a BinaryFormatter deserialization sink to e.g. trigger known RCE gadgets.
         // System.Drawing.Design.ToolboxItemContainer class implements an inner class ToolboxItemSerializer which triggers
         // a BinaryFormatter.Deserialize(..) during deserialization operating on a stream fetched from an IDataObject class variable _dataObject.

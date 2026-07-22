@@ -9,6 +9,16 @@ namespace ysonet.Generators
 {
     public class DataSetGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): BinaryFormatter-in-BinaryFormatter
+        // via System.Data.DataSet (built-in). DataSetTypeSpoof subclasses this and
+        // inherits the same facets (its type spoof changes only binder evasion).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         public override string Finders()
         {
             return "James Forshaw";

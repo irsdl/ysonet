@@ -9,6 +9,18 @@ namespace ysonet.Generators
 {
     internal class DataSetOldBehaviourFromFileGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): compiles the -c .cs file and runs
+        // the assembly through a XAML ResourceDictionary (Assembly.Load + invoke), so
+        // it is self-contained code execution. Uses WPF and framework built-in types.
+        // Both variants share this capability.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
+                    GadgetRequirement.NetFramework);
+        }
+
         private int variant_number = 1; // Add variant support
         public override string AdditionalInfo()
         {

@@ -248,6 +248,18 @@ namespace ysonet.Generators
 
     public class ActivitySurrogateSelectorGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): loads and runs the bundled exploit
+        // assembly (Assembly.Load + Activator.CreateInstance) via framework built-in
+        // types. Both variants share this. ActivitySurrogateSelectorFromFile
+        // subclasses this and inherits these facets; it only changes the input
+        // (CsSourceFile), which derives to source-code-file automatically.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         private int variant_number = 1;
 
         public override OptionSet Options()

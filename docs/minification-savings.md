@@ -28,7 +28,7 @@ functional. It does not change which command runs. Depending on the format it:
   the percentage reflects the payload shrink, not an encoding change.
 - Command for shell-command gadgets and plugins: `calc.exe`. Gadgets that take a
   file, DLL, or URL used a tiny compiled C# fixture, the bundled `E.dll`, or
-  `http://localhost/x`. The crypto plugins used the demo keys from the usage docs.
+  `http://localhost/x`. These two handler-specific plugins used the demo keys from the usage docs.
 - Saved % = (without - with) / without.
 - Absolute byte counts scale with the command string and inputs; the percentages are
   the stable result.
@@ -224,7 +224,7 @@ Every plugin mode that exposes a `--minify` option, minify off vs on.
 | TransactionManagerReenlist | (default) | 922 | 542 | 380 | 41.2% |
 | ViewState | TypeConfuseDelegate | 3,242 | 1,418 | 1,824 | 56.3% |
 
-The crypto plugins (MachineKeySessionSecurityTokenHandler,
+These two handler-specific plugins (MachineKeySessionSecurityTokenHandler,
 SessionSecurityTokenHandler) wrap the payload in an encrypted and encoded envelope.
 The reduction there comes from the smaller inner payload passing through a
 size-preserving transform, so it is a real cut even though the outer bytes are opaque.

@@ -9,6 +9,16 @@ namespace ysonet.Generators
 {
     public class GenericPrincipalGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): second-order BinaryFormatter sink
+        // carried in GenericPrincipal/ClaimsIdentity (mscorlib, built-in). Both
+        // variants share this capability.
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.NestedDeserialization)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         int variant_number = 1;
         public override List<string> SupportedFormatters()
         {

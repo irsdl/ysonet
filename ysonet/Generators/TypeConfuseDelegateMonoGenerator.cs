@@ -8,6 +8,15 @@ namespace ysonet.Generators
 {
     public class TypeConfuseDelegateMonoGenerator : GenericGenerator
     {
+        // Discovery facets (category search only): same code-execution mechanism as
+        // TypeConfuseDelegate, Mono-compatible (mscorlib/System, built-in).
+        public override GadgetFacetSet Facets()
+        {
+            return new GadgetFacetSet()
+                .WithKinds(PayloadKind.CodeExecution)
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+        }
+
         public override string AdditionalInfo()
         {
             return "Tweaked TypeConfuseDelegate gadget to work with Mono";

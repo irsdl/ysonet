@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using ysonet.Generators;
+using ysonet.Helpers;
 using ysonet.Plugins;
 
 namespace ysonet.Interactive
@@ -81,7 +83,8 @@ namespace ysonet.Interactive
 
                 // The filtered lists the columns actually show. Filtering is by
                 // substring so typing part of a name finds it wherever it appears.
-                List<string> mods = Picker.Filter(_moduleNames, modFilter);
+                // The gadget list also carries the category filter action row(s).
+                List<string> mods = Picker.Filter(ModuleListEntries(), modFilter);
                 List<EditableField> visible = FilterFields(VisibleFields(), fldFilter);
                 if (moduleIndex >= mods.Count)
                     moduleIndex = Math.Max(0, mods.Count - 1);
@@ -100,6 +103,19 @@ namespace ysonet.Interactive
                 if (!(focus == 2 && editingText) && key.KeyChar == '?')
                 {
                     ShowDetailOverlay(focus, loaded, mods, moduleIndex, visible, fieldIndex, editing, editingText, choiceItems, choiceIndex);
+                    ConsoleCursor.ClearScreen();
+                    lastLines = 0;
+                    continue;
+                }
+
+                // Ctrl+F (modules column, gadgets only) opens the category filter that
+                // narrows the gadget list. There is also a "[ Filter by category... ]"
+                // row at the bottom of the list for discoverability.
+                if (focus == 0 && _isGadget && key.Key == ConsoleKey.F
+                    && (key.Modifiers & ConsoleModifiers.Control) != 0)
+                {
+                    OpenGadgetCategoryFilter();
+                    modFilter = ""; moduleIndex = 0;
                     ConsoleCursor.ClearScreen();
                     lastLines = 0;
                     continue;
@@ -222,10 +238,22 @@ namespace ysonet.Interactive
                 {
                     if (focus == 0)
                     {
-                        if (mods.Count > 0 && LoadModule(mods[moduleIndex]))
+                        if (mods.Count > 0)
                         {
-                            loaded = true; fieldIndex = 0; focus = 1;
-                            fldFilter = ""; // a fresh module: start with all its settings shown
+                            string picked = mods[moduleIndex];
+                            if (TryHandleModuleAction(picked))
+                            {
+                                // Opened the filter or reset it: redraw the (narrowed)
+                                // list fresh on the next loop.
+                                modFilter = ""; moduleIndex = 0;
+                                ConsoleCursor.ClearScreen();
+                                lastLines = 0;
+                            }
+                            else if (LoadModule(picked))
+                            {
+                                loaded = true; fieldIndex = 0; focus = 1;
+                                fldFilter = ""; // a fresh module: start with all its settings shown
+                            }
                         }
                     }
                     else if (focus == 1 && visible.Count > 0)
@@ -876,7 +904,9 @@ namespace ysonet.Interactive
         private static string FocusHint(int focus, bool editingText, bool loaded, List<EditableField> visible, int fieldIndex, bool isGadget)
         {
             if (focus == 0)
-                return "Type to filter    Up/Down PgUp/PgDn Home/End: move    Enter: open    Esc: clear/leave    ?: info";
+                return isGadget
+                    ? "Type to filter   Up/Down Home/End: move   Enter: open   Ctrl+F: category filter   Esc: clear/leave   ?: info"
+                    : "Type to filter    Up/Down PgUp/PgDn Home/End: move    Enter: open    Esc: clear/leave    ?: info";
             if (focus == 2 && editingText)
                 return "Arrows: move (Ctrl=word)   Bksp/Del: edit (Ctrl=word)   Ctrl+U: clear   one space = empty   Enter: save   Esc: cancel";
             if (focus == 2)
@@ -914,6 +944,17 @@ namespace ysonet.Interactive
         // options; and the credit.
         private string[] ModuleInfoLines(string name, int width)
         {
+            // The filter action rows are not modules; show a short blurb.
+            if (name == FilterActionLabel)
+            {
+                var b = new List<string>();
+                b.AddRange(Wrap("Narrow the gadget list by payload kind, formatter, accepted input, or target requirement.", width));
+                b.AddRange(Wrap("Select this row (or press Ctrl+F) to open the filter.", width));
+                return b.ToArray();
+            }
+            if (name == ResetActionLabel)
+                return Wrap("Clear the active category filter and show all gadgets again.", width);
+
             ModuleView v = PreviewView(name);
             if (v == null)
                 return new string[0];
@@ -933,6 +974,17 @@ namespace ysonet.Interactive
                 if (!string.IsNullOrEmpty(v.BridgedFormatter))
                     lines.AddRange(Wrap("Bridge formatter: " + v.BridgedFormatter, width));
                 lines.AddRange(Wrap("Command input: " + Wizard.CommandLabel(v.CommandInput), width));
+
+                // Broad category summary (one compact line per capability unit). When a
+                // category filter is active, a header notes what it matched.
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                if (g != null)
+                {
+                    if (IsGadgetFilterActive)
+                        lines.AddRange(Wrap("Matched filter: " + GadgetFilter.Describe(), width));
+                    foreach (string cl in GadgetCategoryCommand.CompactLines(g, ""))
+                        lines.AddRange(Wrap(cl, width));
+                }
             }
             else
             {

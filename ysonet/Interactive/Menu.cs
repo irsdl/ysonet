@@ -10,6 +10,16 @@ namespace ysonet.Interactive
     // Redraw uses RELATIVE cursor movement (up by the number of lines last
     // written) rather than a cached absolute row, so it stays correct even when
     // the console buffer scrolls.
+    //
+    // SCREEN-REDRAW CONVENTION (applies to every menu/screen in Interactive/, not
+    // just this widget): a screen must call ConsoleCursor.ClearScreen() ONCE when it
+    // is entered or re-entered, then redraw IN PLACE with ConsoleCursor.MoveUp for
+    // navigation within it. This widget redraws in place but does NOT clear on entry,
+    // so the CALLER clears before Show() when it stacks screens (see Wizard.Run and
+    // CategoryFilter). Never append a screen beneath the previous one - that is the
+    // "menu repeats down the screen" stacking bug (fixed once in CategoryFilter). On a
+    // redirected console (tests) Clear/MoveUp are no-ops and output appends, which is
+    // fine.
     public class Menu
     {
         private readonly IKeyReader _keys;
