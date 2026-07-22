@@ -156,6 +156,7 @@ namespace ysonet.Tests
             Run("Filter driver Esc discards the axis draft", CategoryFilterEscDiscardsAxisDraft);
             Run("Filter driver Clear all resets selections", CategoryFilterClearAll);
             Run("Filter disables values impossible under other axes", CategoryFilterDisablesImpossibleValues);
+            Run("Filter screen does not stack on a real console (redraw in place)", CategoryFilterDoesNotStack);
             Run("Gadget preview shows the category summary", ModuleViewShowsCategorySummary);
             Run("Category flow generates the same payload and returns to the filter", CategoryFlowGeneratesSamePayload);
             Run("Plugin flow has no category screen", PluginFlowHasNoCategoryScreen);
@@ -4932,6 +4933,34 @@ namespace ysonet.Tests
             var filter = new CategoryFilter(keys, model);
             WithSwallowedError(() => filter.Run());
             AssertEqual(0, applied.Requirements.Count, "an impossible value cannot be selected");
+        }
+
+        private static void CategoryFilterDoesNotStack()
+        {
+            // Real-console redraw path (VirtualTerminal, cursor control on): open the
+            // category filter, open an axis checklist, discard back to the main screen,
+            // then leave. The main screen must clear/redraw in place on re-entry; it
+            // must never stack a second copy below the checklist (the reported bug -
+            // the same menu drawn twice on one screen).
+            var frames = DriveFrames(k => k.Digit(2)   // top -> Find a gadget by category
+                .Down().Enter()                        // open the Payload kind checklist
+                .Escape()                              // discard -> back to the main filter
+                .Escape()                              // Esc at the filter -> top menu
+                .Escape());                            // quit
+            foreach (Frame f in frames)
+                AssertTrue(RowsContaining(f, "Filter gadgets (optional)") <= 1,
+                    "the category filter must not stack a second menu on one screen");
+            // Sanity: both the filter screen and an axis checklist actually rendered.
+            AssertTrue(AnyFrame(frames, "Filter gadgets (optional)"), "the filter screen rendered");
+            AssertTrue(AnyFrame(frames, "Space: toggle"), "an axis checklist rendered");
+        }
+
+        private static int RowsContaining(Frame f, string needle)
+        {
+            int n = 0;
+            for (int y = 0; y < f.Height; y++)
+                if (f.Row(y).Contains(needle)) n++;
+            return n;
         }
 
         private static void ModuleViewShowsCategorySummary()

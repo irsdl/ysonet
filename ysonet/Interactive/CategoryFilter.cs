@@ -184,74 +184,79 @@ namespace ysonet.Interactive
 
         public CategoryFilterModel Model { get { return _model; } }
 
-        // Show the main filter screen. Returns the result on "Show", or null on Back
-        // or Esc.
-        public CategoryFilterResult Run()
-        {
-            int focus = 0; // the primary Show action has initial focus
-            bool canControl = ConsoleCursor.CanControl();
-            int lines = 0;
-            bool firstDraw = true;
-
-            while (true)
-            {
-                var rows = BuildMainRows();
-                if (canControl && !firstDraw)
-                    ConsoleCursor.MoveUp(lines);
-                firstDraw = false;
-                lines = RenderMain(rows, focus);
-
-                ConsoleKeyInfo key = _keys.ReadKey();
-                if (key.Key == ConsoleKey.Escape)
-                    return null; // Esc: back to the top menu
-                if (key.Key == ConsoleKey.UpArrow || key.Key == ConsoleKey.K)
-                    focus = (focus - 1 + rows.Count) % rows.Count;
-                else if (key.Key == ConsoleKey.DownArrow || key.Key == ConsoleKey.J)
-                    focus = (focus + 1) % rows.Count;
-                else if (key.Key == ConsoleKey.Home)
-                    focus = 0;
-                else if (key.Key == ConsoleKey.End)
-                    focus = rows.Count - 1;
-                else if (key.KeyChar >= '1' && key.KeyChar <= '9' && (key.KeyChar - '1') < rows.Count)
-                    { focus = key.KeyChar - '1'; if (Activate(focus, ref lines, ref firstDraw)) return _pendingResult; }
-                else if (key.Key == ConsoleKey.Enter)
-                    { if (Activate(focus, ref lines, ref firstDraw)) return _pendingResult; }
-            }
-        }
-
-        private CategoryFilterResult _pendingResult;
-
         // Rows: 0 = Show, 1..4 = axes, 5 = Clear all, 6 = Back.
         private const int ShowRow = 0;
         private const int FirstAxisRow = 1;
         private const int ClearRow = 5;
         private const int BackRow = 6;
 
-        // Act on the focused main row. Returns true when Run should return
-        // (_pendingResult holds the value: a result for Show, null for Back).
-        private bool Activate(int focus, ref int lines, ref bool firstDraw)
+        // Screen-redraw convention (KEEP THIS for any menu/screen in this file, and
+        // for any new interactive screen - it is easy to get wrong and stacks the
+        // menu otherwise):
+        //   * ConsoleCursor.ClearScreen() ONCE when a screen is entered or
+        //     re-entered, so it never draws beneath the previous screen.
+        //   * Then redraw IN PLACE with ConsoleCursor.MoveUp(lines) for navigation
+        //     within that same screen (do not clear on every keypress - that
+        //     flickers).
+        //   * A sub-screen (the axis checklist) clears on its own entry, and clearing
+        //     again when we return to the parent wipes it. Do NOT try to "append the
+        //     parent below the child" - that is exactly the stacking bug.
+        // On a redirected console (tests) Clear/MoveUp are no-ops and everything
+        // appends, which is fine.
+        //
+        // Show the main filter screen. Returns the result on "Show", or null on Back
+        // or Esc.
+        public CategoryFilterResult Run()
         {
-            if (focus == ShowRow)
+            int focus = 0; // the primary Show action has initial focus
+            bool canControl = ConsoleCursor.CanControl();
+
+            while (true)
             {
-                _pendingResult = _model.BuildResult();
-                return true;
+                ConsoleCursor.ClearScreen(); // (re)enter the main screen fresh
+                int lines = 0;
+                bool firstDraw = true;
+                bool reenter = false;
+
+                while (!reenter)
+                {
+                    var rows = BuildMainRows();
+                    if (canControl && !firstDraw)
+                        ConsoleCursor.MoveUp(lines);
+                    firstDraw = false;
+                    lines = RenderMain(rows, focus);
+
+                    ConsoleKeyInfo key = _keys.ReadKey();
+                    if (key.Key == ConsoleKey.Escape)
+                        return null; // Esc: back to the top menu
+                    if (key.Key == ConsoleKey.UpArrow || key.Key == ConsoleKey.K)
+                        focus = (focus - 1 + rows.Count) % rows.Count;
+                    else if (key.Key == ConsoleKey.DownArrow || key.Key == ConsoleKey.J)
+                        focus = (focus + 1) % rows.Count;
+                    else if (key.Key == ConsoleKey.Home)
+                        focus = 0;
+                    else if (key.Key == ConsoleKey.End)
+                        focus = rows.Count - 1;
+                    else if ((key.KeyChar >= '1' && key.KeyChar <= '9' && (key.KeyChar - '1') < rows.Count)
+                             || key.Key == ConsoleKey.Enter)
+                    {
+                        if (key.KeyChar >= '1' && key.KeyChar <= '9')
+                            focus = key.KeyChar - '1';
+
+                        if (focus == ShowRow)
+                            return _model.BuildResult();
+                        if (focus == BackRow)
+                            return null;
+                        if (focus == ClearRow)
+                            _model.ClearAll(); // stay on the main screen (redraw in place)
+                        else
+                        {
+                            EditAxis(CategoryFilterModel.Axes[focus - FirstAxisRow]);
+                            reenter = true;    // re-enter the main screen, clearing the axis
+                        }
+                    }
+                }
             }
-            if (focus == ClearRow)
-            {
-                _model.ClearAll();
-                return false;
-            }
-            if (focus == BackRow)
-            {
-                _pendingResult = null;
-                return true;
-            }
-            CategoryAxis axis = CategoryFilterModel.Axes[focus - FirstAxisRow];
-            EditAxis(axis);
-            // The axis screen appended its own frames; force a full redraw of the main
-            // screen next tick.
-            firstDraw = true;
-            return false;
         }
 
         private List<string> BuildMainRows()
@@ -302,6 +307,11 @@ namespace ysonet.Interactive
             bool canControl = ConsoleCursor.CanControl();
             int lines = 0;
             bool firstDraw = true;
+
+            // Entering a sub-screen: clear so it does not draw beneath the main menu
+            // (see the screen-redraw convention on Run above). Returning to Run clears
+            // again, wiping this checklist.
+            ConsoleCursor.ClearScreen();
 
             while (true)
             {
