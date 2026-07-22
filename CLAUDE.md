@@ -8,9 +8,9 @@ A thorough code map (architecture, all gadgets, all plugins, all helpers, build/
 
 ## Memory Management
 
-Maintain a structured, git-tracked memory system rooted at `.github/memory/`, shared with all contributors and their agents. It is checked into git, so keep it free of local or sensitive data (see "No local artifacts in commits").
+Maintain a structured, git-tracked memory system rooted at `.claude/memory/`, shared with all contributors and their agents. It is checked into git, so keep it free of local or sensitive data (see "No local artifacts in commits").
 
-- `.github/memory/memory.md` is the index: one row per memory file with a short description and a last-updated date. Update it whenever you add or change a memory file.
+- `.claude/memory/memory.md` is the index: one row per memory file with a short description and a last-updated date. Update it whenever you add or change a memory file.
 - Topic files (for example `interactive-ui.md`, `testing.md`) hold the entries.
 
 ### Rules
@@ -18,13 +18,13 @@ Maintain a structured, git-tracked memory system rooted at `.github/memory/`, sh
 1. When you learn something worth remembering, write it to the right topic file immediately.
 2. Keep `memory.md` a current index: one line per file with a description and a last-updated date.
 3. Entries use the format `date - what - why`. Nothing more.
-4. At the start of every session, read `.github/memory/memory.md`, then load each file listed in the index. Load additional topic files when they are relevant to the task.
+4. At the start of every session, read `.claude/memory/memory.md`, then load each file listed in the index. Load additional topic files when they are relevant to the task.
 5. If a file does not exist yet, create it.
 6. Before removing or changing an existing memory entry, confirm with the user first: show the current content and the proposed change.
 
 ### Maintenance protocol
 When the user says "reorganize memory":
-1. Read all files under `.github/memory/`.
+1. Read all files under `.claude/memory/`.
 2. Remove duplicates and outdated entries.
 3. Merge entries that belong together.
 4. Split files that cover too many topics.
@@ -33,7 +33,7 @@ When the user says "reorganize memory":
 7. Show the user a summary of what changed.
 
 ### Session bootstrap
-At the start of every session, read `.github/memory/memory.md` and then each file its index references, so accumulated knowledge is in context.
+At the start of every session, read `.claude/memory/memory.md` and then each file its index references, so accumulated knowledge is in context.
 
 ## Project goals
 - Stay fully functional and user friendly.
