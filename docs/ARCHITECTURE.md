@@ -300,6 +300,21 @@ one bullet per problem with its expected input and an example (`ReportBlocked`,
 variant 1 + SoapFormatter, with a clear message instead of a deep framework exception); the
 footer hint carries a compact key + symbol legend.
 
+**Screen-redraw convention (follow this for any interactive menu/screen).** A screen calls
+`ConsoleCursor.ClearScreen()` ONCE when it is entered or re-entered, then redraws IN PLACE with
+`ConsoleCursor.MoveUp(lines)` for navigation within that same screen (do not clear on every
+keypress - it flickers). A sub-screen (e.g. an axis checklist opened from a parent menu) clears
+on its own entry, and the parent clears again when control returns, wiping the sub-screen. Never
+append a screen beneath the previous one: `MoveUp` only redraws in place within one screen, so a
+parent -> child -> parent transition without a clear leaves both drawn and the menu appears twice
+on one real console (the "menu repeats down the screen" stacking bug, fixed once in
+`CategoryFilter`). On a redirected console (tests) `ClearScreen`/`MoveUp` are no-ops and output
+appends, so a redirected-console test does NOT catch this - a real regression test must drive the
+`VirtualTerminal` harness (which has real cursor control) and assert the screen title never
+appears on two rows of one captured frame (see `CategoryFilterDoesNotStack`). The canonical note
+lives on the `Menu` class comment (`Interactive/Menu.cs`); mirror `Wizard.Run` and
+`CategoryFilter.Run`/`EditAxis`.
+
 ---
 
 ## 5. Gadgets (Generators)

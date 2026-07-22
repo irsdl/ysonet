@@ -77,6 +77,10 @@ The maintainers are authorized, ethical security researchers (recognized by comp
 - Use simple words, understandable by non-native English speakers.
 - No em-dashes or other unicode punctuation. Use plain ASCII.
 
+## Interactive menus and screens (Interactive/)
+
+Follow the screen-redraw convention or the menu draws twice on one real console (the "menu repeats down the screen" stacking bug). Rule: a screen calls `ConsoleCursor.ClearScreen()` once when it is entered or re-entered, then redraws in place with `MoveUp` for navigation within it; a sub-screen clears on its own entry and the parent clears again on return, wiping it. Never append a screen beneath the previous one. `MoveUp` only redraws in place within a single screen. On a redirected console (tests) `Clear`/`MoveUp` are no-ops and output appends, so a redirected-console test CANNOT catch this: a real regression test must drive the `VirtualTerminal` harness. The canonical note is on the `Menu` class comment; the full explanation and a worked example (`CategoryFilterDoesNotStack`) are in `docs/ARCHITECTURE.md` section 4.1.
+
 ## Dev tooling hygiene
 Project agent tooling is tracked and public so contributors and their agents share it: `CLAUDE.md`, `AGENTS.md`, and any skills or agents under `.claude/`. Keep them free of anything machine-specific or sensitive (see "No local artifacts in commits" below). Only personal local settings (`.claude/settings.local.json`) and the private `dev-kitchen/` working area stay out of git.
 
