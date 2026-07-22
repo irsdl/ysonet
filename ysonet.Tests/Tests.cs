@@ -1632,9 +1632,15 @@ namespace ysonet.Tests
             // and per-cell-highlight regressions.
             var prevTerm = Term.Current;
             bool prevForce = ModuleEditor.ForceFallback;
+            var prevColors = ConsoleStyle.ColorOverrideForTest;
             var vt = new VirtualTerminal(120, 40);
             Term.Current = vt;
             ModuleEditor.ForceFallback = false; // exercise RunColumns, not the fallback
+            // This test asserts on the COLORED per-cell selection bar, so force color on
+            // for its scope: otherwise a NO_COLOR environment (the no-color.org
+            // convention that ConsoleStyle honors) suppresses the background and there is
+            // no bar to find. Restored in finally.
+            ConsoleStyle.ColorOverrideForTest = true;
             try
             {
                 var keys = new RecordingKeyReader(vt);
@@ -1676,6 +1682,7 @@ namespace ysonet.Tests
             {
                 Term.Current = prevTerm;
                 ModuleEditor.ForceFallback = prevForce;
+                ConsoleStyle.ColorOverrideForTest = prevColors;
             }
         }
 
