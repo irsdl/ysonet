@@ -43,6 +43,15 @@ namespace ysonet.Helpers
             }
         }
 
+        // Drop every selection on every axis (back to "matches all").
+        public void Clear()
+        {
+            Kinds.Clear();
+            Formatters.Clear();
+            Inputs.Clear();
+            Requirements.Clear();
+        }
+
         // A deep copy, so a caller can snapshot the selections without sharing lists.
         public GadgetCategoryQuery Clone()
         {

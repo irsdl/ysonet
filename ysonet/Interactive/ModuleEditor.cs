@@ -91,11 +91,6 @@ namespace ysonet.Interactive
         private List<PluginMode> _modes;
         private EditableField _modeField;
 
-        // Read-only match context: when the editor was opened from the category
-        // discovery flow, this is the query the gadgets were filtered by, so the
-        // module preview can show why each gadget matched. Null on the normal path.
-        private readonly GadgetCategoryQuery _matchQuery;
-
         public ModuleEditor(IKeyReader keys, Stream output, bool isGadget, List<string> moduleNames, WizardSession session)
         {
             _keys = keys ?? new ConsoleKeyReader();
@@ -107,13 +102,98 @@ namespace ysonet.Interactive
             _picker = new Picker(_keys);
         }
 
-        // Overload used by the category discovery flow: same editor, plus a read-only
-        // query so the preview can show why each filtered gadget matched.
-        public ModuleEditor(IKeyReader keys, Stream output, bool isGadget, List<string> moduleNames,
-            WizardSession session, GadgetCategoryQuery matchQuery)
-            : this(keys, output, isGadget, moduleNames, session)
+        // ---- In-build gadget category filter -----------------------------------
+        //
+        // The gadget picker can be narrowed by category on request (not a separate
+        // top-menu path). The selections live in the session so the filter persists
+        // across builds until cleared. Gadgets only; plugins never get a filter.
+
+        // Action rows appended to the gadget list (bottom, after the gadgets). Typing
+        // "filter"/"reset" also surfaces them, and the live columns add a Ctrl+F
+        // shortcut.
+        internal const string FilterActionLabel = "[ Filter by category... ]";
+        internal const string ResetActionLabel = "[ Reset category filter ]";
+
+        // The active gadget category query (session-persisted), or null when off.
+        private GadgetCategoryQuery GadgetFilter
         {
-            _matchQuery = matchQuery;
+            get { return _session != null ? _session.CategorySelections : null; }
+        }
+
+        internal bool IsGadgetFilterActive
+        {
+            get { return _isGadget && GadgetFilter != null && !GadgetFilter.IsEmpty; }
+        }
+
+        // The gadget names to show: all of them, or only those matching the active
+        // filter (original order preserved, Generic already excluded by the caller).
+        internal List<string> FilteredModuleNames()
+        {
+            if (!IsGadgetFilterActive)
+                return _moduleNames;
+            var matches = new HashSet<string>(
+                GadgetCategoryCommand.MatchingGadgetNames(GadgetFilter), StringComparer.OrdinalIgnoreCase);
+            var result = new List<string>();
+            foreach (string n in _moduleNames)
+                if (matches.Contains(n))
+                    result.Add(n);
+            return result;
+        }
+
+        // The full picker list: the (possibly filtered) gadgets, then the filter
+        // action(s). For plugins this is just the plugin names, no actions.
+        internal List<string> ModuleListEntries()
+        {
+            var entries = new List<string>(FilteredModuleNames());
+            if (_isGadget)
+            {
+                entries.Add(FilterActionLabel);
+                if (IsGadgetFilterActive)
+                    entries.Add(ResetActionLabel);
+            }
+            return entries;
+        }
+
+        // Title for the gadget/plugin picker. For gadgets it carries a discoverable
+        // hint (the "[ Filter by category... ]" row sits at the bottom, which the 12-row
+        // picker window may not show until you type or scroll) and notes an active
+        // filter.
+        internal string PickerTitle()
+        {
+            if (!_isGadget)
+                return "Pick a plugin:";
+            if (!IsGadgetFilterActive)
+                return "Pick a gadget  (type 'filter' to filter by category)";
+            int shown = FilteredModuleNames().Count;
+            return "Pick a gadget  [filtered to " + shown + " of " + _moduleNames.Count
+                + "]  (type 'reset' to clear, 'filter' to change)";
+        }
+
+        // Handle a picked list entry that is a filter action rather than a module.
+        // Returns true when it was an action (so the caller re-shows the list).
+        private bool TryHandleModuleAction(string picked)
+        {
+            if (!_isGadget || picked == null)
+                return false;
+            if (picked == FilterActionLabel)
+            {
+                OpenGadgetCategoryFilter();
+                return true;
+            }
+            if (picked == ResetActionLabel)
+            {
+                if (GadgetFilter != null)
+                    GadgetFilter.Clear();
+                return true;
+            }
+            return false;
+        }
+
+        // Open the four-axis category filter, applying its selections to the session
+        // query (so the gadget list narrows). The filter screen owns its own drawing.
+        private void OpenGadgetCategoryFilter()
+        {
+            new CategoryFilter(_keys, _session.CategorySelections).Run();
         }
 
         // Forces the single-panel presentation regardless of the console. Set by the
@@ -142,11 +222,11 @@ namespace ysonet.Interactive
         {
             while (true)
             {
-                string name = _picker.Show(
-                    (_isGadget ? "Pick a gadget:" : "Pick a plugin:"),
-                    _moduleNames, PreviewModule);
+                string name = _picker.Show(PickerTitle(), ModuleListEntries(), PreviewModule);
                 if (name == null)
                     return; // Esc at the module list: back to the top menu
+                if (TryHandleModuleAction(name))
+                    continue; // opened the category filter, or reset it: re-show the list
                 if (!LoadModule(name))
                 {
                     ConsoleStyle.WriteLine("Could not load " + name + ".", ConsoleStyle.Error);
@@ -1259,21 +1339,28 @@ namespace ysonet.Interactive
 
         private string PreviewModule(string name)
         {
+            // The filter action rows are not modules; show a short blurb instead.
+            if (name == FilterActionLabel)
+                return "  Narrow the gadget list by payload kind, formatter, accepted input,\r\n"
+                    + "  or target requirement. Select to open the filter.";
+            if (name == ResetActionLabel)
+                return "  Clear the active category filter and show all gadgets again.";
+
             ModuleView v = _isGadget ? ModuleView.FromGadget(name) : ModuleView.FromPlugin(name);
             if (v == null)
                 return "";
             string text = v.PreviewText();
 
-            // On the category discovery path, append the units that matched the filter,
-            // so the preview shows why this gadget is in the list.
-            if (_isGadget && _matchQuery != null && !_matchQuery.IsEmpty)
+            // When a category filter is active, append the units that matched it, so
+            // the preview shows why this gadget is in the narrowed list.
+            if (IsGadgetFilterActive)
             {
                 IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
                 if (g != null)
                 {
-                    var matched = GadgetCategoryCommand.DetailedLines(g, "  ", _matchQuery);
+                    var matched = GadgetCategoryCommand.DetailedLines(g, "  ", GadgetFilter);
                     if (matched.Count > 0)
-                        text += "\r\n  Matched your filter (" + _matchQuery.Describe() + "):\r\n"
+                        text += "\r\n  Matched your filter (" + GadgetFilter.Describe() + "):\r\n"
                             + string.Join("\r\n", matched.ToArray());
                 }
             }

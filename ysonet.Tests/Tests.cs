@@ -158,9 +158,10 @@ namespace ysonet.Tests
             Run("Filter disables values impossible under other axes", CategoryFilterDisablesImpossibleValues);
             Run("Filter screen does not stack on a real console (redraw in place)", CategoryFilterDoesNotStack);
             Run("Gadget preview shows the category summary", ModuleViewShowsCategorySummary);
-            Run("Category flow generates the same payload and returns to the filter", CategoryFlowGeneratesSamePayload);
+            Run("In-build gadget filter narrows the list and resets", GadgetFilterNarrowsAndResets);
+            Run("In-build category filter narrows the picker and generates the same payload", CategoryFilterInBuildGeneratesSamePayload);
             Run("Plugin flow has no category screen", PluginFlowHasNoCategoryScreen);
-            Run("Existing gadget flow reaches the picker with no extra input", ExistingGadgetFlowReachesPickerDirectly);
+            Run("Existing gadget flow reaches the picker with the filter action offered", ExistingGadgetFlowReachesPickerDirectly);
 
             // FULL tier (opt-in): the exhaustive combination suite. It is slower and
             // flashes many self-closing cmd windows / binds loopback sockets, so it
@@ -826,7 +827,7 @@ namespace ysonet.Tests
         private static void WizardPluginPath()
         {
             var keys = new ScriptedKeyReader();
-            keys.Digit(3);                          // top -> plugin (now index 2, after the category item)
+            keys.Digit(2);                          // top -> plugin (index 1)
             keys.Type("ApplicationTrust").Enter();  // module picker
             keys.Type("command").Enter();           // open the command setting
             keys.TypeLine("calc.exe");              // set it
@@ -1724,7 +1725,7 @@ namespace ysonet.Tests
             AssertTrue(AnyFrame(gadget, "Command input:"), "the gadget info states what the command means");
 
             // On the plugin module list, the info panel lists the plugin's options.
-            var plugin = DriveFrames(k => k.Digit(3).Escape().Escape());
+            var plugin = DriveFrames(k => k.Digit(2).Escape().Escape());
             AssertTrue(AnyFrame(plugin, "- Info"), "the info panel header shows for the highlighted plugin");
             AssertTrue(AnyFrame(plugin, "Options:"), "the plugin info lists its options");
         }
@@ -1790,12 +1791,12 @@ namespace ysonet.Tests
         {
             AssertTrue(AnyFrame(DriveFrames(k => k.Escape()), "Build a gadget payload"), "top menu renders");
             AssertTrue(AnyFrame(DriveFrames(k => k.Enter().Enter().Escape().Escape().Escape()), "[ Generate and quit ]"), "gadget settings render");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(3).Up().Enter().Escape().Escape().Escape()), "ViewState Settings"), "plugin settings render");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(4).Type("Json").Enter().Enter().Escape()), "Gadgets with a formatter"), "search formatters renders");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(5).Escape().Escape()), "What kind of input"), "run-all-formatters renders");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(7).Enter().Escape()), "Pick 'gadget'"), "help renders");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(6).Enter().Escape()), "developed and maintained"), "credits render");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(8).Down().Escape().Escape()), "Pick a color theme"), "theme picker renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(2).Up().Enter().Escape().Escape().Escape()), "ViewState Settings"), "plugin settings render");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(3).Type("Json").Enter().Enter().Escape()), "Gadgets with a formatter"), "search formatters renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(4).Escape().Escape()), "What kind of input"), "run-all-formatters renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(6).Enter().Escape()), "Pick 'gadget'"), "help renders");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(5).Enter().Escape()), "developed and maintained"), "credits render");
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(7).Down().Escape().Escape()), "Pick a color theme"), "theme picker renders");
         }
 
         private static void TextEditAppends()
@@ -1973,19 +1974,19 @@ namespace ysonet.Tests
             var gen = run(k => k.Enter().Type("ObjectDataProvider").Enter().Up().Up().Up().Up().Enter().Enter().Escape().Escape().Escape());
             show("GENERATE action output", gen, "Payload (", false);
 
-            var plugin = run(k => k.Digit(3).Up().Enter().Escape().Escape().Escape());
+            var plugin = run(k => k.Digit(2).Up().Enter().Escape().Escape().Escape());
             show("PLUGIN SETTINGS (ViewState)", plugin, "ViewState Settings", false);
 
-            var theme = run(k => k.Digit(8).Down().Down().Escape().Escape());
+            var theme = run(k => k.Digit(7).Down().Down().Escape().Escape());
             show("THEME PICKER (live preview)", theme, "Pick a color theme", false);
 
-            var search = run(k => k.Digit(4).Type("Json").Enter().Enter().Escape());
+            var search = run(k => k.Digit(3).Type("Json").Enter().Enter().Escape());
             show("SEARCH FORMATTERS", search, "Gadgets with a formatter", true);
 
-            var help = run(k => k.Digit(7).Enter().Escape());
+            var help = run(k => k.Digit(6).Enter().Escape());
             show("HELP", help, "Pick 'gadget'", false);
 
-            var credits = run(k => k.Digit(6).Enter().Escape());
+            var credits = run(k => k.Digit(5).Enter().Escape());
             show("CREDITS", credits, "developed and maintained", false);
         }
 
@@ -2050,7 +2051,7 @@ namespace ysonet.Tests
             // reject a shell command (they expect a file/URL/DLL). It must now run
             // to completion, skip those gracefully, and emit nothing to stdout.
             var keys = new ScriptedKeyReader();
-            keys.Digit(5);                     // top menu -> Run all formatters (now index 4)
+            keys.Digit(4);                     // top menu -> Run all formatters (index 3)
             keys.Enter();                      // input type -> Shell command (index 0)
             keys.Type("BinaryFormatter").Enter(); // formatter picker filter + pick
             keys.TypeLine("calc.exe");         // command
@@ -2076,7 +2077,7 @@ namespace ysonet.Tests
                 Directory.Delete(folder, true);
 
             var keys = new ScriptedKeyReader();
-            keys.Digit(5);                     // top -> Run all formatters (now index 4)
+            keys.Digit(4);                     // top -> Run all formatters
             keys.Enter();                      // input type -> Shell command (index 0)
             keys.Type("BinaryFormatter").Enter(); // formatter picker filter + pick
             keys.TypeLine("calc.exe");         // command
@@ -4937,15 +4938,18 @@ namespace ysonet.Tests
 
         private static void CategoryFilterDoesNotStack()
         {
-            // Real-console redraw path (VirtualTerminal, cursor control on): open the
-            // category filter, open an axis checklist, discard back to the main screen,
-            // then leave. The main screen must clear/redraw in place on re-entry; it
-            // must never stack a second copy below the checklist (the reported bug -
-            // the same menu drawn twice on one screen).
-            var frames = DriveFrames(k => k.Digit(2)   // top -> Find a gadget by category
+            // Real-console redraw path (VirtualTerminal, cursor control on): from the
+            // gadget build flow open the category filter (the "[ Filter by category... ]"
+            // row at the bottom of the module list), open an axis checklist, discard
+            // back, then leave. The screens must clear/redraw in place on re-entry; the
+            // filter menu must never stack a second copy on one screen (the reported bug).
+            var frames = DriveFrames(k => k.Enter()    // top -> Build a gadget payload (columns)
+                .End()                                 // jump to the "[ Filter by category... ]" row
+                .Enter()                               // open the category filter
                 .Down().Enter()                        // open the Payload kind checklist
                 .Escape()                              // discard -> back to the main filter
-                .Escape()                              // Esc at the filter -> top menu
+                .Escape()                              // Esc at the filter -> back to the columns
+                .Escape()                              // leave the columns -> top menu
                 .Escape());                            // quit
             foreach (Frame f in frames)
                 AssertTrue(RowsContaining(f, "Filter gadgets (optional)") <= 1,
@@ -4970,48 +4974,74 @@ namespace ysonet.Tests
             AssertTrue(v.PreviewText().Contains("Categories"), "the gadget preview shows a category summary");
         }
 
-        private static void CategoryFlowGeneratesSamePayload()
+        private static void GadgetFilterNarrowsAndResets()
+        {
+            var session = new WizardSession();
+            var names = CliListing.Gadgets();
+            var editor = new ModuleEditor(new ScriptedKeyReader(), new MemoryStream(), true, names, session);
+
+            AssertTrue(!editor.IsGadgetFilterActive, "no filter initially");
+            AssertEqual(names.Count, editor.FilteredModuleNames().Count, "no filter shows all gadgets");
+            AssertTrue(editor.ModuleListEntries().Contains(ModuleEditor.FilterActionLabel), "the filter action is offered");
+            AssertTrue(!editor.ModuleListEntries().Contains(ModuleEditor.ResetActionLabel), "no reset action while inactive");
+
+            // Apply a code-execution filter via the session query the editor reads.
+            session.CategorySelections.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
+            AssertTrue(editor.IsGadgetFilterActive, "filter active after a selection");
+            var filtered = editor.FilteredModuleNames();
+            AssertTrue(filtered.Count > 0 && filtered.Count < names.Count, "the filter narrows the list");
+            AssertTrue(filtered.Contains("ObjectDataProvider"), "a code-execution gadget is kept");
+            AssertTrue(!filtered.Contains("WindowsPrincipal"), "a nested-only gadget is dropped");
+            AssertTrue(editor.ModuleListEntries().Contains(ModuleEditor.ResetActionLabel), "the reset action is offered while active");
+            AssertTrue(editor.PickerTitle().Contains("filtered"), "the picker title notes the active filter");
+
+            // Reset clears it.
+            session.CategorySelections.Clear();
+            AssertTrue(!editor.IsGadgetFilterActive, "filter cleared after reset");
+            AssertEqual(names.Count, editor.FilteredModuleNames().Count, "reset restores all gadgets");
+        }
+
+        private static void CategoryFilterInBuildGeneratesSamePayload()
         {
             var kindValues = CategoryFilterModel.Load(new GadgetCategoryQuery()).ValuesForAxis(CategoryAxis.Kind);
             int ceIdx = kindValues.IndexOf(PayloadKind.CodeExecution);
             AssertTrue(ceIdx >= 0, "code-execution is a catalog value");
 
             var keys = new ScriptedKeyReader();
-            keys.Digit(2);                            // top -> Find a gadget by category (index 1)
-            keys.Down();                              // main focus Show -> Payload kind
-            keys.Enter();                             // open the kind checklist
+            keys.Enter();                                 // top -> Build a gadget payload
+            keys.Type("Filter by category").Enter();      // module picker: open the filter action
+            keys.Down().Enter();                          // filter: open the Payload kind checklist
             for (int i = 0; i < ceIdx; i++) keys.Down();
-            keys.Type(" ");                           // select code-execution
-            keys.Enter();                             // apply
-            keys.Home().Enter();                      // Show -> open the filtered editor
-            keys.Type("ObjectDataProvider").Enter();  // module picker
-            keys.Type("formatter").Enter();           // open the formatter setting
-            keys.Digit(2);                            // Json.NET
-            keys.Type("Generate").Enter();            // generate
-            keys.Escape();                            // leave the form
-            keys.Escape();                            // leave the module list -> back to the filter
-            keys.Escape();                            // Esc at the filter -> top menu
-            keys.Escape();                            // quit
+            keys.Type(" ");                               // select code-execution
+            keys.Enter();                                 // apply
+            keys.Home().Enter();                          // Show -> back to the narrowed module picker
+            keys.Type("ObjectDataProvider").Enter();      // pick it
+            keys.Type("formatter").Enter();               // open the formatter setting
+            keys.Digit(2);                                // Json.NET
+            keys.Type("Generate").Enter();                // generate
+            keys.Escape();                                // leave the form
+            keys.Escape();                                // leave the module picker -> top menu
+            keys.Escape();                                // quit
 
             string stderr;
             byte[] got = DriveWizard(keys, out stderr);
             byte[] expected = GenerateOdpJson("calc.exe");
-            AssertTrue(got.Length > 0, "category flow produced a payload");
+            AssertTrue(got.Length > 0, "in-build filter flow produced a payload");
             AssertTrue(BytesEqual(got, expected), "filtered payload equals the core payload");
-            AssertTrue(CountOccurrences(stderr, "Filter gadgets (optional)") >= 2,
-                "the editor Esc returned to the filter (shown at least twice)");
+            AssertTrue(stderr.Contains("Filter gadgets (optional)"), "the filter screen was reached from the build flow");
         }
 
         private static void PluginFlowHasNoCategoryScreen()
         {
             var keys = new ScriptedKeyReader();
-            keys.Digit(3);   // top -> Build a plugin payload (index 2)
+            keys.Digit(2);   // top -> Build a plugin payload (index 1)
             keys.Escape();   // module list -> top
             keys.Escape();   // quit
             string stderr;
             DriveWizard(keys, out stderr);
             AssertTrue(stderr.Contains("Pick a plugin"), "plugin flow opens its picker directly");
-            AssertTrue(!stderr.Contains("Filter gadgets (optional)"), "plugin flow shows no category filter");
+            AssertTrue(!stderr.Contains("Filter by category"), "plugin flow offers no category filter action");
+            AssertTrue(!stderr.Contains("Filter gadgets (optional)"), "plugin flow shows no category filter screen");
         }
 
         private static void ExistingGadgetFlowReachesPickerDirectly()
@@ -5023,7 +5053,8 @@ namespace ysonet.Tests
             string stderr;
             DriveWizard(keys, out stderr);
             AssertTrue(stderr.Contains("Pick a gadget"), "the build path opens the gadget picker directly");
-            AssertTrue(!stderr.Contains("Filter gadgets (optional)"), "the direct build path shows no filter");
+            AssertTrue(stderr.Contains("filter by category"), "the gadget picker hints at the category filter");
+            AssertTrue(!stderr.Contains("Filter gadgets (optional)"), "the filter screen is not shown until requested");
         }
 
         // ---- category test helpers --------------------------------------------

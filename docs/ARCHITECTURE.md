@@ -244,17 +244,19 @@ calls `Environment.Exit`; it returns a `RunResult`:
 **Interactive mode** (`Interactive/`, wizard-first) is an extra entry mode, detected in
 `Main` before option parsing via `IsInteractiveInvocation` (triggers `interactive`,
 `wizard`, `-i`, `--interactive` as the FIRST arg only, so an option value cannot trigger
-it). The top menu (`Wizard.cs`) offers gadget build, a **find-a-gadget-by-category**
-discovery flow, plugin build, formatter search, the run-all-formatters sweep, credits,
-help, and a check-for-updates entry (which calls `Helpers/UpdateChecker.cs`). The
-category flow (`Interactive/CategoryFilter.cs`) is a separate, optional path, so the
-existing build-by-name path is untouched: it shows a four-axis checklist (payload kind,
-formatter, accepted input, requirements) with live match counts, OR within an axis and
-AND across, values that cannot match under the other axes shown disabled as `(0)`, then
-opens the module editor with only the matching gadgets and a read-only summary of why
-each matched (a `RunCategoryFlow` loop, so Esc out of the editor returns to the filter
-with selections kept for the session). The pure state/counting model
-(`CategoryFilterModel`) is unit-tested without a console. Gadget/plugin builds open the
+it). The top menu (`Wizard.cs`) offers gadget build, plugin build, formatter search, the
+run-all-formatters sweep, credits, help, and a check-for-updates entry (which calls
+`Helpers/UpdateChecker.cs`). The gadget picker can be narrowed by category **on request,
+inside** the "Build a gadget payload" flow (not a separate top-menu path): the module
+list carries a `[ Filter by category... ]` row (bottom) and, in the live columns, a
+`Ctrl+F` shortcut; both open `Interactive/CategoryFilter.cs`, a four-axis checklist
+(payload kind, formatter, accepted input, requirements) with live match counts, OR within
+an axis and AND across, values that cannot match under the other axes shown disabled as
+`(0)`. Applying narrows the picker to the matching gadgets (the picker title shows "N of
+M" and each preview shows why it matched); a `[ Reset category filter ]` row clears it.
+The selections live in the session (`WizardSession.CategorySelections`) so the filter
+persists across builds until reset. Plugins never get a filter. The pure state/counting
+model (`CategoryFilterModel`) is unit-tested without a console. Gadget/plugin builds open the
 **module editor**
 (`ModuleEditor`): pick a module, then see and change ALL its settings at once - the
 gadget/plugin options plus built-ins (formatter, command, variant, output format/file,
