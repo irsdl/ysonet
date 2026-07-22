@@ -5,7 +5,7 @@
 > structure. Written for contributors and AI agents alike.
 >
 > This document can lag the code between updates; the source is always authoritative.
-> Last reviewed for v2026.7.7 (added the gadget category facets and discovery).
+> Last reviewed for v2026.7.8 (SharePoint CVE-2026-50522 added as a first-class deflate-only WS-Federation mode; session-token handler secret requirements scoped to their own transforms).
 
 ---
 
@@ -98,7 +98,7 @@ ysonet/
     Base/IGenerator.cs           #   interface + GadgetTags + Formatters constants
     Base/GenericGenerator.cs     #   abstract base: Serialize(), Init(), flow helpers
     Patched/PSObjectGenerator.cs #   the one gadget needing a recompiled vulnerable DLL
-    <29 gadget files>
+    <31 gadget files>
   Plugins/                       # PLUGINS (IPlugin classes) - section 6
     base/IPlugin.cs
     <14 plugin files>
@@ -393,7 +393,7 @@ to receive. Most bridges consume **BinaryFormatter**; **`DataSetOldBehaviour`** 
 **`SessionViewStateHistoryItem`** consume **LosFormatter**. Every gadget tagged `Bridged`
 declares a real `SupportedBridgedFormatter()`, so all of them can be a `--bgc` consumer.
 
-### Full gadget table (29 gadgets)
+### Full gadget table (31 gadgets)
 | Name | Formatters | Labels | Bridge? (accepts) | Extra options | Purpose |
 |---|---|---|---|---|---|
 | **ActivitySurrogateSelector** | BinaryFormatter, SoapFormatter, LosFormatter | Independent | No | `var` (1/2) | Reads `e.dll` beside exe; ActivitySurrogateSelector + LINQ enumerator chain to load+instantiate ExploitClass. Ignores `-c`. |
@@ -492,19 +492,25 @@ declare local-file + unc-path, etc.). Nothing here changes generation; it only p
 | Name | Purpose / Target | Key options | Notes |
 |---|---|---|---|
 | **ActivatorUrl** | Send payload to a remote activated object (.NET Remoting, `typeFilterLevel=Full`). Fires over the network, prints no payload. | `-c`, `-u url`, `-s` (TCP channel security) | Uses `TypeConfuseDelegateGadget`, `System.Runtime.Remoting` TcpChannel. Credit: Harrison Neal. |
-| **Altserialization** | `HttpStaticObjectsCollection.Deserialize` / `SessionStateItemCollection`. | `-M mode`, `-o`, `-c`, `-t`, `--minify`, `--ust` | Returns `byte[]`. Session=TCD; Http=TFRP with byte-splicing to fix the BinaryReader header. `--minify` on Session also byte-splices, so the minified BF blob is carried (System.Web's own Serialize would ignore minify); default Session serializes the gadget object. Credit: Soroush Dalili. |
-| **ApplicationTrust** | `ApplicationTrust.FromXml` XML payload. | `-c`, `-t`, `--minify`, `--ust` | Hex-encoded BF blob (TFRP) in `<ExtraInfo Data=...>`. |
-| **Clipboard** | `DataObject.SetData` clipboard injection (paste into e.g. PowerShell ISE). Two delivery modes via `-m/--mode`. | `-m mode` (winforms/wpfxaml), `-F format`, `--xamlvariant` (1/2), `-c`, `-t`, `--minify`, `--ust` | STA thread. **winforms** (default): TFRP wrapped in `AxHostStateMarshal`, WinForms `Clipboard.SetDataObject`. **wpfxaml**: ObjectDataProvider XAML (via `ObjectDataProviderGenerator`) placed under the WPF `Xaml` format using **WPF** `System.Windows.Clipboard`/`DataObject` (WinForms SetData would not round-trip to WPF paste); targets InkCanvas/RichTextBox paste; default-restrictive since CVE-2020-0605/0606, fires only in legacy clipboard mode. `-t` runs a faithful restrictive-vs-non-restrictive paste simulation (`SerializersHelper.Xaml_deserialize_restrictive`). |
-| **DotNetNuke** | DNN CVE-2017-9822 profile deserialization. | `-m mode` (read/write/run), `-c`, `-u`, `-f`, `--minify` | `ExpandedWrapper`+`FileSystemUtils`/`ObjectStateFormatter`; run_command uses TFRP via **LosFormatter** (no MAC). |
+| **Altserialization** | `HttpStaticObjectsCollection.Deserialize` / `SessionStateItemCollection`. | `-M mode`, `-o`, `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Returns `byte[]`. Session=TCD; Http=TFRP with byte-splicing to fix the BinaryReader header. `--minify` on Session also byte-splices, so the minified BF blob is carried (System.Web's own Serialize would ignore minify); default Session serializes the gadget object. Credit: Soroush Dalili. |
+| **ApplicationTrust** | `ApplicationTrust.FromXml` XML payload. | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd`, `--no-comment` | Hex-encoded BF blob (TFRP) in `<ExtraInfo Data=...>`. `--no-comment` drops the optional commented-out `<DefaultGrant>` example. |
+| **Clipboard** | `DataObject.SetData` clipboard injection (paste into e.g. PowerShell ISE). Two delivery modes via `-m/--mode`. | `-m mode` (winforms/wpfxaml), `-F format`, `--xamlvariant` (1/2), `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | STA thread. **winforms** (default): TFRP wrapped in `AxHostStateMarshal`, WinForms `Clipboard.SetDataObject`. **wpfxaml**: ObjectDataProvider XAML (via `ObjectDataProviderGenerator`) placed under the WPF `Xaml` format using **WPF** `System.Windows.Clipboard`/`DataObject` (WinForms SetData would not round-trip to WPF paste); targets InkCanvas/RichTextBox paste; default-restrictive since CVE-2020-0605/0606, fires only in legacy clipboard mode. `-t` runs a faithful restrictive-vs-non-restrictive paste simulation (`SerializersHelper.Xaml_deserialize_restrictive`). |
+| **DotNetNuke** | DNN CVE-2017-9822 profile deserialization. | `-m mode` (read/write/run), `-c`, `-u`, `-f`, `--minify`, `--rawcmd` | `ExpandedWrapper`+`FileSystemUtils`/`ObjectStateFormatter`; run_command uses TFRP via **LosFormatter** (no MAC). |
 | **GetterCallGadgets** | Arbitrary getter-call gadgets (Json.NET), .NET Fx & 5/6/7 with WPF. | `-l`, `-i inner`, `-g gadget`, `-m member`, `-t`, `--minify` | Reads inner JSON from file, wraps in a WinForms getter gadget. Credit: Piotr Bazydlo. |
-| **MachineKeySessionSecurityTokenHandler** | `MachineKeySessionSecurityTokenHandler.ReadToken` (exploitable when MachineKey leaked). | `-c`, `-t`, `--minify`, `--ust`, `-vk`, `-ek`, `-va`, `-da` | `<SecurityContextToken>` cookie: BF(TFRP) -> DeflateCookieTransform -> `MachineKeyDataProtector.Protect`. |
+| **MachineKeySessionSecurityTokenHandler** | `MachineKeySessionSecurityTokenHandler.ReadToken` (exploitable when MachineKey leaked). | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd`, `-vk`, `-ek`, `-va`, `-da` | `<SecurityContextToken>` cookie: BF(TFRP) -> DeflateCookieTransform -> `MachineKeyDataProtector.Protect`. MachineKey material is required by this named handler's own transform, not by every SessionSecurityToken sink (cf. SharePoint CVE-2026-50522, deflate-only). |
 | **NetNonRceGadgets** | Non-RCE .NET Framework gadgets (SSRF/NTLM relay, dir-create/DoS). | `-l`, `-i`, `-g` (PictureBox/InfiniteProgressPage/FileLogTraceListener), `-f`, `-t`, `--minify` | String templates per formatter. Credit: Piotr Bazydlo. |
-| **Resx** | Generate `.RESX` / compiled `.RESOURCES` (e.g. CVE-2020-0932). | `-M mode`, `-c`, `-g gadget`, `-F unc`, `-of`, `-t`, `--minify`, `--ust` | Reflects any `IGenerator`; Soap mode uses ActivitySurrogate gadgets. Static `GetPayload(...)` reused elsewhere. |
-| **SessionSecurityTokenHandler** | `SessionSecurityTokenHandler.ReadToken` (DPAPI; rarely practical). | `-c`, `-t`, `--minify`, `--ust` | Like MachineKey variant but `ProtectedDataCookieTransform` (DPAPI). |
+| **Resx** | Generate `.RESX` / compiled `.RESOURCES` (e.g. CVE-2020-0932). | `-M mode`, `-c`, `-g gadget`, `-F unc`, `-of`, `-t`, `--minify`, `--ust`, `--rawcmd` | Reflects any `IGenerator`; Soap mode uses ActivitySurrogate gadgets. Static `GetPayload(...)` reused elsewhere. |
+| **SessionSecurityTokenHandler** | `SessionSecurityTokenHandler.ReadToken` (DPAPI; rarely practical). | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Like MachineKey variant but `ProtectedDataCookieTransform` (DPAPI). DPAPI is required by the default handler's own transform, not by every SessionSecurityToken sink. |
 | **ThirdPartyGadgets** | 3rd-party lib gadgets (Grpc, MongoDB, Xunit, ActiveMQ, AWSSDK, Cosmos, App Insights, NLog, Google Apis). | `-l`, `-i`, `-g`, `-f` (Json.NET), `-r` (strip Version/Culture/PublicKeyToken), `-t`, `--minify` | Mostly string templates; ActiveMQ one uses `TypeConfuseDelegate` BF b64 in a PropertyGrid getter chain. Credit: Piotr Bazydlo. |
-| **TransactionManagerReenlist** | `TransactionManager.Reenlist(Guid, byte[], ...)`. | `-c`, `-t`, `--minify`, `--ust` | Returns `byte[]` = TFRP BF blob + 5-byte header. |
+| **TransactionManagerReenlist** | `TransactionManager.Reenlist(Guid, byte[], ...)`. | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Returns `byte[]` = TFRP BF blob + 5-byte header. |
 | **ViewState** | ASP.NET `__VIEWSTATE` forgery with a known MachineKey. | many (see below) | Most intricate plugin. Credit: Soroush Dalili. |
-| **SharePoint** | Multiple SharePoint CVEs. | `--cve`, `--useurl`, `-g`, `-c`, `--var` | One plugin, six CVE branches (see below). |
+| **SharePoint** | Multiple SharePoint CVEs. | `--cve`, `--useurl`, `-g`, `-c`, `--target`, `--formbody`, `--rawcmd`, `--minify`, `--ust`, `--no-comment`, `--var` | One plugin, seven CVE branches (see below). |
+
+Command-flag convention: every command-taking plugin exposes `--rawcmd` (run the command
+verbatim instead of wrapping it as `cmd /c <command>`), `--minify`, and `--ust`, threading
+them into `InputArgs` rather than hardcoding. Plugins that append an explanatory HTML/XML
+comment (SharePoint, ApplicationTrust) also expose `--no-comment` to emit just the payload.
+These flags mirror the global CLI flags of the same name used on the gadget path.
 
 ### ViewState plugin (deep)
 Forges a valid `__VIEWSTATE` when validation/decryption keys + algorithms are known (e.g.
@@ -524,9 +530,19 @@ reflection), `GenerateViewStateLegacy_2_to_4` (<= .NET 4.0, `MachineKeySection` 
 `,IsolateApps` derivation, and URL-encodes output unless `--showraw`.
 
 ### SharePoint plugin (deep)
-One plugin, six CVE branches by `--cve` (+ hidden `cve-2025-53770` alias). Options:
-`--cve`, `--useurl`, `-g` (default `TypeConfuseDelegate`), `-c`, `--var` (49704 only).
-Each returns XML/SOAP with an HTML comment explaining where to POST it.
+One plugin, seven CVE branches by `--cve` (`cve-2025-53770` is a first-class mode, the 49704 patch bypass). Options:
+`--cve`, `--useurl`, `-g` (default `TypeConfuseDelegate`), `-c`, `--target` (2026-50522 only),
+`--formbody` (2026-50522 only), `--var` (49704 only), plus the shared command flags
+`--rawcmd`, `--minify`, `--ust` (honored by the four gadget-based CVEs: 2024-38018,
+2025-49704, 2025-53770, 2020-1147, 2026-50522) and `--no-comment`.
+Each returns XML/SOAP with an HTML comment explaining where to POST it; `--no-comment`
+outputs just the serialized payload/token with no comment. CVE-2026-50522 follows the same
+convention by default (the `wresult` token plus a delivery comment); its opt-in `--formbody`
+instead returns a bare URL-encoded form body, with no comment (an appended comment would
+corrupt it).
+Behavior note: like every other command-taking plugin, `--rawcmd` defaults off, so `-c`
+is wrapped as `cmd /c <command>`. Pass `--rawcmd` to run the command verbatim (this was
+the old hardcoded SharePoint default).
 - **CVE-2018-8421**: XOML workflow SOAP with XAML `ObjectDataProvider`->`Process.Start`;
   `--useurl` swaps to remote `ResourceDictionary` Source.
 - **CVE-2019-0604**: `ExpandedWrapper`+`XamlReader.Parse`, hex-encoded `__bp...` blob;
@@ -541,6 +557,20 @@ Each returns XML/SOAP with an HTML comment explaining where to POST it.
   PerformancePoint template; `useBypass` injects trailing whitespace into
   `Namespace`/`Tagprefix` to bypass the 49704 patch; sent as `MSOTlPn_DWP` to
   `ToolPane.aspx?DisplayMode=Edit`.
+- **CVE-2026-50522**: pre-auth SharePoint WS-Federation trust endpoint. Pipeline is
+  `BF(gadget) -> DeflateCookieTransform.Encode -> Base64 -> SCT Cookie -> RSTR XML`. Uses
+  any BinaryFormatter-capable `-g` gadget. Default output is the `wresult` token XML plus a
+  delivery comment showing the `wa`/`wctx`/`wresult` POST (matching the other modes, since
+  `wctx` is transport and not part of the payload); `--target` is optional here and only
+  fills the comment's `wctx` example. Opt-in `--formbody` instead emits the complete
+  `wa=wsignin1.0&wctx=<target>&wresult=<RSTR/SCT XML>` body and REQUIRES `--target`. When
+  given, `--target` must be an absolute http/https base URL (user info, query, and fragment
+  are rejected) used only as the `wctx` value; it is never contacted. POST as
+  `application/x-www-form-urlencoded` to `/_trust/default.aspx`. This PoC path is
+  deflate-only: NO DPAPI or MachineKey secret is needed, unlike the
+  Session/MachineKey session-token handler plugins. The RSTR/SCT XML is built with
+  `XmlWriter`, not string interpolation. Credit: splitline of DEVCORE Research Team
+  (ZDI-26-412).
 
 ---
 

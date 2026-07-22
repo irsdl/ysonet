@@ -2,6 +2,8 @@
 
 Who built YSoNet and who found the gadgets and plugins it ships. If you want to learn more about .NET deserialization itself, see [References](references.md).
 
+YSoNet is the continuation and update of [YSoSerial.Net](https://github.com/pwntester/ysoserial.net), which was originally developed by Alvaro Munoz (@pwntester). YSoNet is now developed and maintained by Soroush Dalili (@irsdl). The original tool was inspired by [Chris Frohoff's ysoserial](https://github.com/frohoff/ysoserial) for Java.
+
 Back to [documentation index](README.md).
 
 ## Thanks
@@ -112,7 +114,7 @@ Credits for available plugins:
         SessionSecurityTokenHandler
                 Soroush Dalili
         SharePoint
-                CVE-2024-38018: Piotr Bazydlo - explained by Khoa Dinh & implemented by Soroush Dalili, CVE-2025-49704: Khoa Dinh - implemented by Soroush Dalili, CVE-2018-8421: Soroush Dalili, CVE-2019-0604: Markus Wulftange, CVE-2020-1147: Oleksandr Mirosh, Markus Wulftange, Jonathan Birch, Steven Seeley (write-up)  - implemented by Soroush Dalili
+                CVE-2024-38018: Piotr Bazydlo - explained by Khoa Dinh & implemented by Soroush Dalili, CVE-2025-49704: Khoa Dinh - implemented by Soroush Dalili, CVE-2025-53770: patch bypass of CVE-2025-49704 - implemented by Soroush Dalili, CVE-2026-50522: splitline of DEVCORE Research Team (ZDI-26-412) - implemented by Soroush Dalili, CVE-2018-8421: Soroush Dalili, CVE-2019-0604: Markus Wulftange, CVE-2020-1147: Oleksandr Mirosh, Markus Wulftange, Jonathan Birch, Steven Seeley (write-up)  - implemented by Soroush Dalili
         ThirdPartyGadgets
                 Piotr Bazydlo
         TransactionManagerReenlist

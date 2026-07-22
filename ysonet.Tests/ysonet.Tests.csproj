@@ -39,6 +39,8 @@
     <Reference Include="System.Core" />
     <!-- For the XmlMinifier encodingStyle test: parse the minified output with XmlDocument. -->
     <Reference Include="System.Xml" />
+    <!-- For the SharePoint CVE-2026-50522 framing test: URL-decode the form body with HttpUtility. -->
+    <Reference Include="System.Web" />
     <!-- For the FULL-tier ObjRef firing test: register a loopback remoting client channel. -->
     <Reference Include="System.Runtime.Remoting" />
     <Reference Include="NDesk.Options, Version=0.2.1.0, Culture=neutral, processorArchitecture=MSIL">

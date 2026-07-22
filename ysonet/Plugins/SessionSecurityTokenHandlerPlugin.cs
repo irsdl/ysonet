@@ -13,10 +13,12 @@ using ysonet.Helpers;
  * 
  * Comments: 
  *  This was released as a PoC for NCC Group's research on `Use of Deserialisation in .NET Framework Methods` (December 2018)
- *  See `SessionSecurityTokenHandler.ReadToken Method`: https://docs.microsoft.com/en-us/dotnet/api/system.identitymodel.tokens.sessionsecuritytokenhandler.readtoken 
+ *  See `SessionSecurityTokenHandler.ReadToken Method`: https://docs.microsoft.com/en-us/dotnet/api/system.identitymodel.tokens.sessionsecuritytokenhandler.readtoken
  *  Security note was added after being reported: https://github.com/dotnet/dotnet-api-docs/pull/502
- *  This PoC uses BinaryFormatter from TypeConfuseDelegate
- *  As it uses Data Protection API (DPAPI) that requires current account credentials. Without that, it will not be possible to create a valid cookie. Therefore, it might be very rare that this issue can become actually useful.
+ *  This PoC uses BinaryFormatter from TextFormattingRunProperties.
+ *  It models the default System.IdentityModel SessionSecurityTokenHandler transform chain: Deflate followed by DPAPI (ProtectedDataCookieTransform).
+ *  Because that default handler applies DPAPI (DataProtectionScope.CurrentUser), DPAPI access is required to produce a valid cookie for that handler instance. Without it, a valid cookie cannot be created, so this issue is rarely practical.
+ *  This requirement is specific to the default handler's transforms; it is NOT universal to every SessionSecurityToken deserialization sink. A custom or derived handler may use different transforms (see the SharePoint CVE-2026-50522 deflate-only path in SharePointPlugin).
  *  This PoC produces an error and may crash the application
 **/
 
@@ -28,6 +30,7 @@ namespace ysonet.Plugins
         static bool test = false;
         static bool minify = false;
         static bool useSimpleType = true;
+        static bool rawcmd = false;
 
         static OptionSet options = new OptionSet()
             {
@@ -35,6 +38,7 @@ namespace ysonet.Plugins
                 {"t|test", "whether to run payload locally. Default: false", v => test =  v != null },
                 {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
                 {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
+                {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
             };
 
         public string Name()
@@ -67,6 +71,7 @@ namespace ysonet.Plugins
                 inputArgs.Cmd = command;
                 inputArgs.Minify = minify;
                 inputArgs.UseSimpleType = useSimpleType;
+                inputArgs.IsRawCmd = rawcmd;
                 inputArgs.Test = test;
             }
             catch (OptionException e)

