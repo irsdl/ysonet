@@ -280,3 +280,6 @@ BenchmarkDotNet.Artifacts/
 TestResults/
 temp/
 local/
+
+# Stray build-generated resource blobs at repo root (not source)
+/*.resources
