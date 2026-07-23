@@ -222,6 +222,12 @@ namespace ysonet.Interactive
         {
             while (true)
             {
+                // Start (and re-enter) on a clean screen so the picker reuses the space
+                // rather than stacking beneath the top menu or a form we came back from.
+                // The columns path clears the same way; without this the top menu stayed
+                // visible above the picker on a small window (the fallback is what a
+                // short console uses).
+                ConsoleCursor.ClearScreen();
                 string name = _picker.Show(PickerTitle(), ModuleListEntries(), PreviewModule);
                 if (name == null)
                     return; // Esc at the module list: back to the top menu
@@ -245,6 +251,11 @@ namespace ysonet.Interactive
         {
             while (true)
             {
+                // Enter (and re-enter after editing a field) on a clean screen: the
+                // module picker left its info preview above, and an edit sub-screen
+                // leaves its prompt below. Without this they show as residuals over the
+                // settings form on a real console (the fallback path, e.g. a short window).
+                ConsoleCursor.ClearScreen();
                 RefreshDynamic();
 
                 var visible = new List<EditableField>();
@@ -273,9 +284,27 @@ namespace ysonet.Interactive
                 EditableField chosenField = visible[idx];
                 if (chosenField.IsAction)
                 {
-                    RunAction(chosenField);
-                    if (_quit)
-                        return;
+                    if (chosenField.ActionId == "reset")
+                    {
+                        // No output to read: rebuild to defaults; the loop clears and
+                        // redraws the form on the next pass.
+                        RunAction(chosenField);
+                    }
+                    else
+                    {
+                        // Clear first so the action output (payload, command, blocked
+                        // report) shows on a clean screen, then pause so the user can read
+                        // or copy it before the loop clears and redraws the form. The
+                        // pause is only meaningful on a real console; under redirected
+                        // output (pipes, tests) there is no one to wait for, and the
+                        // clears are no-ops, so the stream output is unchanged.
+                        ConsoleCursor.ClearScreen();
+                        RunAction(chosenField);
+                        if (_quit)
+                            return; // leave the payload as the last thing on screen
+                        if (ConsoleCursor.CanControl())
+                            PauseForReview();
+                    }
                     continue;
                 }
                 EditField(chosenField);
@@ -353,6 +382,9 @@ namespace ysonet.Interactive
 
         private void EditField(EditableField f)
         {
+            // The edit prompt/menu is its own screen; clear so it does not draw under
+            // the settings form it was launched from (EditForm clears again on return).
+            ConsoleCursor.ClearScreen();
             switch (f.Kind)
             {
                 case FieldKind.Flag:

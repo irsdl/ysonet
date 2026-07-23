@@ -113,6 +113,10 @@ namespace ysonet.Tests
             Run("Blocked report shows the command's expected input and example", BlockedReportShowsCommandExample);
             Run("Home/End jump to first/last setting in the columns", ColumnsHomeEndNav);
             Run("Picker Home/End jump to first/last match", PickerHomeEnd);
+            Run("Picker fits a short window (no stacking/overflow)", PickerFitsShortWindow);
+            Run("Fallback clears the top menu before the picker on a short window", FallbackClearsTopMenuOnShortWindow);
+            Run("Fallback settings form clears the module preview residual", FallbackFormClearsModulePreview);
+            Run("Fallback settings form clears the field-editor residual", FallbackFormClearsEditResidual);
             Run("Wizard remembers the last command", WizardRemembersLastCommand);
             Run("Run-all-formatters survives file/url gadgets", WizardRunAllFormatters);
             Run("Run-all-formatters saves payloads to a folder", WizardRunAllFormattersToFolder);
@@ -1954,6 +1958,74 @@ namespace ysonet.Tests
             AssertEqual("alpha", first, "Home selects the first item");
         }
 
+        private static void PickerFitsShortWindow()
+        {
+            // On a real console the picker draws a fixed ~24-line block (12 rows + an
+            // 8-line preview + a Search and count line). On a SHORT window that block
+            // is taller than the screen, so the relative MoveUp clamps at row 0 and
+            // the frame desyncs - the title scrolls off and a second copy stacks (the
+            // reported small-screen bug). The block must instead shrink to fit, so the
+            // title, Search line and count line all stay on ONE screen.
+            var prevTerm = Term.Current;
+            try
+            {
+                var vt = new VirtualTerminal(80, 12); // deliberately short
+                Term.Current = vt;
+
+                var items = new List<string>();
+                for (int i = 0; i < 30; i++)
+                    items.Add("Gadget" + i.ToString("00"));
+
+                var keys = new RecordingKeyReader(vt);
+                keys.Down().Down().Down().Enter();
+                new Picker(keys).Show("PickTitle", items, s => "preview for " + s);
+
+                Frame f = vt.Capture(); // the settled screen after navigating
+                AssertEqual(1, RowsContaining(f, "PickTitle"),
+                    "the title appears on exactly one row (no stacking, not scrolled off)");
+                AssertTrue(f.Contains("Search:"), "the Search line stayed on screen");
+                AssertTrue(f.Contains("match(es)"), "the count line stayed on screen");
+            }
+            finally
+            {
+                Term.Current = prevTerm;
+            }
+        }
+
+        private static void FallbackClearsTopMenuOnShortWindow()
+        {
+            // A short console fails ColumnsFit, so the gadget flow uses RunFallback.
+            // That path must clear the screen before the picker, exactly as the columns
+            // path does; otherwise the top menu stays drawn above the picker (the stacked
+            // "Build a gadget payload ... Pick a gadget" screen reported on a small window).
+            var prevTerm = Term.Current;
+            bool prevForce = ModuleEditor.ForceFallback;
+            try
+            {
+                var vt = new VirtualTerminal(80, 14); // too short for the columns view
+                Term.Current = vt;
+                ModuleEditor.ForceFallback = false;   // let ColumnsFit pick the fallback
+
+                var k = new RecordingKeyReader(vt);
+                k.Enter();   // top menu -> Build a gadget payload (fallback picker)
+                k.Escape();  // Esc at the picker -> back to the top menu
+                k.Escape();  // quit
+                try { new Wizard(k, new MemoryStream()).Run(); } catch { }
+
+                Frame picker = null;
+                foreach (Frame f in k.Frames)
+                    if (f.Contains("Pick a gadget")) { picker = f; break; }
+                AssertTrue(picker != null, "the fallback picker rendered on a short window");
+                AssertTrue(!picker.Contains("What do you want to do"),
+                    "the top menu was cleared before the fallback picker (no stacking)");
+            }
+            finally
+            {
+                Term.Current = prevTerm;
+                ModuleEditor.ForceFallback = prevForce;
+            }
+        }
+
         private static void WizardGenerateAndQuit()
         {
             // Generate and quit emits the payload and leaves interactive mode; if it
@@ -2141,6 +2213,88 @@ namespace ysonet.Tests
             foreach (Frame f in frames)
                 if (f.Contains(needle)) return true;
             return false;
+        }
+
+        // Drive the interactive UI against a virtual terminal but pinned to the
+        // single-panel FALLBACK path (ForceFallback) with real cursor control on, so
+        // the fallback's clear/redraw is exercised the way a short real console uses it.
+        // A short/redirected console is exactly where the residual/stacking bugs live,
+        // and only a real-cursor harness (not the redirected-stderr tests) can catch them.
+        private static List<Frame> DriveFallbackFrames(Action<RecordingKeyReader> build)
+        {
+            var prevTerm = Term.Current;
+            bool prevForce = ModuleEditor.ForceFallback;
+            var vt = new VirtualTerminal(80, 24);
+            Term.Current = vt;
+            ModuleEditor.ForceFallback = true; // single-panel path, not the columns view
+            try
+            {
+                var k = new RecordingKeyReader(vt);
+                build(k);
+                try { new Wizard(k, new MemoryStream()).Run(); } catch { }
+                return k.Frames;
+            }
+            finally
+            {
+                Term.Current = prevTerm;
+                ModuleEditor.ForceFallback = prevForce;
+            }
+        }
+
+        // The last captured frame that matches a predicate (for "the screen as it
+        // settled after the final navigation of interest").
+        private static Frame LastFrame(List<Frame> frames, Func<Frame, bool> pred)
+        {
+            Frame found = null;
+            foreach (Frame f in frames)
+                if (pred(f)) found = f;
+            return found;
+        }
+
+        private static void FallbackFormClearsModulePreview()
+        {
+            // Fallback path: open a gadget's settings form. The module picker showed the
+            // gadget info preview (Formatters/Labels/Credit); the settings form must clear
+            // it, not leave it stacked above the form (the reported residual on a small
+            // window). A redirected-stderr test cannot see this - the clear is a no-op
+            // there - so it runs on the real-cursor virtual terminal.
+            var frames = DriveFallbackFrames(k => k
+                .Enter()                                 // top -> Build a gadget payload
+                .Type("ObjectDataProvider").Enter()      // pick the module -> settings form
+                .Escape()                                // leave the form -> module list
+                .Escape()                                // leave the list -> top menu
+                .Escape());                              // quit
+            AssertTrue(AnyFrame(frames, "Formatters:"),
+                "the module picker showed the gadget info preview at some point");
+            Frame form = LastFrame(frames, f => f.Contains("type to find a setting"));
+            AssertTrue(form != null, "the settings form rendered in the fallback path");
+            AssertTrue(!form.Contains("Formatters:"),
+                "the settings form cleared the module-picker preview (no residual)");
+            AssertTrue(!form.Contains("What do you want to do"),
+                "the settings form cleared the top menu (no residual)");
+            AssertTrue(RowsContaining(form, "type to find a setting") <= 1,
+                "the settings form is drawn once, not stacked");
+        }
+
+        private static void FallbackFormClearsEditResidual()
+        {
+            // Fallback path: open a field editor from the settings form, then Esc back.
+            // The editor is its own screen and the returned form must be clean - the two
+            // must never be sandwiched on one screen (the residual/stacking bug).
+            var frames = DriveFallbackFrames(k => k
+                .Enter()                                 // top -> Build a gadget payload
+                .Type("ObjectDataProvider").Enter()      // pick the module -> settings form
+                .Type("formatter").Enter()               // open the formatter field editor
+                .Escape()                                // cancel the editor -> back to the form
+                .Escape()                                // leave the form -> module list
+                .Escape()                                // leave the list -> top menu
+                .Escape());                              // quit
+            AssertTrue(AnyFrame(frames, "Set formatter"), "the field editor rendered");
+            // No single frame shows the form title and the editor title together: they
+            // are always on separate cleared screens.
+            foreach (Frame f in frames)
+                AssertTrue(!(f.Contains("type to find a setting") && f.Contains("Set formatter")),
+                    "the editor and the settings form are never drawn on the same screen (no residual)");
         }
 
         private static void AllMenusRender()

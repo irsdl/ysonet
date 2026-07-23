@@ -25,6 +25,22 @@ namespace ysonet.Interactive
             catch { return 79; }
         }
 
+        // The visible window height in rows, so a widget can size a scrolling block
+        // to fit and keep its relative MoveUp correct. Returns 0 when the size is
+        // unknown or we do not control a real console (redirected output / tests),
+        // which tells the caller to draw its full fixed-height block and just append.
+        public static int Height()
+        {
+            if (!CanControl())
+                return 0;
+            try
+            {
+                int h = T.WindowHeight;
+                return h > 0 ? h : 0;
+            }
+            catch { return 0; }
+        }
+
         // Clear the whole screen so the next render reuses the space instead of
         // stacking beneath the previous one. Best effort, and only when we control a
         // real console (redirected output / tests just keep appending).

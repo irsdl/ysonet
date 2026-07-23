@@ -16,9 +16,44 @@ namespace ysonet.Interactive
         private const int MaxRows = 12;
         private const int MaxPreviewLines = 8;
 
+        // The block also draws a Search line and a count line, and the title+help
+        // hint sit above it. Reserve that many rows when fitting to the window so
+        // those stay visible on a short screen.
+        private const int Overhead = 4; // title + help + search + count
+
+        // The list-row count last rendered, so paging keys (PageUp/PageDown) jump by
+        // what is actually on screen rather than the fixed maximum. Render keeps it
+        // current; it shrinks on a short window.
+        private int _visibleRows = MaxRows;
+
         public Picker(IKeyReader keys)
         {
             _keys = keys ?? new ConsoleKeyReader();
+        }
+
+        // Fit the list and preview into the window so the whole redraw block stays
+        // within the visible rows. If it does not, the relative MoveUp clamps at row
+        // 0 and the frame desyncs - the "menu stacks down the screen" bug on a small
+        // terminal. Shrink the preview first, then the list, but always keep >=1 row.
+        // A returned height of 0 (redirected output / tests) means "unknown size":
+        // keep the full fixed block and just append.
+        private static void FitSizes(bool hasPreview, out int rows, out int preview)
+        {
+            rows = MaxRows;
+            preview = hasPreview ? MaxPreviewLines : 0;
+
+            int height = ConsoleCursor.Height();
+            if (height <= 0)
+                return;
+
+            int available = height - Overhead - 1; // -1 safety margin
+            if (available < 1)
+                available = 1;
+
+            while (rows + preview > available && preview > 0)
+                preview--;
+            while (rows + preview > available && rows > 1)
+                rows--;
         }
 
         // Pure, testable filter. Case-insensitive. An item matches when it
@@ -127,12 +162,12 @@ namespace ysonet.Interactive
                 }
                 else if (key.Key == ConsoleKey.PageUp)
                 {
-                    index = Math.Max(0, index - MaxRows);
+                    index = Math.Max(0, index - _visibleRows);
                 }
                 else if (key.Key == ConsoleKey.PageDown)
                 {
                     if (filtered.Count > 0)
-                        index = Math.Min(filtered.Count - 1, index + MaxRows);
+                        index = Math.Min(filtered.Count - 1, index + _visibleRows);
                 }
                 else if (key.Key == ConsoleKey.Backspace)
                 {
@@ -160,19 +195,26 @@ namespace ysonet.Interactive
             }
         }
 
-        // Write the picker block (constant height) and return the line count.
+        // Write the picker block and return the line count. Its height adapts to the
+        // window (see FitSizes) so it never overflows a short screen; within one run
+        // the height is constant enough for a clean in-place redraw, and MoveUp uses
+        // the returned count, so a live resize stays correct too.
         private int Render(string query, List<string> filtered, int index, Func<string, string> preview)
         {
+            int rows, previewCap;
+            FitSizes(preview != null, out rows, out previewCap);
+            _visibleRows = rows;
+
             var fw = new FrameWriter();
 
             fw.Cell(ConsoleCursor.PadClear("Search: " + query), ConsoleStyle.Prompt);
             fw.EndLine();
 
             int start = 0;
-            if (index >= MaxRows)
-                start = index - MaxRows + 1;
+            if (index >= rows)
+                start = index - rows + 1;
 
-            for (int row = 0; row < MaxRows; row++)
+            for (int row = 0; row < rows; row++)
             {
                 int i = start + row;
                 if (i < filtered.Count)
@@ -203,7 +245,7 @@ namespace ysonet.Interactive
                 string text = preview(filtered[index]);
                 previewLines = (text ?? "").Replace("\r\n", "\n").Split('\n');
             }
-            for (int p = 0; p < MaxPreviewLines; p++)
+            for (int p = 0; p < previewCap; p++)
             {
                 string line = (p < previewLines.Length) ? previewLines[p] : "";
                 fw.Line(ConsoleCursor.PadClear(line), ConsoleStyle.Help);

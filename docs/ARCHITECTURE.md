@@ -262,8 +262,19 @@ model (`CategoryFilterModel`) is unit-tested without a console. Gadget/plugin bu
 gadget/plugin options plus built-ins (formatter, command, variant, output format/file,
 flags) - each with its current value; drill into any setting to edit it; Generate when
 ready. It has two presentations over one model: live side-by-side columns
-(`ModuleEditor.Columns.cs`, real console) and a type-to-filter single panel (fallback for
-redirected output and the tests). Option choices/defaults/required are best-effort recovered
+(`ModuleEditor.Columns.cs`, real console wide/tall enough - `ColumnsFit` checks
+`BufferWidth`/`WindowHeight`) and a type-to-filter single panel (`RunFallback`, used for a
+short/narrow real console as well as redirected output and the tests). The fallback follows
+the same clear-on-entry convention as the columns path at every screen transition (`RunFallback`,
+`EditForm`, `EditField`), so nothing stacks: not the top menu above the module picker, nor the
+module-picker info preview / an edit screen above the settings form (the "residuals when I go
+inside the menu" bug on a small window); action rows clear before running and pause
+(`PauseForReview`, gated on `CanControl`) so the payload/command stays readable. And the picker
+itself sizes its list and preview to the window height (`Picker.FitSizes` via `ConsoleCursor.Height`)
+so the block never overflows a short console (which would desync the in-place redraw). Regression
+tests (real-cursor `VirtualTerminal`, some via the `DriveFallbackFrames` harness):
+`PickerFitsShortWindow`, `FallbackClearsTopMenuOnShortWindow`, `FallbackFormClearsModulePreview`,
+`FallbackFormClearsEditResidual`. Option choices/defaults/required are best-effort recovered
 from each option's help text (`EditableField` heuristics) since NDesk.Options records none
 of them; a Choice always allows a custom value so a wrong guess never blocks the user.
 `GadgetVariant.Input` lets a variant declare its own `-c` meaning (XamlImageInfo v1 = file,
