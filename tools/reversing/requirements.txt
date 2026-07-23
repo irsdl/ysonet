@@ -1,0 +1,5 @@
+# PE inspection for DLL and EXE files.
+pefile==2024.8.26
+
+# Windows version resources used by --include-filter.
+pywin32==312; sys_platform == "win32"

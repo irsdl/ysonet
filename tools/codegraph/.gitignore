@@ -1,0 +1,7 @@
+# Python caches and test artifacts - never commit
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Built SQLite index (created next to a graph JSON, not shipped)
+*.idx.sqlite
