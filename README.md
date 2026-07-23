@@ -7,7 +7,7 @@
 
 ---
 [![Build](https://github.com/irsdl/ysonet/actions/workflows/build.yml/badge.svg)](https://github.com/irsdl/ysonet/actions/workflows/build.yml)
-[![License](https://img.shields.io/github/license/irsdl/ysonet)](https://github.com/irsdl/ysonet/blob/master/LICENSE)
+[![License](https://img.shields.io/github/license/irsdl/ysonet)](https://github.com/irsdl/ysonet/blob/master/LICENSE.txt)
 [![Download](https://img.shields.io/github/v/release/irsdl/ysonet?label=download)](https://github.com/irsdl/ysonet/releases/latest)
 
 A proof-of-concept tool for generating payloads that exploit unsafe .NET object deserialization.
@@ -93,4 +93,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the short version.
 
 ## Credits
 
-YSoNet is developed and maintained by Soroush Dalili (@irsdl). YSoSerial.Net was originally developed by Alvaro Munoz (@pwntester). Run `ysonet.exe --credit` for the full gadget and plugin credits, or see [Credits](docs/credits.md). To learn more about the underlying issues, see [References](docs/references.md).
+YSoNet is developed and maintained by Soroush Dalili (@irsdl). YSoSerial.Net was originally developed by Alvaro Muñoz (@pwntester). Run `ysonet.exe --credit` for the full gadget and plugin credits, or see [Credits](docs/credits.md). To learn more about the underlying issues, see [References](docs/references.md).
+
+## License
+
+YSoNet is licensed under the [MIT License](LICENSE.txt). The license preserves the
+original ysoserial.net copyright notice for Alvaro Muñoz and the YSoNet copyright
+notice for Soroush Dalili. Both notices and the MIT permission notice must remain in
+all copies or substantial portions of the software.
