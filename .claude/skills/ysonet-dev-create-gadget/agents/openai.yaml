@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create ysonet Gadget"
+  short_description: "Build and verify a real ysonet gadget"
+  default_prompt: "Use $ysonet-dev-create-gadget to implement and verify this new ysonet gadget."

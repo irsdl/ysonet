@@ -1,40 +1,109 @@
 # Making a plugin
 
-Read this when the plan adds or changes a plugin. It describes how the codebase
-does it today; confirm each point against the code before you rely on it, since
-details drift. A plugin should generally be unique, so first check the existing
-plugins (`docs/ARCHITECTURE.md` and `ysonet/Plugins/`); if the idea repeats or
-overlaps one, tell the user and let them decide.
+Read this file in full when a plan adds or materially changes a plugin. Confirm
+the rules against current source because plugin conventions can drift.
 
-## Placement and registration
-- Place: `ysonet/Plugins/<Name>Plugin.cs`, `namespace ysonet.Plugins`, class
-  `public class <Name>Plugin : IPlugin` (add `, IPluginModes` only for
-  interactive mode groups). There is no base class.
-- Implement all five members: `Name()`, `Description()`, `Credit()`, `Options()`,
-  `Run(string[] args)`.
-- Register: add `<Compile Include="Plugins\<Name>Plugin.cs" />` to the csproj.
-  The class must stay in `ysonet.Plugins` to load.
+## Contents
 
-## Arguments and output
-- Own a `static OptionSet options` (NDesk.Options), return it from `Options()`,
-  and call `options.Parse(args)` first in `Run`. On `OptionException` print
-  `ysonet: <message>` and a `Try 'ysonet -p <Name> --help'` hint, then throw;
-  never `Environment.Exit`.
-- Output: return a `string` or `byte[]`, never `null`; the caller encodes it.
+- Uniqueness and placement
+- Options and state
+- Behavior and interactive modes
+- Credits, dependencies, and docs
+- Tests
 
-## Plugins are free-form
-This is the main difference from gadgets: a plugin need not tie to a formatter,
-may cover several CVEs, may do I/O, and often calls gadgets internally (via a
-static gadget helper or reflection over `IGenerator`, passing an `InputArgs`).
+## Uniqueness and placement
 
-## Credits (must be valid)
-Fill `Credit()` and a header comment block with the author and references (CVEs,
-links). Attribute truthfully and verify references.
+Search `docs/ARCHITECTURE.md`, `docs/gadgets-and-plugins.md`,
+`ysonet/Plugins/`, tests, and available plans for the same target, CVE, mode, or
+delivery behavior. Prefer another mode in an existing target-specific plugin
+when that keeps one coherent public surface. Ask the maintainer before creating
+a substantially overlapping plugin.
+
+The normal shape is:
+
+- `ysonet/Plugins/<Name>Plugin.cs`;
+- `namespace ysonet.Plugins`;
+- `public class <Name>Plugin : IPlugin`; and
+- `IPluginModes` as an additional interface when the plugin has mutually
+  exclusive interactive workflows.
+
+`IPlugin` requires `Name()`, `Description()`, `Credit()`, `Options()`, and
+`Run(string[] args)`. Add the source to the old-style
+`ysonet/ysonet.csproj` `<Compile>` items. The namespace is currently
+load-bearing because `PluginRegistry.CreatePluginInstance` constructs
+`ysonet.Plugins.<ClassName>`.
+
+## Options and state
+
+Use `NDesk.Options.OptionSet` and return the same set from `Options()`. Parse the
+argv in `Run`.
+
+Existing plugins commonly store option-backed fields and the `OptionSet`
+statically, but tests call plugins repeatedly in one process. Reset every
+option-backed static field to its documented default before parsing, or design
+the state so a prior call cannot leak into the next one. Pass explicit mode
+tokens in tests.
+
+On `OptionException`, report the normal `ysonet: <message>` and
+`Try 'ysonet -p <Name> --help'` hint, then throw so
+`PayloadRunner.RunPlugin` can return a failure. For other invalid combinations,
+throw a clear exception. Never call `Environment.Exit`.
+
+Return a non-null `string` or `byte[]`; the caller owns final output encoding.
+
+## Behavior and interactive modes
+
+Plugins are free-form. A plugin can combine multiple CVEs, perform I/O, or call
+gadgets internally. Thread command flags such as `--rawcmd`, `--minify`,
+`--usesimpletype`, and `--test` into `InputArgs` when the underlying path
+supports them instead of hardcoding different behavior.
+
+Implement `IPluginModes.InteractiveModes()` when a plugin has distinct modes,
+CVEs, or workflows that need different visible and required options. Each mode
+must map to argv accepted by the normal CLI. Add focused interactive tests for
+mode choices, presets, required fields, and option visibility.
+
+Do not add gadget facets to plugins; the category filter is intentionally
+gadget-only.
+
+## Credits, dependencies, and docs
+
+Fill `Credit()` and concise source comments with verified author and research
+references. Do not invent attribution.
+
+Keep target-side vulnerable dependencies distinct from packages used by the
+tool itself. Any new normal dependency follows the freshness policy in
+`CLAUDE.md`.
+
+Update the plugin table and counts/details in `docs/ARCHITECTURE.md`,
+`docs/gadgets-and-plugins.md`, and any credit, reference, help, or usage page
+that lists the target or mode.
 
 ## Tests
-Plugin coverage is NOT automatic. Add the plugin to `argvByPlugin` (name to the
-exact argv it needs) OR to `excluded` (name to a short reason) inside
-`EverySafePluginGeneratesAPayload` in `ysonet.Tests/Tests.cs`, or the coverage
-guard fails the build. Create and clean up any temp fixture the argv needs, and
-reset static option fields that could leak between in-process tests. Build Debug
-to run the tests (see the main SKILL.md note "Building and running the tests").
+
+Plugin coverage has two separate gates:
+
+- Add the plugin to `argvByPlugin` or to the reasoned `excluded` map in
+  `EverySafePluginGeneratesAPayload`. This normal-tier guard ensures every
+  discovered plugin is classified and at least one safe path generates.
+- Add one row for every mode, CVE, and materially different inner-gadget path
+  to `PluginFullMatrixGenerates`. A whole-plugin coverage guard does not
+  enumerate new modes, so mode rows are manual.
+
+Also add focused tests for:
+
+- option parsing, defaults, invalid combinations, and repeated in-process runs;
+- `IPluginModes` interactive metadata and presets;
+- output type and format-specific behavior;
+- minify and command-flag propagation; and
+- a runtime effect in `PayloadsFireIntoTestSinks` when a safe test-owned marker,
+  listener, temp directory, or fixture can observe it.
+
+Create and clean up every fixture. Follow `.claude/memory/testing.md` and the
+current shared test-artifact helpers for file locations. Explicitly exclude a
+networking or environment-sensitive plugin only with a real reason and add the
+closest safe focused coverage instead.
+
+Run the normal Debug build and the FULL suite for a new plugin or plugin mode.
+Smoke `--list plugins`, plugin help/options, one argv per mode, and the
+interactive plugin editor.

@@ -75,6 +75,8 @@ namespace ysonet.Tests
             Run("Bridged-chain setting offers bridge gadgets", BridgedChainChoices);
             Run("Switching variant resets a stale, wrong-type command", VariantSwitchResetsCommand);
             Run("Changed settings persist across modules; reset restores defaults", OptionsPersistAndReset);
+            Run("A single setting resets to its default (Delete / menu entry)", SingleFieldResetToDefault);
+            Run("Bridged-chain setting is shown only for bridge gadgets", BridgedChainShownOnlyForBridgeGadgets);
             Run("A typed command persists across gadget switches (not only on generate)", CommandPersistsAcrossGadgets);
             Run("Shared settings carry from a gadget to a plugin", SettingsSharedGadgetToPlugin);
             Run("Themes apply and are named", ThemeApply);
@@ -1327,6 +1329,82 @@ namespace ysonet.Tests
                 "untouched defaults do not leak into other modules");
         }
 
+        private static void SingleFieldResetToDefault()
+        {
+            // A single setting can be reset to its default without rebuilding the whole
+            // module. This backs both interactive gestures: Delete on a focused row, and
+            // the "(reset to default)" entry inside a value's edit menu.
+            var session = new WizardSession();
+            var editor = new ModuleEditor(null, null, true, null, session);
+
+            var g = editor.BuildFieldsForTest("ClaimsIdentity");
+
+            // A Choice setting with a non-empty-default example: the bridged chain (bgc)
+            // defaults to unset. Set it, then reset it back.
+            EditableField bgc = FindEditable(g, "bridgedgadgetchain");
+            AssertTrue(bgc != null, "bgc field present");
+            AssertEqual("", bgc.DefaultValue, "bgc default is unset");
+            bgc.Value = "TypeConfuseDelegate"; bgc.Touched = true;
+            editor.ResetFieldToDefaultForTest(bgc);
+            AssertEqual("", bgc.Value, "bgc reset to its default (unset)");
+            AssertTrue(!bgc.Touched, "reset clears the touched flag");
+
+            // The edit menu of a Choice offers a reset entry (this is the "enter on it
+            // to unset" path).
+            AssertTrue(ModuleEditor.EditorItemsForTest(bgc).Contains(ModuleEditor.ResetDefaultEntry),
+                "the value editor offers a reset-to-default entry");
+
+            // The command has a real (non-empty) default: resetting restores it.
+            EditableField cmd = FindEditable(g, "command");
+            AssertTrue(cmd != null && !string.IsNullOrEmpty(cmd.DefaultValue), "command has a default");
+            string cmdDefault = cmd.DefaultValue;
+            cmd.Value = "mspaint"; cmd.Touched = true;
+            editor.ResetFieldToDefaultForTest(cmd);
+            AssertEqual(cmdDefault, cmd.Value, "command reset to its default");
+
+            // A remembered (cross-module) setting: reset also drops the remembered value
+            // so it stops propagating to other modules.
+            EditableField op = FindEditable(g, "outputpath");
+            op.Value = "out.bin"; op.Touched = true;
+            editor.SnapshotToMemoryForTest();
+            editor.ResetFieldToDefaultForTest(op);
+            AssertEqual("", op.Value, "outputpath reset to its default");
+            var g2 = editor.BuildFieldsForTest("TypeConfuseDelegate");
+            AssertEqual("", FindEditable(g2, "outputpath").Value,
+                "reset dropped the remembered value, so it no longer propagates");
+        }
+
+        private static void BridgedChainShownOnlyForBridgeGadgets()
+        {
+            // The bridgedgadgetchain (--bgc) setting only makes sense when the edited
+            // gadget can itself receive a bridged payload (the -g gadget is the outer
+            // consumer). For any other gadget --bgc fails at generate, so the editor
+            // must hide the field instead of offering a guaranteed failure.
+            var session = new WizardSession();
+            var editor = new ModuleEditor(null, null, true, null, session);
+
+            // DataSet IS a bridge gadget (Bridged label + a bridge formatter): shown.
+            var ds = editor.BuildFieldsForTest("DataSet");
+            EditableField dsBgc = FindEditable(ds, "bridgedgadgetchain");
+            AssertTrue(dsBgc != null && !dsBgc.Hidden, "bgc is shown for a bridge gadget (DataSet)");
+
+            // Set a chain on the bridge gadget, as an edit would (this also remembers it
+            // in the shared session for the cross-module check below).
+            dsBgc.Value = "ClaimsIdentity"; dsBgc.Touched = true;
+
+            // DataTable is a root carrier, not a bridge gadget: the field must be hidden.
+            var dt = editor.BuildFieldsForTest("DataTable");
+            EditableField dtBgc = FindEditable(dt, "bridgedgadgetchain");
+            AssertTrue(dtBgc != null, "bgc field object is kept (non-null) even when hidden");
+            AssertTrue(dtBgc.Hidden, "bgc is hidden for a non-bridge gadget (DataTable)");
+
+            // Even though the chain was carried over in session memory, a non-bridge
+            // gadget must never emit --bgc (it would fail at generate).
+            string cmd = editor.GadgetCommandLineForTest();
+            AssertTrue(cmd.IndexOf("--bgc", StringComparison.OrdinalIgnoreCase) < 0,
+                "a hidden bgc is not emitted for a non-bridge gadget: " + cmd);
+        }
+
         private static void CommandPersistsAcrossGadgets()
         {
             // Type a command in one gadget and switch to another WITHOUT generating:
@@ -2395,8 +2473,9 @@ namespace ysonet.Tests
             // Open a gadget, edit the command (a text setting). The box is pre-filled
             // with the current value and the caret sits at the end, so typing APPENDS
             // (it does not wipe the value). (Enter opens the gadget flow, Enter opens
-            // the first gadget, Down moves to 'command', Enter edits it.)
-            var frames = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
+            // the first gadget, then we type-to-filter to 'command' and Enter edits it -
+            // robust against field-order changes such as a hidden bridgedgadgetchain.)
+            var frames = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Type("command").Enter()
                 .Type("X").Escape().Escape().Escape().Escape());
             // The full value is echoed in the footer (so a long value stays visible for
             // reading/copying); the edit box itself shows it with a block caret.
@@ -2404,12 +2483,12 @@ namespace ysonet.Tests
             AssertTrue(AnyFrame(frames, "Editing command: calc.exeX"), "typing appends at the end (does not replace)");
 
             // Ctrl+U clears the whole line, so you can quickly type a fresh value.
-            var replaced = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
+            var replaced = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Type("command").Enter()
                 .CtrlU().Type("notepad").Escape().Escape().Escape().Escape());
             AssertTrue(AnyFrame(replaced, "Editing command: notepad"), "Ctrl+U clears, then typing sets a new value");
 
             // Backspacing the value away empties the box (Enter would then save empty).
-            var cleared = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
+            var cleared = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Type("command").Enter()
                 .Backspace(8).Escape().Escape().Escape().Escape()); // "calc.exe" is 8 chars
             AssertTrue(AnyFrameRowTrimmed(cleared, "Editing command:"), "backspacing the value empties the box");
         }
@@ -2419,7 +2498,7 @@ namespace ysonet.Tests
             // Ctrl+Backspace deletes the whole word to the left. Type "abc def", then
             // Ctrl+Backspace removes "def" and typing "Z" gives "abc Z" (a sentinel that
             // only arises if the word delete happened). Ctrl+U clears first.
-            var del = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
+            var del = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Type("command").Enter()
                 .CtrlU().Type("abc def").CtrlBackspace().Type("Z")
                 .Escape().Escape().Escape().Escape());
             AssertTrue(AnyFrame(del, "Editing command: abc Z"), "Ctrl+Backspace deletes the word to the left");
@@ -2427,7 +2506,7 @@ namespace ysonet.Tests
             // Ctrl+Left moves by a word, so typing lands before that word: from the end
             // of "abc def", Ctrl+Left puts the caret before "def"; typing "Z" gives
             // "abc Zdef".
-            var move = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
+            var move = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Type("command").Enter()
                 .CtrlU().Type("abc def").CtrlLeft().Type("Z")
                 .Escape().Escape().Escape().Escape());
             AssertTrue(AnyFrame(move, "Editing command: abc Zdef"), "Ctrl+Left jumps a whole word");
@@ -2439,7 +2518,7 @@ namespace ysonet.Tests
             // (no separate page). Type a long no-space value; it appears wrapped in the
             // edit box across more than one row, and in full on one line in the footer.
             string longVal = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaXY";
-            var frames = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
+            var frames = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Type("command").Enter()
                 .CtrlU().Type(longVal).Escape().Escape().Escape().Escape());
             // The tail "XY" is only reachable if the value wrapped onto a later row of
             // the box (the first row is full of 'a's), so seeing it proves in-place wrap.
@@ -2458,12 +2537,12 @@ namespace ysonet.Tests
         private static void TextEditCaretEditing()
         {
             // Left moves the caret so you can insert in the middle, not only append.
-            var mid = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
+            var mid = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Type("command").Enter()
                 .Left().Left().Type("X").Escape().Escape().Escape().Escape());
             AssertTrue(AnyFrame(mid, "Editing command: calc.eXxe"), "Left caret then type inserts in the middle");
 
             // Home jumps to the start; Delete removes the character at the caret.
-            var del = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter()
+            var del = DriveFrames(k => k.Enter().Type("ObjectDataProvider").Enter().Type("command").Enter()
                 .Home().Delete().Escape().Escape().Escape().Escape());
             AssertTrue(AnyFrame(del, "Editing command: alc.exe"), "Home then Delete removes the first character");
         }
@@ -2553,10 +2632,10 @@ namespace ysonet.Tests
             show("GADGET MODULES (right columns hidden)", gadget, "Gadgets", false);
             show("GADGET SETTINGS (columns)", gadget, "[ Generate and quit ]", false);
 
-            var textEdit = run(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Enter().Type("notepad").Escape().Escape().Escape().Escape());
+            var textEdit = run(k => k.Enter().Type("ObjectDataProvider").Enter().Type("command").Enter().Type("notepad").Escape().Escape().Escape().Escape());
             show("EDIT A TEXT SETTING (command)", textEdit, "Edit: command", true);
 
-            var choice = run(k => k.Enter().Type("ObjectDataProvider").Enter().Down().Down().Down().Enter().Escape().Escape().Escape().Escape());
+            var choice = run(k => k.Enter().Type("ObjectDataProvider").Enter().Type("formatter").Enter().Escape().Escape().Escape().Escape());
             show("EDIT A CHOICE SETTING (formatter)", choice, "Edit: formatter", false);
 
             var showCmd = run(k => k.Enter().Type("ObjectDataProvider").Enter().Up().Enter().Enter().Escape().Escape().Escape());

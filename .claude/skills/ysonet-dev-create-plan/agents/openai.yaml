@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create ysonet Development Plan"
+  short_description: "Draft an evidence-backed ysonet change plan"
+  default_prompt: "Use $ysonet-dev-create-plan to research and draft a review-ready plan for this ysonet change."

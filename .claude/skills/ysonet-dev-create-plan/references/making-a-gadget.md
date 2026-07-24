@@ -1,72 +1,177 @@
 # Making a gadget
 
-Read this when the plan adds or changes a gadget. It describes how the codebase
-does it today; confirm each point against the code before you rely on it, since
-details drift. A gadget should generally be unique, so first check the existing
-gadgets (`docs/ARCHITECTURE.md` and `ysonet/Generators/`); if the idea repeats or
-overlaps one, tell the user and let them decide.
+Read this file in full when a plan adds or materially changes a gadget. Confirm
+each rule against current source because implementation details can drift.
+
+## Contents
+
+- Uniqueness and evidence
+- Placement and registration
+- Formatters and output
+- Credits and help
+- Inputs, options, and variants
+- Facets
+- Bridge consumers
+- Tests
+- Documentation and surfaces
+
+## Uniqueness and evidence
+
+Search `docs/ARCHITECTURE.md`, `docs/gadgets-and-plugins.md`,
+`ysonet/Generators/`, tests, and available `dev-kitchen/` research for the same
+primitive or target behavior. Compare variants, not only names. If a proposal
+overlaps an existing gadget, present the evidence and let the maintainer choose
+between extending it, adding a variant, or creating a separate gadget.
+
+Do not plan a public gadget without technique evidence and truthful provenance.
+Identify the real chain, target-side requirements, original researchers, and
+implementation references.
 
 ## Placement and registration
-- Place: `ysonet/Generators/<Name>Generator.cs`, `namespace ysonet.Generators`,
-  class `public class <Name>Generator : GenericGenerator`.
-- Implement the three abstract members; the base `GenericGenerator` gives the
-  rest: `Generate(formatter, inputArgs)`, `Finders()`, `SupportedFormatters()`.
-- Register: add `<Compile Include="Generators\<Name>Generator.cs" />` to
-  `ysonet/ysonet.csproj`. Discovery is reflection over `IGenerator`, but this
-  old-style csproj must list the file or it never compiles.
 
-## Formatters (maximize)
-`SupportedFormatters()` must list every serializer the gadget can produce;
-supporting the most it can is a project goal. In `Generate`, branch on the
-lowercased formatter. Let the base `Serialize` handle BinaryFormatter,
-SoapFormatter, NetDataContractSerializer and LosFormatter; hand-build the text
-formats. Honor `inputArgs.Minify`, and when `inputArgs.Test` round-trip through
-the matching `SerializersHelper.*_deserialize`. Return `byte[]` for binary
-formats and `string` for text formats.
+The normal shape is:
 
-## Credits (must be valid)
-`Finders()` returns the real original researcher name(s) of the technique;
-`Contributors()` returns who implemented it in the tool. Never override
-`Credit()` (the base composes it). Put CVEs, blog links, and other references in
-`AdditionalInfo()` and code comments. Do not invent or guess names; attribute
-truthfully and verify the reference exists.
+- `ysonet/Generators/<Name>Generator.cs`;
+- `namespace ysonet.Generators`; and
+- `public class <Name>Generator : GenericGenerator`.
 
-## Variants
-Variants are fine and preferred in-gadget: for several payload shapes in one
-gadget, parse a `var|variant=` option into an `int`, list them in `Variants()`
-as `GadgetVariant` entries, and branch in `Generate`. Do not add a whole new
-gadget class just for a variant.
+Match an established subfolder or inheritance pattern when the technique needs
+one. `GenericGenerator` requires `Generate(formatter, inputArgs)`, `Finders()`,
+and `SupportedFormatters()`. `Name()` defaults to the runtime class name without
+the `Generator` suffix; a subclass may need an override when its public name is
+not derived correctly.
 
-If one variant cannot produce a formatter the gadget lists (e.g. it wraps the
-payload in a generic type that SoapFormatter cannot serialize), declare it on that
-variant with `.Without(Formatters.X)` and call
-`GuardVariantFormatter(variant_number, formatter)` at the top of `Generate()`. Do
-NOT edit `SupportedFormatters()` to restrict it: that list is the gadget-wide union
-across all variants. The guard turns the impossible pair into a clear message on the
-CLI/sweep paths, and the interactive editor validates the same rule at generate.
+Add the source to the old-style `ysonet/ysonet.csproj` `<Compile>` items only
+after a real formatter branch works. Reflection discovery cannot load a file
+that the project did not compile.
 
-## Other rules
-- Labels: use the `GadgetTags.*` constants.
-- Categories: when the facet API is present, use
-  `$ysonet-categorize-gadget` to classify the gadget and each variant. Multiple
-  values are allowed; keep an unproven axis as `uncategorized` instead of
-  guessing.
-- Consistency: after adding or changing facet metadata, use
-  `$ysonet-audit-gadget-metadata` to check code, variant, help, documentation, and
-  test agreement. It fixes clear issues when authorized and asks only when the
-  evidence leaves a material ambiguity.
-- If `-c` is not a shell command, override `CommandInput()` (file, DLL, URL, or
-  ignored).
-- A bridged gadget adds `GadgetTags.Bridged`, overrides
-  `SupportedBridgedFormatter()`, and uses `BridgedPayload` when set (else
-  self-generates an inner payload).
-- On bad input, throw; never call `Environment.Exit`.
+Never register a new gadget whose body delegates to an unrelated existing
+gadget merely to return non-empty output. That creates a false supported gadget
+and lets the automatic generation tests pass without testing the named
+technique. Keep an incomplete draft unregistered and out of public catalogs.
+
+## Formatters and output
+
+Support the maximum verified formatter set. `SupportedFormatters()` is the
+union across variants and must list only formatter paths the real
+implementation produces.
+
+- Use `GenericGenerator.Serialize()` for BinaryFormatter, SoapFormatter,
+  NetDataContractSerializer, and LosFormatter when it fits the object graph.
+- Use the matching `SerializersHelper` methods for text formats.
+- Honor `inputArgs.Minify` and `inputArgs.Test`.
+- Return the expected output shape, normally `byte[]` for the base binary
+  serializers and `string` for text serializers.
+- Throw a clear exception on invalid input or unsupported combinations. Never
+  call `Environment.Exit`.
+
+For a fundamental formatter limitation, assert the expected failure in the
+full matrix with a stable reason. Do not silently skip the cell or return a
+different payload.
+
+## Credits and help
+
+- `Finders()` returns verified original researcher names.
+- `Contributors()` returns this tool's implementers. Omit it when it would
+  duplicate `Finders()`.
+- Never override `Credit()`; the base class composes it.
+- Put CVEs, public links, exact assemblies, versions, and concise target notes in
+  `AdditionalInfo()`, comments, and the relevant docs.
+- Use only `GadgetTags` constants in `Labels()`.
+
+Separate target requirements from libraries used only by the generator.
+
+## Inputs, options, and variants
+
+Override `CommandInput()` when `-c` means source file, assembly path, URL, file
+path, or no input. Keep the default only for a shell command.
+
+Use variants for related payload shapes of the same technique. Parse the
+variant option, describe it in `Variants()`, and branch in `Generate()`.
+
+When one variant cannot produce a gadget-wide formatter:
+
+1. add `.Without(Formatters.X)` to that `GadgetVariant`;
+2. call `GuardVariantFormatter(variant_number, formatter)` in `Generate()`; and
+3. test the impossible pair as an expected failure if it is a real framework
+   limitation.
+
+Use `GadgetVariant.Input` for a variant-specific meaning of `-c`. Use
+`.WithFacets(...)` for a complete variant capability override. Never merge one
+variant's input, formatter, or requirements with another's.
+
+## Facets
+
+Use `$ysonet-categorize-gadget` for the broad payload kind, accepted input, and
+target requirements. If named-skill invocation is unavailable, read and follow
+`.claude/skills/ysonet-categorize-gadget/SKILL.md` directly. Use only the
+vocabulary in `ysonet/Generators/Base/IGenerator.cs`.
+
+Omit `WithInputs(...)` when the effective `CommandInputType` derives the correct
+value. Keep an unproven axis `uncategorized`, never mixed with a real value.
+Exact CVEs, sinks, products, assemblies, and versions do not belong in a new
+facet constant.
+
+After changing metadata, use `$ysonet-audit-gadget-metadata` to check facets,
+variants, help, documentation, and tests together. If named-skill invocation is
+unavailable, read and follow
+`.claude/skills/ysonet-audit-gadget-metadata/SKILL.md` directly.
+
+## Bridge consumers
+
+A bridge consumer wraps another gadget's serialized payload. It must:
+
+- include `GadgetTags.Bridged` in `Labels()`;
+- return its one accepted inner formatter from
+  `SupportedBridgedFormatter()`; and
+- consume `BridgedPayload` when present, with a genuine default inner payload
+  for direct use.
+
+Confirm the producer output type for that formatter before casting.
+`PayloadRunner.GenerateGadget` builds each producer using its consumer's
+bridged formatter and passes the result forward.
+
+Depending on an inner helper does not by itself make a gadget bridge-capable.
 
 ## Tests
-Gadget coverage is automatic. The runner smoke-tests every gadget with its first
-listed formatter and a sample input picked from its `CommandInput()`, asserting a
-non-empty payload with no throw. To pass, declare at least one formatter and the
-correct `CommandInput()`. If the gadget needs an input type the runner does not
-sample yet, extend `SampleInputForGadget` in `ysonet.Tests/Tests.cs`. Add an
-explicit test when variant or exact-output behavior needs checking. Build Debug
-to run the tests (see the main SKILL.md note "Building and running the tests").
+
+Automatic coverage:
+
+- `EveryGadgetGeneratesAPayload` checks the first listed formatter in the normal
+  tier.
+- `GadgetFullMatrixGenerates` checks every advertised formatter, variant, and
+  minify state in the full tier.
+- facet expansion tests validate the vocabulary and normalized units.
+- `BridgedChainsGenerate` checks a representative chain for each correctly
+  declared bridge consumer.
+
+Required explicit coverage:
+
+- add the gadget's real runtime effect to `PayloadsFireIntoTestSinks`;
+- add focused tests for option parsing, `CommandInput`, variants, bridge
+  behavior, exact output, minification, and errors where those behaviors are
+  new;
+- extend `SampleInputForGadget` only if the existing fixed
+  `CommandInputType` mapping cannot supply valid input;
+- update representative audit tables only when the gadget is intentionally
+  part of that locked sample; and
+- add formatter-specific bridge firing coverage when the representative chain
+  sweep does not prove the new behavior.
+
+A comment or TODO-marked test stub is not coverage. Follow the test-integrity
+policy for environment limitations. Tests that write files must follow the
+repository's current test-artifact and cleanup policy in
+`.claude/memory/testing.md`.
+
+Run the normal Debug build and the FULL suite for a gadget, formatter, or
+variant change.
+
+## Documentation and surfaces
+
+Update the gadget row and any count or category summary in
+`docs/ARCHITECTURE.md`, update `docs/gadgets-and-plugins.md`, and add credit or
+reference entries when applicable. Verify normal help, specific help,
+`--list gadgets`, `--list formatters -g <Name>`, category filtering, and the
+interactive module editor.
+
+Do not document an unregistered draft as supported.

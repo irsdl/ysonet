@@ -385,59 +385,48 @@ namespace ysonet.Interactive
             // The edit prompt/menu is its own screen; clear so it does not draw under
             // the settings form it was launched from (EditForm clears again on return).
             ConsoleCursor.ClearScreen();
-            switch (f.Kind)
+
+            if (f.Kind == FieldKind.Text)
             {
-                case FieldKind.Flag:
-                    {
-                        int i = _menu.Show("Set " + f.Label, new List<string> { "on", "off" }, f.IsOn ? 0 : 1);
-                        if (i >= 0)
-                            SetValue(f, (i == 0) ? "true" : "");
-                        break;
-                    }
-                case FieldKind.Choice:
-                    {
-                        var opts = new List<string>();
-                        if (f.Choices != null)
-                            opts.AddRange(f.Choices);
-                        if (f.AllowCustom)
-                            opts.Add("(enter a custom value)");
-                        int start = 0;
-                        if (f.Choices != null)
-                        {
-                            int cur = f.Choices.IndexOf(f.Value);
-                            if (cur >= 0)
-                                start = cur;
-                        }
-                        int i = _menu.Show("Set " + f.Label + (string.IsNullOrEmpty(f.Help) ? "" : "  (" + f.Help + ")"), opts, start);
-                        if (i < 0)
-                            break;
-                        if (f.AllowCustom && i == opts.Count - 1)
-                        {
-                            string v = AskLine(f.Label, f.Value, f.Help);
-                            if (v != null)
-                                CommitText(f, v);
-                        }
-                        else
-                        {
-                            SetValue(f, f.Choices[i]);
-                        }
-                        break;
-                    }
-                case FieldKind.Pick:
-                    {
-                        string v = _picker.Show("Pick " + f.Label + ":", f.Choices, null);
-                        if (v != null)
-                            SetValue(f, v);
-                        break;
-                    }
-                default: // Text
-                    {
-                        string v = AskLine(f.Label, f.Value, f.Help);
-                        if (v != null)
-                            CommitText(f, v);
-                        break;
-                    }
+                string v = AskLine(f.Label, f.Value, f.Help);
+                if (v != null)
+                    CommitText(f, v);
+                return;
             }
+
+            if (f.Kind == FieldKind.Pick)
+            {
+                // Large closed set: the type-to-filter picker, plus the reset entry.
+                List<string> pickItems = EditorItems(f);
+                string v = _picker.Show("Pick " + f.Label + ":", pickItems, null);
+                if (v == null)
+                    return;
+                if (v == ResetDefaultEntry)
+                    ResetFieldToDefault(f);
+                else
+                    SetValue(f, v);
+                return;
+            }
+
+            // Flag or Choice: a small menu that ends with "(reset to default)".
+            List<string> items = EditorItems(f);
+            int start = EditorStartIndex(f, items);
+            int i = _menu.Show("Set " + f.Label + (string.IsNullOrEmpty(f.Help) ? "" : "  (" + f.Help + ")"), items, start);
+            if (i < 0)
+                return;
+            string sel = items[i];
+            if (sel == ResetDefaultEntry)
+                ResetFieldToDefault(f);
+            else if (f.Kind == FieldKind.Choice && f.AllowCustom && sel == CustomValueEntry)
+            {
+                string v = AskLine(f.Label, f.Value, f.Help);
+                if (v != null)
+                    CommitText(f, v);
+            }
+            else if (f.Kind == FieldKind.Flag)
+                SetValue(f, (sel == "on") ? "true" : "");
+            else
+                SetValue(f, sel);
         }
 
         // ---- Building the field set from a module ------------------------------
@@ -458,8 +447,11 @@ namespace ysonet.Interactive
         // Test hooks for cross-module memory and reset.
         internal List<EditableField> CurrentFieldsForTest { get { return _fields; } }
         internal void ResetToDefaultsForTest() { ResetToDefaults(); }
+        internal void ResetFieldToDefaultForTest(EditableField f) { ResetFieldToDefault(f); }
+        internal static List<string> EditorItemsForTest(EditableField f) { return EditorItems(f); }
         internal void SnapshotToMemoryForTest() { SnapshotToMemory(); } // simulate leaving the editor
         internal List<string> PluginArgvForTest() { string of, op; return PluginArgv(out of, out op); }
+        internal string GadgetCommandLineForTest() { return GadgetCommandLine(CollectGadget()); }
         internal static void CommitTextForTest(EditableField f, string raw) { CommitText(f, raw); }
         internal string MissingRequiredCommandProblemForTest() { return MissingRequiredCommandProblem(); }
         internal string MissingVariantFormatterProblemForTest() { return MissingVariantFormatterProblem(); }
@@ -489,9 +481,88 @@ namespace ysonet.Interactive
             _fields = _isGadget ? BuildGadgetFields() : BuildPluginFields();
             SortFieldsWithActionLast();
             RefreshDynamic();
+            CaptureDefaults(); // snapshot the pristine defaults before memory overrides
             if (useMemory)
                 ApplyRememberedValues();
             return true;
+        }
+
+        // Snapshot each field's current value as its default, so a single-field reset
+        // can restore it. Called after the fields are built and the dynamic parts are
+        // seeded, but before any remembered value is applied - so the default is the
+        // true parsed/seeded value, not a carried-over override.
+        private void CaptureDefaults()
+        {
+            if (_fields == null)
+                return;
+            foreach (EditableField f in _fields)
+                if (!f.IsAction)
+                    f.DefaultValue = f.Value;
+        }
+
+        // Reset a single setting to its default: restore the captured default value,
+        // clear the "touched"/explicit-empty state, and drop any remembered override so
+        // it does not get re-applied to this or another module. Actions are ignored.
+        private void ResetFieldToDefault(EditableField f)
+        {
+            if (f == null || f.IsAction)
+                return;
+            if (Remembered(f))
+                _session.OptionMemory.Remove(f.Label);
+            f.Value = f.DefaultValue ?? "";
+            f.SetExplicitEmpty(false);
+            f.Touched = false;
+            // Re-derive the dependent parts (e.g. resetting the variant changes what the
+            // command means); harmless for an independent field.
+            RefreshDynamic();
+        }
+
+        // The synthetic trailing entries offered inside a list-based editor. "(enter a
+        // custom value)" lets a Choice take free text; "(reset to default)" clears the
+        // setting back to its default from inside the menu (the same as pressing Delete
+        // on the row). Kept as constants so the columns and fallback paths agree.
+        internal const string CustomValueEntry = "(enter a custom value)";
+        internal const string ResetDefaultEntry = "(reset to default)";
+
+        // The selectable items for a Flag/Choice/Pick editor: the real options, then
+        // the optional custom-value entry (Choice only), then always the reset entry.
+        private static List<string> EditorItems(EditableField f)
+        {
+            var items = new List<string>();
+            switch (f.Kind)
+            {
+                case FieldKind.Flag:
+                    items.Add("on");
+                    items.Add("off");
+                    break;
+                case FieldKind.Choice:
+                    if (f.Choices != null)
+                        items.AddRange(f.Choices);
+                    if (f.AllowCustom)
+                        items.Add(CustomValueEntry);
+                    break;
+                case FieldKind.Pick:
+                    if (f.Choices != null)
+                        items.AddRange(f.Choices);
+                    break;
+            }
+            items.Add(ResetDefaultEntry);
+            return items;
+        }
+
+        // Where the highlight starts in a list-based editor: the current value's row,
+        // or the top when it is not in the list.
+        private static int EditorStartIndex(EditableField f, List<string> items)
+        {
+            if (f.Kind == FieldKind.Flag)
+                return f.IsOn ? 0 : 1;
+            if (f.Choices != null)
+            {
+                int i = f.Choices.IndexOf(f.Value);
+                if (i >= 0)
+                    return i;
+            }
+            return 0;
         }
 
         // Settings that participate in cross-module memory: any real setting except
@@ -802,8 +873,14 @@ namespace ysonet.Interactive
                     Kind = FieldKind.Choice,
                     Choices = BridgeGadgetNames(),
                     AllowCustom = true,
-                    Help = "Advanced: wrap this gadget inside a bridge gadget (--bgc). Pick one, or type a comma-separated chain."
+                    Help = "Advanced: feed another gadget's payload into this one (--bgc). Pick one, or type a comma-separated chain."
                 };
+                // A bridged chain only works when THIS gadget is a bridge gadget: the
+                // -g gadget is the outer consumer that receives the chained gadget's
+                // payload, so it must carry the Bridged label and a bridge formatter.
+                // For any other gadget (e.g. DataTable, a root carrier) --bgc fails at
+                // generate, so the field is hidden rather than offered and left to fail.
+                _bridged.Hidden = !IsBridgeGadget();
                 list.Add(_minify);
                 list.Add(_useSimpleType);
                 list.Add(_test);
@@ -1193,7 +1270,9 @@ namespace ysonet.Interactive
             g.OutputFormat = OutputFormatValue();
             g.OutputPath = _outputPath.Value;
             g.Minify = _minify.IsOn; g.Ust = _useSimpleType.IsOn; g.Test = _test.IsOn; g.Debug = _debugMode.IsOn;
-            g.Bgc = _bridged.Value;
+            // Only a bridge gadget emits --bgc; when the field is hidden (non-bridge
+            // gadget) never pass a chain, even if one was carried over in memory.
+            g.Bgc = (_bridged != null && !_bridged.Hidden) ? _bridged.Value : "";
             g.Extra = new List<string>();
             foreach (OptionField f in _view.OptionFields)
                 g.Extra.AddRange(f.ToArgv());
@@ -1349,6 +1428,19 @@ namespace ysonet.Interactive
                 if (n != "Generic")
                     names.Add(n);
             return names;
+        }
+
+        // True when the currently loaded gadget can itself accept a bridged payload,
+        // i.e. it is a valid -g target for a --bgc chain. This is the same condition
+        // PayloadRunner enforces on the consumer: the Bridged label plus a non-empty
+        // bridge formatter. When false, offering the bridgedgadgetchain field would only
+        // lead to a guaranteed generate-time failure, so the editor hides it.
+        private bool IsBridgeGadget()
+        {
+            return _isGadget && _view != null
+                && _view.Labels != null
+                && _view.Labels.Contains(GadgetTags.Bridged)
+                && !string.IsNullOrEmpty(_view.BridgedFormatter);
         }
 
         // Gadgets that can act as a bridge (accept another gadget's payload), used

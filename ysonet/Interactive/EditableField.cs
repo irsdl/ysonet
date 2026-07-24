@@ -29,6 +29,11 @@ namespace ysonet.Interactive
         public bool AllowCustom;      // Choice: also allow typing a value not listed
         public string ActionId;       // Action rows: e.g. "generate"
 
+        // The pristine default value, captured when the module is loaded (before any
+        // remembered override is applied). A single-field reset restores this, so a
+        // value can be cleared back to its default without rebuilding the whole module.
+        public string DefaultValue = "";
+
         // Value storage. A field either keeps its own string, or binds to an
         // external getter/setter (used to write straight into an OptionField, whose
         // Value the argv builder reads). Flags store "true"/"" ; Choice/Text store

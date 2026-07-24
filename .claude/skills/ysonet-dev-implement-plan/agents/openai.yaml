@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement ysonet Development Plan"
+  short_description: "Build and verify an approved ysonet plan"
+  default_prompt: "Use $ysonet-dev-implement-plan to implement and verify the approved ysonet plan."

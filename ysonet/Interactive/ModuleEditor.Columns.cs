@@ -321,6 +321,17 @@ namespace ysonet.Interactive
                         }
                     }
                 }
+                else if (key.Key == ConsoleKey.Delete)
+                {
+                    // Reset the focused setting to its default in place, without opening
+                    // the editor. Only value settings (not actions, not the module list).
+                    if (focus == 1 && loaded && visible.Count > 0)
+                    {
+                        EditableField f = visible[fieldIndex];
+                        if (!f.IsAction)
+                            ResetFieldToDefault(f);
+                    }
+                }
                 else if (key.Key == ConsoleKey.Backspace)
                 {
                     if (focus == 0 && modFilter.Length > 0)
@@ -371,53 +382,38 @@ namespace ysonet.Interactive
         private void BeginEdit(EditableField f, out List<string> items, out int index, out bool text, out LineEditBuffer buf)
         {
             items = null; index = 0; text = false; buf = null;
-            switch (f.Kind)
+            if (f.Kind == FieldKind.Text)
             {
-                case FieldKind.Flag:
-                    items = new List<string> { "on", "off" };
-                    index = f.IsOn ? 0 : 1;
-                    break;
-                case FieldKind.Choice:
-                    items = new List<string>();
-                    if (f.Choices != null)
-                        items.AddRange(f.Choices);
-                    if (f.AllowCustom)
-                        items.Add("(enter a custom value)");
-                    index = (f.Choices != null) ? Math.Max(0, f.Choices.IndexOf(f.Value)) : 0;
-                    break;
-                case FieldKind.Pick:
-                    items = f.Choices ?? new List<string>();
-                    index = Math.Max(0, items.IndexOf(f.Value));
-                    break;
-                default: // Text
-                    text = true;
-                    buf = new LineEditBuffer(f.Value ?? ""); // pre-filled, caret at the end
-                    break;
+                text = true;
+                buf = new LineEditBuffer(f.Value ?? ""); // pre-filled, caret at the end
+                return;
             }
+            // Flag/Choice/Pick: a list ending with the reset (and, for a custom Choice,
+            // the custom-value) entry, highlighting the current value.
+            items = EditorItems(f);
+            index = EditorStartIndex(f, items);
         }
 
         private void CommitChoice(EditableField f, List<string> items, int index, ref bool editingText, ref LineEditBuffer textBuf)
         {
             if (items == null || index < 0 || index >= items.Count)
                 return;
+            string sel = items[index];
+            if (sel == ResetDefaultEntry)
+            {
+                ResetFieldToDefault(f);
+                return;
+            }
+            if (f.Kind == FieldKind.Choice && f.AllowCustom && sel == CustomValueEntry)
+            {
+                editingText = true;
+                textBuf = new LineEditBuffer(f.Value ?? ""); // pre-filled, caret at the end
+                return;
+            }
             if (f.Kind == FieldKind.Flag)
-            {
-                SetValue(f, (index == 0) ? "true" : "");
-            }
-            else if (f.Kind == FieldKind.Choice)
-            {
-                if (f.AllowCustom && index == items.Count - 1)
-                {
-                    editingText = true;
-                    textBuf = new LineEditBuffer(f.Value ?? ""); // pre-filled, caret at the end
-                    return;
-                }
-                SetValue(f, f.Choices[index]);
-            }
-            else if (f.Kind == FieldKind.Pick)
-            {
-                SetValue(f, items[index]);
-            }
+                SetValue(f, (sel == "on") ? "true" : "");
+            else
+                SetValue(f, sel);
         }
 
         // Draws the columns and returns the number of lines written so the next frame
@@ -916,8 +912,8 @@ namespace ysonet.Interactive
             // A value/flag setting is focused: nav + a compact legend of the cues, so
             // their meaning is learnable and never relies on color alone.
             return isGadget
-                ? "Enter: edit   Type: filter   Up/Down Home/End: move   Esc: back   (* required, [ ] button, accent = gadget option)"
-                : "Enter: edit   Type: filter   Up/Down Home/End: move   Esc: back   (* = required, [ ] = button)";
+                ? "Enter: edit   Del: reset   Type: filter   Up/Down Home/End: move   Esc: back   (* required, [ ] button, accent = gadget option)"
+                : "Enter: edit   Del: reset   Type: filter   Up/Down Home/End: move   Esc: back   (* = required, [ ] = button)";
         }
 
         // Cache of built module views (gadget/plugin), so redrawing the info panel on
