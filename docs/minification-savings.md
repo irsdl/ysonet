@@ -35,7 +35,7 @@ functional. It does not change which command runs. Depending on the format it:
 
 ## Summary
 
-- **Gadgets:** across 116 gadget x formatter combinations, `--minify` shrinks 109 of
+- **Gadgets:** across 119 gadget x formatter combinations, `--minify` shrinks 112 of
   them. The typical cut is about **29%** (median 30%), up to **91.8%**. Seven
   combinations do not shrink (see [Where it does little](#where-minification-does-little)).
 - **Plugins:** across 13 minify-capable plugin modes, the average cut is about
@@ -90,6 +90,9 @@ are a variant plus formatter pair the gadget cannot produce (see the note below 
 | DataSetTypeSpoof | BinaryFormatter | 2,016 | 1,484 | 532 | 26.4% |
 |  | LosFormatter | 2,024 | 1,488 | 536 | 26.5% |
 |  | SoapFormatter | 2,781 | 1,971 | 810 | 29.1% |
+| DataTable | BinaryFormatter | 5,440 | 5,020 | 420 | 7.7% |
+|  | LosFormatter | 5,444 | 5,028 | 416 | 7.6% |
+|  | SoapFormatter | 8,617 | 6,363 | 2,254 | 26.2% |
 | GenericPrincipal | BinaryFormatter | 4,792 | 3,636 | 1,156 | 24.1% |
 |  | LosFormatter | 4,800 | 3,644 | 1,156 | 24.1% |
 | GetterCompilerResults | Json.NET | 487 | 391 | 96 | 19.7% |

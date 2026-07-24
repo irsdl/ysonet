@@ -64,9 +64,10 @@ namespace ysonet.Tests
             Run("Gadgets declare their variants", GadgetsDeclareVariants);
             Run("Variants can declare their own command-input type", VariantInputTypes);
             Run("Variant formatter opt-out narrows first-token, case-insensitive", VariantFormatterOptOutDataModel);
-            Run("Affected gadgets opt variant 1 out of SoapFormatter (union kept)", VariantFormatterOptOutWiring);
+            Run("Affected gadgets opt a variant out of SoapFormatter (union kept)", VariantFormatterOptOutWiring);
             Run("Editor blocks a variant+formatter mismatch at generate", EditorBlocksVariantFormatterMismatch);
             Run("Guard rejects variant+formatter mismatch on the non-UI path", GuardBlocksVariantFormatterOnNonUiPath);
+            Run("DataTable implicit default equals explicit variant 1 (byte-for-byte)", DataTableDefaultEqualsVariantOne);
             Run("Option heuristics recover choices/default/required", OptionHeuristics);
             Run("Editor builds plugin fields with defaults and a gadget picker", EditorPluginFields);
             Run("Editor exposes actions and marks module-own options", EditorActionsAndOwnership);
@@ -993,6 +994,22 @@ namespace ysonet.Tests
                 AssertTrue(vs[1].SupportsFormatter("SoapFormatter"), name + " variant 2 supports SoapFormatter");
                 AssertTrue(Gadget(name).IsSupported("SoapFormatter"), name + " still lists SoapFormatter at the gadget level (union)");
             }
+
+            // DataTable is the opposite shape: variant 1 (TextFormattingRunProperties) is
+            // the compatible default and keeps every formatter; variant 2 (TypeConfuseDelegate,
+            // a generic SortedSet) opts out of SoapFormatter but keeps BinaryFormatter and
+            // LosFormatter. The gadget-level union still advertises SoapFormatter.
+            var dt = Gadget("DataTable").Variants();
+            AssertEqual(2, dt.Count, "DataTable declares exactly 2 variants");
+            AssertEqual(1, dt[0].Number, "DataTable variant 1 is numbered 1");
+            AssertEqual(2, dt[1].Number, "DataTable variant 2 is numbered 2");
+            AssertEqual(0, dt[0].UnsupportedFormatters.Count, "DataTable variant 1 has no opt-out");
+            AssertTrue(dt[0].SupportsFormatter("SoapFormatter"), "DataTable variant 1 supports SoapFormatter");
+            AssertTrue(dt[1].UnsupportedFormatters.Contains("SoapFormatter"), "DataTable variant 2 declares the SoapFormatter opt-out");
+            AssertTrue(!dt[1].SupportsFormatter("SoapFormatter"), "DataTable variant 2 does not support SoapFormatter");
+            AssertTrue(dt[1].SupportsFormatter("BinaryFormatter"), "DataTable variant 2 still supports BinaryFormatter");
+            AssertTrue(dt[1].SupportsFormatter("LosFormatter"), "DataTable variant 2 still supports LosFormatter");
+            AssertTrue(Gadget("DataTable").IsSupported("SoapFormatter"), "DataTable still lists SoapFormatter at the gadget level (union)");
         }
 
         private static void EditorBlocksVariantFormatterMismatch()
@@ -1040,6 +1057,21 @@ namespace ysonet.Tests
             // Variant 2 (TextFormattingRunProperties) is not generic, so Soap works.
             RunResult v2soap = GenerateWithVariant("ActivitySurrogateDisableTypeCheck", "SoapFormatter", 2);
             AssertTrue(v2soap.Success, "variant 2 + SoapFormatter generates: " + v2soap.ErrorMessage);
+
+            // DataTable is the mirror image: its variant 2 (TypeConfuseDelegate) is the
+            // generic one, so variant 2 + SoapFormatter is the guarded pair. Variant 1
+            // (TextFormattingRunProperties) + SoapFormatter and variant 2 + BinaryFormatter
+            // must both still generate.
+            RunResult dtV2soap = GenerateWithVariant("DataTable", "SoapFormatter", 2);
+            AssertTrue(!dtV2soap.Success, "DataTable variant 2 + SoapFormatter fails");
+            AssertTrue((dtV2soap.ErrorMessage ?? "").IndexOf("is not supported by variant 2", StringComparison.OrdinalIgnoreCase) >= 0,
+                "the guard fired for DataTable, not the raw framework error: " + dtV2soap.ErrorMessage);
+
+            RunResult dtV1soap = GenerateWithVariant("DataTable", "SoapFormatter", 1);
+            AssertTrue(dtV1soap.Success, "DataTable variant 1 + SoapFormatter still generates: " + dtV1soap.ErrorMessage);
+
+            RunResult dtV2bin = GenerateWithVariant("DataTable", "BinaryFormatter", 2);
+            AssertTrue(dtV2bin.Success, "DataTable variant 2 + BinaryFormatter generates: " + dtV2bin.ErrorMessage);
         }
 
         // Drive PayloadRunner.GenerateGadget for one gadget/formatter/variant with a
@@ -1051,6 +1083,55 @@ namespace ysonet.Tests
             GenerationRequest req = new GenerationRequest
             {
                 GadgetName = gadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            };
+            return PayloadRunner.GenerateGadget(req);
+        }
+
+        // Adding the variant selector must not change DataTable's default payload: with no
+        // option, DataTable must produce the exact same bytes as an explicit --variant 1,
+        // across every advertised formatter and both minify states. This locks backward
+        // compatibility without hardcoding runtime-sensitive payload hashes: it compares two
+        // live generations of the same command, so it stays valid as the payload evolves.
+        private static void DataTableDefaultEqualsVariantOne()
+        {
+            foreach (string formatter in new[] { "BinaryFormatter", "SoapFormatter", "LosFormatter" })
+            {
+                for (int m = 0; m < 2; m++)
+                {
+                    bool minify = m == 1;
+
+                    RunResult def = GenerateDataTable(formatter, minify, null);
+                    RunResult v1 = GenerateDataTable(formatter, minify, 1);
+
+                    string desc = "DataTable -f " + formatter + (minify ? " (minify)" : "");
+                    AssertTrue(def.Success, "implicit default generates: " + desc + " -> " + def.ErrorMessage);
+                    AssertTrue(v1.Success, "explicit variant 1 generates: " + desc + " -> " + v1.ErrorMessage);
+
+                    byte[] a = def.Raw as byte[];
+                    byte[] b = v1.Raw as byte[];
+                    AssertTrue(a != null && b != null, "both payloads are byte streams: " + desc);
+                    AssertTrue(BytesEqual(a, b),
+                        "implicit default equals explicit variant 1 byte-for-byte: " + desc);
+                }
+            }
+        }
+
+        // Generate DataTable with a never-executed placeholder command. Pass variant=null
+        // for the implicit default (no --variant), or a number for an explicit selection.
+        private static RunResult GenerateDataTable(string formatter, bool minify, int? variant)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.Test = false;
+            ia.Minify = minify;
+            if (variant.HasValue)
+                ia.ExtraArguments = new List<string> { "--variant", variant.Value.ToString() };
+            GenerationRequest req = new GenerationRequest
+            {
+                GadgetName = "DataTable",
                 FormatterName = formatter,
                 OutputFormat = "",
                 InputArgs = ia,
@@ -3598,6 +3679,11 @@ namespace ysonet.Tests
                     "is not supported by variant 1" },
                 { "XamlAssemblyLoadFromFile|SoapFormatter|variant1",
                     "is not supported by variant 1" },
+                // DataTable variant 2 is TypeConfuseDelegate (a generic SortedSet), so its
+                // SoapFormatter cell is the impossible one here; variant 1
+                // (TextFormattingRunProperties) + SoapFormatter still generates.
+                { "DataTable|SoapFormatter|variant2",
+                    "is not supported by variant 2" },
             };
 
             // Cells whose MINIFIED output is XML but intentionally NOT standalone well-formed,
@@ -3722,7 +3808,11 @@ namespace ysonet.Tests
             }
 
             AssertTrue(cells > 100, "matrix exercised many cells (was " + cells + ")");
-            AssertTrue(expectedFailures >= 2,
+            // Three variant-scoped SoapFormatter-generics keys, each matching both minify
+            // states = six required expected-failure cells (two of them the new DataTable
+            // variant-2 pair). This floor forces those cells to actually be reached and
+            // guarded, not merely sit unused in the dictionary.
+            AssertTrue(expectedFailures >= 6,
                 "the known SoapFormatter-generics limitation cells were exercised (was " + expectedFailures + ")");
             AssertTrue(failures.Count == 0,
                 "gadget matrix cells failed (" + failures.Count + " of " + cells + "; " + expectedFailures + " expected-failures verified):\n  "
@@ -4501,6 +4591,11 @@ namespace ysonet.Tests
                     else if (deserAs == "xaml") SerializersHelper.Xaml_deserialize((string)r.Raw);
                     else if (deserAs == "json") SerializersHelper.JsonNet_deserialize((string)r.Raw);
                     else if (deserAs == "ndc") SerializersHelper.NetDataContractSerializer_deserialize((string)r.Raw);
+                    // Soap/Los Serialize both return a byte[] (SOAP XML bytes, and the
+                    // Los base64 stream). Decode SOAP to a string for its helper; Los has
+                    // a byte[] overload. Used by the DataTable carrier marker checks.
+                    else if (deserAs == "soap") SerializersHelper.SoapFormatter_deserialize(System.Text.Encoding.ASCII.GetString((byte[])r.Raw));
+                    else if (deserAs == "los") SerializersHelper.LosFormatter_deserialize((byte[])r.Raw);
                 });
 
                 if (WaitForFile(marker, 3000)) fired++;
@@ -4660,10 +4755,34 @@ namespace ysonet.Tests
                 "AxHostState", "DataSet", "DataSetTypeSpoof", "DataSetOldBehaviour",
                 "ClaimsIdentity", "ClaimsPrincipal", "GenericPrincipal", "RolePrincipal",
                 "SessionSecurityToken", "SessionViewStateHistoryItem", "ToolboxItemContainer",
-                "WindowsIdentity", "WindowsPrincipal", "ResourceSet",
+                "WindowsIdentity", "WindowsPrincipal", "ResourceSet", "DataTable",
             };
             foreach (string g in bfMarkerGadgets)
                 FireGadgetMarker(g, "BinaryFormatter", 0, false, false, "bf", true, failures, ref fired, ref skipped, trace);
+
+            // ---- MARKER: DataTable carrier across its OTHER advertised formatters.
+            // Unlike the BF-only siblings above, DataTable advertises BinaryFormatter,
+            // SoapFormatter and LosFormatter. Its BinaryFormatter cell (raw and minified)
+            // is already covered by bfMarkerGadgets membership (the raw loop above and the
+            // minified loop below). The four cells here complete the matrix for Soap and
+            // Los, raw and minified. The inner gadget is TFRP, which fires Process.Start
+            // then throws a cast error AFTER firing; RunSTA swallows that throw, so the
+            // marker file (not a clean return) is the proof of execution. Any cell that
+            // does not fire is a real bug to investigate, never a skip.
+            FireGadgetMarker("DataTable", "SoapFormatter", 0, false, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTable", "SoapFormatter", 0, true, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTable", "LosFormatter", 0, false, false, "los", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTable", "LosFormatter", 0, true, false, "los", true, failures, ref fired, ref skipped, trace);
+
+            // ---- MARKER: DataTable variant 2 (TypeConfuseDelegate inner). This inner is
+            // framework built-in (no WPF, no Microsoft.PowerShell.Editor) and fires
+            // Process.Start directly. SoapFormatter is opted out for this variant (generic
+            // SortedSet), so only BinaryFormatter and LosFormatter are fired, raw and
+            // minified. The no-variant calls above still exercise the compatible TFRP default.
+            FireGadgetMarker("DataTable", "BinaryFormatter", 2, false, false, "bf", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTable", "BinaryFormatter", 2, true, false, "bf", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTable", "LosFormatter", 2, false, false, "los", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTable", "LosFormatter", 2, true, false, "los", true, failures, ref fired, ref skipped, trace);
 
             // Conditional MARKER (self-skip, not fail):
             // - WindowsClaimsIdentity needs a non-GAC assembly (Microsoft.IdentityModel, a
@@ -5200,6 +5319,22 @@ namespace ysonet.Tests
                 new[] { PayloadKind.CodeExecution },
                 new[] { PayloadInput.SourceCodeFile },
                 new[] { GadgetRequirement.BuiltIn, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+
+            // DataTable is a same-graph root carrier, NOT a nested-BinaryFormatter sink
+            // like DataSet: its complete payload runs code via the inner gadget. Variant 1
+            // (default, TextFormattingRunProperties) is code-execution with an
+            // extra-assembly + WPF requirement and no BuiltIn; this locks the distinction
+            // from DataSet, which is easy to regress toward. Variant 2 (TypeConfuseDelegate)
+            // is code-execution and framework built-in (no WPF, no extra assembly).
+            AssertCap("DataTable", 1,
+                new[] { PayloadKind.CodeExecution },
+                new[] { PayloadInput.Command },
+                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+
+            AssertCap("DataTable", 2,
+                new[] { PayloadKind.CodeExecution },
+                new[] { PayloadInput.Command },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework });
 
             AssertCap("XamlImageInfo", 1,
                 new[] { PayloadKind.NestedDeserialization },

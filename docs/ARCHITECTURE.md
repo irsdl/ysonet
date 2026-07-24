@@ -5,7 +5,7 @@
 > structure. Written for contributors and AI agents alike.
 >
 > This document can lag the code between updates; the source is always authoritative.
-> Last reviewed for v2026.7.8 (SharePoint CVE-2026-50522 added as a first-class deflate-only WS-Federation mode; session-token handler secret requirements scoped to their own transforms).
+> Last reviewed for v2026.7.9.
 
 ---
 
@@ -98,7 +98,7 @@ ysonet/
     Base/IGenerator.cs           #   interface + GadgetTags + Formatters constants
     Base/GenericGenerator.cs     #   abstract base: Serialize(), Init(), flow helpers
     Patched/PSObjectGenerator.cs #   the one gadget needing a recompiled vulnerable DLL
-    <31 gadget files>
+    <32 gadget files>
   Plugins/                       # PLUGINS (IPlugin classes) - section 6
     base/IPlugin.cs
     <14 plugin files>
@@ -404,7 +404,7 @@ to receive. Most bridges consume **BinaryFormatter**; **`DataSetOldBehaviour`** 
 **`SessionViewStateHistoryItem`** consume **LosFormatter**. Every gadget tagged `Bridged`
 declares a real `SupportedBridgedFormatter()`, so all of them can be a `--bgc` consumer.
 
-### Full gadget table (31 gadgets)
+### Full gadget table (32 gadgets)
 | Name | Formatters | Labels | Bridge? (accepts) | Extra options | Purpose |
 |---|---|---|---|---|---|
 | **ActivitySurrogateSelector** | BinaryFormatter, SoapFormatter, LosFormatter | Independent | No | `var` (1/2) | Reads `e.dll` beside exe; ActivitySurrogateSelector + LINQ enumerator chain to load+instantiate ExploitClass. Ignores `-c`. |
@@ -418,6 +418,7 @@ declares a real `SupportedBridgedFormatter()`, so all of them can be a `--bgc` c
 | **DataSetTypeSpoof** | (inherits DataSet) | (inherits Bridged) | Yes (BF) | - | Subclass; binder-bypass type spoof (code-white). |
 | **DataSetOldBehaviour** | BF, Los | Bridged | Yes (**Los**) | `spoofedAssembly`, `var` | Legacy DataSet XML path (XmlSchema+DiffGram) -> ExpandedWrapper -> LosFormatter. Variant 2 = SharePoint ToolShell. |
 | **DataSetOldBehaviourFromFile** | BF, Los | (none) | No (compiles file) | `spoofedAssembly`, `var`, `compressed` | Same but embeds a runtime-compiled assembly loaded via XAML. `--compressed` gzip-compresses the assembly and the payload decompresses it at deserialization via a `GZipStream` chain (same technique as XamlAssemblyLoadFromFile; ~90-95% smaller for a real assembly). Reuses `XamlAssemblyLoadFromFileGenerator.Gzip`. `internal` class. |
+| **DataTable** | BF, Soap, Los | (none) | No | `var` (1 TFRP, 2 TCD) | Same-graph `System.Data.DataTable` root carrier: the inner gadget rides an `object` column and deserializes in the SAME outer graph, so there is no nested formatter and no new binder boundary (this is what separates it from the DataSet gadget). Variant 1 (default) is the compatible TFRP inner (needs Microsoft.PowerShell.Editor + WPF; BF/Soap/Los). Variant 2 is a built-in TypeConfuseDelegate inner (no WPF/Microsoft.PowerShell.Editor); being a generic SortedSet it drops Soap, so BF/Los only. BF/Los `--minify` shrinks the inner XAML only (the minifying binary formatter cannot serialize a live DataTable); Soap minifies its XML. |
 | **GenericPrincipal** | BF, Los | Bridged, OnDeserialized, SecondOrder | Yes (BF) | `var` (1/2) | JSON->BF GenericPrincipal/ClaimsIdentity graph -> BF sink. |
 | **GetterCompilerResults** | Json.NET | GetterChain, Independent | No | `var` (1-4) | `CompilerResults.get_CompiledAssembly` -> DLL load, via WinForms getter gadget. |
 | **GetterSecurityException** | Json.NET | Bridged, GetterChain | Yes (BF) | `var` (1-4) | `SecurityException.get_Method` -> BF, via getter gadget. |
@@ -445,9 +446,10 @@ NDCS=NetDataContractSerializer, TCD=TypeConfuseDelegate, TFRP=TextFormattingRunP
 **Broad categories** (from each gadget's `Facets()`; use `--category` or `--fullhelp`
 for the exact per-gadget/per-variant values). By payload kind:
 - **code-execution**: ActivitySurrogateSelector(+FromFile), BaseActivationFactory,
-  DataSetOldBehaviourFromFile, GetterCompilerResults, ObjectDataProvider (variants
-  1/2/4), PSObject, ResourceSet, TextFormattingRunProperties, TypeConfuseDelegate(+Mono),
-  XamlAssemblyLoadFromFile, XamlImageInfo (variant 2).
+  DataSetOldBehaviourFromFile, DataTable (both variants; variant 1 needs
+  extra-assembly + wpf, variant 2 is built-in), GetterCompilerResults, ObjectDataProvider
+  (variants 1/2/4), PSObject, ResourceSet, TextFormattingRunProperties,
+  TypeConfuseDelegate(+Mono), XamlAssemblyLoadFromFile, XamlImageInfo (variant 2).
 - **nested-deserialization** (a BF/Los container feeding another deserializer): AxHostState,
   Claims/GenericPrincipal/*Identity family, DataSet(+TypeSpoof), DataSetOldBehaviour,
   GetterSecurityException, GetterSettingsPropertyValue, RolePrincipal, SessionSecurityToken,
@@ -755,7 +757,9 @@ Two test tiers (gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` 
   `ysonet.csproj` `<Compile>`. It auto-registers via reflection. `Name()` defaults to the
   class name minus `Generator`. Build payloads via the base `Serialize()` for BF/Soap/
   NDCS/Los, or `SerializersHelper` for text formats. Respect `inputArgs.Test` and
-  `inputArgs.Minify`. All new functions must be fully tested.
+  `inputArgs.Minify`. All new functions must be fully tested. A guided path exists:
+  the `ysonet-dev-create-gadget` skill scaffolds the class, csproj entry, facets,
+  tests, and docs row, and builds and tests in a loop.
 - **New plugin**: create `Plugins/<Name>Plugin.cs` implementing `IPlugin`; own an
   `OptionSet`, parse `args` in `Run`, return a `string` or `byte[]`. Add to csproj. Reuse
   gadgets via `GadgetRegistry.CreateGadgetInstance` or the static gadget helpers.

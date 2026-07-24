@@ -51,6 +51,8 @@ Credits for available gadgets:
                 [Finders: Steven Seeley, Markus Wulftange, Khoa Dinh] [Contributors: Soroush Dalili]
         DataSetTypeSpoof
                 [Finders: James Forshaw] [Contributors: Soroush Dalili, Markus Wulftange, Jang]
+        DataTable
+                [Finders: Soroush Dalili]
         GenericPrincipal
                 [Finders: Soroush Dalili]
         GetterCompilerResults

@@ -209,6 +209,7 @@
     <Compile Include="Generators\ClaimsPrincipalGenerator.cs" />
     <Compile Include="Generators\DataSetGenerator.cs" />
     <Compile Include="Generators\DataSetTypeSpoofGenerator.cs" />
+    <Compile Include="Generators\DataTableGenerator.cs" />
     <Compile Include="Generators\GetterSecurityExceptionGenerator.cs" />
     <Compile Include="Generators\GetterSettingsPropertyValueGenerator.cs" />
     <Compile Include="Generators\XamlAssemblyLoadFromFileGenerator.cs" />
