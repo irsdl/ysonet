@@ -11,7 +11,13 @@ using ysonet.Helpers;
 
 namespace ysonet.Generators
 {
-    public abstract class GenericGenerator : IGenerator
+    // Split into two files by concern:
+    //   GenericGenerator.cs            - the object-graph path (Serialize) and the shared
+    //                                    gadget contract (naming, options, facets, bridging).
+    //   GenericGenerator.HandWritten.cs - the hand written payload path, for a gadget that
+    //                                    writes its own document or bytes instead of handing
+    //                                    an object graph to Serialize().
+    public abstract partial class GenericGenerator : IGenerator
     {
         public SerializationBinder serializationBinder = null;
         public abstract object Generate(string formatter, InputArgs inputArgs);

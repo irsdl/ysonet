@@ -187,6 +187,15 @@ namespace ysonet.Tests
             return "\\\\" + HostFor(label) + "\\share\\file.txt";
         }
 
+        // A UNC path to an assembly, for a gadget whose sink is Assembly.LoadFrom. No
+        // short-name component is needed here: the loader opens the file itself, so the
+        // host is resolved by the load attempt rather than by 8.3 expansion. The ".dll"
+        // tail matters - AssemblyInstallerLoad only accepts a loadable assembly extension.
+        public string UncDllPath(string label)
+        {
+            return "\\\\" + HostFor(label) + "\\share\\payload.dll";
+        }
+
         // Wait until the server reports an interaction for this label. Any protocol
         // counts: DNS alone already proves the callback was attempted.
         public bool Observed(string label, int totalMs)

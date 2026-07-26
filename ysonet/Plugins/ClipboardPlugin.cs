@@ -46,6 +46,9 @@ using ysonet.Helpers;
  *   - The RestrictiveXamlXmlReader clipboard-paste mitigation this mode works around
  *     is CVE-2020-0605 / CVE-2020-0606 (the latter, "code execution via malicious WPF
  *     annotation/Sticky Notes files", was credited to Soroush Dalili).
+ *   - Sibling: the Xps plugin is the FILE sink of the same January 2020 mitigation
+ *     family. Same inner ObjectDataProvider gadget and same RestrictiveXamlXmlReader,
+ *     but delivered as an XPS document instead of a clipboard paste.
  *   - Not to be confused with CVE-2026-50646 (July 2026): that fix hardens the WPF
  *     copy/undo XAML sinks, which fire when a victim copies or undoes attacker-loaded
  *     document content, not when pasting an attacker clipboard. This paste-delivery

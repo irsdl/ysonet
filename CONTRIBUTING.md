@@ -7,6 +7,11 @@
 
 New to the codebase? Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first. It maps the whole project (gadgets, plugins, helpers, build) and how to add new gadgets, plugins, and serializers.
 
+Adding or changing a gadget or plugin? Read [ysonet/Generators/README.md](ysonet/Generators/README.md) too. Two rules:
+
+- **Self-containment.** The whole payload stays in the gadget's own file: templates, target type names, member names and order, and any surrogate shape. Helpers and the base class may only hold mechanics that name no gadget, so a gadget stays readable, changeable, and removable on its own.
+- **Write it to be read.** Gadgets and plugins are research material, for humans and for AI. The payload must be fully visible in the source and copyable straight into the testing arena. Never obfuscate, encode, or compress a payload in source, use the real type and member names, and comment why the technique works.
+
 Before sending a dependency upgrade, read [docs/dependency-security.md](docs/dependency-security.md). Several libraries are pinned to a vulnerable version on purpose, because that vulnerability is the gadget. That page records each pin, the advisory against it, and how to triage a new scanner alert.
 
 ## Building and testing

@@ -67,6 +67,7 @@ namespace ysonet.Helpers
                 case CommandInputType.ShellCommand: return PayloadInput.Command;
                 case CommandInputType.CsSourceFile: return PayloadInput.SourceCodeFile;
                 case CommandInputType.DllPath: return PayloadInput.AssemblyFile;
+                case CommandInputType.UncPath: return PayloadInput.UncPath;
                 case CommandInputType.Url: return PayloadInput.RemoteUrl;
                 case CommandInputType.FilePath: return PayloadInput.LocalFile;
                 case CommandInputType.TargetPath: return PayloadInput.TargetPath;

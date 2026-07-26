@@ -6,6 +6,8 @@ each rule against current source because implementation details can drift.
 ## Contents
 
 - Uniqueness and evidence
+- Self-containment
+- Readability (research material, no obfuscation)
 - Placement and registration
 - Formatters and output
 - Credits and help
@@ -26,6 +28,60 @@ between extending it, adding a variant, or creating a separate gadget.
 Do not plan a public gadget without technique evidence and truthful provenance.
 Identify the real chain, target-side requirements, original researchers, and
 implementation references.
+
+## Self-containment
+
+A gadget's payload lives in the gadget's own file, all of it. Contract:
+`ysonet/Generators/README.md`. A plan that spreads one gadget's payload across
+files, or that proposes a shared payload builder for several gadgets, is not
+acceptable and must be reworked before implementation.
+
+- In the gadget file: payload templates, target type names, member names and the
+  ORDER they are written in, any surrogate shape (as a nested type in the
+  generator class), and the per-formatter branching.
+- Shareable: only mechanics that name no gadget. `GenericGenerator.Serialize` for
+  BinaryFormatter / SoapFormatter / NetDataContractSerializer / LosFormatter;
+  `Generators/Base/GenericGenerator.HandWritten.cs` for a hand written document or
+  own bytes (`FinishHandWrittenPayload`, `RequireCommandInput`, `RawInputOption`,
+  `EscapeForJson`, `EscapeForXmlAttribute`, `IsFormatter`,
+  `IsMessagePackTypeless`, `IsMessagePackLz4`, `UnsupportedFormatter`); and
+  `Helpers/` (`SerializersHelper`, the minifiers, `MessagePackTypelessTypeSwap`,
+  `SharpSerializerTypeSwap`), which take the gadget's names and shapes as
+  arguments and store none of them.
+- Test the requirement: a gadget must stay changeable and deletable on its own,
+  so plan the tests to read the emitted bytes wherever generation alone cannot
+  prove the payload is right (a surrogate plus a type-name swap being the case
+  that fails silently).
+- The one allowed dependency on another gadget is reusing it as the INNER payload
+  through `GenerateInner`, declared with `GadgetTags.Bridged`/`Hosted`.
+
+If a plan genuinely needs new shared behavior, propose it as a member of
+`GenericGenerator` or a gadget-agnostic helper, and say which existing gadgets
+should adopt it.
+
+## Readability (research material, no obfuscation)
+
+Gadgets and plugins exist to be read and reproduced, by humans and by AI. Plan for
+a reader who opens one file to understand the technique. Contract:
+`ysonet/Generators/README.md`.
+
+- Each payload is a whole, readable document in a verbatim string with the target
+  type names spelled out, copyable straight into the testing arena
+  (`ysonet/Helpers/TestingArena/TestingArenaHome.cs`) or a scratch project.
+- Never plan an obfuscated, encoded or compressed payload in source: no base64
+  blob or byte array standing in for a readable document, no string assembled from
+  fragments or `char` codes, no reflection avoiding a nameable type, no one
+  document split across methods. When the WIRE format needs encoding or
+  compression, plan to build it from readable source at generation time and to
+  document what the bytes are.
+- Plan the real target and member names, technique-derived variable names, and
+  comments that record the WHY (the sink, why an order or member set matters, the
+  target-side condition, what would silently break).
+- Plan straightforward code over a compact trick, and truthful credits
+  (`Finders()`, `Contributors()`, `AdditionalInfo()` with CVE and public
+  reference) so the reader can reach the source material.
+- The Release binary's string encryption (`ysonet/obfuscar.xml`) is an antivirus
+  measure on one executable and is never a reason to plan obscure source.
 
 ## Placement and registration
 

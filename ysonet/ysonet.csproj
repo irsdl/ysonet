@@ -117,10 +117,10 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="MessagePack, Version=2.5.0.0, Culture=neutral, PublicKeyToken=b4a0369545f0a1be, processorArchitecture=MSIL">
-      <HintPath>..\packages\MessagePack.2.5.94\lib\netstandard2.0\MessagePack.dll</HintPath>
+      <HintPath>..\packages\MessagePack.2.5.301\lib\net472\MessagePack.dll</HintPath>
     </Reference>
     <Reference Include="MessagePack.Annotations, Version=2.5.0.0, Culture=neutral, PublicKeyToken=b4a0369545f0a1be, processorArchitecture=MSIL">
-      <HintPath>..\packages\MessagePack.Annotations.2.5.94\lib\netstandard2.0\MessagePack.Annotations.dll</HintPath>
+      <HintPath>..\packages\MessagePack.Annotations.2.5.301\lib\netstandard2.0\MessagePack.Annotations.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Bcl.AsyncInterfaces, Version=9.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.Bcl.AsyncInterfaces.9.0.0\lib\net462\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
@@ -143,6 +143,8 @@
     </Reference>
     <Reference Include="PresentationFramework" />
     <Reference Include="PresentationCore" />
+    <!-- XPS document types (System.Windows.Xps.Packaging) for the Xps plugin. -->
+    <Reference Include="ReachFramework" />
     <Reference Include="System" />
     <Reference Include="System.Buffers, Version=4.0.4.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Buffers.4.6.0\lib\net462\System.Buffers.dll</HintPath>
@@ -201,7 +203,7 @@
   <ItemGroup>
     <Compile Include="Generators\BaseActivationFactoryGenerator.cs" />
     <Compile Include="Generators\GetterCompilerResultsGenerator.cs" />
-    <Compile Include="Generators\XamlImageInfo.cs" />
+    <Compile Include="Generators\XamlImageInfoGenerator.cs" />
     <Compile Include="Generators\GenericPrincipalGenerator.cs" />
     <Compile Include="Generators\GenericIdentityGenerator.cs" />
     <Compile Include="Generators\FormsIdentityGenerator.cs" />
@@ -227,8 +229,10 @@
     <Compile Include="Generators\HostedPayloads\ActivitySurrogateDisableTypeCheckGenerator.cs" />
     <Compile Include="Generators\ActivitySurrogateSelectorFromFileGenerator.cs" />
     <Compile Include="Generators\ActivitySurrogateSelectorGenerator.cs" />
+    <Compile Include="Generators\AssemblyInstallerLoadGenerator.cs" />
     <Compile Include="Generators\Base\IGenerator.cs" />
     <Compile Include="Generators\Base\GenericGenerator.cs" />
+    <Compile Include="Generators\Base\GenericGenerator.HandWritten.cs" />
     <Compile Include="Generators\ObjectDataProviderGenerator.cs" />
     <Compile Include="Generators\TempFileCollectionGenerator.cs" />
     <Compile Include="Generators\TextFormattingRunPropertiesGenerator.cs" />
@@ -280,11 +284,7 @@
     <Compile Include="Helpers\Discovery\PluginRegistry.cs" />
     <Compile Include="Helpers\Input\CommandArgSplitter.cs" />
     <Compile Include="Helpers\Input\InputArgs.cs" />
-    <Compile Include="Helpers\MessagePack\GetterSettingsPropertyValueSurrogates.cs" />
-    <Compile Include="Helpers\MessagePack\MessagePackGetterSettingsPropertyValueHelper.cs" />
-    <Compile Include="Helpers\MessagePack\MessagePackNonRceGadgetHelper.cs" />
-    <Compile Include="Helpers\MessagePack\MessagePackObjectDataProviderHelper.cs" />
-    <Compile Include="Helpers\MessagePack\ObjectDataProviderSurrogates.cs" />
+    <Compile Include="Helpers\MessagePack\MessagePackTypelessTypeSwap.cs" />
     <Compile Include="Helpers\Minifiers\BinaryFormatterMinifier.cs" />
     <Compile Include="Helpers\Minifiers\TypeNameMinifier.cs" />
     <Compile Include="Helpers\Minifiers\JsonMinifier.cs" />
@@ -313,6 +313,7 @@
     <Compile Include="Helpers\Serialization\SerializersHelper.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.BinaryFormatter.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.DataContract.cs" />
+    <Compile Include="Helpers\Serialization\SerializersHelper.FastJson.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.DataContractJson.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.JavaScript.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.Json.cs" />
@@ -324,12 +325,12 @@
     <Compile Include="Helpers\Serialization\SerializersHelper.Soap.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.Xaml.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.Xml.cs" />
+    <Compile Include="Helpers\Serialization\SerializersHelper.Xps.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.Yaml.cs" />
     <Compile Include="Helpers\Serialization\XmlByteArrayEncoder.cs" />
     <Compile Include="Helpers\TestingArena\TestingArenaHome.cs" />
     <Compile Include="Generators\FileLogTraceListenerGenerator.cs" />
     <Compile Include="Generators\InfiniteProgressPageGenerator.cs" />
-    <Compile Include="Generators\NonRceGadgetPayloadBuilder.cs" />
     <Compile Include="Generators\PictureBoxGenerator.cs" />
     <Compile Include="Plugins\GetterCallGadgetsPlugin.cs" />
     <Compile Include="Plugins\MachineKeySessionSecurityTokenHandlerPlugin.cs" />
@@ -346,8 +347,20 @@
     <Compile Include="Plugins\SharePointPlugin.cs" />
     <Compile Include="Plugins\TransactionManagerReenlist.cs" />
     <Compile Include="Plugins\ViewStatePlugin.cs" />
+    <Compile Include="Plugins\XpsPlugin.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      Optional local-only sources. A contributor may keep unpublished generators or
+      plugins in these folders, which are git-ignored. In a normal clone the folders
+      do not exist, the wildcards match nothing, and the build is unchanged. Gadget
+      discovery is reflection based (Helpers\Discovery\GadgetRegistry.cs), so nothing
+      else needs registering.
+    -->
+    <Compile Include="Generators\Private\**\*.cs" />
+    <Compile Include="Plugins\Private\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

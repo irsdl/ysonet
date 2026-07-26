@@ -65,7 +65,7 @@ on 2026-07-26, shown so a reviewer can see the gap is known and intentional.
 | FSharp.Core | 3.1.2.5 | 9.x | Gadget | None published | Keep. Required by FsPickler 4.6. |
 | SharpSerializer | 3.0.1 | 4.0.2 | Gadget | None published | Keep |
 | Microsoft.IdentityModel | 7.0.0 | 7.0.0 | Gadget | None for this package id | Keep. Already the final release. |
-| MessagePack (+ .Annotations) | 2.5.94 | 3.x | Gadget | CVE-2024-48924 (< 2.5.187), CVE-2026-48109 (< 2.5.301) | Keep for now. Not reachable in the tool. Bump under review. |
+| MessagePack (+ .Annotations) | 2.5.301 | 3.x | Tool | CVE-2024-48924 (< 2.5.187), CVE-2026-48109 (< 2.5.301), both fixed by this version | Bumped 2026-07-26 from 2.5.94. Payload bytes unchanged. Staying on 2.5.x. |
 | Newtonsoft.Json | 13.0.4 | 13.0.x | Both | CVE-2024-21907 affects < 13.0.1, so **not** this version | Current. Nothing to do. |
 | NDesk.Options | 0.2.1 | 0.2.1 | Tool | None published | Current. Only release ever made. |
 | Obfuscar | 2.2.50 | - | Build | None published | Build-time only, never shipped. |
@@ -106,9 +106,10 @@ and does carry advisories such as CVE-2024-21643. Tools that match on the name p
 report "7.0.0 is behind 8.x" or attach an advisory from a sibling package. Neither
 applies here. There is nothing to upgrade to.
 
-### MessagePack 2.5.94
+### MessagePack 2.5.301
 
-Two advisories cover this version:
+This is the one old pin that was bumped rather than kept. It used to be 2.5.94, which two
+advisories cover:
 
 - CVE-2024-48924 (GHSA-4qm4-8hg2-g2xm), fixed in 2.5.187: hash-collision denial of
   service when **deserializing** untrusted data.
@@ -116,14 +117,24 @@ Two advisories cover this version:
   with an `AccessViolationException` when **deserializing** untrusted data with
   `Lz4Block` or `Lz4BlockArray` compression.
 
-Both are deserialization-side denial of service. YSoNet uses MessagePack to *build*
-payloads, and it never deserializes MessagePack data from an untrusted source, so
-neither is reachable in normal use. The 2.5.x line keeps the same wire format and the
-same typeless resolver behaviour that the payloads rely on, so a bump to 2.5.301 is a
-real option rather than a gadget change. It is an open maintainer decision, not an
-oversight.
+Both are deserialization-side denial of service, and neither was reachable in normal use:
+YSoNet uses MessagePack to *build* payloads and never deserializes MessagePack data from
+an untrusted source. But unlike YamlDotNet 4.3.2, the old version was not the point of the
+gadget, so the pin was tool side and the alerts had no answer beyond "not reachable". It
+was moved to 2.5.301 on 2026-07-26, the lowest version that clears both.
 
-The older CVE-2020-5234 (fixed in 2.1.90) does not apply to 2.5.94.
+The bump stays inside the 2.5.x line, which keeps the same wire format, the same
+`TypelessContractlessStandardResolver` behaviour, and the same `2.5.0.0` assembly version
+(so the `<Reference>` identity and the binding redirects are unchanged). Every generated
+MessagePack payload was compared before and after, plain and Lz4, across all four gadgets
+that support the formatter and every variant: byte for byte identical. 2.5.301 also adds a
+native `net472` build, so the reference now uses `lib\net472` instead of the
+`netstandard2.0` asset.
+
+Do not move to 3.x. That is a major version with different dependencies and target
+changes, and it buys nothing for payload generation.
+
+The older CVE-2020-5234 (fixed in 2.1.90) did not apply to 2.5.94 either.
 
 ### Newtonsoft.Json 13.0.4
 
@@ -152,9 +163,6 @@ modified. Software composition analysis tools that hash binaries will flag them.
 | `System.Management.Automation.dll` | file 6.3.9600.17400, assembly version rewritten to **1.3.3.7** | A recompiled **vulnerable** PowerShell build. The PSObject gadget (CVE-2017-8565) loads it by absolute path so this rewritten identity is used instead of the patched copy in the GAC. | Intended. Shipped next to `ysonet.exe`. |
 | `System.Management.Automation-orig.dll` | file 6.3.9600.17400, assembly 3.0.0.0 | The untouched original, kept so the modification can be diffed and audited. | Intended. Not shipped. |
 | `Microsoft.PowerShell.Editor.dll` | 10.0.17134.81, assembly 3.0.0.0 | Unmodified. Supplies the `TextFormattingRunProperties` type, which is not in the default GAC of a build machine. Referenced at compile time. | Intended. Shipped. |
-| `ReachFramework.dll` | file 4.8.3761.0, assembly version rewritten to **1.3.3.7** | Same identity-rewrite trick, kept for reproduction work. Not referenced by the build and not copied to the output today. | Kept for reference. Removal is an open item. |
-| `ReachFramework-orig.dll` | file 4.8.3761.0, assembly 4.0.0.0 | The untouched original for diffing. | Same as above. |
-| `PresentationFramework.dll` | 4.8.4121.0, assembly 4.0.0.0 | Unmodified WPF assembly kept for reference. The build references the GAC copy, not this one. Not copied to the output. | Same as above. |
 | `sharepoint/19/Microsoft.SharePoint.dll` | assembly 16.900.0.0 | Unmodified Microsoft assembly. The SharePoint plugin loads it to reach `SPObjectStateFormatter`. | Intended. Shipped. |
 | `sharepoint/19/Microsoft.SharePoint.ApplicationPages.dll` | 16.0.10417.20018 | Unmodified Microsoft assembly. Supplies the `SPThemes` type used by the CVE-2019-0604 and CVE-2018-8421 payloads. | Intended. Shipped. |
 
@@ -252,3 +260,19 @@ not as a public issue.
    reason, and confirm the pin with the maintainer.
 5. Keep this page in step with `ysonet/packages.config` and `ysonet/dlls/`. Every entry
    in both belongs in a table above.
+
+## Dependabot
+
+`.github/dependabot.yml` encodes the same decisions for the tooling:
+
+- The gadget-side packages are in its `ignore` list, so Dependabot does not open pull
+  requests against them.
+- Routine version-update pull requests are off (`open-pull-requests-limit: 0`) for both
+  NuGet and GitHub Actions, so the maintainer is not handed a stream of bumps. Security
+  update pull requests for packages that are not ignored still arrive. Anything that
+  does arrive still has to wait out the one-month freshness rule before merging.
+- `ignore` does not clear the repository Security tab. Dependabot **alerts** are
+  dismissed one at a time in the UI ("This vulnerability will not be fixed" or "Risk is
+  tolerable to this project"), using the reason from the tables above.
+
+Keep the ignore list in step with the gadget-side rows on this page.

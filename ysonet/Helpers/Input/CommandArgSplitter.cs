@@ -99,6 +99,25 @@ namespace ysonet.Helpers
             return text.Replace(@"\", @"\\").Replace(@"""", @"\""").Replace(@"'", @"\'");
         }
 
+        /// <summary>
+        /// Escape for a DOUBLE quoted JSON or YAML string literal: the backslash and the
+        /// double quote, which is exactly what those formats define.
+        ///
+        /// JsonStringEscape above also turns a single quote into \', because many payload
+        /// templates in this project are written with SINGLE quoted strings (Json.NET
+        /// accepts those). \' is not a legal escape in any JSON, so inside a DOUBLE quoted
+        /// string it is unnecessary and it is not harmless: Json.NET and JavaScriptSerializer
+        /// read it back as a literal quote, but fastJSON DROPS the character, silently
+        /// turning an operator value like C:\John's dir\x.dll into C:\Johns dir\x.dll. Use
+        /// this one whenever the surrounding literal uses double quotes.
+        /// </summary>
+        public static string JsonDoubleQuotedStringEscape(string text)
+        {
+            if (text == null)
+                return "";
+            return text.Replace(@"\", @"\\").Replace(@"""", @"\""");
+        }
+
         public static String[] SplitCommand(string cmd, out Boolean hasArgs)
         {
             hasArgs = false;

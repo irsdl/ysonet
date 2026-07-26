@@ -9,6 +9,10 @@ Pointers:
   artifacts in commits): `CLAUDE.md`
 - Architecture and code map (how the tool works, where every piece lives, how to add
   gadgets/plugins/serializers): `docs/ARCHITECTURE.md`
+- Gadget/plugin rules - self-containment (a gadget's whole payload stays in its own file,
+  never in a helper or a shared payload builder) and readability (research material: the
+  payload is fully visible in the source and never obfuscated, encoded, or hidden):
+  `ysonet/Generators/README.md`, summarized in `CLAUDE.md`
 - Contributing workflow: `CONTRIBUTING.md`
 - Security-review rule: `SECURITY.md`
 

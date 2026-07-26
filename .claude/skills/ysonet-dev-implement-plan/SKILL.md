@@ -1,6 +1,6 @@
 ---
 name: ysonet-dev-implement-plan
-description: Implements, tests, and verifies an approved ysonet development plan from dev-kitchen/to-be-implemented/ while re-checking it against current code and any available GraphQuery database, preserving unrelated work, recording material deviations, updating tests and docs, and surfacing follow-ups. Use when the user asks to implement, build, execute, or finish an existing settled plan. Not for drafting a plan, choosing among unsettled designs, or tiny ad-hoc edits with no plan.
+description: Implements, tests, and verifies an approved ysonet development plan from dev-kitchen/to-be-implemented/ while re-checking it against current code and any configured code-graph database, preserving unrelated work, recording material deviations, updating tests and docs, and surfacing follow-ups. Use when the user asks to implement, build, execute, or finish an existing settled plan. Not for drafting a plan, choosing among unsettled designs, or tiny ad-hoc edits with no plan.
 ---
 
 # Implement a ysonet development plan
@@ -80,27 +80,22 @@ Verify every load-bearing claim against current source:
 
 Treat source as authoritative when a plan or architecture note has drifted.
 
-When a GraphQuery graph/database is available:
+When a code-graph tool and a graph are configured in this workspace:
 
-1. use `$code-graph tooling`; if named-skill invocation is unavailable, read
-   `.claude/skills/code-graph tooling/SKILL.md` in full;
-2. run `stats` through the GraphQuery CLI or configured tool and confirm the
-   graph root, dependencies, and file scope before relying on it;
-3. use task-specific `search`, `node`, `callers`, `callees`, `path`, or `find`
-   queries for relevant call paths, containment, inheritance, attributes,
+1. read that tool's own skill or documentation in full before using it;
+2. confirm the graph root, dependencies, and file scope before relying on it;
+3. query it for relevant call paths, containment, inheritance, attributes,
    overrides, source-to-sink reachability, and blast radius; and
-4. for gadget work, use the deserialization recipes against each relevant
-   source or framework graph to investigate serializer target shapes, magic
-   members, bridges, and paths to the named sink.
+4. for gadget work, investigate serializer target shapes, magic members,
+   bridges, and paths to the named sink.
 
-Check `CODE_GRAPH`, a graph path supplied by the user or plan, and usable
-workspace-provided graph/index pairs. Never read or grep the large graph JSON or
-query its SQLite index outside GraphQuery. Do not copy a machine-local graph
-path into tracked files. Treat graph results as scoped supporting evidence:
-verify current code with source and tests, use `rg` for strings, configuration,
-docs, and ungraphed code, and do not claim that a graph proves post-edit
-behavior unless its source graph was regenerated. If no usable graph is
-available, continue with source inspection without blocking.
+Never read or grep a large graph file directly, and never query its index
+outside the tool that owns it. Do not copy a machine-local graph path into
+tracked files. Treat graph results as scoped supporting evidence: verify current
+code with source and tests, use `rg` for strings, configuration, docs, and
+ungraphed code, and do not claim that a graph proves post-edit behavior unless
+its source graph was regenerated. No such tool is required: when none is
+configured, continue with source inspection without blocking.
 
 ### 4. Resolve only material deviations
 
@@ -297,8 +292,8 @@ out in the final handoff.
 
 - [ ] An approved plan was selected and read in full.
 - [ ] Repository guidance, memory, source, tests, and working-tree state were read.
-- [ ] Every available relevant GraphQuery database was scoped with `stats` and
-      used for task-specific queries; source covered unavailable or ungraphed areas.
+- [ ] Any configured code-graph database was scoped before use and queried for the
+      task; source covered unavailable or ungraphed areas.
 - [ ] Plan claims were re-verified against current code.
 - [ ] Material deviations were approved and recorded; minor corrections preserve intent.
 - [ ] Every implementation, csproj, public-surface, and documentation step is complete.

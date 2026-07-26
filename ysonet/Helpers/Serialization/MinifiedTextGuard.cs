@@ -26,11 +26,11 @@ namespace ysonet.Helpers
     // is why AsXmlText returns null for them and MissingTextValues then reports nothing.
     internal static class MinifiedTextGuard
     {
-        // The values in `required` that are NOT present as an exact text value in the
-        // serialized payload. Empty when the payload is not XML at all (a binary formatter
-        // stream), when `required` is empty, or when everything survived. An empty string is
-        // skipped: XML emits no text node for it, so it can never be found and never needs
-        // to be.
+        // The values in `required` that are NOT present as an exact text or attribute value
+        // in the serialized payload. Empty when the payload is not XML at all (a binary
+        // formatter stream), when `required` is empty, or when everything survived. An empty
+        // string is skipped: XML emits no text node for it, so it can never be found and
+        // never needs to be.
         internal static List<string> MissingTextValues(object serializedPayload,
             IEnumerable<string> required)
         {
@@ -81,8 +81,14 @@ namespace ysonet.Helpers
             return trimmed.Length > 0 && trimmed[0] == '<' ? trimmed : null;
         }
 
-        // Every text and CDATA value in the document. Fragment conformance, because a
-        // minified payload is a bare element with no XML declaration.
+        // Every text, CDATA and ATTRIBUTE value in the document. Fragment conformance,
+        // because a minified payload is a bare element with no XML declaration.
+        //
+        // Attributes count because the minifier's whitespace passes run over the raw
+        // document, not over text nodes only: a gadget that delivers its value as an
+        // attribute (Xaml's Path="...", SharpSerializer's <Simple value="..."/>) is exposed
+        // to exactly the same rewriting. The reader hands back the DECODED value, so an
+        // escaped path (&amp; for '&') is compared as the operator typed it.
         internal static List<string> XmlTextValues(string xml)
         {
             var values = new List<string>();
@@ -100,6 +106,12 @@ namespace ysonet.Helpers
                         || reader.NodeType == System.Xml.XmlNodeType.CDATA
                         || reader.NodeType == System.Xml.XmlNodeType.SignificantWhitespace)
                         values.Add(reader.Value);
+                    else if (reader.NodeType == System.Xml.XmlNodeType.Element && reader.HasAttributes)
+                    {
+                        while (reader.MoveToNextAttribute())
+                            values.Add(reader.Value);
+                        reader.MoveToElement();
+                    }
                 }
             }
             return values;

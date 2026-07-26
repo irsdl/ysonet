@@ -343,7 +343,8 @@ namespace ysonet.Interactive
             var candidateTypes = new CommandInputType[]
             {
                 CommandInputType.ShellCommand, CommandInputType.CsSourceFile,
-                CommandInputType.DllPath, CommandInputType.Url, CommandInputType.FilePath,
+                CommandInputType.DllPath, CommandInputType.UncPath,
+                CommandInputType.Url, CommandInputType.FilePath,
                 CommandInputType.TargetPath, CommandInputType.TargetPathPair,
                 CommandInputType.TargetPathAndLocalFile
             };
@@ -582,6 +583,7 @@ namespace ysonet.Interactive
             {
                 case CommandInputType.CsSourceFile: return ".cs source file";
                 case CommandInputType.DllPath: return "DLL path";
+                case CommandInputType.UncPath: return "UNC path";
                 case CommandInputType.Url: return "URL";
                 case CommandInputType.FilePath: return "File path";
                 case CommandInputType.TargetPath: return "Target path";
@@ -653,6 +655,7 @@ namespace ysonet.Interactive
             {
                 case CommandInputType.CsSourceFile: return "Path to .cs source file (';' for extra assemblies)";
                 case CommandInputType.DllPath: return "Path to .dll";
+                case CommandInputType.UncPath: return "UNC path (\\\\host\\share\\file)";
                 case CommandInputType.Url: return "URL";
                 case CommandInputType.FilePath: return "File path (e.g. a XAML file)";
                 case CommandInputType.TargetPath: return "Path on the target";
@@ -669,6 +672,7 @@ namespace ysonet.Interactive
             {
                 case CommandInputType.CsSourceFile: return "This gadget compiles the .cs file. Example: ExploitClass.cs;System.Windows.Forms.dll";
                 case CommandInputType.DllPath: return "This gadget loads the DLL on the target. A UNC path works for remote loading.";
+                case CommandInputType.UncPath: return "A UNC path the TARGET opens over SMB, so the host must be reachable from it. Nothing is read here.";
                 case CommandInputType.Url: return "This gadget expects an absolute URL (e.g. a remoting endpoint).";
                 case CommandInputType.FilePath: return "This gadget reads the file HERE while building the payload (local or UNC path).";
                 case CommandInputType.TargetPath: return "A path on the TARGET, used when the payload runs. Nothing is read or written here.";

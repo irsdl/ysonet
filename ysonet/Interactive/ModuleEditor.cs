@@ -1231,6 +1231,7 @@ namespace ysonet.Interactive
                 case CommandInputType.Url: return "http://attacker:9999/";
                 case CommandInputType.CsSourceFile: return "ExploitClass.cs;System.Windows.Forms.dll";
                 case CommandInputType.DllPath: return "\\\\attacker\\share\\payload.dll";
+                case CommandInputType.UncPath: return "\\\\attacker\\share\\payload.dll";
                 case CommandInputType.FilePath: return "C:\\path\\payload.xaml";
                 case CommandInputType.TargetPath: return "C:\\inetpub\\wwwroot\\dropped.txt";
                 case CommandInputType.TargetPathPair: return "C:\\work\\z-source.txt;C:\\work\\a-destination.txt";

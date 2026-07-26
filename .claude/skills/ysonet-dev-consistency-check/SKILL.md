@@ -149,6 +149,41 @@ completion or help text that omits a real gadget, plugin, option, or value.
   `HostedPayloads/` whose namespace is not `ysonet.Generators`, and any gadget
   file missing from the `ysonet.csproj` `<Compile>` list. Contract:
   `ysonet/Generators/HostedPayloads/README.md`.
+- Every gadget's payload is self-contained. Contract:
+  `ysonet/Generators/README.md`. Report as a finding:
+  - a payload template, target type name, member name/order, or surrogate shape
+    for a specific gadget that lives outside that gadget's own file (a helper, a
+    shared "payload builder", or another gadget's file);
+  - any class under `ysonet/Helpers/` that names a gadget, a gadget's target type,
+    or a gadget's members. A helper may only hold mechanics that take those as
+    arguments (`MessagePackTypelessTypeSwap`, `SharpSerializerTypeSwap`,
+    `SerializersHelper`, the minifiers, the escapers);
+  - a non-gadget class sitting in `ysonet/Generators/` (everything there is an
+    `IGenerator`, apart from `Base/` and the READMEs);
+  - plumbing copied into a gadget that `GenericGenerator` already provides
+    (`Serialize`, or the hand written path in
+    `Generators/Base/GenericGenerator.HandWritten.cs`).
+  The one allowed cross-gadget dependency is reusing another gadget as the inner
+  payload via `GenerateInner`, declared with `GadgetTags.Bridged`/`Hosted`.
+- Every gadget and plugin is readable as research material. Same contract
+  (`ysonet/Generators/README.md`). Report as a finding:
+  - a payload that is not visible in the source: a base64 blob or byte array
+    standing in for a document a human could read, a string assembled from
+    fragments or `char` codes, reflection used to avoid naming a type that can be
+    named, or one document split across methods;
+  - an encoded or compressed WIRE payload with no comment saying what the bytes
+    are and no readable source it is built from (the `--compressed` assembly chain
+    and the base64 `SerializedValue` form are the compliant examples);
+  - cryptic or misleading names where the real target/member name or a
+    technique-derived name belongs;
+  - comments that restate the syntax while the WHY (the sink, why an order or
+    member set matters, the target-side condition, what silently breaks) is
+    missing;
+  - missing or unverifiable credits in `Finders()`/`Contributors()`/
+    `AdditionalInfo()`.
+  Do NOT report the Release binary's string encryption (`ysonet/obfuscar.xml`): it
+  is a deliberate antivirus measure on one shipped executable, documented in
+  `docs/getting-started.md`, and unrelated to source readability.
 - Note any gadget or plugin that is missing a part, or whose parts contradict
   each other. Collect these for the closing question to the user (see "Finish").
 

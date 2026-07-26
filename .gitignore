@@ -251,9 +251,16 @@ ysonet/Helpers/TestingArena/TestingArenaHome.cs
 
 # Claude Code project files are tracked and public so contributors and their agents
 # share the same guidance: CLAUDE.md, AGENTS.md, and any skills/agents under .claude/.
-# Only personal local settings and the private dev-kitchen working area stay out of git.
+# Only personal local settings and private working areas stay out of git.
 .claude/settings.local.json
+.claude/memory/private/
 dev-kitchen/
+
+# Private working areas. Contents are personal and are never part of this repo, so
+# they are ignored by shape rather than by name. A contributor's own private paths
+# belong in .git/info/exclude, which is local and never committed.
+**/private/
+**/Private/
 
 # VS Code
 .vscode/

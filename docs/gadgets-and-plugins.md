@@ -18,6 +18,7 @@ Each gadget lists the formatters it supports. A number in parentheses means seve
 ActivitySurrogateDisableTypeCheck (BinaryFormatter (2), LosFormatter (2), NetDataContractSerializer (2), SoapFormatter)
 ActivitySurrogateSelector (BinaryFormatter (2), LosFormatter, SoapFormatter)
 ActivitySurrogateSelectorFromFile (BinaryFormatter (2), LosFormatter, SoapFormatter)
+AssemblyInstallerLoad (FastJson (2), JavaScriptSerializer (2), Json.NET (2), MessagePackTypeless (2), MessagePackTypelessLz4 (2), SharpSerializerBinary (2), SharpSerializerXml (2), Xaml (2), YamlDotNet < 5.0.0 (2))
 AxHostState (BinaryFormatter, LosFormatter, NetDataContractSerializer, SoapFormatter)
 BaseActivationFactory (Json.NET)
 ClaimsIdentity (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, LosFormatter, NetDataContractSerializer, SoapFormatter)
@@ -80,6 +81,7 @@ SharePoint (Generates payloads for the following SharePoint CVEs: CVE-2026-50522
 ThirdPartyGadgets (Implements gadgets for 3rd Party Libraries)
 TransactionManagerReenlist (Generates payload for the TransactionManager.Reenlist method)
 ViewState (Generates a ViewState using known MachineKey parameters)
+Xps (Generates a malicious XPS document (CVE-2020-0605) - binary output, use --outputpath to save it as an .xps file)
 ```
 
 ### Plugin options

@@ -20,6 +20,18 @@ namespace ysonet.Helpers
             return Convert.ToBase64String(serialized);
         }
 
+        /// <summary>
+        /// Read a Typeless payload back the way a target would. Public so a test can fire a
+        /// MessagePack payload with the real deserializer instead of only inspecting bytes.
+        /// </summary>
+        public static object MessagePackTypeless_deserialize(byte[] serializedData, bool useLz4)
+        {
+            MessagePackSerializerOptions options = useLz4
+                ? TypelessContractlessStandardResolver.Options.WithCompression(MessagePackCompression.Lz4BlockArray)
+                : TypelessContractlessStandardResolver.Options;
+            return MessagePackSerializer.Deserialize<object>(serializedData, options);
+        }
+
         public static object MessagePackTypeless_test(object myobj)
         {
             try

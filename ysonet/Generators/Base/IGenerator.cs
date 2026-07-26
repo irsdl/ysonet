@@ -192,6 +192,7 @@ namespace ysonet.Generators
         ShellCommand,   // a command to run (directly, or via the inner gadget for bridges)
         CsSourceFile,   // a path to a .cs file to compile (';' separates extra assemblies)
         DllPath,        // a path to a .dll to load on the target
+        UncPath,        // a UNC path the TARGET reaches over SMB (\\host\share\file)
         Url,            // a URL (e.g. a remoting endpoint)
         FilePath,       // a path to a file the gadget reads LOCALLY while building (e.g. a XAML file)
         TargetPath,     // a path on the TARGET, used only when the payload runs
@@ -227,11 +228,15 @@ namespace ysonet.Generators
         SoapFormatter = "SoapFormatter",
         NetDataContractSerializer = "NetDataContractSerializer",
         DataContractSerializer = "DataContractSerializer",
+        DataContractJsonSerializer = "DataContractJsonSerializer",
         FastJson = "FastJson",
         FsPickler = "FsPickler",
         JavaScriptSerializer = "JavaScriptSerializer",
         JsonNet = "Json.NET",
+        MessagePackTypeless = "MessagePackTypeless",
+        MessagePackTypelessLz4 = "MessagePackTypelessLz4",
         SharpSerializerBinary = "SharpSerializerBinary",
+        SharpSerializerXml = "SharpSerializerXml",
         Xaml = "Xaml",
         XmlSerializer = "XmlSerializer",
         YamlDotNet = "YamlDotNet",

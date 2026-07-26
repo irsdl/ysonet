@@ -9,19 +9,20 @@ namespace ysonet.Helpers
     /// constructing that type.
     ///
     /// The XML side of SharpSerializer needs no help: the type name is an attribute in a
-    /// hand written document (see NonRceGadgetPayloadBuilder). The binary side has no
-    /// document to hand write, so the usual move would be to serialize the real target -
-    /// which is exactly what a property-setter gadget must not do, because setting the
-    /// property IS the effect and it would fire inside ysonet.
+    /// document the gadget hand writes. The binary side has no document to hand write, so the
+    /// usual move would be to serialize the real target - which is exactly what a
+    /// property-setter gadget must not do, because setting the property IS the effect and it
+    /// would fire inside ysonet.
     ///
     /// So serialize a SURROGATE with the same property names, then rewrite the one type
-    /// name in the stream. SharpSerializer's SizeOptimized binary mode keeps type names in
+    /// name in the stream. The surrogate shape and the target name stay in the gadget that
+    /// owns them (see Generators/README.md); nothing gadget specific belongs in this file. SharpSerializer's SizeOptimized binary mode keeps type names in
     /// a cache written as 7-bit-length-prefixed UTF-8 strings, and everything else refers
     /// to them BY INDEX, so swapping one entry for a longer or shorter one needs no offset
     /// fixing anywhere else in the stream.
     ///
-    /// This is the binary counterpart of MessagePackNonRceGadgetHelper.SwapTypeCacheName,
-    /// which solves the same problem for the MessagePack typeless name cache.
+    /// This is the binary counterpart of MessagePackTypelessTypeSwap, which solves the same
+    /// problem for the MessagePack typeless name cache.
     /// </summary>
     internal static class SharpSerializerTypeSwap
     {
@@ -38,17 +39,56 @@ namespace ysonet.Helpers
                 throw new ArgumentException("A target assembly qualified name is required.",
                     "targetAssemblyQualifiedName");
 
-            byte[] stream = SerializersHelper.SharpSerializer_Binary_serialize_ToByteArray(surrogate);
-            string surrogateName = surrogate.GetType().AssemblyQualifiedName;
+            var map = new Dictionary<Type, string>();
+            map.Add(surrogate.GetType(), targetAssemblyQualifiedName);
+            return SerializeAs(surrogate, map);
+        }
 
+        /// <summary>
+        /// Serialize <paramref name="surrogateGraph"/> with SharpSerializer binary and replace
+        /// every surrogate type name in <paramref name="targetTypeNames"/> with the assembly
+        /// qualified name the target deserializer must see.
+        ///
+        /// A graph needs more than one entry as soon as it nests: the root carrier and each
+        /// element of an object[] property are written with their own name.
+        /// </summary>
+        internal static byte[] SerializeAs(object surrogateGraph, IDictionary<Type, string> targetTypeNames)
+        {
+            if (surrogateGraph == null)
+                throw new ArgumentNullException("surrogateGraph");
+            if (targetTypeNames == null || targetTypeNames.Count == 0)
+                throw new ArgumentException(
+                    "At least one surrogate type -> target type name mapping is required.",
+                    "targetTypeNames");
+
+            byte[] stream = SerializersHelper.SharpSerializer_Binary_serialize_ToByteArray(surrogateGraph);
+
+            foreach (KeyValuePair<Type, string> swap in targetTypeNames)
+            {
+                if (swap.Key == null || string.IsNullOrEmpty(swap.Value))
+                    throw new ArgumentException("Every mapping needs a surrogate type and a target type name.",
+                        "targetTypeNames");
+                stream = ReplaceName(stream, swap.Key.AssemblyQualifiedName, swap.Value);
+            }
+            return stream;
+        }
+
+        // Swap ONE name record. The cache holds each type name once, so a single occurrence
+        // is expected; a missing one means the serializer never wrote that surrogate (a
+        // property the gadget forgot to fill) or the binary layout changed, and both are
+        // mistakes worth failing on rather than shipping a payload the target cannot read.
+        private static byte[] ReplaceName(byte[] stream, string surrogateName, string targetName)
+        {
             byte[] from = LengthPrefixed(surrogateName);
-            byte[] to = LengthPrefixed(targetAssemblyQualifiedName);
+            byte[] to = LengthPrefixed(targetName);
 
             int at = IndexOf(stream, from);
             if (at < 0)
                 throw new Exception(
-                    "Could not find the surrogate type name in the SharpSerializer binary stream. "
-                    + "The serializer's binary layout changed; the type swap needs revisiting.");
+                    "Could not find the surrogate type name '" + surrogateName
+                    + "' in the SharpSerializer binary stream. Either that surrogate was never "
+                    + "serialized, or the serializer's binary layout changed; the type swap needs "
+                    + "revisiting.");
 
             var result = new byte[stream.Length - from.Length + to.Length];
             Buffer.BlockCopy(stream, 0, result, 0, at);

@@ -128,6 +128,57 @@ when enough evidence exists to implement the real chain. Replace the name token,
 resolve every TODO, and delete optional template sections that do not apply.
 Match the closest generator's structure.
 
+Keep the whole payload in the gadget's own file. This is a hard rule, and
+`ysonet/Generators/README.md` is the contract:
+
+- Payload templates, target type names, member names and the ORDER they are
+  written in, and any surrogate shape (declared as a nested type in the generator
+  class) all live in `Generators/<Name>Generator.cs`. Changing what the gadget
+  emits must mean changing one file.
+- Never put them in a helper, and never create a shared "payload builder" for
+  several gadgets. A helper may only hold mechanics that name no gadget, taking
+  the names and shapes as arguments: the type-name swaps
+  (`MessagePackTypelessTypeSwap`, `SharpSerializerTypeSwap`), `SerializersHelper`,
+  the minifiers, the escapers.
+- Reuse the base class instead of copying plumbing:
+  `GenericGenerator.Serialize` for BinaryFormatter / SoapFormatter /
+  NetDataContractSerializer / LosFormatter, and
+  `GenericGenerator.HandWritten.cs` for a hand written document or your own bytes
+  (`FinishHandWrittenPayload` covers minify plus the `-t` self-test, and
+  `RequireCommandInput`, `RawInputOption`, `EscapeForJson`,
+  `EscapeForXmlAttribute`, `IsFormatter`, `IsMessagePackTypeless`,
+  `IsMessagePackLz4`, `UnsupportedFormatter` cover the rest). If one of those is
+  genuinely wrong for this gadget, improve the shared member; do not fork it.
+- The only allowed dependency on another gadget is reusing it as the INNER
+  payload through `GenerateInner`, declared with `GadgetTags.Bridged` or
+  `GadgetTags.Hosted`.
+- Test what generation cannot prove. A bait-and-switch payload (a surrogate plus
+  a type-name swap) still generates when the swap silently fails, so assert the
+  target names in the emitted bytes, as
+  `MessagePackTypelessCarriesTargetTypeNames` does.
+
+Write the gadget to be READ. It is research material: a human and an AI must be
+able to understand the technique from this one file. Nothing is hidden and
+nothing is obfuscated.
+
+- Keep each payload a whole, readable document in a verbatim string (`@"..."`),
+  with the target type names spelled out, so a reader can copy it straight into
+  the testing arena (`ysonet/Helpers/TestingArena/TestingArenaHome.cs`) or a
+  scratch project and have it work.
+- Never obfuscate, encode, or compress a payload in source: no base64 blob or
+  byte array standing in for a readable document, no string assembled from
+  fragments or `char` codes, no reflection used to avoid naming a type that can be
+  named, no one document split across methods. When the WIRE format genuinely
+  needs encoding or compression, build it from readable source at generation time
+  and state in a comment what the bytes are.
+- Use the real target and member names and technique-derived variable names.
+  Comment the WHY - the sink, why the property order or member set matters, the
+  target-side condition, what would silently break - not the syntax.
+- Prefer straightforward code over a compact trick. Reflection, dynamic code or
+  metaprogramming only when the technique requires it, and then explained.
+- The Release binary's string encryption (`ysonet/obfuscar.xml`) is an antivirus
+  measure on one shipped executable. It never justifies writing obscure source.
+
 Walk every fillable member `ysonet/Generators/Base/IGenerator.cs` exposes and
 give each an evidence-backed value or a deliberate default. Do not leave a
 member at an empty or placeholder default because it was not considered. Confirm

@@ -35,6 +35,8 @@ Credits for available gadgets:
                 [Finders: James Forshaw] [Contributors: Alvaro Munoz, zcgonvh]
         ActivitySurrogateSelectorFromFile
                 [Finders: James Forshaw] [Contributors: Alvaro Munoz, zcgonvh]
+        AssemblyInstallerLoad
+                [Finders: Alvaro Munoz, Oleksandr Mirosh, Piotr Bazydlo] [Contributors: Soroush Dalili]
         AxHostState
                 [Finders: Soroush Dalili]
         BaseActivationFactory

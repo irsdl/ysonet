@@ -43,17 +43,29 @@
     <Reference Include="System.Web" />
     <!-- For the FULL-tier ObjRef firing test: register a loopback remoting client channel. -->
     <Reference Include="System.Runtime.Remoting" />
+    <!-- For the Xps package structure test: open the generated .xps with System.IO.Packaging. -->
+    <Reference Include="WindowsBase" />
+    <!-- For the AssemblyInstallerLoad runtime-effect tests: InstallerFixture.cs declares the
+         inert [RunInstaller(true)] Installer subclass that gadget's payload constructs. -->
+    <Reference Include="System.Configuration.Install" />
+    <!-- For the AssemblyInstallerLoad runtime-effect tests: the WinForms getter carriers
+         (PropertyGrid, ComboBox, ListBox, CheckedListBox) are built on deserialize. -->
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="NDesk.Options, Version=0.2.1.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\NDesk.Options.0.2.1\lib\NDesk.Options.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DosFakes.cs" />
+    <Compile Include="InstallerFixture.cs" />
     <Compile Include="LegacyXmlChild.cs" />
     <Compile Include="Oob.cs" />
     <Compile Include="RuntimeBuild.cs" />
     <Compile Include="Tests.cs" />
     <Compile Include="VirtualTerminal.cs" />
+    <!-- Optional local-only tests for unpublished gadgets/plugins; ignored, and the
+         wildcard matches nothing in a normal clone. See ysonet.csproj. -->
+    <Compile Include="Private\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ysonet\ysonet.csproj">

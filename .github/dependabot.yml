@@ -1,0 +1,54 @@
+# Dependabot configuration for ysonet.
+#
+# Read docs/dependency-security.md first. This tool deliberately ships old and
+# vulnerable serializer libraries, because those libraries are what the payloads
+# target. Upgrading one of them deletes a working gadget.
+#
+# What this file does and does not do:
+#   - `ignore` stops Dependabot opening version-update and security-update PULL
+#     REQUESTS for the listed packages. It does NOT clear entries from the
+#     repository Security tab. Dependabot ALERTS are dismissed one at a time in
+#     the UI ("This vulnerability will not be fixed" / "Risk is tolerable to this
+#     project"), with the reason taken from docs/dependency-security.md.
+#   - `open-pull-requests-limit: 0` turns routine version-update PRs OFF, so the
+#     maintainer does not get a stream of bump PRs to triage. Security update PRs
+#     for packages that are NOT ignored still arrive. Raise the limit (or delete
+#     the line) to switch routine version updates back on.
+#
+# Anything Dependabot does open still has to wait out the one-month freshness
+# rule in CLAUDE.md before it can be merged. Do not merge a fresh PR on sight.
+version: 2
+updates:
+  # NuGet packages live in ysonet/packages.config (the only project with any).
+  - package-ecosystem: "nuget"
+    directory: "/ysonet"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 0
+    ignore:
+      # Gadget side. The old behaviour IS the vulnerability being demonstrated.
+      # Upgrading any of these deletes a working payload.
+      - dependency-name: "YamlDotNet"        # CVE-2018-1000210 is the gadget
+      - dependency-name: "fastJSON"
+      - dependency-name: "FsPickler"
+      - dependency-name: "FsPickler.CSharp"
+      - dependency-name: "FsPickler.Json"
+      - dependency-name: "FSharp.Core"       # pinned by FsPickler 4.6
+      - dependency-name: "SharpSerializer"
+      - dependency-name: "Microsoft.IdentityModel"  # legacy WIF, 7.0.0 is the last release
+      # MessagePack is deliberately NOT ignored: its advisories are
+      # deserialization-side and it is not what a gadget demonstrates, so a
+      # security PR against it is worth seeing. It was bumped to 2.5.301 on
+      # 2026-07-26 for exactly that reason. Stay on the 2.5.x line: close a PR
+      # that moves it to 3.x, which is a major version with different
+      # dependencies and no benefit for payload generation.
+
+  # Workflow actions are pinned to full commit SHAs with a version comment.
+  # Dependabot updates a SHA pin and keeps the comment, so it is compatible with
+  # the workflow policy. Routine bumps stay off; the pins are reviewed by hand
+  # about once a month.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 0
