@@ -47,6 +47,8 @@ $script:YsonetOptions = @(
     @{ Names = @('--list');                               Kind = 'listcat'   }
     @{ Names = @('--category');                           Kind = 'text'      }
     @{ Names = @('--debugmode');                          Kind = 'none'      }
+    @{ Names = @('--i-understand-dos');                   Kind = 'none'      }
+    @{ Names = @('--i-understand-dos');                    Kind = 'none'      }
     @{ Names = @('-h', '--help');                         Kind = 'none'      }
     @{ Names = @('--fullhelp');                           Kind = 'none'      }
     @{ Names = @('--credit');                             Kind = 'none'      }

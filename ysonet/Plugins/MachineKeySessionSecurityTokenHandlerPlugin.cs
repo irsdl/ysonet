@@ -125,7 +125,7 @@ namespace ysonet.Plugins
                 validationAlg = "HMACSHA1"; // MachineKeySessionSecurityTokenHandler uses HMACSHA1 instead of SHA1
             }
 
-            byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
+            byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateInner("BinaryFormatter", inputArgs);
             DeflateCookieTransform myDeflateCookieTransform = new DeflateCookieTransform();
             MachineKeyDataProtector Protector = new MachineKeyDataProtector(validationKey, decryptionKey, decryptionAlg, validationAlg, purposes);
             byte[] deflateEncoded = myDeflateCookieTransform.Encode(serializedData);

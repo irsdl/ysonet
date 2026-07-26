@@ -248,7 +248,11 @@ namespace ysonet.Interactive
             for (int p = 0; p < previewCap; p++)
             {
                 string line = (p < previewLines.Length) ? previewLines[p] : "";
-                fw.Line(ConsoleCursor.PadClear(line), ConsoleStyle.Help);
+                // The denial-of-service marker is drawn in the error colour so the
+                // risk is obvious on a console that has colour.
+                ConsoleColor lineColor = ysonet.Helpers.Core.DosPolicy.IsPreviewWarning(line)
+                    ? ConsoleStyle.Error : ConsoleStyle.Help;
+                fw.Line(ConsoleCursor.PadClear(line), lineColor);
             }
 
             return fw.Lines;

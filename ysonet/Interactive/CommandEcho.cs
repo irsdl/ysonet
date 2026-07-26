@@ -42,6 +42,30 @@ namespace ysonet.Interactive
             bool debugMode,
             IList<string> extraGadgetTokens)
         {
+            return GadgetTokens(gadgetName, formatterName, command, isRawCmd, useStdin,
+                outputFormat, outputPath, bridgedChain, minify, useSimpleType, test,
+                debugMode, false, extraGadgetTokens);
+        }
+
+        // The same list plus the denial-of-service acknowledgement. It is a GLOBAL
+        // flag, so it is emitted once here and never inside the gadget's own extra
+        // tokens, where a gadget's option parsing would try to read it.
+        public static List<string> GadgetTokens(
+            string gadgetName,
+            string formatterName,
+            string command,
+            bool isRawCmd,
+            bool useStdin,
+            string outputFormat,
+            string outputPath,
+            string bridgedChain,
+            bool minify,
+            bool useSimpleType,
+            bool test,
+            bool debugMode,
+            bool dosAcknowledged,
+            IList<string> extraGadgetTokens)
+        {
             var t = new List<string>();
             t.Add("-g");
             t.Add(gadgetName);
@@ -84,6 +108,8 @@ namespace ysonet.Interactive
                 t.Add("--test");
             if (debugMode)
                 t.Add("--debugmode");
+            if (dosAcknowledged)
+                t.Add(ysonet.Helpers.Core.DosPolicy.AckFlagName);
 
             if (extraGadgetTokens != null)
                 t.AddRange(extraGadgetTokens);

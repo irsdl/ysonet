@@ -39,7 +39,9 @@ namespace ysonet.Generators
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.CodeExecution)
                 .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf,
-                    GadgetRequirement.NetFramework);
+                    GadgetRequirement.NetFramework)
+                // bundled vulnerable assembly fired on 4.8.1; the CVE-2017-8565 patch gate is not a runtime version
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
 

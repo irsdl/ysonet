@@ -32,7 +32,7 @@ namespace ysonet.Generators
             }
             else
             {
-                binaryFormatterPayload = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
+                binaryFormatterPayload = (byte[])new TextFormattingRunPropertiesGenerator().GenerateInner("BinaryFormatter", inputArgs);
             }
 
 

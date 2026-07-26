@@ -5,7 +5,7 @@ using ysonet.Generators;
 
 namespace ysonet.Helpers
 {
-    // The neutral four-axis category query shared by the normal CLI and the
+    // The neutral five-axis category query shared by the normal CLI and the
     // interactive filter. It stores canonical selected values per axis and owns the
     // pure parse/validate/match logic. It never touches the console or generation.
     //
@@ -22,13 +22,23 @@ namespace ysonet.Helpers
         public readonly List<string> Formatters = new List<string>();   // canonical tokens
         public readonly List<string> Inputs = new List<string>();
         public readonly List<string> Requirements = new List<string>();
+        public readonly List<string> Versions = new List<string>();      // canonical version tokens
+
+        // Every axis, in the order the UI shows them. One list so a new axis does
+        // not have to be remembered in five places.
+        public static readonly CategoryAxis[] AllAxes =
+        {
+            CategoryAxis.Kind, CategoryAxis.Formatter, CategoryAxis.Input,
+            CategoryAxis.Requirement, CategoryAxis.Version
+        };
 
         public bool IsEmpty
         {
             get
             {
                 return Kinds.Count == 0 && Formatters.Count == 0
-                    && Inputs.Count == 0 && Requirements.Count == 0;
+                    && Inputs.Count == 0 && Requirements.Count == 0
+                    && Versions.Count == 0;
             }
         }
 
@@ -39,6 +49,7 @@ namespace ysonet.Helpers
                 case CategoryAxis.Kind: return Kinds;
                 case CategoryAxis.Formatter: return Formatters;
                 case CategoryAxis.Input: return Inputs;
+                case CategoryAxis.Version: return Versions;
                 default: return Requirements;
             }
         }
@@ -50,13 +61,14 @@ namespace ysonet.Helpers
             Formatters.Clear();
             Inputs.Clear();
             Requirements.Clear();
+            Versions.Clear();
         }
 
         // A deep copy, so a caller can snapshot the selections without sharing lists.
         public GadgetCategoryQuery Clone()
         {
             var q = new GadgetCategoryQuery();
-            foreach (CategoryAxis axis in new[] { CategoryAxis.Kind, CategoryAxis.Formatter, CategoryAxis.Input, CategoryAxis.Requirement })
+            foreach (CategoryAxis axis in AllAxes)
                 foreach (string v in SelectionFor(axis))
                     q.Add(axis, v);
             return q;
@@ -81,7 +93,8 @@ namespace ysonet.Helpers
             return AxisMatches(Kinds, cap.Kinds)
                 && AxisMatches(Formatters, cap.Formatters)
                 && AxisMatches(Inputs, cap.Inputs)
-                && AxisMatches(Requirements, cap.Requirements);
+                && AxisMatches(Requirements, cap.Requirements)
+                && AxisMatches(Versions, cap.Versions);
         }
 
         // An empty selection matches everything; otherwise at least one selected
@@ -111,6 +124,7 @@ namespace ysonet.Helpers
             AppendPart(parts, "Formatter", Formatters, false);
             AppendPart(parts, "Accepted input", Inputs, true);
             AppendPart(parts, "Requirements", Requirements, true);
+            AppendPart(parts, "Runtime versions", Versions, true);
             if (parts.Count == 0)
                 return "no filters (all gadgets)";
             return string.Join("; ", parts);
@@ -128,7 +142,7 @@ namespace ysonet.Helpers
 
         // ---- Parsing ----------------------------------------------------------
 
-        public static readonly string[] AxisNames = { "kind", "formatter", "input", "requirement" };
+        public static readonly string[] AxisNames = { "kind", "formatter", "input", "requirement", "version" };
 
         // Parse a list of raw "axis=value" tokens into a query. Returns false with a
         // filled-in, actionable error on the first malformed token, unknown axis, or
@@ -201,6 +215,22 @@ namespace ysonet.Helpers
                 return true;
             }
 
+            if (axis == CategoryAxis.Version)
+            {
+                // Accept what people type: "4.8.1", ".NET 4.8", "net5.0", or the
+                // canonical "net-fx-4.8.1".
+                string resolved = RuntimeVersion.Resolve(value);
+                if (resolved == null)
+                {
+                    error = "Unknown version '" + value + "'. Valid values: "
+                        + string.Join(", ", RuntimeVersion.All)
+                        + " (a bare number like 4.8.1 or 5.0 also works).";
+                    return false;
+                }
+                canonical = resolved;
+                return true;
+            }
+
             string[] vocab = GadgetFacetReader.VocabularyFor(axis);
             string lower = value.ToLowerInvariant();
             if (!vocab.Contains(lower))
@@ -221,6 +251,7 @@ namespace ysonet.Helpers
                 case "formatter": axis = CategoryAxis.Formatter; return true;
                 case "input": axis = CategoryAxis.Input; return true;
                 case "requirement": axis = CategoryAxis.Requirement; return true;
+                case "version": axis = CategoryAxis.Version; return true;
                 default: axis = CategoryAxis.Kind; return false;
             }
         }

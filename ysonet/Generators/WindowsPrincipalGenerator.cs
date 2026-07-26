@@ -15,7 +15,9 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.NestedDeserialization)
-                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                // reaches the 4.5+ claims sink; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
         }
 
         // A double "Fook Sao" from BinaryFormatter constructor/callback to BinaryFormatter

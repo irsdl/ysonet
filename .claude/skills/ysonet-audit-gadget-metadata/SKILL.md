@@ -42,7 +42,8 @@ For every effective gadget or variant unit, record:
 - the behavior actually constructed by `Generate()`;
 - effective formatters after variant exclusions;
 - effective `CommandInputType` and how `-c` is consumed;
-- declared payload kinds, accepted-input overrides, and requirements;
+- declared payload kinds, accepted-input overrides, requirements, and runtime
+  versions;
 - labels, `AdditionalInfo()`, option help, and architecture claims; and
 - target-side assemblies or runtime features, separated from generator-side
   build dependencies.
@@ -54,8 +55,10 @@ from different variants.
 
 ### Mechanical consistency
 
-- Values belong to the current broad vocabulary.
-- `uncategorized` is not mixed with a real value on the same axis.
+- Values belong to the current broad vocabulary, and runtime versions to
+  `RuntimeVersion`.
+- `uncategorized` (and `unspecified` on the version axis) is not mixed with a
+  real value on the same axis.
 - Null input means derivation; explicit input overrides replace the derived form.
 - Every effective unit has non-empty normalized axes.
 - Formatters honor `UnsupportedFormatters`.
@@ -79,13 +82,18 @@ from different variants.
   stronger than the evidence.
 - `other` is used for a known fact outside the vocabulary;
   `uncategorized` is used for missing or unreviewed evidence.
+- A declared runtime version is backed by a reproduction or by documented
+  behavior, and reads as "recorded here", not "fails everywhere else". A gadget
+  gated by an OS patch, a library version, or a config switch stays `unspecified`
+  and keeps that gate in `AdditionalInfo()`.
 
 ## 5. Resolve findings
 
 For an authorized fix:
 
 1. Fix clear contradictions and replace obsolete or invalid constants.
-2. Add a proven missing value, or use `uncategorized` when proof is absent.
+2. Add a proven missing value, or use `uncategorized` (`unspecified` for runtime
+   versions) when proof is absent.
 3. Correct stale help, labels, architecture rows, and focused tests together.
 4. Preserve the existing facet contract and keep metadata beside the gadget.
 5. Do not expand the vocabulary for one primitive, gadget, or CVE.

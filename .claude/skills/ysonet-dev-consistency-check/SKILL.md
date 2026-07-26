@@ -62,11 +62,18 @@ not assert from memory.
 
 - Compare every doc under `docs/` against the code it describes: `README.md`,
   `gadgets-and-plugins.md`, `getting-started.md`, `usage-and-examples.md`,
-  `minification-savings.md`, `credits.md`, `references.md`.
+  `minification-savings.md`, `credits.md`, `references.md`,
+  `dependency-security.md`.
 - Check that gadget names, plugin names, option flags, example commands, and
   counts in the docs still exist and still behave as written.
 - Flag stale flags, renamed gadgets, dropped or added options, and example
   commands that would now fail.
+- `docs/dependency-security.md` must cover every entry in `ysonet/packages.config`
+  and every file under `ysonet/dlls/`, with the version in the doc matching the
+  version actually referenced by `ysonet/ysonet.csproj`. Flag a package or DLL
+  that was added, removed, or re-versioned without a matching row, and flag a row
+  whose "shipped" claim disagrees with the `CopyToOutputDirectory` entries in the
+  `.csproj`. Do not propose upgrading a pin the doc marks as gadget side.
 
 ### 2. docs/ARCHITECTURE.md is up to date
 
@@ -109,6 +116,39 @@ completion or help text that omits a real gadget, plugin, option, or value.
   info, help text, an architecture-table row, and metadata (facets) where the
   facet API exists. For deep gadget-metadata work, defer to
   `$ysonet-audit-gadget-metadata` rather than duplicating it here.
+- Formatter display annotations state the real variant count. A `(N)` suffix in a
+  `SupportedFormatters()` token means "this formatter carries N variants"; a bare
+  name means one. For every gadget with more than one `GadgetVariant`, derive the
+  per-formatter count from `Variants()`, each variant's `.Without(...)` list, and any
+  formatter-specific branching in `Generate()`, then compare it against:
+  - the token in `SupportedFormatters()`;
+  - the row in `docs/gadgets-and-plugins.md`;
+  - the formatter column of the gadget table in `docs/ARCHITECTURE.md`.
+  Report a missing suffix on a multi-variant gadget (the catalog then understates
+  coverage and reads as single-variant), a wrong number, and a suffix on a
+  single-variant gadget. Counts are per formatter, not per gadget:
+  `WindowsClaimsIdentityGenerator.cs` is the reference case, with different numbers
+  per formatter. The suffix is display-only because every consumer splits on the
+  first space, so a wrong count breaks no payload; it misleads the user, which is
+  why it is still a finding. Every multi-variant gadget was annotated on
+  2026-07-25, so there is no backlog to excuse a gap: a missing or wrong suffix is
+  a new defect.
+- Hosted payloads sit in the right folder with the right tag. The two must agree,
+  and both must match what the code does. For every gadget, read what reaches
+  `Serialize()`:
+  - hands another generator's object to `Serialize()` (for example
+    `TypeConfuseDelegateGenerator.GetXamlGadget(...)` or a bare
+    `TextFormattingRunPropertiesMarshal`) => must live in
+    `ysonet/Generators/HostedPayloads/` and carry `GadgetTags.Hosted`;
+  - serializes a type it defines (its own `*Marshal` class or a real framework
+    type) => must live in `ysonet/Generators/` and must NOT carry
+    `GadgetTags.Hosted`, even when it nests another gadget's payload inside.
+  Report either mismatch as a finding: a hosted gadget outside the folder or
+  without the tag, and a normal gadget wrongly tagged or filed. A `Variants()`
+  list or `var/variant` option is not evidence either way. Also flag any file in
+  `HostedPayloads/` whose namespace is not `ysonet.Generators`, and any gadget
+  file missing from the `ysonet.csproj` `<Compile>` list. Contract:
+  `ysonet/Generators/HostedPayloads/README.md`.
 - Note any gadget or plugin that is missing a part, or whose parts contradict
   each other. Collect these for the closing question to the user (see "Finish").
 
@@ -205,6 +245,10 @@ say which gadgets, plugins, docs, and surfaces were checked, not just "all good"
 - [ ] All seven checks run; none silently skipped.
 - [ ] Every finding traceable to evidence from a real tool call.
 - [ ] Docs, ARCHITECTURE.md, both CLIs, and tests compared against the live code.
+- [ ] Hosted-payload folder and `GadgetTags.Hosted` tag agree with what each
+      gadget hands to `Serialize()` (check 4).
+- [ ] Every multi-variant gadget's `(N)` formatter annotation matches the real
+      per-formatter variant count, in code and in both docs (check 4).
 - [ ] Skills/agents checked against `references/anthropic-skill-standards.md`.
 - [ ] Full suite ran; Passed/Failed reported honestly; no test weakened.
 - [ ] Gadget/plugin suggestion question asked; open items written to

@@ -52,6 +52,7 @@ namespace ysonet.Plugins
         static string validationAlg = "";
         static string validationKey = "";
         static bool isOSF = false;
+        static bool dosAcknowledged = false;
         static string macEncodingKey = "";
         static string currentViewStateStr = "";
 
@@ -91,6 +92,7 @@ namespace ysonet.Plugins
             {"osf|objectstateformatter", "This is to simulate ObjectStateFormatter with a MAC encoding key on its own.", v => isOSF = v != null },
             {"mk|mackey=", "The ObjectStateFormatter MAC encoding key in base64. Only used with the 'osf' option.", v => macEncodingKey = v },
             {"isdebug", "Show useful debugging messages.", v => isDebug = v != null },
+            {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
         };
 
         public string Name()
@@ -274,10 +276,33 @@ namespace ysonet.Plugins
                     throw new Exception("Gadget not supported!");
                 }
 
+                // A denial-of-service gadget is refused before the formatter check, so
+                // the reason a user sees is always the missing acknowledgement rather
+                // than an unrelated incompatibility found first.
+                string dosRefusal = Helpers.Core.DosPolicy.RefusalIfUnacknowledged(gadget, dosAcknowledged);
+                if (!string.IsNullOrEmpty(dosRefusal))
+                {
+                    Console.WriteLine(dosRefusal);
+                    throw new Exception(dosRefusal);
+                }
+
                 // Check Generator supports specified formatter
                 if (generator.IsSupported(formatter))
                 {
-                    payloadString = System.Text.Encoding.ASCII.GetString((byte[])generator.GenerateWithNoTest(formatter, inputArgs));
+                    // A user-selected gadget goes through the shared runner, never
+                    // Generate* directly, so the DoS policy and its warning are the
+                    // same here as on the command line.
+                    inputArgs.DosAcknowledged = dosAcknowledged;
+                    Helpers.Core.RunResult gadgetResult =
+                        Helpers.Core.PayloadRunner.GenerateSelectedGadget(generator, formatter, inputArgs);
+                    if (!gadgetResult.Success)
+                    {
+                        Console.WriteLine(gadgetResult.ErrorMessage);
+                        throw new Exception(gadgetResult.ErrorMessage);
+                    }
+                    foreach (string warning in gadgetResult.Warnings)
+                        Console.Error.WriteLine(warning);
+                    payloadString = System.Text.Encoding.ASCII.GetString((byte[])gadgetResult.Raw);
                 }
                 else
                 {

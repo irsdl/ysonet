@@ -20,8 +20,8 @@ namespace ysonet.Helpers
         }
 
         // One compact line per capability unit: kind | accepted input |
-        // requirements (no formatter). Used in normal help and the detailed
-        // fallback rows. `indent` is written before each line.
+        // requirements | runtime versions (no formatter). Used in normal help and
+        // the detailed fallback rows. `indent` is written before each line.
         public static List<string> CompactLines(IGenerator g, string indent)
         {
             var lines = new List<string>();
@@ -34,7 +34,8 @@ namespace ysonet.Helpers
         {
             return GadgetFacetReader.LabelList(cap.Kinds)
                 + " | " + GadgetFacetReader.LabelList(cap.Inputs)
-                + " | " + GadgetFacetReader.LabelList(cap.Requirements);
+                + " | " + GadgetFacetReader.LabelList(cap.Requirements)
+                + " | " + GadgetFacetReader.VersionSummary(cap.Versions);
         }
 
         // A detailed block per capability unit: kind, formatter, accepted input and
@@ -53,6 +54,7 @@ namespace ysonet.Helpers
                 lines.Add(indent + "  Formatter: " + FormatterList(cap.Formatters));
                 lines.Add(indent + "  Accepted input: " + GadgetFacetReader.LabelList(cap.Inputs));
                 lines.Add(indent + "  Requirements: " + GadgetFacetReader.LabelList(cap.Requirements));
+                lines.Add(indent + "  Runtime versions: " + GadgetFacetReader.VersionSummary(cap.Versions));
             }
             return lines;
         }

@@ -258,7 +258,7 @@ Exemplary usage:
                 throw new Exception("TypeConfuseDelegateGenerator not supported!");
             }
 
-            byte[] binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs);
+            byte[] binaryFormatterPayload = (byte[])generator.GenerateInner("BinaryFormatter", inputArgs);
 
             string b64encoded = Convert.ToBase64String(binaryFormatterPayload);
 

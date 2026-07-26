@@ -2,6 +2,12 @@
 
 The catalog of what YSoNet can generate. The lists below are a snapshot; the live, authoritative list comes from `ysonet.exe --fullhelp`.
 
+> [!CAUTION]
+> Do not use this catalog as a deserialization blocklist. It cannot include private,
+> future, application-specific, or differently composed gadget chains. Blocking these
+> entries does not make an unsafe deserializer safe. Read the
+> [security guidance](../SECURITY.md) before using this catalog in a product review.
+
 Back to [documentation index](README.md).
 
 ## Gadgets
@@ -9,37 +15,45 @@ Back to [documentation index](README.md).
 Each gadget lists the formatters it supports. A number in parentheses means several variants exist.
 
 ```text
-ActivitySurrogateDisableTypeCheck (BinaryFormatter, LosFormatter, NetDataContractSerializer, SoapFormatter)
+ActivitySurrogateDisableTypeCheck (BinaryFormatter (2), LosFormatter (2), NetDataContractSerializer (2), SoapFormatter)
 ActivitySurrogateSelector (BinaryFormatter (2), LosFormatter, SoapFormatter)
 ActivitySurrogateSelectorFromFile (BinaryFormatter (2), LosFormatter, SoapFormatter)
 AxHostState (BinaryFormatter, LosFormatter, NetDataContractSerializer, SoapFormatter)
 BaseActivationFactory (Json.NET)
-ClaimsIdentity (BinaryFormatter, LosFormatter, SoapFormatter)
-ClaimsPrincipal (BinaryFormatter, LosFormatter, SoapFormatter)
+ClaimsIdentity (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, LosFormatter, NetDataContractSerializer, SoapFormatter)
+ClaimsPrincipal (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, LosFormatter, NetDataContractSerializer, SoapFormatter)
 DataSet (BinaryFormatter, LosFormatter, SoapFormatter)
-DataSetOldBehaviour (BinaryFormatter, LosFormatter)
-DataSetOldBehaviourFromFile (BinaryFormatter, LosFormatter)
+DataSetOldBehaviour (BinaryFormatter (2), LosFormatter (2))
+DataSetOldBehaviourFromFile (BinaryFormatter (2), LosFormatter (2))
 DataSetTypeSpoof (BinaryFormatter, LosFormatter, SoapFormatter)
-DataTable (BinaryFormatter, LosFormatter, SoapFormatter)
-GenericPrincipal (BinaryFormatter, LosFormatter)
-GetterCompilerResults (Json.NET)
-GetterSecurityException (Json.NET)
-GetterSettingsPropertyValue (Json.NET, MessagePackTypeless, MessagePackTypelessLz4, Xaml)
+DataTable (BinaryFormatter (2), LosFormatter (2), SoapFormatter)
+DataViewManagerXxe (FastJson, JavaScriptSerializer, SharpSerializerBinary, SharpSerializerXml, Xaml)
+FileLogTraceListener (DataContractJsonSerializer, FastJson, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, SharpSerializerXml, Xaml, YamlDotNet < 5.0.0)
+FormsIdentity (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, LosFormatter, NetDataContractSerializer, SoapFormatter)
+GenericIdentity (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, LosFormatter, NetDataContractSerializer, SoapFormatter)
+GenericPrincipal (BinaryFormatter (2), DataContractJsonSerializer, DataContractSerializer, LosFormatter (2), NetDataContractSerializer, SoapFormatter (2))
+GetterCompilerResults (Json.NET (4))
+GetterSecurityException (Json.NET (4))
+GetterSettingsPropertyValue (Json.NET (4), MessagePackTypeless, MessagePackTypelessLz4, Xaml (4))
+InfiniteProgressPage (FastJson, JavaScriptSerializer, Json.NET, SharpSerializerXml, Xaml, YamlDotNet < 5.0.0)
 ObjectDataProvider (DataContractSerializer (2), FastJson, FsPickler, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, SharpSerializerBinary, SharpSerializerXml, Xaml (4), XmlSerializer (2), YamlDotNet < 5.0.0)
 ObjRef (BinaryFormatter, LosFormatter, SoapFormatter)
+PictureBox (FastJson, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, SharpSerializerXml, Xaml, YamlDotNet < 5.0.0)
 PSObject (BinaryFormatter, LosFormatter, NetDataContractSerializer, SoapFormatter)
 RolePrincipal (BinaryFormatter, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
 SessionSecurityToken (BinaryFormatter, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
 SessionViewStateHistoryItem (BinaryFormatter, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
+TempFileCollection (BinaryFormatter, DataContractSerializer, LosFormatter, NetDataContractSerializer, SoapFormatter)
 TextFormattingRunProperties (BinaryFormatter, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
 ToolboxItemContainer (BinaryFormatter, LosFormatter, SoapFormatter)
-TypeConfuseDelegate (BinaryFormatter, LosFormatter, NetDataContractSerializer)
+TypeConfuseDelegate (BinaryFormatter (3), LosFormatter (3), NetDataContractSerializer (3))
+TypeConfuseDelegateFileOperations (BinaryFormatter (5), LosFormatter (5), NetDataContractSerializer (5))
 TypeConfuseDelegateMono (BinaryFormatter, LosFormatter, NetDataContractSerializer)
 WindowsClaimsIdentity (BinaryFormatter (3), DataContractSerializer (2), Json.NET (2), LosFormatter (3), NetDataContractSerializer (3), SoapFormatter (2))
 WindowsIdentity (BinaryFormatter, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
 WindowsPrincipal (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
-XamlAssemblyLoadFromFile (BinaryFormatter, LosFormatter, NetDataContractSerializer, SoapFormatter)
-XamlImageInfo (Json.NET)
+XamlAssemblyLoadFromFile (BinaryFormatter (2), LosFormatter (2), NetDataContractSerializer (2), SoapFormatter)
+XamlImageInfo (Json.NET (2))
 ```
 
 ## Plugins
@@ -60,7 +74,6 @@ Clipboard (Generates payload for DataObject and copies it into the clipboard - r
 DotNetNuke (Generates payload for DotNetNuke CVE-2017-9822)
 GetterCallGadgets (Implements arbitrary getter call gadgets for .NET Framework and .NET 5/6/7 with WPF enabled, run with -l for more help)
 MachineKeySessionSecurityTokenHandler (Generates XML payload for the MachineKeySessionSecurityTokenHandler class)
-NetNonRceGadgets (Implements Non-RCE gadgets for .NET Framework)
 Resx (Generates RESX and .RESOURCES files)
 SessionSecurityTokenHandler (Generates XML payload for the SessionSecurityTokenHandler class)
 SharePoint (Generates payloads for the following SharePoint CVEs: CVE-2026-50522, CVE-2025-53770, CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421)

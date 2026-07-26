@@ -7,6 +7,8 @@
 
 New to the codebase? Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first. It maps the whole project (gadgets, plugins, helpers, build) and how to add new gadgets, plugins, and serializers.
 
+Before sending a dependency upgrade, read [docs/dependency-security.md](docs/dependency-security.md). Several libraries are pinned to a vulnerable version on purpose, because that vulnerability is the gadget. That page records each pin, the advisory against it, and how to triage a new scanner alert.
+
 ## Building and testing
 
 The projects target .NET Framework 4.7.2. Build with Visual Studio's MSBuild:
@@ -19,7 +21,7 @@ The Debug build runs a self-contained test runner as a post-build step. A failed
 There are two test tiers:
 
 - NORMAL (default): the fast unit, interactive, and core tests, plus a cheap smoke that every gadget and plugin still produces a payload. This runs on every Debug build.
-- FULL (opt-in): the exhaustive combination suite. It generates every gadget x formatter x variant (with minify off and on), fires every payload whose effect a test-owned sink can observe (a marker file, a loopback listener, a temp directory, or a self-closing `.cs`), checks the output encodings per formatter, exercises the bridged gadget chains (`--bgc`), and runs the plugin mode/CVE/inner-gadget matrix. It is slower (low minutes) and flashes many self-closing `cmd` windows and binds loopback sockets, so it does not run on a normal build.
+- FULL (opt-in): the exhaustive combination suite. It generates every gadget x formatter x variant (with minify off and on), fires every payload whose effect a test-owned sink can observe (a marker file, a loopback listener, a temp directory, a test-owned file the deserializer itself writes or deletes, or a self-closing `.cs`), checks the output encodings per formatter, exercises the bridged gadget chains (`--bgc`), and runs the plugin mode/CVE/inner-gadget matrix. It is slower (low minutes) and flashes many self-closing `cmd` windows and binds loopback sockets, so it does not run on a normal build.
 
 Run the FULL suite before a release, or when you change a gadget, plugin, serializer, or formatter. Two ways:
 
@@ -41,7 +43,7 @@ Never weaken a test to get a green tick. Do not skip, ignore, comment out, loose
 ### Adding test coverage
 
 - A new gadget, formatter, or variant is covered automatically by the FULL-tier generation matrix.
-- A new gadget's runtime EFFECT should be added to the execution matrix (`PayloadsFireIntoTestSinks`), choosing its sink: a marker file, a loopback listener, a temp directory, or a self-closing `.cs`.
+- A new gadget's runtime EFFECT should be added to the execution matrix (`PayloadsFireIntoTestSinks`), choosing its sink: a marker file, a loopback listener, a temp directory, a test-owned file the deserializer itself changes (no process is spawned, so the assertion is synchronous), or a self-closing `.cs`. A gadget whose only effect is an outbound UNC/SMB callback goes in the opt-in OOB tier instead.
 - A new PLUGIN MODE is not auto-covered: add a row to the curated table in `PluginFullMatrixGenerates` (a coverage guard fails the build if a whole new plugin is neither in the matrix nor excluded).
 
 See the `ysonet.Tests` section and "How to add things" in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the details.

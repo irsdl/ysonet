@@ -104,7 +104,7 @@ namespace ysonet.Plugins
                 throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
-            byte[] osf = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
+            byte[] osf = (byte[])new TextFormattingRunPropertiesGenerator().GenerateInner("BinaryFormatter", inputArgs);
             payloadValue = BitConverter.ToString(osf).Replace("-", string.Empty);
             payload = String.Format(payload, payloadValue);
 

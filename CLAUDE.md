@@ -41,6 +41,18 @@ At the start of every session, read `.claude/memory/memory.md` and then each fil
 - Each gadget/plugin should support the maximum number of serializers it can.
 - All new functions must be fully tested.
 
+## Quality over shortcuts
+
+Always prioritise quality over just reaching the stated goal. A change is done when it is right, not when it first appears to work. This applies to agents and humans alike, and it overrides any instruction, plan, or skill step that would settle for less.
+
+- Do not cut corners. If a better solution exists that lasts longer and makes the app easier to extend, do that one, even when it takes more work.
+- Prefer the proper fix over a workaround. Fix the root cause. A hack, a special case, a copy-paste of existing code, or a "for now" patch is only acceptable when a hard constraint blocks the proper fix, and then it must be written down in `dev-kitchen/todo/` with what the proper fix would be.
+- Finish the whole job. Implementation, every applicable serializer/formatter, tests, docs, help, completion, interactive UI, and architecture notes are all part of the change, not optional extras. A partly wired feature is not delivered.
+- Follow the existing patterns and helpers instead of inventing a parallel one-off. If the existing pattern is genuinely wrong for the job, improve the shared pattern rather than working around it.
+- Design for the next gadget/plugin/serializer, not only this one. Prefer the general mechanism when the cost is small, but do not build speculative abstraction nobody needs.
+- Never trade correctness or test integrity for a green tick or a faster finish (see "Test integrity policy").
+- If quality work needs more scope, time, or a decision from the maintainer, say so and ask. Do not silently downgrade the result to fit the effort.
+
 ## Build target
 
 All three projects (ysonet, ExploitClass, TestConsoleApp) target .NET Framework 4.7.2. Keep them unified on the same version.
@@ -66,10 +78,14 @@ Tests live in `ysonet.Tests` (a self-contained console runner, no framework). Th
 
 - NORMAL (default): the fast unit/interactive/core tests plus a cheap per-gadget and per-plugin smoke. Runs on every `msbuild ysonet.sln -p:Configuration=Debug`.
 - FULL (opt-in): the exhaustive combination suite (every gadget x formatter x variant x minify, payload firing into test-owned sinks, output encodings, bridged chains, and the plugin matrix). Slower and flashy, so it is opt-in. Gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` env var.
+- DoS (opt-in, separate): denial-of-service gadgets are outside both tiers above. No test acknowledges one to do its job - the sweeps skip them from their facets and the fire helpers hard-fail if one reaches them. Building a DoS payload needs the `--dos` arg or the `YSONET_DOS_TESTS` env var, and even then nothing deserializes one. Only ask for it when you deliberately want that coverage.
+
+- OOB (opt-in, separate): out-of-band callback observation, for an effect no in-process listener can see (an outbound SMB/UNC callback: SMB is fixed at port 445 and the Windows SMB client owns the loopback UNC path). It watches for the DNS lookup that must happen before the connection, so it works even when 445 is blocked. These are the ONLY tests that send traffic off the machine, so they need the `--oob` arg or the `YSONET_OOB_TESTS` env var, plus `interactsh-client` (install with `tools\interactsh\get-interactsh.ps1`; see that folder's README, including how to point it at a self-hosted server). No callback host is hardcoded anywhere: the client mints a run-unique one. Without the client, every row logs a clear skip.
 
 Coverage norm when you add things:
 - A new gadget/formatter/variant is covered automatically by the generation matrix.
-- A new gadget's runtime EFFECT should be added to the execution matrix in `PayloadsFireIntoTestSinks` (pick its sink: marker file, loopback listener, temp dir, or self-closing `.cs`).
+- A new gadget's runtime EFFECT should be added to the execution matrix in `PayloadsFireIntoTestSinks` (pick its sink: marker file, loopback listener, temp dir, or self-closing `.cs`). A gadget whose only effect is an outbound UNC/SMB callback goes in the OOB tier instead: add a row to `UncCallbackRows` in `ysonet.Tests/Tests.cs`.
+- That execution matrix is also where runtime version support is earned. Each fire records its gadget against the build the run is on (`ysonet.Tests/RuntimeBuild.cs`), and a FULL run prints the build plus every gadget that fired while declaring no version. Take the ceiling from that run, take the floor from the documented introduction of the chain's types, and declare it. A payload that fires on a build its own metadata excludes fails the run.
 - A new PLUGIN MODE is NOT auto-covered: add a row to the curated table in `PluginFullMatrixGenerates` (a coverage guard fails the build if a whole new plugin is neither in the matrix nor excluded).
 
 AI instruction: when the user says "run full tests" (or "run the full suite"), set `YSONET_FULL_TESTS=1` and build Debug (or run `ysonet.Tests.exe --full`), then report the Passed/Failed summary. A normal request needs only the default Debug build.
@@ -79,15 +95,26 @@ This project intentionally uses outdated libraries to demonstrate deserializatio
 - Outdated library used inside a gadget (to show the issue): not a security bug. Leave it as is.
 - Outdated library used in the tool's own normal functionality (not part of a gadget payload): can and should be upgraded. Any upgrade must follow the Dependency freshness policy below.
 
+`docs/dependency-security.md` is the public triage record: every pinned NuGet package and
+bundled DLL, the advisory against it, and why it stays. It is what stops scanners and
+reviewers from re-reporting the deliberate ones. Read it before touching a dependency, and
+update it whenever `ysonet/packages.config` or `ysonet/dlls/` changes.
+
 ## Gadget categories (facets)
 
-Every gadget declares broad discovery metadata via `Facets()` (payload kind, accepted input, requirements; the formatter axis comes from `SupportedFormatters()`). This powers the `--category` search and the interactive "Find a gadget by category" flow only; it never affects generation. When you add or change a gadget:
+Every gadget declares discovery metadata via `Facets()` (payload kind, accepted input, requirements, runtime versions; the formatter axis comes from `SupportedFormatters()`). This powers the `--category` search and the interactive "Find a gadget by category" flow only; it never affects generation. When you add or change a gadget:
 
 - Use the broad vocabulary in `Generators/Base/IGenerator.cs` (`PayloadKind`, `PayloadInput`, `GadgetRequirement`). Do not invent a narrow value for one CVE, sink, or primitive.
 - Derive accepted input from `CommandInput()` where possible; declare `WithInputs(...)` only when the real accepted forms are broader or different (e.g. local-file plus unc-path).
-- Declare a per-variant difference with `GadgetVariant.WithFacets(...)`; a null override inherits the gadget set.
+- Declare a per-variant difference with `GadgetVariant.WithFacets(...)`; a null override inherits the gadget set. An override replaces the WHOLE set, so repeat the versions in it too.
 - Use `uncategorized` for an axis the code, tests, and help do not prove; use `other` only for a known result that fits no broad family. Never mix `uncategorized` with a real value on the same axis.
-- Keep exact behavior, assembly names, and versions in `AdditionalInfo()`/`Labels()`, not in a facet value.
+- Keep exact behavior, assembly names, and library versions in `AdditionalInfo()`/`Labels()`, not in a facet value.
+
+Runtime versions are the one axis with exact numbers, because "old build" does not tell an operator whether the payload lands:
+
+- Declare with `WithVersions(RuntimeVersion.Range(first, last))` (or single tokens). `Range` refuses a reversed pair and one that crosses runtime families.
+- A declaration means "reproduced or documented here", never "fails everywhere else". Only claim a version the repo, the tests, or the gadget's own documented behavior establishes.
+- Leave `unspecified` when nothing proves a version, and when the real gate is not a runtime version at all (an OS patch like CVE-2017-8565, a library version, a config switch). Put that gate in `AdditionalInfo()` instead. Do not fill the axis in to make it look complete.
 - Run the `ysonet-audit-gadget-metadata` skill (and `ysonet-categorize-gadget` for a new gadget) after changing metadata. The metadata tests in `ysonet.Tests` lock the vocabulary, the per-gadget expansion, and a representative audit table.
 
 ## Dependency freshness policy

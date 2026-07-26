@@ -26,7 +26,9 @@ namespace ysonet.Generators
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.NestedDeserialization)
                 .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
-                    GadgetRequirement.NetFramework);
+                    GadgetRequirement.NetFramework)
+                // System.Data carrier; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         private int variant_number = 1; // Add variant support
@@ -90,7 +92,10 @@ namespace ysonet.Generators
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "BinaryFormatter", "LosFormatter" }; // SoapFormatter for the curious?
+            // The "(N)" suffix is a display-only annotation meaning "this formatter
+            // carries N variants". Both formatters build both XML schemas (see
+            // Variants()).
+            return new List<string> { "BinaryFormatter (2)", "LosFormatter (2)" }; // SoapFormatter for the curious?
         }
 
         public override string SupportedBridgedFormatter()
@@ -107,7 +112,7 @@ namespace ysonet.Generators
             }
             else
             {
-                losFormatterPayload = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("LosFormatter", inputArgs);
+                losFormatterPayload = (byte[])new TextFormattingRunPropertiesGenerator().GenerateInner("LosFormatter", inputArgs);
             }
 
             var losFormatterPayloadString = Encoding.UTF8.GetString(losFormatterPayload);

@@ -75,7 +75,7 @@ namespace ysonet.Interactive
         // Handles to the built-in gadget fields, so Generate can read them without
         // scanning by label.
         private EditableField _formatter, _command, _rawcmd, _outputFormat, _outputPath;
-        private EditableField _minify, _useSimpleType, _test, _debugMode, _bridged;
+        private EditableField _minify, _useSimpleType, _test, _debugMode, _bridged, _dosAck;
 
         // The command's effective input type at the last refresh. When it changes
         // (e.g. switching to a variant that reads a file instead of a command) the
@@ -881,11 +881,19 @@ namespace ysonet.Interactive
                 // For any other gadget (e.g. DataTable, a root carrier) --bgc fails at
                 // generate, so the field is hidden rather than offered and left to fail.
                 _bridged.Hidden = !IsBridgeGadget();
+                // Only shown when the current selection actually involves a
+                // denial-of-service gadget (the -g gadget itself, or a member of the
+                // bridged chain). Offering it everywhere would train people to tick
+                // it, which is the opposite of what an acknowledgement is for.
+                _dosAck = Flag(DosPolicy.AckOptionName,
+                    "Acknowledge that this payload can disrupt or terminate the target process.");
+                _dosAck.Hidden = true;
                 list.Add(_minify);
                 list.Add(_useSimpleType);
                 list.Add(_test);
                 list.Add(_debugMode);
                 list.Add(_bridged);
+                list.Add(_dosAck);
             }
 
             list.Add(new EditableField
@@ -1007,10 +1015,20 @@ namespace ysonet.Interactive
                 // Plugins: apply the selected interactive mode (if the plugin has any).
                 if (_modes != null)
                     ApplyPluginMode();
+                // The denial-of-service acknowledgement belongs to the plugin's
+                // user-selected inner gadget, not to a mode, so its visibility is
+                // decided here and deliberately overrides the mode filter above.
+                EditableField pluginAck = FieldByLabel(DosPolicy.AckOptionName);
+                if (pluginAck != null)
+                    pluginAck.Hidden = !PluginSelectionInvolvesDos();
                 return;
             }
             if (_command == null)
                 return;
+
+            // Shown only when the selection would really build a DoS payload.
+            if (_dosAck != null)
+                _dosAck.Hidden = !GadgetSelectionInvolvesDos();
 
             CommandInputType eff = EffectiveInput();
             bool cmdIgnored = eff == CommandInputType.Ignored;
@@ -1036,6 +1054,80 @@ namespace ysonet.Interactive
             // meaningful for a real shell command (not for ignored/file/url/dll inputs).
             if (_rawcmd != null)
                 _rawcmd.Hidden = eff != CommandInputType.ShellCommand;
+
+            ApplyVariantOptionScope();
+        }
+
+        // Hide the gadget's own options that the SELECTED variant declared it does not
+        // use (GadgetVariant.WithoutOptions). This is the gadget-side equivalent of
+        // ApplyPluginMode's option filter. A gadget that declares nothing - almost all
+        // of them - keeps every option visible, so this is a no-op there.
+        //
+        // The variant field itself is never hidden, and neither are the shared built-ins
+        // (output, file, actions), which are not ModuleOwn.
+        private void ApplyVariantOptionScope()
+        {
+            if (!_isGadget || _view == null || _fields == null)
+                return;
+
+            GadgetVariant current = CurrentVariant();
+            OptionField variantOpt = _view.VariantField();
+            foreach (EditableField f in _fields)
+            {
+                if (!f.ModuleOwn || f.IsAction)
+                    continue;
+                // 'variant' is bound to the variant option, not to a gadget option.
+                if (variantOpt != null && string.Equals(f.Label, "variant", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (OptionFieldByName(f.Label) == null)
+                    continue; // not one of the gadget's own options
+                f.Hidden = current != null && !current.UsesOption(f.Label);
+            }
+        }
+
+        // The GadgetVariant the variant option currently points at, or null when the
+        // gadget has no variants or the value is not one of them.
+        private GadgetVariant CurrentVariant()
+        {
+            OptionField variantOpt = _view.VariantField();
+            if (_view.Variants == null || _view.Variants.Count == 0 || variantOpt == null)
+                return null;
+            int num;
+            if (!int.TryParse(variantOpt.Value, out num))
+                return null;
+            foreach (GadgetVariant v in _view.Variants)
+                if (v.Number == num)
+                    return v;
+            return null;
+        }
+
+        // True when the current gadget selection would build a denial-of-service
+        // payload: the -g gadget itself, or any gadget named in the bridged chain.
+        // The acknowledgement field is offered exactly then, in the same style as
+        // the conditional bridged-chain field.
+        private bool GadgetSelectionInvolvesDos()
+        {
+            if (!_isGadget || _view == null)
+                return false;
+            if (DosPolicy.IsDosGadget(_view.Name))
+                return true;
+            if (_bridged == null || _bridged.Hidden || string.IsNullOrEmpty(_bridged.Value))
+                return false;
+            foreach (string part in _bridged.Value.Split(','))
+                if (DosPolicy.IsDosGadget(part.Trim()))
+                    return true;
+            return false;
+        }
+
+        // The same question for a plugin that lets the user pick an inner gadget
+        // (ViewState, Resx, SharePoint). Plugins with a fixed inner gadget have no
+        // gadget option, so this is false for them.
+        private bool PluginSelectionInvolvesDos()
+        {
+            if (_isGadget || _view == null)
+                return false;
+            OptionField gadgetOption = OptionFieldByName("gadget");
+            return gadgetOption != null && DosPolicy.IsDosGadget(gadgetOption.Value);
         }
 
         private CommandInputType EffectiveInput()
@@ -1102,7 +1194,8 @@ namespace ysonet.Interactive
         // generate - the maintainer's chosen UX - next to the missing-command check,
         // so a bad pair blocks with a precise message instead of a deep framework
         // exception (e.g. SoapFormatter cannot serialize the generic type in the
-        // TypeConfuseDelegate variant).
+        // TypeConfuseDelegate WRAPPER variant - not one of TypeConfuseDelegate's own
+        // container variants, which opt out of nothing).
         private string MissingVariantFormatterProblem()
         {
             if (!_isGadget || _formatter == null || _view == null)
@@ -1139,6 +1232,9 @@ namespace ysonet.Interactive
                 case CommandInputType.CsSourceFile: return "ExploitClass.cs;System.Windows.Forms.dll";
                 case CommandInputType.DllPath: return "\\\\attacker\\share\\payload.dll";
                 case CommandInputType.FilePath: return "C:\\path\\payload.xaml";
+                case CommandInputType.TargetPath: return "C:\\inetpub\\wwwroot\\dropped.txt";
+                case CommandInputType.TargetPathPair: return "C:\\work\\z-source.txt;C:\\work\\a-destination.txt";
+                case CommandInputType.TargetPathAndLocalFile: return "C:\\inetpub\\wwwroot\\shell.aspx;payload.aspx";
                 case CommandInputType.Ignored: return "calc.exe (any placeholder)";
                 default: return "calc.exe";
             }
@@ -1254,7 +1350,7 @@ namespace ysonet.Interactive
         private class GadgetInputs
         {
             public string Command, Formatter, OutputFormat, OutputPath, Bgc;
-            public bool RawCmd, Minify, Ust, Test, Debug;
+            public bool RawCmd, Minify, Ust, Test, Debug, DosAck;
             public List<string> Extra;
             public CommandInputType Eff;
         }
@@ -1273,9 +1369,20 @@ namespace ysonet.Interactive
             // Only a bridge gadget emits --bgc; when the field is hidden (non-bridge
             // gadget) never pass a chain, even if one was carried over in memory.
             g.Bgc = (_bridged != null && !_bridged.Hidden) ? _bridged.Value : "";
+            // Same guard as --bgc: a value carried across modules in OptionMemory
+            // must never acknowledge a gadget the user is not actually building.
+            g.DosAck = _dosAck != null && !_dosAck.Hidden && _dosAck.IsOn;
             g.Extra = new List<string>();
             foreach (OptionField f in _view.OptionFields)
+            {
+                // Same guard as --bgc and the DoS acknowledgement: an option the selected
+                // variant does not use (so its field is hidden) must never reach the
+                // command line, even when a value was carried over in OptionMemory.
+                EditableField ef = FieldByLabel(f.DisplayName);
+                if (ef != null && ef.Hidden)
+                    continue;
                 g.Extra.AddRange(f.ToArgv());
+            }
             return g;
         }
 
@@ -1283,7 +1390,8 @@ namespace ysonet.Interactive
         {
             return CommandEcho.Build(CommandEcho.GadgetTokens(
                 _view.Name, g.Formatter, g.Command, g.RawCmd, false,
-                g.OutputFormat, g.OutputPath, g.Bgc, g.Minify, g.Ust, g.Test, g.Debug, g.Extra));
+                g.OutputFormat, g.OutputPath, g.Bgc, g.Minify, g.Ust, g.Test, g.Debug,
+                g.DosAck, g.Extra));
         }
 
         private byte[] GenerateGadgetBytes(out string commandLine, out string outputPath)
@@ -1301,6 +1409,7 @@ namespace ysonet.Interactive
             inputArgs.Minify = g.Minify;
             inputArgs.UseSimpleType = g.Ust;
             inputArgs.IsDebugMode = g.Debug;
+            inputArgs.DosAcknowledged = g.DosAck;
             inputArgs.ExtraArguments = g.Extra;
 
             GenerationRequest req = new GenerationRequest();
@@ -1318,6 +1427,10 @@ namespace ysonet.Interactive
                 ConsoleStyle.WriteLine("Adjust the settings and try again.", ConsoleStyle.Help);
                 return null;
             }
+            // Warnings are shown before the payload, so the operator reads them
+            // even when the payload is long or written to a file.
+            foreach (string warning in result.Warnings)
+                ConsoleStyle.WriteLine(warning, ConsoleStyle.Error);
             return EncodeOrReport(result.Raw, result.EffectiveOutputFormat);
         }
 
@@ -1331,6 +1444,18 @@ namespace ysonet.Interactive
             PluginMode mode = CurrentMode();
             foreach (OptionField f in _view.OptionFields)
             {
+                // The denial-of-service acknowledgement is not a mode option: it
+                // follows the plugin's user-selected inner gadget. Emit it exactly
+                // when the editor is showing it, so a value left over from another
+                // selection can never acknowledge a gadget the user is not building.
+                if (string.Equals(f.Name, DosPolicy.AckOptionName, StringComparison.OrdinalIgnoreCase))
+                {
+                    EditableField ackField = FieldByLabel(DosPolicy.AckOptionName);
+                    if (ackField == null || ackField.Hidden)
+                        continue;
+                    argv.AddRange(f.ToArgv());
+                    continue;
+                }
                 // With a mode active, only pass options that belong to it (its listed
                 // options plus its preset flags). This keeps the built command minimal
                 // and correct for the chosen mode. Without a mode, pass everything as
@@ -1366,6 +1491,14 @@ namespace ysonet.Interactive
                 ConsoleStyle.WriteLine("Plugin failed: " + result.ErrorMessage, ConsoleStyle.Error);
                 ConsoleStyle.WriteLine("Check the required settings (marked *required).", ConsoleStyle.Help);
                 return null;
+            }
+            // A plugin prints its own warnings to stderr, which ConsoleQuiet swallows
+            // here, so the editor renders the banner for the user-selected inner
+            // gadget itself.
+            if (PluginSelectionInvolvesDos())
+            {
+                OptionField gadgetOption = OptionFieldByName("gadget");
+                ConsoleStyle.WriteLine(DosPolicy.WarningText(gadgetOption.Value), ConsoleStyle.Error);
             }
             string effective = string.IsNullOrEmpty(outputFormat) ? "raw" : outputFormat;
             return EncodeOrReport(result.Raw, effective);

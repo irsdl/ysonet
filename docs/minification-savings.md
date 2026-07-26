@@ -35,10 +35,10 @@ functional. It does not change which command runs. Depending on the format it:
 
 ## Summary
 
-- **Gadgets:** across 119 gadget x formatter combinations, `--minify` shrinks 112 of
-  them. The typical cut is about **29%** (median 30%), up to **91.8%**. Seven
+- **Gadgets:** across 142 gadget x formatter combinations, `--minify` shrinks 131 of
+  them. The average cut is about **24%** (median 26.2%), up to **91.8%**. Eleven
   combinations do not shrink (see [Where it does little](#where-minification-does-little)).
-- **Plugins:** across 13 minify-capable plugin modes, the average cut is about
+- **Plugins:** across 11 minify-capable plugin modes, the average cut is about
   **34%**, ranging from 9.9% up to **57.1%**.
 
 ## Highlights
@@ -93,6 +93,15 @@ are a variant plus formatter pair the gadget cannot produce (see the note below 
 | DataTable | BinaryFormatter | 5,440 | 5,020 | 420 | 7.7% |
 |  | LosFormatter | 5,444 | 5,028 | 416 | 7.6% |
 |  | SoapFormatter | 8,617 | 6,363 | 2,254 | 26.2% |
+| FileLogTraceListener | Json.NET | 212 | 196 | 16 | 7.5% |
+|  | FastJson | 250 | 215 | 35 | 14% |
+|  | JavaScriptSerializer | 213 | 197 | 16 | 7.5% |
+|  | YamlDotNet | 196 | 189 | 7 | 3.6% |
+|  | MessagePackTypeless | 252 | 252 | 0 | 0% |
+|  | MessagePackTypelessLz4 | 244 | 244 | 0 | 0% |
+|  | SharpSerializerXml | 274 | 253 | 21 | 7.7% |
+|  | DataContractJsonSerializer | 55 | 48 | 7 | 12.7% |
+|  | Xaml | 314 | 221 | 93 | 29.6% |
 | GenericPrincipal | BinaryFormatter | 4,792 | 3,636 | 1,156 | 24.1% |
 |  | LosFormatter | 4,800 | 3,644 | 1,156 | 24.1% |
 | GetterCompilerResults | Json.NET | 487 | 391 | 96 | 19.7% |
@@ -101,6 +110,12 @@ are a variant plus formatter pair the gadget cannot produce (see the note below 
 |  | MessagePackTypeless | 3,492 | 2,624 | 868 | 24.9% |
 |  | MessagePackTypelessLz4 | 1,400 | 1,376 | 24 | 1.7% |
 |  | Xaml | 35,562 | 2,920 | 32,642 | 91.8% |
+| InfiniteProgressPage | Json.NET | 224 | 208 | 16 | 7.1% |
+|  | FastJson | 262 | 227 | 35 | 13.4% |
+|  | JavaScriptSerializer | 225 | 209 | 16 | 7.1% |
+|  | YamlDotNet | 208 | 201 | 7 | 3.4% |
+|  | SharpSerializerXml | 289 | 268 | 21 | 7.3% |
+|  | Xaml | 305 | 163 | 142 | 46.6% |
 | ObjectDataProvider | DataContractSerializer | 1,624 | 1,224 | 400 | 24.6% |
 |  | FastJson | 649 | 493 | 156 | 24% |
 |  | FsPickler | 1,582 | 1,056 | 526 | 33.2% |
@@ -116,6 +131,14 @@ are a variant plus formatter pair the gadget cannot produce (see the note below 
 | ObjRef | BinaryFormatter | 216 | 216 | 0 | 0% |
 |  | LosFormatter | 220 | 220 | 0 | 0% |
 |  | SoapFormatter | 702 | 323 | 379 | 54% |
+| PictureBox | Json.NET | 212 | 185 | 27 | 12.7% |
+|  | FastJson | 242 | 202 | 40 | 16.5% |
+|  | JavaScriptSerializer | 213 | 186 | 27 | 12.7% |
+|  | YamlDotNet | 187 | 175 | 12 | 6.4% |
+|  | MessagePackTypeless | 228 | 228 | 0 | 0% |
+|  | MessagePackTypelessLz4 | 224 | 224 | 0 | 0% |
+|  | SharpSerializerXml | 390 | 360 | 30 | 7.7% |
+|  | Xaml | 270 | 139 | 131 | 48.5% |
 | PSObject | BinaryFormatter | 3,836 | 2,552 | 1,284 | 33.5% |
 |  | LosFormatter | 3,844 | 2,560 | 1,284 | 33.4% |
 |  | NetDataContractSerializer | 4,249 | 2,283 | 1,966 | 46.3% |
@@ -192,9 +215,9 @@ Some payloads are already compact, or are dominated by binary or opaque data the
 text minifier cannot touch:
 
 - **Binary and compact serializers have nothing to strip:** ObjectDataProvider with
-  MessagePackTypeless, MessagePackTypelessLz4, or SharpSerializerBinary; ObjRef with
-  BinaryFormatter or LosFormatter; ResourceSet with BinaryFormatter or LosFormatter.
-  All report 0%.
+  MessagePackTypeless, MessagePackTypelessLz4, or SharpSerializerBinary; PictureBox
+  and FileLogTraceListener with either MessagePack form; ObjRef with BinaryFormatter
+  or LosFormatter; ResourceSet with BinaryFormatter or LosFormatter. All report 0%.
 - **Assembly-embedding gadgets** are dominated by the embedded compiled assembly
   (base64), which `--minify` does not compress. DataSetOldBehaviourFromFile, for
   example, is only 1.8% smaller with `--minify`. For these, use `--compressed`, which
@@ -219,8 +242,6 @@ Every plugin mode that exposes a `--minify` option, minify off vs on.
 | DotNetNuke | run_command | 2,133 | 1,606 | 527 | 24.7% |
 | GetterCallGadgets | PropertyGrid | 193 | 153 | 40 | 20.7% |
 | MachineKeySessionSecurityTokenHandler | (default) | 1,000 | 700 | 300 | 30% |
-| NetNonRceGadgets | PictureBox Json.NET | 217 | 185 | 32 | 14.7% |
-| NetNonRceGadgets | PictureBox Xaml | 272 | 139 | 133 | 48.9% |
 | Resx | BinaryFormatter | 3,787 | 2,893 | 894 | 23.6% |
 | SessionSecurityTokenHandler | (default) | 1,236 | 936 | 300 | 24.3% |
 | ThirdPartyGadgets | GetterActiveMQObjectMessage | 4,074 | 3,670 | 404 | 9.9% |

@@ -43,7 +43,9 @@ namespace ysonet.Generators
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.CodeExecution)
                 .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf,
-                    GadgetRequirement.NetFramework);
+                    GadgetRequirement.NetFramework)
+                // XamlReader chain; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         private string xaml_url = "";
@@ -316,7 +318,7 @@ namespace ysonet.Generators
         public static object TextFormattingRunPropertiesGadget(InputArgs inputArgs)
         {
             ObjectDataProviderGenerator myObjectDataProviderGenerator = new ObjectDataProviderGenerator();
-            string xaml_payload = myObjectDataProviderGenerator.GenerateWithNoTest("xaml", inputArgs).ToString();
+            string xaml_payload = myObjectDataProviderGenerator.GenerateInner("xaml", inputArgs).ToString();
 
             if (inputArgs.Minify)
             {

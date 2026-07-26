@@ -16,7 +16,9 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.NestedDeserialization)
-                .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.NetFramework)
+                // System.Security.Claims is 4.5+; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
         }
 
         private int variant_number = 1; // Default
@@ -80,7 +82,7 @@ namespace ysonet.Generators
             else
             {
                 IGenerator generator = new TextFormattingRunPropertiesGenerator();
-                binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs);
+                binaryFormatterPayload = (byte[])generator.GenerateInner("BinaryFormatter", inputArgs);
             }
 
             string b64encoded = Convert.ToBase64String(binaryFormatterPayload);

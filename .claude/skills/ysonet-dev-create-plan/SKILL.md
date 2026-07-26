@@ -14,6 +14,24 @@ git-ignored `dev-kitchen/` workflow:
 
 Do not implement the change while using this skill.
 
+## Quality bar
+
+Plan for the durable solution, not the quickest one that meets the request.
+
+- Recommend the design that lasts longer and makes the app easier to extend,
+  even when it costs more work. Say plainly when that is the trade.
+- Do not plan a workaround, a special case, or a partial wiring as the main
+  design unless a hard constraint blocks the proper fix. Then record the
+  constraint, the proper fix, and a `dev-kitchen/todo/` note.
+- Plan the complete change: implementation, every applicable serializer and
+  formatter, tests, docs, help, completion, interactive UI, and architecture
+  updates. A plan that stops at the happy path is not decision-ready.
+- Reuse and improve existing shared patterns and helpers instead of proposing a
+  parallel one-off. Prefer the general mechanism when the cost is small; do not
+  invent abstraction nobody needs.
+- If the quality option needs more scope or a maintainer decision, put that in
+  the plan and ask. Do not quietly shrink the outcome to fit the effort.
+
 ## Workflow
 
 ### 1. Load repository guidance

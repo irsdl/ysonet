@@ -1,6 +1,6 @@
 ---
 name: ysonet-categorize-gadget
-description: Categorize or review a ysonet gadget and its variants by broad payload kind, formatter, accepted input, and target requirements. Use when adding or changing a gadget, filling uncategorized metadata, or checking category search and gadget-help output. Do not use for plugins, which intentionally have no category filter.
+description: Categorize or review a ysonet gadget and its variants by broad payload kind, formatter, accepted input, target requirements, and the runtime versions the effect is recorded on. Use when adding or changing a gadget, filling uncategorized or unspecified metadata, or checking category search and gadget-help output. Do not use for plugins, which intentionally have no category filter.
 ---
 
 # Categorize a ysonet gadget
@@ -117,20 +117,39 @@ with a target requirement. Keep exact assembly names, products, and versions in
 the evidence is missing or has not been reviewed. Never combine
 `uncategorized` with another value on the same axis.
 
+### Runtime versions
+
+This axis is the one exception to the broad-vocabulary rule: it carries exact
+build numbers, because "old build" does not tell an operator whether the payload
+lands. Tokens live in `RuntimeVersion`: `net-fx-2.0` through `net-fx-4.8.1`,
+`net-5.0` through `net-10.0`, `mono`, plus `other` and `unspecified`.
+
+- Declare a contiguous span with `RuntimeVersion.Range(first, last)`, which
+  refuses a reversed pair and one that crosses runtime families.
+- A declaration means "reproduced or documented here", never "fails everywhere
+  else". An unlisted version means nobody recorded it.
+- Leave `unspecified` when nothing establishes a version, and when the real gate
+  is not a runtime version at all: an OS patch (PSObject and CVE-2017-8565), a
+  library version, or a config switch. That detail belongs in `AdditionalInfo()`.
+- Never fill this axis in to make a gadget look better documented. `unspecified`
+  is the honest and expected value for most of the catalog.
+
 ## 4. Apply requested changes
 
 When the user asks for edits:
 
 1. Override `Facets()` for the normal gadget facts. Build the set fluently:
    `new GadgetFacetSet().WithKinds(...).WithRequirements(...)`. Each `WithKinds`,
-   `WithInputs`, and `WithRequirements` REPLACES its whole axis. The constructor
-   defaults Kinds and Requirements to `uncategorized` and leaves Inputs null so the
-   reader derives accepted input from the effective `CommandInputType`. Omit
-   `WithInputs(...)` whenever that derived value is correct.
+   `WithInputs`, `WithRequirements`, and `WithVersions` REPLACES its whole axis. The
+   constructor defaults Kinds and Requirements to `uncategorized`, Versions to
+   `unspecified`, and leaves Inputs null so the reader derives accepted input from
+   the effective `CommandInputType`. Omit `WithInputs(...)` whenever that derived
+   value is correct, and omit `WithVersions(...)` unless the evidence names versions.
 2. Add a complete `FacetOverride` only to a variant that differs, via
    `variant.WithFacets(new GadgetFacetSet()...)`. The override must declare full
-   Kinds and Requirements; leave its Inputs null when the variant's effective
-   `Input` derives the right value.
+   Kinds, Requirements, and Versions (it replaces the whole set, so a version the
+   gadget declared is lost unless repeated); leave its Inputs null when the variant's
+   effective `Input` derives the right value.
 3. Keep metadata beside the gadget; do not add a production name-to-facet table.
 4. Correct stale `Labels()` or `AdditionalInfo()` found during the review.
 5. Update the gadget row and facet contract in `docs/ARCHITECTURE.md`.
@@ -147,11 +166,11 @@ metadata. For a catalog-wide consistency review, use
 
 Report one row per effective unit:
 
-| Unit | Payload kind | Formatters | Accepted input | Requirements |
-|---|---|---|---|---|
-| Gadget or variant | values | values | values | values |
+| Unit | Payload kind | Formatters | Accepted input | Requirements | Runtime versions |
+|---|---|---|---|---|---|
+| Gadget or variant | values | values | values | values | values |
 
-Call out inherited facts, every `uncategorized` axis and its missing evidence,
+Call out inherited facts, every `uncategorized` or `unspecified` axis and its missing evidence,
 exact target dependencies, changed files, and verification results.
 
 ## Final checks
@@ -161,5 +180,6 @@ exact target dependencies, changed files, and verification results.
 - Input is derived unless an override is necessary.
 - Variants remain internally consistent.
 - `other` and `uncategorized` retain different meanings.
+- Runtime versions are declared only where evidence names them, never to look complete.
 - Formatter values match effective variant support.
 - No plugin facet work was introduced.

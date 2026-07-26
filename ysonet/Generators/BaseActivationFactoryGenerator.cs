@@ -15,7 +15,10 @@ namespace ysonet.Generators
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.CodeExecution)
                 .WithInputs(PayloadInput.AssemblyFile, PayloadInput.UncPath)
-                .WithRequirements(GadgetRequirement.Wpf, GadgetRequirement.ModernDotNet);
+                .WithRequirements(GadgetRequirement.Wpf, GadgetRequirement.ModernDotNet)
+                // The gadget is documented for .NET 5/6/7 (see the notes below);
+                // nobody has recorded it on .NET 8 or later.
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.Net50, RuntimeVersion.Net70));
         }
 
         // BaseActivationFactory

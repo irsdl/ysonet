@@ -1,4 +1,4 @@
-using NDesk.Options;
+﻿using NDesk.Options;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -42,6 +42,7 @@ namespace ysonet.Plugins
         static bool rawcmd = false;
         static bool noComment = false; // suppress the explanatory HTML comment; output only the payload/form body
         static int variant = 1; // Add variant support for CVE-2025-49704
+        static bool dosAcknowledged = false; // --i-understand-dos, for the user-selected gadget CVEs
 
         static OptionSet options = new OptionSet()
             {
@@ -56,6 +57,7 @@ namespace ysonet.Plugins
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
                 {"no-comment", "Output only the serialized payload or form body, without the trailing explanatory HTML comment.", v => noComment = v != null },
                 {"var|variant=", "Variant number for CVE-2025-49704 only. Choices: 1 (default, uses DataSetOldBehaviourGenerator variant 2), 2 (uses DataSetOldBehaviourFromFileGenerator variant 2)", v => int.TryParse(v, out variant) },
+                {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
             };
 
         public string Name()
@@ -236,6 +238,24 @@ namespace ysonet.Plugins
             return payload;
         }
 
+        // Generate a gadget the USER chose with -g through the shared runner, never
+        // Generate* directly, so the denial-of-service policy and its warning behave
+        // exactly as they do on the command line. Errors keep the plugin's habit of
+        // printing then throwing.
+        private static object GenerateSelectedGadgetOrThrow(IGenerator generator, string formatter, InputArgs inputArgs)
+        {
+            Helpers.Core.RunResult result =
+                Helpers.Core.PayloadRunner.GenerateSelectedGadget(generator, formatter, inputArgs);
+            if (!result.Success)
+            {
+                Console.WriteLine(result.ErrorMessage);
+                throw new Exception(result.ErrorMessage);
+            }
+            foreach (string warning in result.Warnings)
+                Console.Error.WriteLine(warning);
+            return result.Raw;
+        }
+
         public string CVE_2024_38018()
         {
             InputArgs inputArgs = new InputArgs();
@@ -243,6 +263,7 @@ namespace ysonet.Plugins
             inputArgs.IsRawCmd = rawcmd;
             inputArgs.Minify = minify;
             inputArgs.UseSimpleType = useSimpleType;
+            inputArgs.DosAcknowledged = dosAcknowledged;
 
             string formatter = "binaryformatter";
             byte[] binaryformatterPayload = new byte[] { };
@@ -262,9 +283,18 @@ namespace ysonet.Plugins
                 throw new Exception("Gadget not supported!");
             }
 
+            // A denial-of-service gadget is refused before the formatter check, so the
+            // reason a user sees is always the missing acknowledgement.
+            string dosRefusal = Helpers.Core.DosPolicy.RefusalIfUnacknowledged(gadget, dosAcknowledged);
+            if (!string.IsNullOrEmpty(dosRefusal))
+            {
+                Console.WriteLine(dosRefusal);
+                throw new Exception(dosRefusal);
+            }
+
             if (generator.IsSupported(formatter))
             {
-                binaryformatterPayload = (byte[])generator.GenerateWithNoTest(formatter, inputArgs);
+                binaryformatterPayload = (byte[])GenerateSelectedGadgetOrThrow(generator, formatter, inputArgs);
             }
             else
             {
@@ -419,6 +449,15 @@ namespace ysonet.Plugins
                 throw new Exception("Gadget not supported!");
             }
 
+            // A denial-of-service gadget is refused before the formatter check, so the
+            // reason a user sees is always the missing acknowledgement.
+            string dosRefusal = Helpers.Core.DosPolicy.RefusalIfUnacknowledged(gadget, dosAcknowledged);
+            if (!string.IsNullOrEmpty(dosRefusal))
+            {
+                Console.WriteLine(dosRefusal);
+                throw new Exception(dosRefusal);
+            }
+
             if (!generator.IsSupported("BinaryFormatter"))
             {
                 Console.WriteLine("BinaryFormatter not supported by the selected gadget.");
@@ -430,8 +469,9 @@ namespace ysonet.Plugins
             inputArgs.IsRawCmd = rawcmd;
             inputArgs.Minify = minify;
             inputArgs.UseSimpleType = useSimpleType;
+            inputArgs.DosAcknowledged = dosAcknowledged;
 
-            byte[] binaryformatterPayload = generator.GenerateWithNoTest("BinaryFormatter", inputArgs) as byte[];
+            byte[] binaryformatterPayload = GenerateSelectedGadgetOrThrow(generator, "BinaryFormatter", inputArgs) as byte[];
             if (binaryformatterPayload == null || binaryformatterPayload.Length == 0)
             {
                 Console.WriteLine("The selected gadget did not produce a BinaryFormatter payload.");
@@ -565,7 +605,7 @@ runat=""server"">
                     "-var", "2"
                 };
 
-                payload_bytes = (byte[])dsFromFileGenerator.GenerateWithNoTest("binaryformatter", inputArgs);
+                payload_bytes = (byte[])dsFromFileGenerator.GenerateInner("binaryformatter", inputArgs);
             }
             else
             {
@@ -581,7 +621,7 @@ runat=""server"">
                     "-var", "2"
                 };
 
-                payload_bytes = (byte[])dsGenerator.GenerateWithNoTest("binaryformatter", inputArgs);
+                payload_bytes = (byte[])dsGenerator.GenerateInner("binaryformatter", inputArgs);
             }
 
             byte[] compressedBytes;
@@ -613,6 +653,7 @@ runat=""server"">
             inputArgs.IsRawCmd = rawcmd;
             inputArgs.Minify = minify;
             inputArgs.UseSimpleType = useSimpleType;
+            inputArgs.DosAcknowledged = dosAcknowledged;
 
             string formatter = "losformatter";
             string losFormatterPayload = "";
@@ -632,10 +673,20 @@ runat=""server"">
                 throw new Exception("Gadget not supported!");
             }
 
+            // A denial-of-service gadget is refused before the formatter check, so the
+            // reason a user sees is always the missing acknowledgement.
+            string dosRefusal = Helpers.Core.DosPolicy.RefusalIfUnacknowledged(gadget, dosAcknowledged);
+            if (!string.IsNullOrEmpty(dosRefusal))
+            {
+                Console.WriteLine(dosRefusal);
+                throw new Exception(dosRefusal);
+            }
+
             // Check Generator supports specified formatter
             if (generator.IsSupported(formatter))
             {
-                losFormatterPayload = System.Text.Encoding.ASCII.GetString((byte[])generator.GenerateWithNoTest(formatter, inputArgs));
+                losFormatterPayload = System.Text.Encoding.ASCII.GetString(
+                    (byte[])GenerateSelectedGadgetOrThrow(generator, formatter, inputArgs));
             }
             else
             {
@@ -784,7 +835,7 @@ PublicKeyToken=31bf3856ad364e35"">
                     Console.WriteLine("TextFormattingRunPropertiesGenerator not supported!");
                     throw new Exception("TextFormattingRunPropertiesGenerator not supported!");
                 }
-                payloadPart2 = (string)myTFRPG.GenerateWithNoTest("DataContractSerializer", inputArgs);
+                payloadPart2 = (string)myTFRPG.GenerateInner("DataContractSerializer", inputArgs);
 
             }
             else

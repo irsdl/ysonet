@@ -63,7 +63,9 @@ namespace ysonet.Generators
                 .WithRequirements(
                     GadgetRequirement.ExtraAssembly,
                     GadgetRequirement.Wpf,
-                    GadgetRequirement.NetFramework);
+                    GadgetRequirement.NetFramework)
+                // Variant 1 (TextFormattingRunProperties inner); fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         public override string Finders()
@@ -94,9 +96,8 @@ namespace ysonet.Generators
 
         public override List<string> Labels()
         {
-            // Empty on purpose: GadgetTags.Variant means "this gadget is itself a variant
-            // of another gadget", which DataTable is not. Having a var/variant selector does
-            // not warrant that tag (see the note on GadgetTags.Variant).
+            // Empty on purpose: DataTable serializes its own type, so it is not a
+            // GadgetTags.Hosted payload. Having a var/variant selector earns no tag.
             return new List<string>();
         }
 
@@ -116,7 +117,11 @@ namespace ysonet.Generators
                     .WithFacets(new GadgetFacetSet()
                         .WithKinds(PayloadKind.CodeExecution)
                         .WithRequirements(GadgetRequirement.BuiltIn,
-                            GadgetRequirement.NetFramework))
+                            GadgetRequirement.NetFramework)
+                        // The TypeConfuseDelegate inner needs the 4.5-era
+                        // ComparisonComparer, so this variant starts later than
+                        // variant 1. Fired on 4.8.1.
+                        .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481)))
             };
         }
 
@@ -142,11 +147,14 @@ namespace ysonet.Generators
         // column cells to implement IXmlSerializable, which a normal gadget object does not.
         public override List<string> SupportedFormatters()
         {
+            // The "(N)" suffix is a display-only annotation meaning "this formatter
+            // carries N variants". SoapFormatter has no suffix because only variant 1
+            // supports it (variant 2 wraps a generic SortedSet; see Variants()).
             return new List<string>
             {
-                Formatters.BinaryFormatter,
+                Formatters.BinaryFormatter + " (2)",
                 Formatters.SoapFormatter,
-                Formatters.LosFormatter
+                Formatters.LosFormatter + " (2)"
             };
         }
 

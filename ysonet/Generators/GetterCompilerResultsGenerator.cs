@@ -36,7 +36,11 @@ namespace ysonet.Generators
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "Json.NET" }; // MessagePack should work too
+            // The "(N)" suffix is a display-only annotation meaning "this formatter
+            // carries N variants". All four getter chains are Json.NET templates; the
+            // runtime difference (remote DLL on modern .NET, local on .NET Framework)
+            // is a target property, not a variant.
+            return new List<string> { "Json.NET (4)" }; // MessagePack should work too
         }
 
         public override string Finders()

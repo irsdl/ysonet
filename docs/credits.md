@@ -53,6 +53,14 @@ Credits for available gadgets:
                 [Finders: James Forshaw] [Contributors: Soroush Dalili, Markus Wulftange, Jang]
         DataTable
                 [Finders: Soroush Dalili]
+        DataViewManagerXxe
+                [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Soroush Dalili]
+        FileLogTraceListener
+                [Finders: Piotr Bazydlo]
+        FormsIdentity
+                [Finders: Soroush Dalili]
+        GenericIdentity
+                [Finders: Soroush Dalili]
         GenericPrincipal
                 [Finders: Soroush Dalili]
         GetterCompilerResults
@@ -61,10 +69,14 @@ Credits for available gadgets:
                 [Finders: Piotr Bazydlo]
         GetterSettingsPropertyValue
                 [Finders: Piotr Bazydlo]
+        InfiniteProgressPage
+                [Finders: Piotr Bazydlo]
         ObjectDataProvider
                 [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Alvaro Munoz, Soroush Dalili, Dane Evans]
         ObjRef
                 [Finders: Markus Wulftange]
+        PictureBox
+                [Finders: Piotr Bazydlo]
         PSObject
                 [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Alvaro Munoz]
         ResourceSet
@@ -75,12 +87,16 @@ Credits for available gadgets:
                 [Finders: @mufinnnnnnn, Soroush Dalili] [Contributors: Soroush Dalili]
         SessionViewStateHistoryItem
                 [Finders: Soroush Dalili]
+        TempFileCollection
+                [Finders: James Forshaw] [Contributors: Soroush Dalili]
         TextFormattingRunProperties
                 [Finders: Oleksandr Mirosh and Alvaro Munoz] [Contributors: Oleksandr Mirosh, Soroush Dalili, Piotr Bazydlo]
         ToolboxItemContainer
                 [Finders: @frycos]
         TypeConfuseDelegate
-                [Finders: James Forshaw] [Contributors: Alvaro Munoz]
+                [Finders: James Forshaw] [Contributors: Alvaro Munoz, Soroush Dalili]
+        TypeConfuseDelegateFileOperations
+                [Finders: James Forshaw] [Contributors: Soroush Dalili]
         TypeConfuseDelegateMono
                 [Finders: James Forshaw] [Contributors: Denis Andzakovic, Soroush Dalili]
         WindowsClaimsIdentity
@@ -109,8 +125,6 @@ Credits for available plugins:
                 Piotr Bazydlo
         MachineKeySessionSecurityTokenHandler
                 L@2uR1te
-        NetNonRceGadgets
-                Piotr Bazydlo
         Resx
                 Soroush Dalili
         SessionSecurityTokenHandler

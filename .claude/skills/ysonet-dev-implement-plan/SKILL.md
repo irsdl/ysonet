@@ -1,6 +1,6 @@
 ---
 name: ysonet-dev-implement-plan
-description: Implements, tests, and verifies an approved ysonet development plan from dev-kitchen/to-be-implemented/ while re-checking it against current code, preserving unrelated work, recording material deviations, updating tests and docs, and surfacing follow-ups. Use when the user asks to implement, build, execute, or finish an existing settled plan. Not for drafting a plan, choosing among unsettled designs, or tiny ad-hoc edits with no plan.
+description: Implements, tests, and verifies an approved ysonet development plan from dev-kitchen/to-be-implemented/ while re-checking it against current code and any available GraphQuery database, preserving unrelated work, recording material deviations, updating tests and docs, and surfacing follow-ups. Use when the user asks to implement, build, execute, or finish an existing settled plan. Not for drafting a plan, choosing among unsettled designs, or tiny ad-hoc edits with no plan.
 ---
 
 # Implement a ysonet development plan
@@ -14,6 +14,28 @@ Plans normally move through:
 - `dev-kitchen/ideas/`: draft;
 - `dev-kitchen/to-be-implemented/`: settled and approved; and
 - `dev-kitchen/already-implemented/`: optional post-delivery record.
+
+## Quality bar
+
+Quality comes before finishing fast. Done means right, not "the plan's boxes
+are ticked".
+
+- Build the durable solution. When a better approach lasts longer and makes the
+  app easier to extend, take it, even when it is more work.
+- Fix root causes. A hack, a special case, a copy-paste, or a "for now" patch
+  is acceptable only when a hard constraint blocks the proper fix, and then it
+  needs a `dev-kitchen/todo/` note stating the proper fix.
+- Deliver the complete change: implementation, every applicable serializer and
+  formatter, tests, docs, help, completion, interactive UI, and architecture
+  updates. A partly wired feature is not delivered.
+- Use existing shared patterns and helpers. If the shared pattern is genuinely
+  wrong for the job, improve it rather than working around it.
+- Never trade correctness or test integrity for a green tick or a faster
+  finish.
+- A plan is not authority to cut corners. Silence in the plan about serializer
+  coverage, tests, docs, or public surfaces means do the complete work, not
+  skip it. If the quality option needs extra scope or a maintainer decision,
+  treat it as a material deviation under step 4 and ask.
 
 ## Workflow
 
@@ -58,6 +80,28 @@ Verify every load-bearing claim against current source:
 
 Treat source as authoritative when a plan or architecture note has drifted.
 
+When a GraphQuery graph/database is available:
+
+1. use `$code-graph tooling`; if named-skill invocation is unavailable, read
+   `.claude/skills/code-graph tooling/SKILL.md` in full;
+2. run `stats` through the GraphQuery CLI or configured tool and confirm the
+   graph root, dependencies, and file scope before relying on it;
+3. use task-specific `search`, `node`, `callers`, `callees`, `path`, or `find`
+   queries for relevant call paths, containment, inheritance, attributes,
+   overrides, source-to-sink reachability, and blast radius; and
+4. for gadget work, use the deserialization recipes against each relevant
+   source or framework graph to investigate serializer target shapes, magic
+   members, bridges, and paths to the named sink.
+
+Check `CODE_GRAPH`, a graph path supplied by the user or plan, and usable
+workspace-provided graph/index pairs. Never read or grep the large graph JSON or
+query its SQLite index outside GraphQuery. Do not copy a machine-local graph
+path into tracked files. Treat graph results as scoped supporting evidence:
+verify current code with source and tests, use `rg` for strings, configuration,
+docs, and ungraphed code, and do not claim that a graph proves post-edit
+behavior unless its source graph was regenerated. If no usable graph is
+available, continue with source inspection without blocking.
+
 ### 4. Resolve only material deviations
 
 Classify differences before coding:
@@ -93,13 +137,41 @@ Hold every edit to these rules:
 - do not edit `VERSION`, commit, or push without the separate approvals required
   by `CLAUDE.md`.
 
-For a new or changed gadget, read
-`.claude/skills/ysonet-dev-create-plan/references/making-a-gadget.md` in full
-and use `$ysonet-categorize-gadget` plus
+For a new or changed gadget, use `$ysonet-dev-create-gadget` as the complete
+gadget implementation contract. If named-skill invocation is unavailable, read
+`.claude/skills/ysonet-dev-create-gadget/SKILL.md` in full and follow every
+reference and asset it requires. This skill still controls approved-plan
+selection, material deviations, and plan disposition; the create-gadget skill
+controls gadget integrity, evidence, formatter expansion, implementation,
+registration, coverage, metadata, docs, and smokes.
+
+The create-gadget contract is mandatory even when the approved plan omits
+serializer work, names only one formatter, or assumes a narrow set. Plan silence
+is not authority to skip it. This includes filling every fillable member
+`ysonet/Generators/Base/IGenerator.cs` exposes with an evidence-backed value or
+an intentional default: name, finders, contributors, additional info, labels
+(only `GadgetTags` constants), supported formatters, options, command input,
+variants, facets, and the bridge members. A plan that lists only a formatter or
+a technique does not license leaving labels or other metadata at an empty
+placeholder.
+
+That includes the runtime version axis. After the FULL run, read its `Runtime:`
+line and the version report at the end of the execution matrix: a gadget that
+fired but declares no version is listed there by name. Declare
+`.WithVersions(RuntimeVersion.Range(floor, ceiling))` with the fired build as
+the ceiling and the documented type-introduction version as the floor (default
+`NetFx40`, `NetFx45` for the claims/WIF/`Comparer<T>.Create` families), repeat
+the range in every variant `FacetOverride`, and leave `unspecified` only when the
+real gate is not a runtime build. A plan that says nothing about versions is not
+authority to skip this. Additional branches that use existing
+dependencies, targets, and public formatter tokens are required completion
+work, not a material deviation. If support requires an unapproved dependency,
+target change, new public formatter token, or different gadget technique, treat
+that as a material deviation under step 4. Use `$ysonet-categorize-gadget` plus
 `$ysonet-audit-gadget-metadata`. For a new or changed plugin, read
 `.claude/skills/ysonet-dev-create-plan/references/making-a-plugin.md` in full.
-Re-check uniqueness before adding either. If named-skill invocation is
-unavailable, read and follow the matching `SKILL.md` files under
+Re-check uniqueness before adding either. If either companion named-skill
+invocation is unavailable, read and follow its `SKILL.md` under
 `.claude/skills/` directly.
 
 ### 6. Add complete tests
@@ -110,6 +182,8 @@ the current code. Follow the nearest existing test style.
 For gadgets:
 
 - normal and full generation matrices cover advertised combinations;
+- each advertised formatter has focused deserialization evidence beyond
+  exploration helpers or swallowed `inputArgs.Test` errors;
 - add the real runtime effect to `PayloadsFireIntoTestSinks`;
 - add focused input, option, variant, bridge, minify, exact-output, and error
   coverage where relevant; and
@@ -200,9 +274,19 @@ and never push.
 ### 10. Hand off the plan and follow-ups
 
 Report changed files, tests, smoke results, deviations, and any environmental
-limitations. Ask whether to move the plan to
-`dev-kitchen/already-implemented/` or delete it. Recommend keeping complex,
-rollback-sensitive, or reusable plans.
+limitations.
+
+Never decide the plan file's fate alone. Ask the user with AskUserQuestion and
+offer these options:
+
+- move it to `dev-kitchen/already-implemented/` (keeps the record);
+- delete it (the work is done and the file has no further value); and
+- leave it in `dev-kitchen/to-be-implemented/` (delivery is partial, or more
+  work follows).
+
+Recommend moving for complex, rollback-sensitive, or reusable plans. Do the
+chosen action yourself, then say where the file ended up. If the user does not
+answer, leave the file where it is.
 
 For every unresolved decision, known limitation, or follow-up, create or update
 one short file under `dev-kitchen/todo/` and its `README.md` index. Include the
@@ -213,11 +297,17 @@ out in the final handoff.
 
 - [ ] An approved plan was selected and read in full.
 - [ ] Repository guidance, memory, source, tests, and working-tree state were read.
+- [ ] Every available relevant GraphQuery database was scoped with `stats` and
+      used for task-specific queries; source covered unavailable or ungraphed areas.
 - [ ] Plan claims were re-verified against current code.
 - [ ] Material deviations were approved and recorded; minor corrections preserve intent.
 - [ ] Every implementation, csproj, public-surface, and documentation step is complete.
+- [ ] Gadget work considered every plausible serializer and implemented the
+      maximum verified formatter set even when the plan omitted that work.
+- [ ] New or changed gadgets followed the complete create-gadget skill.
 - [ ] New functions and behavior have focused and matrix/runtime coverage as applicable.
 - [ ] Debug tests, required FULL tests, optional Release checks, and smokes pass.
 - [ ] Final diff and artifact scans are clean; unrelated user work is preserved.
 - [ ] `VERSION` was not changed and no commit or push occurred without approval.
-- [ ] Plan disposition was offered and every remaining item is in `dev-kitchen/todo/`.
+- [ ] Plan disposition (move, delete, or leave) was asked as explicit options,
+      the user's choice was applied, and every remaining item is in `dev-kitchen/todo/`.

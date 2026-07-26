@@ -203,6 +203,8 @@
     <Compile Include="Generators\GetterCompilerResultsGenerator.cs" />
     <Compile Include="Generators\XamlImageInfo.cs" />
     <Compile Include="Generators\GenericPrincipalGenerator.cs" />
+    <Compile Include="Generators\GenericIdentityGenerator.cs" />
+    <Compile Include="Generators\FormsIdentityGenerator.cs" />
     <Compile Include="Generators\DataSetOldBehaviourFromFileGenerator.cs" />
     <Compile Include="Generators\DataSetOldBehaviourGenerator.cs" />
     <Compile Include="Generators\AxHostStateGenerator.cs" />
@@ -210,9 +212,10 @@
     <Compile Include="Generators\DataSetGenerator.cs" />
     <Compile Include="Generators\DataSetTypeSpoofGenerator.cs" />
     <Compile Include="Generators\DataTableGenerator.cs" />
+    <Compile Include="Generators\DataViewManagerXxeGenerator.cs" />
     <Compile Include="Generators\GetterSecurityExceptionGenerator.cs" />
     <Compile Include="Generators\GetterSettingsPropertyValueGenerator.cs" />
-    <Compile Include="Generators\XamlAssemblyLoadFromFileGenerator.cs" />
+    <Compile Include="Generators\HostedPayloads\XamlAssemblyLoadFromFileGenerator.cs" />
     <Compile Include="Generators\ObjRefGenerator.cs" />
     <Compile Include="Generators\ResourceSetGenerator.cs" />
     <Compile Include="Generators\SessionSecurityTokenGenerator.cs" />
@@ -221,14 +224,16 @@
     <Compile Include="Generators\ClaimsIdentityGenerator.cs" />
     <Compile Include="Generators\ToolboxItemContainerGenerator.cs" />
     <Compile Include="Generators\WindowsPrincipalGenerator.cs" />
-    <Compile Include="Generators\ActivitySurrogateDisableTypeCheckGenerator.cs" />
+    <Compile Include="Generators\HostedPayloads\ActivitySurrogateDisableTypeCheckGenerator.cs" />
     <Compile Include="Generators\ActivitySurrogateSelectorFromFileGenerator.cs" />
     <Compile Include="Generators\ActivitySurrogateSelectorGenerator.cs" />
     <Compile Include="Generators\Base\IGenerator.cs" />
     <Compile Include="Generators\Base\GenericGenerator.cs" />
     <Compile Include="Generators\ObjectDataProviderGenerator.cs" />
+    <Compile Include="Generators\TempFileCollectionGenerator.cs" />
     <Compile Include="Generators\TextFormattingRunPropertiesGenerator.cs" />
     <Compile Include="Generators\Patched\PSObjectGenerator.cs" />
+    <Compile Include="Generators\TypeConfuseDelegateFileOperationsGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateMonoGenerator.cs" />
     <Compile Include="Generators\WindowsClaimsIdentityGenerator.cs" />
@@ -263,6 +268,8 @@
     <Compile Include="Helpers\Cli\GadgetCategoryCommand.cs" />
     <Compile Include="Helpers\Cli\HelpText.cs" />
     <Compile Include="Helpers\Cli\UpdateChecker.cs" />
+    <Compile Include="Helpers\Core\DosPolicy.cs" />
+    <Compile Include="Helpers\Core\IsolatedSelfTest.cs" />
     <Compile Include="Helpers\Core\PayloadRunner.cs" />
     <Compile Include="Helpers\Crypto\MachineKey.cs" />
     <Compile Include="Helpers\Crypto\MachineKeyDataProtector.cs" />
@@ -275,6 +282,7 @@
     <Compile Include="Helpers\Input\InputArgs.cs" />
     <Compile Include="Helpers\MessagePack\GetterSettingsPropertyValueSurrogates.cs" />
     <Compile Include="Helpers\MessagePack\MessagePackGetterSettingsPropertyValueHelper.cs" />
+    <Compile Include="Helpers\MessagePack\MessagePackNonRceGadgetHelper.cs" />
     <Compile Include="Helpers\MessagePack\MessagePackObjectDataProviderHelper.cs" />
     <Compile Include="Helpers\MessagePack\ObjectDataProviderSurrogates.cs" />
     <Compile Include="Helpers\Minifiers\BinaryFormatterMinifier.cs" />
@@ -299,7 +307,9 @@
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\binaryobjectwriter.cs" />
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\binaryparser.cs" />
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\binaryutilclasses.cs" />
+    <Compile Include="Helpers\SharpSerializer\SharpSerializerTypeSwap.cs" />
     <Compile Include="Helpers\Serialization\FormatterType.cs" />
+    <Compile Include="Helpers\Serialization\MinifiedTextGuard.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.BinaryFormatter.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.DataContract.cs" />
@@ -317,10 +327,13 @@
     <Compile Include="Helpers\Serialization\SerializersHelper.Yaml.cs" />
     <Compile Include="Helpers\Serialization\XmlByteArrayEncoder.cs" />
     <Compile Include="Helpers\TestingArena\TestingArenaHome.cs" />
+    <Compile Include="Generators\FileLogTraceListenerGenerator.cs" />
+    <Compile Include="Generators\InfiniteProgressPageGenerator.cs" />
+    <Compile Include="Generators\NonRceGadgetPayloadBuilder.cs" />
+    <Compile Include="Generators\PictureBoxGenerator.cs" />
     <Compile Include="Plugins\GetterCallGadgetsPlugin.cs" />
     <Compile Include="Plugins\MachineKeySessionSecurityTokenHandlerPlugin.cs" />
     <Compile Include="Plugins\ThirdPartyGadgetsPlugin.cs" />
-    <Compile Include="Plugins\NetNonRceGadgetsPlugin.cs" />
     <Compile Include="Plugins\ActivatorUrlPlugin.cs" />
     <Compile Include="Plugins\AltserializationPlugin.cs" />
     <Compile Include="Plugins\ApplicationTrustPlugin.cs" />
@@ -338,6 +351,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="Generators\HostedPayloads\README.md" />
     <None Include="obfuscar.xml" />
     <None Include="packages.config" />
   </ItemGroup>

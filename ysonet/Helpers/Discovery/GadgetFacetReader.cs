@@ -21,15 +21,17 @@ namespace ysonet.Helpers
         public List<string> Formatters = new List<string>();   // cleaned tokens
         public List<string> Inputs = new List<string>();
         public List<string> Requirements = new List<string>();
+        public List<string> Versions = new List<string>();     // exact runtime versions
     }
 
-    // The four search axes, shared by the reader, the query model and both CLIs.
+    // The five search axes, shared by the reader, the query model and both CLIs.
     public enum CategoryAxis
     {
         Kind,
         Formatter,
         Input,
-        Requirement
+        Requirement,
+        Version
     }
 
     // Expands gadgets into normalized capability units, owns the display labels and
@@ -67,6 +69,13 @@ namespace ysonet.Helpers
                 case CommandInputType.DllPath: return PayloadInput.AssemblyFile;
                 case CommandInputType.Url: return PayloadInput.RemoteUrl;
                 case CommandInputType.FilePath: return PayloadInput.LocalFile;
+                case CommandInputType.TargetPath: return PayloadInput.TargetPath;
+                case CommandInputType.TargetPathPair: return PayloadInput.TargetPath;
+                // Both halves matter here, but a derived value is a single value. The
+                // target path is the one that decides what the payload does, so it is the
+                // honest single answer; a gadget that wants both declares
+                // WithInputs(PayloadInput.TargetPath, PayloadInput.LocalFile) explicitly.
+                case CommandInputType.TargetPathAndLocalFile: return PayloadInput.TargetPath;
                 case CommandInputType.Ignored: return PayloadInput.None;
                 default: return PayloadInput.Uncategorized;
             }
@@ -125,6 +134,7 @@ namespace ysonet.Helpers
             };
             cap.Kinds = NormalizeAxis(CategoryAxis.Kind, set.Kinds, gadgetName, variantNumber);
             cap.Requirements = NormalizeAxis(CategoryAxis.Requirement, set.Requirements, gadgetName, variantNumber);
+            cap.Versions = NormalizeAxis(CategoryAxis.Version, set.Versions, gadgetName, variantNumber);
             cap.Inputs = NormalizeInputs(set.Inputs, effectiveInput, gadgetName, variantNumber);
             cap.Formatters = cleanedFormatters ?? new List<string>();
             return cap;
@@ -163,18 +173,18 @@ namespace ysonet.Helpers
             return result;
         }
 
-        // Validate and de-duplicate one of the Kind/Requirement axes. Null or empty
-        // becomes ["uncategorized"]. Every value must be in the axis vocabulary, and
-        // "uncategorized" may not sit beside a real value.
+        // Validate and de-duplicate one of the Kind/Requirement/Version axes. Null
+        // or empty becomes the axis's no-evidence value. Every value must be in the
+        // axis vocabulary, and the no-evidence value may not sit beside a real one.
         private static List<string> NormalizeAxis(CategoryAxis axis, List<string> values, string gadget, int? variant)
         {
             string[] vocab = VocabularyFor(axis);
             if (values == null || values.Count == 0)
-                return new List<string> { UncategorizedFor(axis) };
+                return new List<string> { NoEvidenceValueFor(axis) };
 
             var cleaned = DedupeAndValidate(axis, values, vocab, gadget, variant);
             if (cleaned.Count == 0)
-                return new List<string> { UncategorizedFor(axis) };
+                return new List<string> { NoEvidenceValueFor(axis) };
             return cleaned;
         }
 
@@ -202,8 +212,9 @@ namespace ysonet.Helpers
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var result = new List<string>();
-            bool hasUncategorized = false;
+            bool hasNoEvidence = false;
             bool hasReal = false;
+            string noEvidence = NoEvidenceValueFor(axis);
 
             foreach (string raw in values)
             {
@@ -215,8 +226,8 @@ namespace ysonet.Helpers
                         + axis.ToString().ToLowerInvariant() + " value '" + raw + "'. Valid: "
                         + string.Join(", ", vocab) + ".");
 
-                if (string.Equals(v, UncategorizedFor(axis), StringComparison.Ordinal))
-                    hasUncategorized = true;
+                if (string.Equals(v, noEvidence, StringComparison.Ordinal))
+                    hasNoEvidence = true;
                 else
                     hasReal = true;
 
@@ -224,8 +235,8 @@ namespace ysonet.Helpers
                     result.Add(v);
             }
 
-            if (hasUncategorized && hasReal)
-                throw new Exception(Where(axis, gadget, variant) + " mixes 'uncategorized' with a real "
+            if (hasNoEvidence && hasReal)
+                throw new Exception(Where(axis, gadget, variant) + " mixes '" + noEvidence + "' with a real "
                     + axis.ToString().ToLowerInvariant() + " value. Use one or the other.");
 
             return result;
@@ -248,14 +259,17 @@ namespace ysonet.Helpers
                 case CategoryAxis.Kind: return PayloadKind.All;
                 case CategoryAxis.Input: return PayloadInput.All;
                 case CategoryAxis.Requirement: return GadgetRequirement.All;
+                case CategoryAxis.Version: return RuntimeVersion.All;
                 default: return new string[0]; // Formatter has no fixed vocabulary
             }
         }
 
-        private static string UncategorizedFor(CategoryAxis axis)
+        // The value that means "nobody has established this yet". The three broad
+        // axes call it "uncategorized"; the version axis calls it "unspecified",
+        // because there the gap is a missing version, not a missing category.
+        public static string NoEvidenceValueFor(CategoryAxis axis)
         {
-            // All three vocabulary axes use the same literal.
-            return "uncategorized";
+            return axis == CategoryAxis.Version ? RuntimeVersion.Unspecified : "uncategorized";
         }
 
         // A short human label for a canonical value on any axis. Formatter tokens
@@ -277,6 +291,7 @@ namespace ysonet.Helpers
 
                 case PayloadInput.Command: return "Command";
                 case PayloadInput.LocalFile: return "Local file";
+                case PayloadInput.TargetPath: return "Target path";
                 case PayloadInput.UncPath: return "UNC path";
                 case PayloadInput.RemoteUrl: return "Remote URL";
                 case PayloadInput.SourceCodeFile: return "Source code file";
@@ -288,9 +303,64 @@ namespace ysonet.Helpers
                 case GadgetRequirement.Wpf: return "WPF";
                 case GadgetRequirement.NetFramework: return ".NET Framework";
                 case GadgetRequirement.ModernDotNet: return "Modern .NET";
-                // "Other" and any formatter token fall through.
-                default: return value == PayloadKind.Other ? "Other" : value;
+
+                case RuntimeVersion.Unspecified: return "Unspecified";
+                case RuntimeVersion.Mono: return "Mono";
+                // "Other", a runtime version, and any formatter token fall through.
+                default:
+                    if (value == PayloadKind.Other)
+                        return "Other";
+                    return VersionLabel(value) ?? value;
             }
+        }
+
+        // ".NET Framework 4.8.1" / ".NET 5.0" for a runtime version token, else null.
+        private static string VersionLabel(string value)
+        {
+            if (RuntimeVersion.IndexOf(value) < 0)
+                return null;
+            string family = RuntimeVersion.Family(value);
+            if (family == "net-fx")
+                return ".NET Framework " + RuntimeVersion.Number(value);
+            if (family == "net")
+                return ".NET " + RuntimeVersion.Number(value);
+            return null;
+        }
+
+        // A readable summary of a version list that collapses a run of consecutive
+        // versions in one family back into the range it was declared as, e.g.
+        // ".NET Framework 2.0 - 4.7.2". Fifteen tokens on one help line is noise;
+        // the range is the fact the reader wants.
+        public static string VersionSummary(IEnumerable<string> versions)
+        {
+            List<string> sorted = SortValues(versions);
+            if (sorted.Count == 0)
+                return Label(RuntimeVersion.Unspecified);
+
+            var parts = new List<string>();
+            int i = 0;
+            while (i < sorted.Count)
+            {
+                int runEnd = i;
+                while (runEnd + 1 < sorted.Count && IsNextInSameFamily(sorted[runEnd], sorted[runEnd + 1]))
+                    runEnd++;
+
+                if (runEnd == i)
+                    parts.Add(Label(sorted[i]));
+                else
+                    parts.Add(Label(sorted[i]) + " - " + RuntimeVersion.Number(sorted[runEnd]));
+                i = runEnd + 1;
+            }
+            return string.Join(", ", parts);
+        }
+
+        private static bool IsNextInSameFamily(string current, string next)
+        {
+            int a = RuntimeVersion.IndexOf(current), b = RuntimeVersion.IndexOf(next);
+            if (a < 0 || b < 0 || b != a + 1)
+                return false;
+            string fa = RuntimeVersion.Family(current);
+            return fa.Length > 0 && string.Equals(fa, RuntimeVersion.Family(next), StringComparison.Ordinal);
         }
 
         // Join a list of canonical values into a sorted, readable label list.
@@ -300,8 +370,9 @@ namespace ysonet.Helpers
             return string.Join(", ", sorted.Select(Label));
         }
 
-        // Sort values for display: normal values alphabetically by label, then
-        // "Other", then "Uncategorized" last.
+        // Sort values for display: normal values alphabetically by label (runtime
+        // versions in version order, oldest first), then "Other", then
+        // "Uncategorized"/"Unspecified" last.
         public static List<string> SortValues(IEnumerable<string> values)
         {
             var list = (values ?? new string[0]).Where(v => !string.IsNullOrEmpty(v)).Distinct().ToList();
@@ -314,12 +385,20 @@ namespace ysonet.Helpers
             int ra = Rank(a), rb = Rank(b);
             if (ra != rb)
                 return ra.CompareTo(rb);
+
+            // Runtime versions sort by version order, never by label: ".NET 10.0"
+            // must follow ".NET 9.0", and .NET Framework must precede .NET.
+            int va = RuntimeVersion.IndexOf(a), vb = RuntimeVersion.IndexOf(b);
+            if (va >= 0 && vb >= 0)
+                return va.CompareTo(vb);
+
             return string.Compare(Label(a), Label(b), StringComparison.OrdinalIgnoreCase);
         }
 
         private static int Rank(string v)
         {
-            if (string.Equals(v, "uncategorized", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(v, "uncategorized", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(v, RuntimeVersion.Unspecified, StringComparison.OrdinalIgnoreCase))
                 return 2;
             if (string.Equals(v, "other", StringComparison.OrdinalIgnoreCase))
                 return 1;

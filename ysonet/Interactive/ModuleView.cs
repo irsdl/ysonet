@@ -80,6 +80,16 @@ namespace ysonet.Interactive
         public string PreviewText()
         {
             var lines = new List<string>();
+
+            // A denial-of-service gadget says so first, before anything else, so the
+            // risk is visible while choosing rather than only at generate time.
+            if (IsGadget)
+            {
+                string dosWarning = Helpers.Core.DosPolicy.PreviewWarning(Name);
+                if (!string.IsNullOrEmpty(dosWarning))
+                    lines.Add("  " + dosWarning);
+            }
+
             if (!string.IsNullOrEmpty(Info))
                 lines.Add("  " + Info);
 

@@ -48,6 +48,10 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DosFakes.cs" />
+    <Compile Include="LegacyXmlChild.cs" />
+    <Compile Include="Oob.cs" />
+    <Compile Include="RuntimeBuild.cs" />
     <Compile Include="Tests.cs" />
     <Compile Include="VirtualTerminal.cs" />
   </ItemGroup>

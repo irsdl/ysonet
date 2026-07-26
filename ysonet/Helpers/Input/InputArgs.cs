@@ -20,6 +20,7 @@ namespace ysonet.Helpers
         private bool _isRawCmd = false;
         private bool _isDebugMode = false;
         private bool _isSTAThread = false; // this is for when STAThreadAttribute is needed to execute!
+        private bool _dosAcknowledged = false; // the user accepted the denial-of-service warning (--i-understand-dos)
         private List<String> _extraArguments = new List<string>();
         private List<String> _extraInternalArguments = new List<string>(); // This is used as ExtraArguments when calling GenerateWithNoTest to stop passing unwanted extra options 
 
@@ -295,6 +296,24 @@ namespace ysonet.Helpers
             }
         }
 
+        // The user acknowledged that a denial-of-service gadget can disrupt or
+        // terminate the target process (--i-understand-dos). This is global
+        // execution context, not a gadget option: it is kept as its own property
+        // and never placed in ExtraArguments, where a gadget's option parsing
+        // would see it. Default false, so nothing is ever acknowledged by accident.
+        public bool DosAcknowledged
+        {
+            get
+            {
+                return _dosAcknowledged;
+            }
+
+            set
+            {
+                _dosAcknowledged = value;
+            }
+        }
+
         public InputArgs ShallowCopy()
         {
             return (InputArgs)this.MemberwiseClone();
@@ -311,6 +330,7 @@ namespace ysonet.Helpers
             newInputArgs.ExtraArguments = this.ExtraArguments;
             newInputArgs.ExtraInternalArguments = this.ExtraInternalArguments;
             newInputArgs.IsDebugMode = this.IsDebugMode;
+            newInputArgs.DosAcknowledged = this._dosAcknowledged;
             return newInputArgs;
         }
 

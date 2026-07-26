@@ -34,7 +34,9 @@ namespace ysonet.Generators
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "Json.NET" }; // MessagePack may work too, but it may have issues with the XamlImageInfo constructor (to be verified)
+            // The "(N)" suffix is a display-only annotation meaning "this formatter
+            // carries N variants". Both Stream delivery classes are Json.NET templates.
+            return new List<string> { "Json.NET (2)" }; // MessagePack may work too, but it may have issues with the XamlImageInfo constructor (to be verified)
         }
 
         public override string Finders()

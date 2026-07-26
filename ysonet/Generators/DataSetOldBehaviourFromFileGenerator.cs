@@ -18,7 +18,9 @@ namespace ysonet.Generators
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.CodeExecution)
                 .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
-                    GadgetRequirement.NetFramework);
+                    GadgetRequirement.NetFramework)
+                // System.Data carrier; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         private int variant_number = 1; // Add variant support
@@ -59,7 +61,10 @@ namespace ysonet.Generators
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "BinaryFormatter", "LosFormatter" };
+            // The "(N)" suffix is a display-only annotation meaning "this formatter
+            // carries N variants". Both formatters build both XML schemas (see
+            // Variants()); the compressed option is not a variant.
+            return new List<string> { "BinaryFormatter (2)", "LosFormatter (2)" };
         }
 
         public override string SupportedBridgedFormatter()

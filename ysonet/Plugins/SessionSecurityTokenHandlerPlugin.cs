@@ -102,7 +102,7 @@ namespace ysonet.Plugins
                 throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
-            byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
+            byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateInner("BinaryFormatter", inputArgs);
             DeflateCookieTransform myDeflateCookieTransform = new DeflateCookieTransform();
             ProtectedDataCookieTransform myProtectedDataCookieTransform = new ProtectedDataCookieTransform();
             byte[] deflateEncoded = myDeflateCookieTransform.Encode(serializedData);

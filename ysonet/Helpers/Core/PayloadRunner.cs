@@ -37,6 +37,13 @@ namespace ysonet.Helpers.Core
         public string ErrorMessage;           // set when Success == false
         public string EffectiveOutputFormat;  // the output format actually used (after auto/los rules)
 
+        // Text the caller must show the user next to a successful payload, one
+        // entry per warning. Today this is the denial-of-service banner. It rides
+        // on the result rather than being printed here, because PayloadRunner is
+        // console-free by design and because every caller would otherwise have to
+        // rediscover the policy for itself. Never null.
+        public List<string> Warnings = new List<string>();
+
         public static RunResult Ok(object raw, string effectiveOutputFormat)
         {
             return new RunResult { Success = true, Raw = raw, EffectiveOutputFormat = effectiveOutputFormat };
@@ -71,6 +78,23 @@ namespace ysonet.Helpers.Core
                 gadgetsChain.AddRange(bridged);
             }
             gadgetsChain.Add(req.GadgetName);
+
+            // Denial-of-service preflight, before the bridge and formatter checks.
+            // A DoS gadget must be refused whether it is the -g gadget or a member
+            // of a --bgc chain, and the reported reason must always be the missing
+            // acknowledgement rather than whatever incompatibility happens to be
+            // found first. An acknowledged run collects one warning per distinct
+            // DoS gadget, returned with the payload.
+            List<string> dosGadgets = new List<string>();
+            foreach (string name in gadgetsChain)
+            {
+                if (!DosPolicy.IsDosGadget(name))
+                    continue;
+                if (!inputArgs.DosAcknowledged)
+                    return RunResult.Fail(DosPolicy.RefusalMessage(name));
+                if (!dosGadgets.Contains(name))
+                    dosGadgets.Add(name);
+            }
 
             object raw = null;
 
@@ -141,7 +165,51 @@ namespace ysonet.Helpers.Core
             }
 
             string effectiveFormat = ResolveOutputFormat(req.OutputFormat, req.FormatterName);
-            return RunResult.Ok(raw, effectiveFormat);
+            RunResult result = RunResult.Ok(raw, effectiveFormat);
+            foreach (string name in dosGadgets)
+                result.Warnings.Add(DosPolicy.WarningText(name));
+            return result;
+        }
+
+        // Generate a gadget the USER selected inside a plugin (ViewState -g, Resx
+        // -g, SharePoint -g). Those plugins resolve and validate the gadget with
+        // their own rules and their own error text, so this covers the generation
+        // half only: it applies the same denial-of-service gate as the CLI and
+        // returns the warning with the payload instead of printing it.
+        //
+        // Options are forwarded on purpose here (unlike GenerateInner), because the
+        // user chose this gadget and its flags are meant to reach it. No
+        // user-selected gadget path may call Generate* directly; a plugin that
+        // hardcodes its inner gadget still uses GenerateInner.
+        public static RunResult GenerateSelectedGadget(IGenerator generator, string formatterName, InputArgs inputArgs)
+        {
+            if (generator == null)
+                return RunResult.Fail("No gadget provided.");
+            if (string.IsNullOrEmpty(formatterName))
+                return RunResult.Fail("No formatter provided.");
+
+            InputArgs args = inputArgs ?? new InputArgs();
+            bool isDos = DosPolicy.IsDosGadget(generator);
+            if (isDos && !args.DosAcknowledged)
+                return RunResult.Fail(DosPolicy.RefusalMessage(generator.Name()));
+
+            object raw;
+            try
+            {
+                raw = generator.GenerateWithInit(formatterName, args);
+            }
+            catch (Exception ex)
+            {
+                return RunResult.Fail("Error generating payload with " + generator.Name() + ": " + ex.Message);
+            }
+
+            if (raw == null)
+                return RunResult.Fail("Payload generation returned nothing for gadget " + generator.Name() + ".");
+
+            RunResult result = RunResult.Ok(raw, ResolveOutputFormat("", formatterName));
+            if (isDos)
+                result.Warnings.Add(DosPolicy.WarningText(generator));
+            return result;
         }
 
         // Run a plugin by name. The plugin parses its own argv, so callers rebuild

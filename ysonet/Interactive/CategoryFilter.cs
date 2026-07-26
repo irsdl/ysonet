@@ -15,7 +15,7 @@ namespace ysonet.Interactive
         public GadgetCategoryQuery Query;
     }
 
-    // Pure state and counting for the four-axis gadget filter. No console, so it is
+    // Pure state and counting for the five-axis gadget filter. No console, so it is
     // unit-tested directly. Applied selections live in the passed-in query so they
     // persist for the wizard session. "Applied" is the committed filter; a per-axis
     // "draft" is edited in the checklist and only merged in on apply.
@@ -24,8 +24,7 @@ namespace ysonet.Interactive
         private readonly List<GadgetCapability> _caps;
         public GadgetCategoryQuery Applied { get; private set; }
 
-        public static readonly CategoryAxis[] Axes =
-            { CategoryAxis.Kind, CategoryAxis.Formatter, CategoryAxis.Input, CategoryAxis.Requirement };
+        public static readonly CategoryAxis[] Axes = GadgetCategoryQuery.AllAxes;
 
         public CategoryFilterModel(List<GadgetCapability> caps, GadgetCategoryQuery applied)
         {
@@ -45,6 +44,7 @@ namespace ysonet.Interactive
                 case CategoryAxis.Kind: return "Payload kind";
                 case CategoryAxis.Formatter: return "Formatter";
                 case CategoryAxis.Input: return "Accepted input";
+                case CategoryAxis.Version: return "Runtime versions";
                 default: return "Requirements";
             }
         }
@@ -76,6 +76,7 @@ namespace ysonet.Interactive
                 case CategoryAxis.Kind: return c.Kinds;
                 case CategoryAxis.Formatter: return c.Formatters;
                 case CategoryAxis.Input: return c.Inputs;
+                case CategoryAxis.Version: return c.Versions;
                 default: return c.Requirements;
             }
         }
@@ -184,11 +185,12 @@ namespace ysonet.Interactive
 
         public CategoryFilterModel Model { get { return _model; } }
 
-        // Rows: 0 = Show, 1..4 = axes, 5 = Clear all, 6 = Back.
+        // Rows: 0 = Show, then one row per axis, then Clear all and Back. Derived
+        // from the axis list so adding an axis cannot leave a stale row index.
         private const int ShowRow = 0;
         private const int FirstAxisRow = 1;
-        private const int ClearRow = 5;
-        private const int BackRow = 6;
+        private static readonly int ClearRow = FirstAxisRow + CategoryFilterModel.Axes.Length;
+        private static readonly int BackRow = ClearRow + 1;
 
         // Screen-redraw convention (KEEP THIS for any menu/screen in this file, and
         // for any new interactive screen - it is easy to get wrong and stacks the

@@ -85,7 +85,7 @@ namespace ysonet.Plugins
                 throw new Exception("Incorrect plugin mode/arguments combination");
             }
 
-            byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateWithNoTest("BinaryFormatter", inputArgs);
+            byte[] serializedData = (byte[])new TextFormattingRunPropertiesGenerator().GenerateInner("BinaryFormatter", inputArgs);
             byte[] newSerializedData = new byte[serializedData.Length + 5]; // it has BinaryReader ReadInt32() + 1 additional byte read
             serializedData.CopyTo(newSerializedData, 5);
             newSerializedData[0] = 1;

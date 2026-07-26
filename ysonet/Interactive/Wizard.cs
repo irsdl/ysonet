@@ -55,7 +55,10 @@ namespace ysonet.Interactive
         {
             "gadget", "plugin", "formatter", "command", "rawcmd", "output",
             "outputpath", "minify", "usesimpletype", "test",
-            "bridgedgadgetchains", "debugmode"
+            "bridgedgadgetchains", "debugmode",
+            // The module editor shows this as a field, but only when the current
+            // selection actually involves a denial-of-service gadget.
+            DosPolicy.AckOptionName
         };
 
         public Wizard(IKeyReader keys, Stream output)
@@ -322,11 +325,27 @@ namespace ysonet.Interactive
                     gadgets.Add(gg);
             }
 
+            // A "generate everything" run never builds a denial-of-service payload.
+            // Filtering here, before any count is taken, keeps every number shown
+            // below accurate; the skip is announced instead of silently applied.
+            BulkGadgetPartition bulk = DosPolicy.PartitionBulkGadgets(gadgets);
+            if (bulk.Skipped.Count > 0)
+            {
+                var safeGadgets = new List<IGenerator>();
+                foreach (IGenerator gg in gadgets)
+                    if (!bulk.IsSkipped(gg.Name()))
+                        safeGadgets.Add(gg);
+                gadgets = safeGadgets;
+                ConsoleStyle.WriteLine(DosPolicy.SkipNotice(bulk.Skipped.Count), ConsoleStyle.Help);
+            }
+
             // Offer only input types that actually have gadgets (with counts).
             var candidateTypes = new CommandInputType[]
             {
                 CommandInputType.ShellCommand, CommandInputType.CsSourceFile,
-                CommandInputType.DllPath, CommandInputType.Url, CommandInputType.FilePath
+                CommandInputType.DllPath, CommandInputType.Url, CommandInputType.FilePath,
+                CommandInputType.TargetPath, CommandInputType.TargetPathPair,
+                CommandInputType.TargetPathAndLocalFile
             };
             var typeLabels = new List<string>();
             var typeValues = new List<CommandInputType>();
@@ -565,6 +584,9 @@ namespace ysonet.Interactive
                 case CommandInputType.DllPath: return "DLL path";
                 case CommandInputType.Url: return "URL";
                 case CommandInputType.FilePath: return "File path";
+                case CommandInputType.TargetPath: return "Target path";
+                case CommandInputType.TargetPathPair: return "Two target paths";
+                case CommandInputType.TargetPathAndLocalFile: return "Target path + local file";
                 case CommandInputType.Ignored: return "Ignored";
                 default: return "Shell command";
             }
@@ -633,6 +655,9 @@ namespace ysonet.Interactive
                 case CommandInputType.DllPath: return "Path to .dll";
                 case CommandInputType.Url: return "URL";
                 case CommandInputType.FilePath: return "File path (e.g. a XAML file)";
+                case CommandInputType.TargetPath: return "Path on the target";
+                case CommandInputType.TargetPathPair: return "Two target paths: source;destination";
+                case CommandInputType.TargetPathAndLocalFile: return "Target path;local content file";
                 case CommandInputType.Ignored: return "Command (ignored by this gadget)";
                 default: return "Command to run";
             }
@@ -645,7 +670,10 @@ namespace ysonet.Interactive
                 case CommandInputType.CsSourceFile: return "This gadget compiles the .cs file. Example: ExploitClass.cs;System.Windows.Forms.dll";
                 case CommandInputType.DllPath: return "This gadget loads the DLL on the target. A UNC path works for remote loading.";
                 case CommandInputType.Url: return "This gadget expects an absolute URL (e.g. a remoting endpoint).";
-                case CommandInputType.FilePath: return "This gadget reads the file (local or UNC path).";
+                case CommandInputType.FilePath: return "This gadget reads the file HERE while building the payload (local or UNC path).";
+                case CommandInputType.TargetPath: return "A path on the TARGET, used when the payload runs. Nothing is read or written here.";
+                case CommandInputType.TargetPathPair: return "Two paths on the TARGET, separated by ';' (source first). Nothing is read or written here.";
+                case CommandInputType.TargetPathAndLocalFile: return "Where to write on the TARGET, ';', then a file on THIS machine whose text is embedded now.";
                 case CommandInputType.Ignored: return "This gadget ignores the command, but a value is still required. A placeholder is fine.";
                 default: return "The command the gadget will execute on the target.";
             }

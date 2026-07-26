@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using ysonet.Generators;
 using ysonet.Helpers;
+using ysonet.Helpers.Core;
 using ysonet.Plugins;
 
 namespace ysonet.Interactive
@@ -18,6 +19,12 @@ namespace ysonet.Interactive
     public partial class ModuleEditor
     {
         private const int BodyRows = 15;
+
+        // How many info-panel rows are actually visible. Exposed so a gadget test can
+        // assert that its own facts (formatters, command input, categories) still fit
+        // instead of hardcoding the number: a long AdditionalInfo() silently pushes
+        // them off the panel with no error anywhere.
+        internal static int BodyRowsForTest { get { return BodyRows; } }
 
         // A full-width help/description panel under the grid, so long text (a mode or
         // variant description, a setting's help) that will not fit the narrow third
@@ -826,7 +833,8 @@ namespace ysonet.Interactive
                 ConsoleStyle.NewLine();
                 string[] lines = ModuleInfoLines(name, w);
                 foreach (string line in lines)
-                    ConsoleStyle.WriteLine("  " + line, ConsoleStyle.Help);
+                    ConsoleStyle.WriteLine("  " + line,
+                        DosPolicy.IsPreviewWarning(line) ? ConsoleStyle.Error : ConsoleStyle.Help);
                 if (lines.Length == 0)
                     ConsoleStyle.WriteLine("  (no description)", ConsoleStyle.Help);
                 PauseForReview();
@@ -955,6 +963,17 @@ namespace ysonet.Interactive
             if (v == null)
                 return new string[0];
             var lines = new List<string>();
+            // A denial-of-service gadget leads with the warning, so the risk is
+            // visible while browsing and not only when the payload is built.
+            if (_isGadget)
+            {
+                string dosWarning = DosPolicy.PreviewWarning(name);
+                if (!string.IsNullOrEmpty(dosWarning))
+                {
+                    lines.Add(dosWarning);
+                    lines.Add("");
+                }
+            }
             if (!string.IsNullOrEmpty(v.Info))
             {
                 lines.AddRange(Wrap(Sentence(v.Info), width));

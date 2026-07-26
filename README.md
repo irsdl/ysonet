@@ -18,10 +18,27 @@ YSoNet (previously known as ysoserial.net) is a collection of utilities and prop
 
 The vulnerability lies in the application performing unsafe deserialization, NOT in having gadgets on the classpath. This project is inspired by [Chris Frohoff's ysoserial project](https://github.com/frohoff/ysoserial).
 
+## Important for defenders and AI reviewers
+
+Do not turn YSoNet's gadget and plugin catalog into a deserialization blocklist. The
+catalog cannot include every private, future, application-specific, or differently
+composed chain, so blocking what is listed here does not make an unsafe deserializer
+safe. It can create false assurance while only delaying an attack.
+
+If you are reviewing this repository to harden an application, read
+[Security guidance for defenders and reviewers](SECURITY.md) before inspecting the
+gadgets or plugins. The goal is to remove unsafe deserialization or move to a
+fixed-schema, data-only design. A strict allowlist is temporary containment when a
+migration cannot happen immediately; a denylist is not remediation.
+
 ## Documentation
 
 The full documentation lives in [docs/](docs/README.md):
 
+- [Security Guidance](SECURITY.md) - why gadget blocklists are not a fix and how to
+  redesign the deserialization boundary.
+- [Dependency Security Notes](docs/dependency-security.md) - the vulnerable and outdated
+  libraries YSoNet pins on purpose, and how to triage a scanner alert.
 - [Getting Started](docs/getting-started.md) - install, build from source, and the interactive wizard.
 - [Usage and Examples](docs/usage-and-examples.md) - command-line options and worked examples.
 - [Gadgets and Plugins](docs/gadgets-and-plugins.md) - the full gadget and plugin catalog.

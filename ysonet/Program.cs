@@ -35,6 +35,7 @@ namespace ysonet
         static bool isSearchFormatterAndRunMode = false;
         static bool runMyTest = false;
         static bool checkUpdate = false;
+        static bool dosAcknowledged = false;
         static string listCategory = "";
 
         // Repeatable --category=axis=value discovery filter. Collected raw here and
@@ -61,8 +62,9 @@ namespace ysonet
                 {"raf|runallformatters", "Whether to run all the gadgets with the provided formatter (ignores gadget name, output format, and the test flag arguments). This will search in formatters and also show the displayed payload length. Default: false", v => isSearchFormatterAndRunMode =  v != null },
                 {"sf|searchformatter=", "Search in all formatters to show relevant gadgets and their formatters (other parameters will be ignored).", v => searchFormatter =  v},
                 {"list=", "Print a machine-readable list (one item per line) and exit. Categories: gadgets|plugins|formatters|options|outputs. Add -g <gadget> to list that gadget's formatters/options, or -p <plugin> to list that plugin's options. Useful for shell tab-completion scripts.", v => listCategory = v },
-                {"category=", "Find gadgets by category (repeatable): --category=axis=value where axis is kind|formatter|input|requirement. Repeat for OR within an axis and AND across axes. Alone it prints matching gadgets and their categories; with '--list gadgets' it prints matching names only. Example: --category=kind=code-execution --category=formatter=Json.NET", v => rawCategoryValues.Add(v) },
+                {"category=", "Find gadgets by category (repeatable): --category=axis=value where axis is kind|formatter|input|requirement|version. Repeat for OR within an axis and AND across axes. A version is an exact runtime build (4.8.1, 5.0, mono) and only lists gadgets recorded as working there. Alone it prints matching gadgets and their categories; with '--list gadgets' it prints matching names only. Example: --category=kind=code-execution --category=formatter=Json.NET", v => rawCategoryValues.Add(v) },
                 {"debugmode", "Enable debugging to show exception errors and output length", v => isDebugMode  =  v != null},
+                {DosPolicy.AckOptionName, DosPolicy.AckHelp, v => dosAcknowledged = v != null },
                 {"h|help", "Shows this message and exit.", v => show_help = v != null },
                 {"fullhelp", "Shows this message + extra options for gadgets and plugins and exit.", v => show_fullhelp = v != null },
                 {"credit", "Shows the credit/history of gadgets and plugins (other parameters will be ignored).", v => show_credit =  v != null },
@@ -72,6 +74,15 @@ namespace ysonet
 
         static void Main(string[] args)
         {
+            // Isolated self-test child: ysonet re-runs itself to deserialize ONE payload
+            // whose firing kills the process (see Helpers/Core/IsolatedSelfTest.cs). It is
+            // driven by an environment variable, not an option, so the CLI surface is
+            // unchanged, and it is checked first because this process does nothing else.
+            if (Helpers.Core.IsolatedSelfTest.IsChildInvocation())
+            {
+                System.Environment.Exit(Helpers.Core.IsolatedSelfTest.RunChild());
+            }
+
             // Interactive mode is an extra entry mode, detected before normal
             // option parsing so the one-shot CLI is completely unchanged. It is
             // only triggered when the user is not running a plugin (plugins own
@@ -101,6 +112,9 @@ namespace ysonet
                 inputArgs.Minify = minify;
                 inputArgs.UseSimpleType = useSimpleType;
                 inputArgs.IsDebugMode = isDebugMode;
+                // Global execution context, kept out of ExtraArguments on purpose so
+                // no gadget's own option parsing ever sees the acknowledgement.
+                inputArgs.DosAcknowledged = dosAcknowledged;
                 inputArgs.ExtraArguments = commandArgsExtra;
             }
             catch (OptionException e)
@@ -386,6 +400,12 @@ namespace ysonet
                     System.Environment.Exit(-1);
                 }
 
+                // Warnings (currently the denial-of-service banner) go to stderr
+                // BEFORE the payload, so the payload on stdout stays clean and
+                // pipeable while the operator still sees the warning.
+                foreach (string warning in result.Warnings)
+                    Console.Error.WriteLine(warning);
+
                 raw = result.Raw;
                 outputformat = result.EffectiveOutputFormat;
 
@@ -399,7 +419,15 @@ namespace ysonet
                 // Use GadgetRegistry to get all gadget names
                 var gadgetNames = GadgetRegistry.GetAllGadgetNames();
 
-                foreach (string gadgetName in gadgetNames)
+                // A "generate everything" run never builds a denial-of-service
+                // payload. The same shared partition is used by the interactive
+                // run-all, and the skip is announced with a count instead of
+                // silently shrinking the sweep.
+                BulkGadgetPartition bulk = DosPolicy.PartitionBulkGadgets(gadgetNames);
+                if (bulk.Skipped.Count > 0)
+                    Console.WriteLine(DosPolicy.SkipNotice(bulk.Skipped.Count));
+
+                foreach (string gadgetName in bulk.Safe)
                 {
                     try
                     {

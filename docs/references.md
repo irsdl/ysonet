@@ -16,6 +16,8 @@ Back to [documentation index](README.md).
 - [.NET Remoting Revisited](https://codewhitesec.blogspot.com/2022/01/dotnet-remoting-revisited.html)
 - [Microsoft: BinaryFormatter security guide](https://learn.microsoft.com/en-us/dotnet/standard/serialization/binaryformatter-security-guide)
 - [Microsoft CA3075: Insecure DTD processing](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca3075)
+- [Microsoft: XmlReader.Create resolver default changed in .NET Framework 4.5.2](https://learn.microsoft.com/en-us/dotnet/fundamentals/runtime-libraries/system-xml-xmlreader-create) - the change DataViewManagerXxe depends on, and the `EnableLegacyXmlSettings` switch that reverts it.
+- [Microsoft: Runtime XML changes for .NET Framework 4.5.x](https://learn.microsoft.com/en-us/dotnet/framework/migration-guide/runtime/4.5.x)
 - [SSO Wars: The Token Menace - Whitepaper (Black Hat USA 2019)](https://i.blackhat.com/USA-19/Wednesday/us-19-Munoz-SSO-Wars-The-Token-Menace-wp.pdf)
 - [Finding and Exploiting .NET Remoting over HTTP using Deserialisation](https://web.archive.org/web/20190330065542/https://www.nccgroup.trust/uk/about-us/newsroom-and-events/blogs/2019/march/finding-and-exploiting-.net-remoting-over-http-using-deserialisation/)
 - [Attacking .NET serialization](https://speakerdeck.com/pwntester/attacking-net-serialization)

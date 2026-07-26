@@ -94,7 +94,12 @@ namespace ysonet.Generators
         // Broad discovery facets. The honest default is "uncategorized" on kind and
         // requirements, with input left to derive from CommandInput(). A gadget
         // overrides this to declare what its source, tests, and help actually prove.
-        // Category search only; never affects generation.
+        //
+        // Facets drive the category search. ONE value also affects generation:
+        // PayloadKind.DenialOfService marks a gadget that Helpers/Core/DosPolicy.cs
+        // refuses to build without the --i-understand-dos acknowledgement, and that
+        // every bulk run leaves out (see GenerateWithInit below). No other facet
+        // value changes what is generated.
         public virtual GadgetFacetSet Facets()
         {
             return new GadgetFacetSet();
@@ -125,8 +130,17 @@ namespace ysonet.Generators
                     + " (" + match.Label + ") of " + Name() + ".");
         }
 
+        // Last-line denial-of-service defense. Every normal generation path ends up
+        // here (GenerateWithNoTest and GenerateInner both call it), so a DoS gadget
+        // cannot be built without the acknowledgement even by a caller that skipped
+        // PayloadRunner. PayloadRunner still preflights the same rule, because only
+        // it can refuse before the bridge/formatter checks and return the warning
+        // with the payload; this throw is the backstop, not the primary gate.
         public object GenerateWithInit(string formatter, InputArgs inputArgs)
         {
+            if ((inputArgs == null || !inputArgs.DosAcknowledged) && Helpers.Core.DosPolicy.IsDosGadget(this))
+                throw new Exception(Helpers.Core.DosPolicy.RefusalMessage(Name()));
+
             Init(inputArgs);
             return Generate(formatter, inputArgs);
         }
@@ -136,6 +150,35 @@ namespace ysonet.Generators
             InputArgs tempInputArgs = inputArgs.DeepCopy();
             tempInputArgs.Test = false;
             return GenerateWithInit(formatter, tempInputArgs);
+        }
+
+        // Generate THIS gadget as the inner payload of another gadget or plugin. Use this,
+        // not GenerateWithNoTest, whenever the caller hardcodes which inner gadget it wraps.
+        //
+        // Like GenerateWithNoTest it skips the local self-test, so embedding a gadget never
+        // fires the payload on the operator's machine. It also isolates the OPTIONS. Init()
+        // parses inputArgs.ExtraArguments for whichever generator it is called on, so handing
+        // the caller's own arguments to an inner generator gives the inner gadget the OUTER
+        // module's flags. When the two happen to share an option name - "var"/"variant" is the
+        // one that collides in practice - the inner gadget either fails on a value meant for
+        // the outer one or, worse, silently builds a different payload that still generates
+        // and still passes the matrix. See dev-kitchen notes and the regression test
+        // OuterVariantDoesNotReachTheInnerTypeConfuseDelegate.
+        //
+        // Only the parsed option list is dropped. Everything genuinely shared - the command,
+        // Minify, UseSimpleType, debug mode - still reaches the inner payload. A caller that
+        // really does want to steer the inner gadget sets ExtraInternalArguments, which is
+        // preserved here and which Init() swaps in ahead of ExtraArguments (see
+        // TextFormattingRunPropertiesGenerator's xamlurl hand-off and SharePointPlugin).
+        //
+        // A plugin or gadget that generates a gadget the USER chose (-g on the command line,
+        // e.g. ViewState, SharePoint, Resx) must keep calling GenerateWithNoTest/
+        // GenerateWithInit, because there the forwarded options are the point.
+        public object GenerateInner(string formatter, InputArgs inputArgs)
+        {
+            InputArgs innerArgs = inputArgs.DeepCopy();
+            innerArgs.ExtraArguments = new List<string>();
+            return GenerateWithNoTest(formatter, innerArgs);
         }
 
         public object SerializeWithInit(object payloadObj, string formatter, InputArgs inputArgs)
@@ -182,6 +225,50 @@ namespace ysonet.Generators
             else return false;
         }
 
+        // A payload that terminates the runtime when it fires cannot be self-tested in
+        // this process: -t would kill ysonet.exe with no message, right after printing
+        // the payload. A gadget in that position overrides this to route its self-test
+        // through a child ysonet process (see Helpers/Core/IsolatedSelfTest.cs), which
+        // tests the exact bytes the user gets and reports the outcome.
+        //
+        // Do NOT override this on a gadget that installs its own serializationBinder:
+        // the child deserializes with a plain formatter and would resolve types
+        // differently. RunSelfTest below refuses that pair, and the test
+        // IsolatedSelfTestRefusesACustomBinder locks the refusal.
+        public virtual bool SelfTestNeedsChildProcess(string formatter, InputArgs inputArgs)
+        {
+            return false;
+        }
+
+        // The one place -t decides HOW to run. Called by each formatter branch below
+        // with its own in-process deserialize; routes to a child process when the
+        // gadget declared it must. Swallowing the in-process error is the long-standing
+        // behavior (most gadgets throw after firing); Debugging.ShowErrors surfaces it
+        // in debug mode.
+        private void RunSelfTest(byte[] payload, string formatter, InputArgs inputArgs, Action inProcess)
+        {
+            if (inputArgs == null || !inputArgs.Test)
+                return;
+
+            if (SelfTestNeedsChildProcess(formatter, inputArgs))
+            {
+                // The child deserializes with a plain formatter, so a gadget that installs
+                // its own binder (PSObject resolves the bundled vulnerable assembly through
+                // one) would be tested against different types than it ships. Refuse loudly
+                // instead of silently reporting a self-test that proved something else.
+                if (serializationBinder != null)
+                    throw new Exception(Name() + " cannot run an isolated self-test: it installs "
+                        + "its own SerializationBinder, which the child process does not reproduce. "
+                        + "Drop the binder or the SelfTestNeedsChildProcess override.");
+
+                Helpers.Core.IsolatedSelfTest.Run(payload, formatter, inputArgs, Name());
+                return;
+            }
+
+            try { inProcess(); }
+            catch (Exception err) { Debugging.ShowErrors(inputArgs, err); }
+        }
+
         public object Serialize(object payloadObj, string formatter, InputArgs inputArgs)
         {
             MemoryStream stream = new MemoryStream();
@@ -201,21 +288,15 @@ namespace ysonet.Generators
                 }
 
 
-                if (inputArgs.Test)
+                byte[] bfPayload = stream.ToArray();
+                RunSelfTest(bfPayload, formatter, inputArgs, delegate
                 {
-                    try
-                    {
-                        stream.Position = 0;
-                        if (serializationBinder != null)
-                            fmt.Binder = serializationBinder;
-                        fmt.Deserialize(stream);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return stream.ToArray();
+                    stream.Position = 0;
+                    if (serializationBinder != null)
+                        fmt.Binder = serializationBinder;
+                    fmt.Deserialize(stream);
+                });
+                return bfPayload;
             }
             /*
              * We don't actually need to use ObjectStateFormatter in YSoNet because it is the same as LosFormatter without MAC/keys
@@ -256,21 +337,15 @@ namespace ysonet.Generators
                     }
                 }
 
-                if (inputArgs.Test)
+                byte[] soapPayload = stream.ToArray();
+                RunSelfTest(soapPayload, formatter, inputArgs, delegate
                 {
-                    try
-                    {
-                        stream.Position = 0;
-                        if (serializationBinder != null)
-                            sf.Binder = serializationBinder;
-                        sf.Deserialize(stream);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return stream.ToArray();
+                    stream.Position = 0;
+                    if (serializationBinder != null)
+                        sf.Binder = serializationBinder;
+                    sf.Deserialize(stream);
+                });
+                return soapPayload;
             }
             else if (formatter.ToLower().Equals("netdatacontractserializer"))
             {
@@ -290,21 +365,15 @@ namespace ysonet.Generators
                     }
                 }
 
-                if (inputArgs.Test)
+                byte[] ndcsPayload = stream.ToArray();
+                RunSelfTest(ndcsPayload, formatter, inputArgs, delegate
                 {
-                    try
-                    {
-                        stream.Position = 0;
-                        if (serializationBinder != null)
-                            ndcs.Binder = serializationBinder;
-                        ndcs.Deserialize(stream);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return stream.ToArray();
+                    stream.Position = 0;
+                    if (serializationBinder != null)
+                        ndcs.Binder = serializationBinder;
+                    ndcs.Deserialize(stream);
+                });
+                return ndcsPayload;
             }
             else if (formatter.ToLower().Equals("losformatter"))
             {
@@ -319,19 +388,13 @@ namespace ysonet.Generators
                     lf.Serialize(stream, payloadObj);
                 }
 
-                if (inputArgs.Test)
+                byte[] losPayload = stream.ToArray();
+                RunSelfTest(losPayload, formatter, inputArgs, delegate
                 {
-                    try
-                    {
-                        stream.Position = 0;
-                        lf.Deserialize(stream);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return stream.ToArray();
+                    stream.Position = 0;
+                    lf.Deserialize(stream);
+                });
+                return losPayload;
             }
             else
             {

@@ -16,7 +16,9 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.NestedDeserialization)
-                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                // System.Web.UI carrier; fired on 4.8.1
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         public override List<string> SupportedFormatters()
@@ -58,7 +60,7 @@ namespace ysonet.Generators
             else
             {
                 IGenerator generator = new TextFormattingRunPropertiesGenerator();
-                losFormatterPayload = (byte[])generator.GenerateWithNoTest("LosFormatter", inputArgs);
+                losFormatterPayload = (byte[])generator.GenerateInner("LosFormatter", inputArgs);
             }
 
             string losFormatterText = Encoding.UTF8.GetString(losFormatterPayload);

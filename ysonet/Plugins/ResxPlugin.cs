@@ -33,6 +33,7 @@ namespace ysonet.Plugins
         static bool minify = false;
         static bool useSimpleType = true;
         static bool rawcmd = false;
+        static bool dosAcknowledged = false;
 
         static OptionSet options = new OptionSet()
             {
@@ -45,6 +46,7 @@ namespace ysonet.Plugins
                 {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
                 {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
+                {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
             };
 
         public string Name()
@@ -79,6 +81,7 @@ namespace ysonet.Plugins
                 inputArgs.UseSimpleType = useSimpleType;
                 inputArgs.IsRawCmd = rawcmd;
                 inputArgs.Test = test;
+                inputArgs.DosAcknowledged = dosAcknowledged;
             }
             catch (OptionException e)
             {
@@ -213,11 +216,33 @@ namespace ysonet.Plugins
                             throw new Exception("Gadget not supported!");
                         }
 
+                        // A denial-of-service gadget is refused before the formatter
+                        // check, so the reason a user sees is always the missing
+                        // acknowledgement rather than an unrelated incompatibility.
+                        string dosRefusal = Helpers.Core.DosPolicy.RefusalIfUnacknowledged(
+                            gadget_name, inputArgs.DosAcknowledged);
+                        if (!string.IsNullOrEmpty(dosRefusal))
+                        {
+                            Console.WriteLine(dosRefusal);
+                            throw new Exception(dosRefusal);
+                        }
+
                         // Check Generator supports specified formatter
                         if (generator.IsSupported(formatter_name))
                         {
-
-                            byte[] bfPayload = (byte[])generator.GenerateWithInit(formatter_name, inputArgs);
+                            // A user-selected gadget goes through the shared runner,
+                            // never Generate* directly, so the DoS policy and its
+                            // warning are the same here as on the command line.
+                            Helpers.Core.RunResult gadgetResult =
+                                Helpers.Core.PayloadRunner.GenerateSelectedGadget(generator, formatter_name, inputArgs);
+                            if (!gadgetResult.Success)
+                            {
+                                Console.WriteLine(gadgetResult.ErrorMessage);
+                                throw new Exception(gadgetResult.ErrorMessage);
+                            }
+                            foreach (string warning in gadgetResult.Warnings)
+                                Console.Error.WriteLine(warning);
+                            byte[] bfPayload = (byte[])gadgetResult.Raw;
 
                             if (mode.ToLower() == "binaryformatter")
                             {
@@ -258,12 +283,12 @@ namespace ysonet.Plugins
                     mtype = @"mimetype=""text/microsoft-urt/soap-serialized/base64""";
                     if (!String.IsNullOrWhiteSpace(inputArgs.CmdFullString))
                     {
-                        byte[] osf = (byte[])new ActivitySurrogateSelectorFromFileGenerator().GenerateWithNoTest("SoapFormatter", inputArgs);
+                        byte[] osf = (byte[])new ActivitySurrogateSelectorFromFileGenerator().GenerateInner("SoapFormatter", inputArgs);
                         payloadValue = Convert.ToBase64String(osf);
                     }
                     else
                     {
-                        byte[] osf = (byte[])new ActivitySurrogateSelectorGenerator().GenerateWithNoTest("SoapFormatter", inputArgs);
+                        byte[] osf = (byte[])new ActivitySurrogateSelectorGenerator().GenerateInner("SoapFormatter", inputArgs);
                         payloadValue = Convert.ToBase64String(osf);
                     }
                     break;

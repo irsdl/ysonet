@@ -17,7 +17,9 @@ namespace ysonet.Generators
     {
         // TODO: Use ysonet-categorize-gadget to replace the unknown axes.
         // Explicit Uncategorized input prevents the draft from implying that
-        // the base ShellCommand default is verified evidence.
+        // the base ShellCommand default is verified evidence. Runtime versions
+        // default to unspecified: add .WithVersions(RuntimeVersion.Range(...))
+        // only when a reproduction or documented behavior names the builds.
         public override GadgetFacetSet Facets()
         {
             return new GadgetFacetSet()
@@ -30,7 +32,9 @@ namespace ysonet.Generators
             return "";
         }
 
-        // TODO: Add only formatters produced by the real implementation.
+        // TODO: Complete the skill's formatter-expansion audit. Attempt every
+        // plausible live serializer family, then add the maximum verified set.
+        // Do not infer support from ShowAll/TestAll output alone.
         public override List<string> SupportedFormatters()
         {
             return new List<string>();
@@ -64,6 +68,11 @@ namespace ysonet.Generators
         // {
         //     return new List<string> { GadgetTags.Independent };
         // }
+        //
+        // GadgetTags.Hosted is only for a generator that serializes no type of its
+        // own and hands another generator's object to Serialize(). Those files live
+        // in Generators/HostedPayloads/ (same namespace). A Variants() list does not
+        // make a gadget hosted.
 
         // OPTIONAL VARIANT BLOCK. Keep Options(), Variants(), the field, and the
         // GuardVariantFormatter call together. Parse all invalid values clearly.
@@ -114,7 +123,10 @@ namespace ysonet.Generators
         //     return CommandInputType.FilePath;
         // }
 
-        // REAL GENERATE PATTERNS. Move only the relevant shape into Generate().
+        // REAL GENERATE PATTERNS. These are examples, not the complete
+        // formatter inventory. Move only the relevant shape into Generate(),
+        // then implement every supported serializer-specific representation of
+        // the same named chain.
         //
         // GuardVariantFormatter(variant_number, formatter);
         //
