@@ -80,9 +80,24 @@ namespace ysonet.Generators
         byte[] _fakeTable;
         Type _derivedType = typeof(System.Data.DataSet);
 
+        // A derived type named as strings instead of as a loaded Type. Needed when the
+        // target type lives in an assembly we do not ship and do not want to ship: the
+        // wire format only carries the names, so the real assembly is never required to
+        // WRITE the payload. Same idea as DataSetTypeSpoofGenerator.
+        string _derivedTypeName;
+        string _derivedAssemblyName;
+
         public void GetObjectData(SerializationInfo info, StreamingContext context)
         {
-            info.SetType(_derivedType);
+            if (_derivedTypeName != null)
+            {
+                info.FullTypeName = _derivedTypeName;
+                info.AssemblyName = _derivedAssemblyName;
+            }
+            else
+            {
+                info.SetType(_derivedType);
+            }
             info.AddValue("DataSet.RemotingFormat", System.Data.SerializationFormat.Binary);
             info.AddValue("DataSet.DataSetName", "");
             info.AddValue("DataSet.Namespace", "");
@@ -103,6 +118,15 @@ namespace ysonet.Generators
         public void SetDerivedType(Type type)
         {
             _derivedType = type;
+        }
+
+        // fullTypeName is the namespace-qualified type, assemblyName the full assembly
+        // identity ("Name, Version=..., Culture=..., PublicKeyToken=..."), exactly as they
+        // must appear on the wire for the target to bind them.
+        public void SetDerivedTypeName(string fullTypeName, string assemblyName)
+        {
+            _derivedTypeName = fullTypeName;
+            _derivedAssemblyName = assemblyName;
         }
 
         public DataSetBinaryMarshal(byte[] bfPayload)

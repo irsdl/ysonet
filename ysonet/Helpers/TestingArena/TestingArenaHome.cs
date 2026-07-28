@@ -14,7 +14,12 @@ namespace ysonet.Helpers.TestingArena
 {
     // This can be used for testing purposes
     // Some samples have been included here
-    class TestingArenaHome : GenericGenerator
+    //
+    // Partial so a contributor's own arena (Helpers\TestingArena\Private\**, git-ignored
+    // and compiled only by a private build) can add its own scratch through the
+    // StartPrivate hook below, using this class's fields and helpers. A clean clone has
+    // no other part, and the unimplemented hook call is removed by the compiler.
+    partial class TestingArenaHome : GenericGenerator
     {
         private InputArgs inputArgs = new InputArgs();
         private InputArgs sampleInputArgs = new InputArgs("cmd /c mspaint", true, false, false, false, true, null);
@@ -30,9 +35,19 @@ namespace ysonet.Helpers.TestingArena
             return options;
         }
 
+        // Scratch owned by a private arena, if one is mounted. Experiments against an
+        // unpublished gadget belong there, because this file is TRACKED and public: a
+        // gadget's name is the vulnerable type it abuses, so pasting one here would
+        // publish it. With no implementation the call below disappears at compile time.
+        partial void StartPrivate(InputArgs inputArgs);
+
         public void Start(InputArgs inputArgs)
         {
             this.inputArgs = inputArgs;
+
+            // Runs first so a private arena can do its work and exit without having to
+            // step around whatever scratch is currently in the public body below.
+            StartPrivate(inputArgs);
             // Change the inputs in any ways
             //inputArgs.Minify = true;
             //inputArgs.UseSimpleType = true;

@@ -193,7 +193,7 @@ namespace ysonet.Plugins
                 case "compileddotresources":
                     if (!String.IsNullOrWhiteSpace(inputArgs.CmdFullString))
                     {
-                        var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes());
+                        var types = Helpers.AssemblyTypeScanner.SafeGetAllTypes();
                         var generatorTypes = types.Where(p => typeof(IGenerator).IsAssignableFrom(p) && !p.IsInterface && !p.AssemblyQualifiedName.Contains("Helpers.TestingArena"));
                         var generators = generatorTypes.Select(x => x.Name.Replace("Generator", "")).ToList().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
 

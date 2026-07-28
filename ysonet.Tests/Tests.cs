@@ -409,6 +409,7 @@ namespace ysonet.Tests
             Run("MessagePack Typeless payloads carry the target type names, not the surrogates'", MessagePackTypelessCarriesTargetTypeNames);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
+            Run("SharePoint --spver targets a generation without shipping its assemblies", SharePointSpVerTargetsAGeneration);
 
             // ---- Quiet and observable test runs (the automated runner itself) ----
             Run("Runner options: CLI beats environment, and bad values exit 2", TestRunOptionsPrecedenceAndValidation);
@@ -797,6 +798,99 @@ namespace ysonet.Tests
         // One plugin generation with the option flags reset on BOTH sides. The flags are
         // statics that most plugins never clear when Run starts, so a leak in either direction
         // would make this row test the previous row's arguments.
+        // CVE-2024-38018 can target SharePoint 2013, 2016 or 2019. Only two things may
+        // differ between them: the assembly version named in the payload, and the formatter
+        // that writes the blob. Everything else must stay identical, because the 2013 shape
+        // is only useful if it is the same webpart the 2019 one is.
+        //
+        // The point of the 2013 path is that it ships NO SharePoint 2013 assembly: the
+        // reference is written by name, since names are all the wire format carries. So the
+        // test also proves the 15.0.0.0 reference really is produced on a machine that has
+        // only the 16.x assemblies on disk.
+        private static void SharePointSpVerTargetsAGeneration()
+        {
+            string p2019 = SharePointWebPart("2019");
+            string p2016 = SharePointWebPart("2016");
+            string p2013 = SharePointWebPart("2013");
+
+            // 2016 and 2019 bind the same 16.0.0.0 identity, so one payload serves both.
+            // If this ever stops being true, 2016 needs its own branch rather than an alias.
+            AssertEqual(p2019, p2016, "spver 2016 and 2019 produce the same payload");
+
+            foreach (var pair in new[] {
+                new { Ver = "2019", Payload = p2019, Expect = "16.0.0.0", Reject = "15.0.0.0" },
+                new { Ver = "2013", Payload = p2013, Expect = "15.0.0.0", Reject = "16.0.0.0" } })
+            {
+                // The Register directive and the blob must name the SAME generation. They
+                // disagreed before --spver existed: the directive was pinned at 15.0.0.0
+                // while the blob carried a 16.x reference.
+                AssertTrue(pair.Payload.Contains("Microsoft.SharePoint, Version=" + pair.Expect),
+                    "spver " + pair.Ver + ": the Register directive names " + pair.Expect);
+
+                string blob = Encoding.ASCII.GetString(Convert.FromBase64String(
+                    SharePointAttachedProperty(pair.Payload)));
+                AssertTrue(blob.Contains("Microsoft.SharePoint.ApplicationPages, Version=" + pair.Expect),
+                    "spver " + pair.Ver + ": the SPThemes reference names " + pair.Expect);
+                AssertTrue(!blob.Contains("Version=" + pair.Reject),
+                    "spver " + pair.Ver + ": no " + pair.Reject + " reference leaks into the blob");
+            }
+
+            // Same wire format, not merely a similar one: the 2013 blob must differ from the
+            // 2019 blob only in the version digit it names.
+            byte[] b2019 = Convert.FromBase64String(SharePointAttachedProperty(p2019));
+            byte[] b2013 = Convert.FromBase64String(SharePointAttachedProperty(p2013));
+            AssertEqual(b2019.Length, b2013.Length, "both generations produce the same blob length");
+
+            int differing = 0;
+            for (int i = 0; i < b2019.Length; i++)
+            {
+                if (b2019[i] != b2013[i]) { differing++; }
+            }
+            AssertEqual(1, differing, "the 2013 blob differs from the 2019 blob in the version digit only");
+
+            // An unknown generation must be refused, not silently treated as the default.
+            // Plugin options are STATIC fields, so this has to reset them afterwards like
+            // every other call here: otherwise the rejected value survives into whatever
+            // runs next and fails there instead.
+            Type spType = PluginRegistry.CreatePluginInstance("SharePoint").GetType();
+            ResetPluginStatics(spType);
+            try
+            {
+                RunResult bad = PayloadRunner.RunPlugin("SharePoint", new string[]
+                {
+                    "--cve", "CVE-2024-38018", "-c", "calc.exe", "--spver", "2010"
+                });
+                AssertTrue(!bad.Success, "an unsupported --spver is refused");
+            }
+            finally { ResetPluginStatics(spType); }
+        }
+
+        private static string SharePointWebPart(string spver)
+        {
+            Type ptype = PluginRegistry.CreatePluginInstance("SharePoint").GetType();
+            ResetPluginStatics(ptype);
+            try
+            {
+                RunResult r = PayloadRunner.RunPlugin("SharePoint", new string[]
+                {
+                    "--cve", "CVE-2024-38018", "-c", "calc.exe", "--spver", spver
+                });
+                AssertTrue(r.Success, "SharePoint --spver " + spver + " generates: " + r.ErrorMessage);
+                return "" + r.Raw;
+            }
+            finally { ResetPluginStatics(ptype); }
+        }
+
+        private static string SharePointAttachedProperty(string webPart)
+        {
+            const string open = "<AttachedPropertiesShared>";
+            const string close = "</AttachedPropertiesShared>";
+            int start = webPart.IndexOf(open, StringComparison.Ordinal);
+            int end = webPart.IndexOf(close, StringComparison.Ordinal);
+            AssertTrue(start >= 0 && end > start, "the webpart carries an AttachedPropertiesShared blob");
+            return webPart.Substring(start + open.Length, end - start - open.Length).Trim();
+        }
+
         private static byte[] PluginPayload(string plugin, List<string> baseArgv, string command, bool rawCmd)
         {
             var argv = new List<string>(baseArgv);
@@ -1135,20 +1229,43 @@ namespace ysonet.Tests
             return count;
         }
 
-        // Locate tools/completions/ysonet.ps1 by walking up from the test binary,
-        // so no absolute/machine path is baked in.
-        private static string ReadCompletionScript()
+        // Locate a repository file by walking up from the test binary, so no
+        // absolute/machine path is baked in. Falls back to the YSONET_REPO_ROOT
+        // environment variable, because a build can be configured to write its
+        // output outside the repository, and then walking up never reaches it.
+        // Returns null when the file cannot be found either way.
+        private static string FindRepoFile(string rel)
         {
-            string rel = Path.Combine("tools", "completions", "ysonet.ps1");
             var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
             while (dir != null)
             {
                 string candidate = Path.Combine(dir.FullName, rel);
                 if (File.Exists(candidate))
-                    return File.ReadAllText(candidate);
+                    return candidate;
                 dir = dir.Parent;
             }
-            throw new Exception("could not locate " + rel + " above " + AppDomain.CurrentDomain.BaseDirectory);
+
+            string root = Environment.GetEnvironmentVariable("YSONET_REPO_ROOT");
+            if (!string.IsNullOrEmpty(root))
+            {
+                string candidate = Path.Combine(root, rel);
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+            return null;
+        }
+
+        private static string ReadCompletionScript()
+        {
+            string rel = Path.Combine("tools", "completions", "ysonet.ps1");
+            string found = FindRepoFile(rel);
+            if (found == null)
+            {
+                throw new Exception("could not locate " + rel + " above "
+                    + AppDomain.CurrentDomain.BaseDirectory
+                    + " (set YSONET_REPO_ROOT when the output folder is outside the repository)");
+            }
+            return File.ReadAllText(found);
         }
 
         // ================= Private module visibility =================
@@ -10905,6 +11022,15 @@ namespace ysonet.Tests
             {
                 if (File.Exists(Path.Combine(dir.FullName, "ysonet.sln"))) return dir.FullName;
                 dir = dir.Parent;
+            }
+
+            // Walking up fails when the build writes its output outside the repository.
+            // Callers still expect either a real root or null, never a half answer, so
+            // the variable is only honoured when it really points at a workspace.
+            string root = Environment.GetEnvironmentVariable("YSONET_REPO_ROOT");
+            if (!string.IsNullOrEmpty(root) && File.Exists(Path.Combine(root, "ysonet.sln")))
+            {
+                return root;
             }
             return null;
         }

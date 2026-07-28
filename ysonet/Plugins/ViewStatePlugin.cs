@@ -215,7 +215,7 @@ namespace ysonet.Plugins
                 throw new Exception(msg);
             }
 
-            var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes());
+            var types = Helpers.AssemblyTypeScanner.SafeGetAllTypes();
 
             // Populate list of available gadgets
             var generatorTypes = types.Where(p => typeof(IGenerator).IsAssignableFrom(p) && !p.IsInterface);

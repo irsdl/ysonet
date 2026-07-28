@@ -59,7 +59,7 @@ namespace ysonet.Helpers
         {
             if (_cachedPluginTypes == null)
             {
-                var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes());
+                var types = Helpers.AssemblyTypeScanner.SafeGetAllTypes();
                 _cachedPluginTypes = types.Where(p =>
                     typeof(IPlugin).IsAssignableFrom(p) &&
                     !p.IsInterface &&

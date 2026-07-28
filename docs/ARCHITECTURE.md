@@ -900,7 +900,7 @@ place for the first one that does.
 | **TransactionManagerReenlist** | `TransactionManager.Reenlist(Guid, byte[], ...)`. | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Returns `byte[]` = TFRP BF blob + 5-byte header. |
 | **ViewState** | ASP.NET `__VIEWSTATE` forgery with a known MachineKey. | many (see below) | Most intricate plugin. Credit: Soroush Dalili. |
 | **Xps** | Malicious XPS document (CVE-2020-0605). Returns the OPC/ZIP package as `byte[]`; use the global `--outputpath` to save it as an `.xps`. | `-m mode` (fdseq/fdoc/fpage/all), `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Builds the package with `System.IO.Packaging`; part names, content types and the `fixedrepresentation` start-part relationship come from ReachFramework's own `XpsS0Markup`. The payload is an ObjectDataProvider `ResourceDictionary` (via `ObjectDataProviderGenerator` variant 2) in the chosen part's `.Resources`. `fdseq` is parsed by `XpsDocument.GetFixedDocumentSequence` (restricted since the January 2020 fix); `fdoc`/`fpage` by `XpsValidatingLoader` (covered by a later 2020 update). Default-restrictive on a patched host: it fires when the target predates the fix or turned `DisableLegacyDangerousXamlDeserializationMode` off. `-t` opens the document on the patched default and then with the legacy switches flipped for that process only (`SerializersHelper.Xps_*`). Sibling of the Clipboard `wpfxaml` mode (file sink vs paste sink of the same mitigation). Credit: Soroush Dalili. |
-| **SharePoint** | Multiple SharePoint CVEs. | `--cve`, `--useurl`, `-g`, `-c`, `--target`, `--formbody`, `--rawcmd`, `--minify`, `--ust`, `--no-comment`, `--var` | One plugin, seven CVE branches (see below). |
+| **SharePoint** | Multiple SharePoint CVEs. | `--cve`, `--useurl`, `-g`, `-c`, `--target`, `--formbody`, `--rawcmd`, `--minify`, `--ust`, `--no-comment`, `--var`, `--spver` | One plugin, seven CVE branches (see below). |
 
 Command-flag convention: a command-taking plugin exposes `--rawcmd` (run the command
 verbatim instead of wrapping it as `cmd /c <command>`), `--minify`, and `--ust`, threading
@@ -935,9 +935,18 @@ reflection), `GenerateViewStateLegacy_2_to_4` (<= .NET 4.0, `MachineKeySection` 
 ### SharePoint plugin (deep)
 One plugin, seven CVE branches by `--cve` (`cve-2025-53770` is a first-class mode, the 49704 patch bypass). Options:
 `--cve`, `--useurl`, `-g` (default `TypeConfuseDelegate`), `-c`, `--target` (2026-50522 only),
-`--formbody` (2026-50522 only), `--var` (49704 only), plus the shared command flags
+`--formbody` (2026-50522 only), `--var` (49704 only), `--spver` (2024-38018 only), plus the shared command flags
 `--rawcmd`, `--minify`, `--ust` (honored by the four gadget-based CVEs: 2024-38018,
 2025-49704, 2025-53770, 2020-1147, 2026-50522) and `--no-comment`.
+`--spver` picks which SharePoint generation CVE-2024-38018 targets: `2019` (default),
+`2016`, or `2013`. 2016 and 2019 share the same `16.0.0.0` assembly identity, so they
+produce the same bytes and only one payload is needed for both. `2013` differs in exactly
+two places: `System.Web.UI.LosFormatter` writes the blob instead of SharePoint's
+`SPObjectStateFormatter`, and the `SPThemes` reference is written by name at `15.0.0.0`.
+That name is all the wire format carries, so no SharePoint 2013 assembly is shipped or
+needed. The `<%@ Register %>` directive follows the same choice, so the directive and the
+blob it wraps always name the same generation. The 2013 output is byte-identical to the
+2019 one apart from that version.
 Each returns XML/SOAP with an HTML comment explaining where to POST it; `--no-comment`
 outputs just the serialized payload/token with no comment. CVE-2026-50522 follows the same
 convention by default (the `wresult` token plus a delivery comment); its opt-in `--formbody`

@@ -60,7 +60,7 @@ namespace ysonet.Helpers
         {
             if (_cachedGadgetTypes == null)
             {
-                var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes());
+                var types = Helpers.AssemblyTypeScanner.SafeGetAllTypes();
                 _cachedGadgetTypes = types.Where(p =>
                     typeof(IGenerator).IsAssignableFrom(p) &&
                     !p.IsInterface &&
