@@ -12,6 +12,35 @@ A plugin follows the same two rules as a gadget, and the contract is written up 
   the source, copyable straight into the testing arena, never obfuscated or encoded to hide
   what it is, named after the real types, and commented with the WHY.
 
+# Development test order
+
+Run only the new or changed plugin's focused tests first: its modes, options, repeated
+in-process state, materially different inner paths, output shape, and safe runtime effect.
+Keep fixing that narrow set until the plugin triggers as intended and every
+plugin-specific assertion passes. Then run the normal Debug tests and finish with the FULL
+suite. If FULL finds a problem, fix it, rerun the affected focused checks, and run FULL
+again so the final source state ends with a green FULL suite.
+
+# `IsPrivate()`
+
+`IPlugin` requires one more member, and every plugin must answer it:
+
+```csharp
+// A public plugin: it is listed everywhere, with or without --display-private.
+public bool IsPrivate() { return false; }
+```
+
+Return `true` only for unpublished research kept in the git-ignored `Private/` folder
+next to this one, which the build already compiles. A private plugin is not LISTED
+anywhere until the user passes `--display-private` (`--prv`): not in `--help`,
+`--fullhelp`, `--credit`, `--list`, the "not supported" suggestion list, tab
+completion, or the interactive plugin picker. Nothing else changes - it still runs when
+it is named with `-p`, with no flag, and its errors are the same as any other plugin's.
+
+The member is required rather than optional on purpose: the answer is visible in every
+plugin file, and the compiler makes a new plugin state it. The rule lives in
+`Helpers/Core/PrivateModulePolicy.cs`; `GadgetTags.Private` is the gadget twin.
+
 # Security review notice
 
 Do not use the files in this directory to build or validate a production deserialization

@@ -193,6 +193,7 @@ namespace ysonet.Generators
         CsSourceFile,   // a path to a .cs file to compile (';' separates extra assemblies)
         DllPath,        // a path to a .dll to load on the target
         UncPath,        // a UNC path the TARGET reaches over SMB (\\host\share\file)
+        HostName,       // a host name or IP the TARGET connects to (no scheme, no path)
         Url,            // a URL (e.g. a remoting endpoint)
         FilePath,       // a path to a file the gadget reads LOCALLY while building (e.g. a XAML file)
         TargetPath,     // a path on the TARGET, used only when the payload runs
@@ -216,7 +217,17 @@ namespace ysonet.Generators
             OnDeserialized = "Uses OnDeserialized attribute",
             SecondOrderDeserialization = "Second order deserialization",
             NotInGAC = "Not in GAC", // This is when the gadget is not in GAC
+            // Hidden from NORMAL help only. It still shows under --fullhelp and in
+            // every other listing. Different from Private below, which hides the
+            // gadget everywhere; a gadget may carry both.
             Hidden = "Valuable for special cases or research purposes but hidden from normal search",
+            // The gadget is not listed anywhere until --display-private (--prv). It
+            // still builds normally when named on the command line, and its errors
+            // are the same as any other gadget's. For unpublished research a
+            // contributor keeps in the git-ignored Generators\Private\ folder.
+            // Different from Hidden, which only hides from NORMAL help and still
+            // shows under --fullhelp; a gadget may carry both.
+            Private = "Private (not listed without --display-private)",
             None = "";
     }
 
@@ -286,6 +297,7 @@ namespace ysonet.Generators
             LocalFile = "local-file",              // read on the OPERATOR machine while building
             TargetPath = "target-path",            // a path only the TARGET process touches
             UncPath = "unc-path",
+            Host = "host",                         // a bare host name or IP the TARGET reaches
             RemoteUrl = "remote-url",
             SourceCodeFile = "source-code-file",
             AssemblyFile = "assembly-file",
@@ -294,7 +306,7 @@ namespace ysonet.Generators
 
         public static readonly string[] All =
         {
-            Uncategorized, Command, LocalFile, TargetPath, UncPath, RemoteUrl,
+            Uncategorized, Command, LocalFile, TargetPath, UncPath, Host, RemoteUrl,
             SourceCodeFile, AssemblyFile, None, Other
         };
     }
@@ -303,28 +315,59 @@ namespace ysonet.Generators
     // one axis that carries numbers instead of a broad family, because "works on
     // an old build" is not actionable and "works up to 4.7.2, fixed in 4.8" is.
     //
+    // IT DESCRIBES THE TARGET. Never ysonet's own build, and never the machine a
+    // payload was generated on. The question it answers is "will this land on the
+    // application in front of me", so the number is always one the operator can
+    // check on that application. Two shapes of that, and both belong here:
+    //
+    //   - the framework the target PROCESS RUNS ON, when a runtime or a patch is
+    //     what changed the behaviour (the usual case: "worked up to 4.7.2, fixed
+    //     in 4.8");
+    //   - the framework the target APPLICATION WAS BUILT AGAINST, when the gate is
+    //     a compile-time compatibility switch read from its TargetFrameworkAttribute.
+    //     The legacy-XML gadgets (DataViewManagerXxe, DataSetXxe) are the catalog's
+    //     example: XmlReaderSettings.EnableLegacyXmlSettings() reads the ENTRY
+    //     assembly's attribute, so an app stamped below 4.5.2 is exploitable on a
+    //     fully patched machine and one stamped 4.5.2+ is not, on any build. They
+    //     declare 4.0 - 4.5.1, and that number is about the app, not the host.
+    //
+    // Do not leave the axis empty just because the deciding version is not the
+    // installed one. "Unspecified" on a gadget with a known version threshold reads
+    // as "nobody looked", hides it from the version filter, and is what an operator
+    // then rediscovers by hand - which is exactly what happened to the two gadgets
+    // named above before this note existed.
+    //
     // Read an entry as "reproduced or documented here", never as "fails
     // everywhere else": a version that is not listed only means nobody recorded
-    // it. Where the real gate is not a runtime version at all (an OS patch, a
-    // library version, a config switch) the gadget stays "unspecified" and the
-    // detail lives in AdditionalInfo(), per the project rule that exact behavior
-    // belongs there.
+    // it. Where the real gate is NOT A VERSION AT ALL (an OS patch, a library
+    // version, a machine-wide switch somebody can toggle at any time) the gadget
+    // stays "unspecified" and the detail lives in AdditionalInfo(), per the project
+    // rule that exact behavior belongs there.
     //
-    // Declare a contiguous span with RuntimeVersion.Range(...) instead of typing
-    // the tokens out:
+    // Every new runtime-gated gadget needs at least one known working version.
+    // Test current/latest first. If it fails because of runtime compatibility,
+    // reproduce on older supported TARGET versions and use the highest verified
+    // working version as the ceiling, never the failed latest version. Record
+    // that failure as a limitation in the gadget docs or AdditionalInfo().
+    //
+    // Use one token when only one target version is established. Declare a contiguous
+    // span with RuntimeVersion.Range(...) only when evidence supports the span:
     //   .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx20, RuntimeVersion.NetFx472))
     //
     // How the catalog's spans were arrived at, so a per-gadget comment can stay to
     // one line:
-    //  - UPPER bound: the build the FULL test suite fired that payload on. Every
-    //    fire helper records it (ysonet.Tests/RuntimeBuild.cs reads the documented
-    //    NDP\v4\Full Release value), and a FULL run reports any gadget whose
-    //    ceiling can now be raised. That is an observation, not an opinion.
-    //  - LOWER bound: the documented introduction of the types the chain needs.
-    //    A payload that works on the newest build works on older ones too, until
-    //    it reaches a version where one of its types did not exist yet. Default
-    //    4.0, the CLR v4 generation this tool targets, because 2.0 through 3.5 is
-    //    a different CLR nobody has run these on; 4.5 where the chain goes through
+    //  - UPPER bound: the newest version the payload was OBSERVED to work on.
+    //    Every fire helper records one (ysonet.Tests/RuntimeBuild.cs): normally the
+    //    build the run executes on, read from the documented NDP\v4\Full Release
+    //    value, and for a row that fires into a child stamped with its own
+    //    TargetFrameworkAttribute, that CHILD's version - because that is what
+    //    decided the outcome. A FULL run reports any gadget whose ceiling can now
+    //    be raised. That is an observation, not an opinion. A failure on a newer
+    //    build does not earn that build; find the highest older build that fires.
+    //  - LOWER bound: the documented introduction of the types the chain needs,
+    //    when evidence supports the resulting contiguous span. Default 4.0, the
+    //    CLR v4 generation this tool targets, because 2.0 through 3.5 is a
+    //    different CLR nobody has run these on; 4.5 where the chain goes through
     //    the System.Security.Claims types, WIF, or Comparer<T>.Create.
     public static class RuntimeVersion
     {
@@ -541,6 +584,8 @@ namespace ysonet.Generators
         //   .WithVersions(RuntimeVersion.Range(RuntimeVersion.Net50, RuntimeVersion.Net70))
         // Declare nothing (the "unspecified" default) unless the repo, the tests,
         // or the gadget's own documented behavior actually proves the versions.
+        // A new runtime-gated gadget is not complete until at least one working
+        // version is established; use one token unless a span is also evidenced.
         public GadgetFacetSet WithVersions(params string[] values)
         {
             Versions = new List<string>(values ?? new string[0]);

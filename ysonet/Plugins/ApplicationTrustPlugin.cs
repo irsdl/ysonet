@@ -51,6 +51,9 @@ namespace ysonet.Plugins
             return "Soroush Dalili";
         }
 
+        // A public plugin: it is listed everywhere, with or without --display-private.
+        public bool IsPrivate() { return false; }
+
         public OptionSet Options()
         {
             return options;

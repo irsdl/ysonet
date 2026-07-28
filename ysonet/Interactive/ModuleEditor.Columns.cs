@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using ysonet.Generators;
@@ -33,9 +33,21 @@ namespace ysonet.Interactive
 
         // Total lines RenderColumns writes each frame: 1 header + BodyRows + footer +
         // 1 hint. The in-place redraw moves the cursor up by exactly this many lines,
-        // so the window must be at least this tall or the move clamps at row 0 and the
-        // frame desyncs. Keep this in step with what RenderColumns actually draws.
+        // so the window must be tall enough to hold the whole frame or the move clamps
+        // at row 0 and the frame desyncs. Keep this in step with what RenderColumns
+        // actually draws.
         private const int FrameHeight = BodyRows + FooterLines + 2;
+
+        // A frame of N lines needs N+1 ROWS, not N. The newline after the LAST line puts
+        // the cursor on one more row, so on a window of exactly FrameHeight the buffer
+        // scrolls by one every single frame: the header slides off the top, MoveUp clamps
+        // at row 0, and the whole view crawls upward. The extra row is what stops that.
+        //
+        // It is deliberately a strict "taller than", and ColumnsFitForTest below exists
+        // because this rule cannot be checked by looking at a rendered frame - once the
+        // header has scrolled away, a "the header appears exactly once" assertion passes
+        // on a screen that is actively broken.
+        private const int MinWindowHeight = FrameHeight + 1;
 
         private bool ColumnsFit()
         {
@@ -43,13 +55,21 @@ namespace ysonet.Interactive
                 return false;
             try
             {
-                return Term.Current.BufferWidth >= 80 && Term.Current.WindowHeight >= FrameHeight;
+                return Term.Current.BufferWidth >= 80 && Term.Current.WindowHeight >= MinWindowHeight;
             }
             catch
             {
                 return false;
             }
         }
+
+        // The fit decision for the CURRENT Term.Current, exposed so a test can assert the
+        // rule itself rather than infer it from pixels.
+        internal bool ColumnsFitForTest() { return ColumnsFit(); }
+
+        // The smallest window the columns view will draw on. Exposed so the test states the
+        // same number the product uses instead of a copy of it.
+        internal static int MinWindowHeightForTest { get { return MinWindowHeight; } }
 
         private void RunColumns()
         {
@@ -981,13 +1001,15 @@ namespace ysonet.Interactive
             }
             if (_isGadget)
             {
-                List<string> fmts = FormatterTokens(v);
-                if (fmts.Count > 0)
-                    lines.AddRange(Wrap("Formatters: " + string.Join(", ", fmts.ToArray()), width));
-                if (v.Labels != null && v.Labels.Count > 0)
-                    lines.AddRange(Wrap("Labels: " + string.Join(", ", v.Labels.ToArray()), width));
-                if (!string.IsNullOrEmpty(v.BridgedFormatter))
-                    lines.AddRange(Wrap("Bridge formatter: " + v.BridgedFormatter, width));
+                // SHORT FACTS FIRST, LONG LISTS LAST, and the order matters more than it
+                // looks: only BodyRows lines are rendered, and the formatter list is the one
+                // block with no upper bound. WSManPluginInstance advertises 13 formatters,
+                // which is 11 of the 15 visible rows at the narrow column width on its own -
+                // enough to push "Command input:" and the category summary off the panel
+                // whatever AdditionalInfo() says. So the one-line facts a user needs while
+                // BROWSING go above it, and the formatter list is what scrolls. Nothing is
+                // lost: --list formatters, --fullhelp and the editor's own formatter picker
+                // all show the complete set.
                 lines.AddRange(Wrap("Command input: " + Wizard.CommandLabel(v.CommandInput), width));
 
                 // Broad category summary (one compact line per capability unit). When a
@@ -1000,6 +1022,15 @@ namespace ysonet.Interactive
                     foreach (string cl in GadgetCategoryCommand.CompactLines(g, ""))
                         lines.AddRange(Wrap(cl, width));
                 }
+
+                if (!string.IsNullOrEmpty(v.BridgedFormatter))
+                    lines.AddRange(Wrap("Bridge formatter: " + v.BridgedFormatter, width));
+                if (v.Labels != null && v.Labels.Count > 0)
+                    lines.AddRange(Wrap("Labels: " + string.Join(", ", v.Labels.ToArray()), width));
+
+                List<string> fmts = FormatterTokens(v);
+                if (fmts.Count > 0)
+                    lines.AddRange(Wrap("Formatters: " + string.Join(", ", fmts.ToArray()), width));
             }
             else
             {
@@ -1039,7 +1070,10 @@ namespace ysonet.Interactive
 
         private static string Cell(string s, int width)
         {
-            if (s == null) s = "";
+            // Body and info cells are written with Cell + EndLine rather than through
+            // PadClear, so they need the same one-line guarantee: a control character in a
+            // value or a description would move the cursor and break the frame's row count.
+            s = ConsoleCursor.OneRow(s);
             if (s.Length > width)
             {
                 // Mark truncation with a trailing '~' (plain ASCII) so a cut-off value
@@ -1094,6 +1128,13 @@ namespace ysonet.Interactive
         {
             if (string.IsNullOrEmpty(text) || width < 4)
                 return new string[0];
+            // Fold newlines and tabs to spaces FIRST, so a module's multi-line option
+            // help (they are written with "\r\n" in them for the command-line help
+            // formatter) wraps across the available rows instead of surviving inside one
+            // "word". PadClear would otherwise cut the line at the newline and silently
+            // lose the rest of the sentence - and, before that, the embedded newline made
+            // one counted line occupy two console rows and desynced the whole redraw.
+            text = ConsoleCursor.OneRow(text);
             var lines = new List<string>();
             string[] words = text.Split(' ');
             var cur = new StringBuilder();

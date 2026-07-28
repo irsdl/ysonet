@@ -9,10 +9,15 @@ namespace ysonet.Helpers
         {
             None = 0,
             XML = 1,
+            /// <summary>For a payload template that quotes with SINGLE quotes, which is
+            /// what most of the JSON templates in this project use.</summary>
             JSON = 2,
             YamlDotNet = 3,
             XMLinJSON = 4,
             JSONinXML = 5,
+            /// <summary>For a payload template that quotes with DOUBLE quotes. See
+            /// JsonDoubleQuotedStringEscape below for why the two are not interchangeable.</summary>
+            JSONDoubleQuoted = 6,
         }
 
         public static String[] SplitCommand(string cmd, CommandType cmdType, out Boolean hasArgs)
@@ -23,11 +28,20 @@ namespace ysonet.Helpers
 
             if (cmdType == CommandType.JSON)
             {
-                // escape for JSON
-                result[0] = result[0].Replace(@"\", @"\\").Replace(@"""", @"\""").Replace(@"'", @"\'");
+                // escape for a SINGLE quoted JSON string
+                result[0] = JsonStringEscape(result[0]);
                 if (hasArgs)
                 {
-                    result[1] = result[1].Replace(@"\", @"\\").Replace(@"""", @"\""").Replace(@"'", @"\'");
+                    result[1] = JsonStringEscape(result[1]);
+                }
+            }
+            else if (cmdType == CommandType.JSONDoubleQuoted)
+            {
+                // escape for a DOUBLE quoted JSON string
+                result[0] = JsonDoubleQuotedStringEscape(result[0]);
+                if (hasArgs)
+                {
+                    result[1] = JsonDoubleQuotedStringEscape(result[1]);
                 }
             }
             else if (cmdType == CommandType.XML)

@@ -270,7 +270,12 @@ namespace ysonet.Generators
             }
             else if (formatter.ToLower().Equals("fastjson"))
             {
-                inputArgs.CmdType = CommandArgSplitter.CommandType.JSON;
+                // DOUBLE quoted template, so the command is escaped for a double quoted JSON
+                // string. The single quoted escaping used by the Json.NET and
+                // JavaScriptSerializer branches below would also write an apostrophe as \',
+                // which is not a legal JSON escape, and fastJSON DELETES that character:
+                // "C:\John's app\x.exe" would start C:\Johns app\x.exe instead.
+                inputArgs.CmdType = CommandArgSplitter.CommandType.JSONDoubleQuoted;
 
                 String cmdPart;
 
@@ -613,7 +618,9 @@ namespace ysonet.Generators
 
                 String internalPayload = @"<ResourceDictionary xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"" xmlns:d=""http://schemas.microsoft.com/winfx/2006/xaml"" xmlns:b=""clr-namespace:System;assembly=mscorlib"" xmlns:c=""clr-namespace:System.Diagnostics;assembly=system""><ObjectDataProvider d:Key="""" ObjectType=""{d:Type c:Process}"" MethodName=""Start"">" + cmdPart + @"</ObjectDataProvider.MethodParameters></ObjectDataProvider></ResourceDictionary>";
 
-                internalPayload = CommandArgSplitter.JsonStringEscape(internalPayload);
+                // The XAML goes into a DOUBLE quoted JSON string below, so only \ and " are
+                // escaped. JsonStringEscape would also write \', which no JSON defines.
+                internalPayload = CommandArgSplitter.JsonDoubleQuotedStringEscape(internalPayload);
 
                 String payload = @"{
   ""FsPickler"": ""4.0.0"",
@@ -660,8 +667,7 @@ namespace ysonet.Generators
                 {
                     try
                     {
-                        var serializer = MBrace.CsPickler.CsPickler.CreateJsonSerializer(true);
-                        serializer.UnPickleOfString<Object>(payload);
+                        SerializersHelper.FsPickler_deserialize(payload);
                     }
                     catch (Exception err)
                     {

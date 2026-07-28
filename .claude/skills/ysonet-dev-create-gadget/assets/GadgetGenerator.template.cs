@@ -18,8 +18,11 @@ namespace ysonet.Generators
         // TODO: Use ysonet-categorize-gadget to replace the unknown axes.
         // Explicit Uncategorized input prevents the draft from implying that
         // the base ShellCommand default is verified evidence. Runtime versions
-        // default to unspecified: add .WithVersions(RuntimeVersion.Range(...))
-        // only when a reproduction or documented behavior names the builds.
+        // default to unspecified while drafting. Before finishing a runtime-gated
+        // gadget, record at least one known working target version with
+        // .WithVersions(...). If latest fails, use the highest verified working
+        // target version, not latest;
+        // use a single token unless evidence supports a contiguous Range(...).
         public override GadgetFacetSet Facets()
         {
             return new GadgetFacetSet()

@@ -42,6 +42,9 @@ namespace ysonet.Plugins
             return "discovered by Oleksandr Mirosh and Alvaro Munoz, implemented by Alvaro Munoz, tested by @GlitchWitch";
         }
 
+        // A public plugin: it is listed everywhere, with or without --display-private.
+        public bool IsPrivate() { return false; }
+
         public OptionSet Options()
         {
             return options;

@@ -63,7 +63,7 @@ msbuild ysonet.sln -p:Configuration=Debug
 There are two tiers:
 
 - NORMAL (default): the fast unit, interactive, and core tests plus a cheap smoke that every gadget and plugin still produces a payload. This is what the Debug build above runs.
-- FULL (opt-in): the exhaustive combination suite - every gadget x formatter x variant (minify off and on), payloads fired into test-owned sinks (a marker file, a loopback listener, a temp directory, a self-closing `.cs`), output encodings per formatter, bridged gadget chains (`--bgc`), and the plugin mode/CVE/inner-gadget matrix. It is slower (low minutes) and flashes many self-closing `cmd` windows and binds loopback sockets, so it does not run on a normal build.
+- FULL (opt-in): the exhaustive combination suite - every gadget x formatter x variant (minify off and on), payloads fired into test-owned sinks (a windowless sink process, a loopback listener, a temp directory, a self-closing `.cs`), output encodings per formatter, bridged gadget chains (`--bgc`), and the plugin mode/CVE/inner-gadget matrix. It is slower (low minutes) and binds loopback sockets, so it does not run on a normal build.
 
 Run the FULL suite before a release, or when you change a gadget, plugin, serializer, or formatter. Two ways:
 
@@ -77,6 +77,29 @@ msbuild ysonet.sln -p:Configuration=Debug
 ```
 
 Everything the FULL suite runs is safe: every command is self-closing or is a value that is never executed, every listener is loopback-only, and every fixture is a temp file that is cleaned up. Nothing opens calc or leaves an app running.
+
+### Watching a run
+
+An automated run stays off your screen: it relaunches itself once on a hidden Windows desktop, puts itself in a job object that suppresses Windows Error Reporting UI for the whole process tree, and starts a windowless sink instead of a shell for its command fire rows. All of that belongs to the test runner; `ysonet.exe` itself, including `ysonet.exe -t`, behaves exactly as before.
+
+It prints its status file path first, then keeps that file current about once a second:
+
+```text
+Status file: D:\src\ysonet\temp\ysonet_testrun.txt
+UI isolation: desktop (hidden desktop ysonet-tests-12345-a1b2c3d4)
+WER containment: job (inherited by normal descendants)
+Fire backend: test-sink (D:\src\ysonet\ysonet\bin\Debug\ysonet.TestSink.exe)
+```
+
+Read it by polling and REOPENING the path, because every update replaces the whole file:
+
+```powershell
+while ($true) { Get-Content "$env:TEMP\..\ysonet_testrun.txt"; Start-Sleep 2; Clear-Host }
+```
+
+`state=finished` means the run completed (even if it failed - check `failed` and `exit_code`). `state=running` with an `updated_utc` more than a few seconds old means the run was interrupted; there is no `crashed` state, because a killed process cannot write one.
+
+Each mechanism has an off switch: `--ui-isolation=none`, `--wer-containment=off`, `--status-file=off`, and `YSONET_TEST_SINK=off`. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the details.
 
 Test policy and how to extend: never weaken a test to make it pass (investigate and fix the root cause; see the "Test integrity policy" in [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md)). A new gadget/formatter/variant is covered automatically by the generation matrix; a new gadget's runtime EFFECT and a new PLUGIN MODE must be added by hand. See [Architecture](ARCHITECTURE.md) (the `ysonet.Tests` section and "How to add things") for where each kind of coverage goes.
 

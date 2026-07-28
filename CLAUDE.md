@@ -53,6 +53,18 @@ Always prioritise quality over just reaching the stated goal. A change is done w
 - Never trade correctness or test integrity for a green tick or a faster finish (see "Test integrity policy").
 - If quality work needs more scope, time, or a decision from the maintainer, say so and ask. Do not silently downgrade the result to fit the effort.
 
+### A fix is not valid until a test proves it
+
+Never assume a fix works. "It should work now", "the change is obvious", and "it compiles" are not evidence. A behavioral fix is verified only when a relevant check exercises the reported behavior and passes on the changed code.
+
+When safe and practical, prove causality by showing that the same check fails before the fix and passes after it. Establish the failing result before editing or against an isolated baseline. Never revert, overwrite, or disturb the user's changes to manufacture a failing run. If the before-and-after result cannot be obtained, state what evidence is missing and treat that part of the fix as unverified.
+
+- Test every fix before reporting it as complete. Compile without running wider tests when the focused-first workflow requires it, run the focused checks for the affected area, then run the regression gate the change deserves. For gadgets and plugins, follow "Gadget/plugin development test order".
+- Report the commands or checks you ran, their outcomes, and the important summary lines. Include the `ENVIRONMENT VERDICT`, failures, and skipped or unverified checks. Do not imply that an unrun or skipped check passed.
+- After finding an issue, search the affected contract for the same root cause: sibling implementations, formatters, variants, modes, call sites, and user-facing documentation. Fix confirmed instances that are in scope. If the search reveals a substantial scope increase, report it and ask the maintainer before expanding the change.
+- Run a regression gate broad enough to catch related breakage. A fix that merely moves the failure elsewhere is not complete.
+- If a required check needs a capability this machine lacks, name the missing check and capability and treat the fix as unverified. Follow the "Environment verdict" stop-and-ask rules for `environment-suspect` or `mixed`.
+
 ## Build target
 
 All three projects (ysonet, ExploitClass, TestConsoleApp) target .NET Framework 4.7.2. Keep them unified on the same version.
@@ -74,6 +86,62 @@ Never weaken a test to get a green tick. Do NOT skip, ignore, comment out, loose
 
 This applies to AI agents and humans alike.
 
+### Gadget/plugin development test order
+
+When an implementation plan adds or changes a gadget or plugin, use two gates in this
+order:
+
+1. First run only focused checks for that gadget or plugin. Cover its generation and
+   deserialization, every affected formatter/variant/mode/option/minify/error branch, and
+   its real runtime effect against a safe test-owned sink. If a compile is needed first,
+   build Debug with `-p:RunYsonetTests=false` so the automatic NORMAL tier does not become
+   the first test run.
+2. Fix root causes and repeat those focused checks until the gadget or plugin generates,
+   deserializes, triggers as intended, and all module-specific assertions pass. Do not use
+   NORMAL or FULL as the first debugging loop or as a substitute for trigger evidence.
+3. Only after the focused gate is green, run the repository regression gate: the normal
+   Debug tests, then the FULL suite LAST. Resolve every ordinary failure so unrelated
+   behavior is not left broken.
+
+If a fix is made after the FULL run, return to the affected focused checks and then rerun
+the FULL suite. The final tested state must always end with a green FULL run. The
+environment-verdict rules below still apply; a skipped check is unverified, and
+`environment-suspect` or `mixed` still means stop and ask.
+
+### Environment verdict (read it before you "fix" a failing test)
+
+Some checks need a machine or network capability: a loopback TCP bind/connect/accept, the
+local RPC endpoint mapper on `127.0.0.1:135`, a usable out-of-band endpoint. The runner
+probes each prerequisite DIRECTLY, before the row that needs it, and prints one
+`ENVIRONMENT VERDICT:` line plus the evidence just above the Passed/Failed summary.
+
+Four tokens, and they describe environment CONFIDENCE, not overall success:
+
+- `clean` - every capability a check needed was probed and present.
+- `environment-limited` - a check was skipped because its prerequisite was absent, or ran
+  with one that could not be proved either way. A skip is UNVERIFIED, never passed.
+- `environment-suspect` - a check ran with its capability available and still missed its
+  network effect.
+- `mixed` - both an environment-suspect failure and an ordinary one.
+
+Rules:
+
+- A skip is only ever allowed for a directly probed prerequisite, it names the affected
+  check, and it never counts as a pass.
+- A probe that cannot conclude yields "unknown", which RUNS the row. A broken probe must
+  not be able to hide coverage.
+- Default exit is 0 when no test failed, even when coverage was limited. `--strict-env` /
+  `YSONET_STRICT_ENV` makes an absent or unverified capability exit non-zero. It never
+  runs a row whose prerequisite is absent: strict changes the exit requirement, not the
+  safety decision.
+- STOP AND ASK on `environment-suspect` or `mixed`. Report the capability evidence and let
+  the maintainer decide. Do not edit product code or an assertion over an environmental
+  failure. An ordinary failure in the same run is still yours to fix.
+- Every automated UNC touch needs `YSONET_INTERACTSH_SERVER` pointing at a self-hosted
+  server the operator owns, because Windows sends authentication material when it opens an
+  SMB session. On the default public endpoint both UNC checks are named skips. This gates
+  the TEST HARNESS only; a user running `ysonet.exe ... -t` themselves is unchanged.
+
 Tests live in `ysonet.Tests` (a self-contained console runner, no framework). They run on every Debug build as a post-build step, and also stand alone at `ysonet\bin\Debug\ysonet.Tests.exe`. A failed test fails the build. Two tiers:
 
 - NORMAL (default): the fast unit/interactive/core tests plus a cheap per-gadget and per-plugin smoke. Runs on every `msbuild ysonet.sln -p:Configuration=Debug`.
@@ -85,10 +153,50 @@ Tests live in `ysonet.Tests` (a self-contained console runner, no framework). Th
 Coverage norm when you add things:
 - A new gadget/formatter/variant is covered automatically by the generation matrix.
 - A new gadget's runtime EFFECT should be added to the execution matrix in `PayloadsFireIntoTestSinks` (pick its sink: marker file, loopback listener, temp dir, or self-closing `.cs`). A gadget whose only effect is an outbound UNC/SMB callback goes in the OOB tier instead: add a row to `UncCallbackRows` in `ysonet.Tests/Tests.cs`.
-- That execution matrix is also where runtime version support is earned. Each fire records its gadget against the build the run is on (`ysonet.Tests/RuntimeBuild.cs`), and a FULL run prints the build plus every gadget that fired while declaring no version. Take the ceiling from that run, take the floor from the documented introduction of the chain's types, and declare it. A payload that fires on a build its own metadata excludes fails the run.
+- That execution matrix is also where runtime version support is earned. Each fire records its gadget against the target version the row exercises (`ysonet.Tests/RuntimeBuild.cs`), and a FULL run prints the evidence plus every gadget that fired while declaring no version. Every new runtime-gated gadget must name at least one working target version. If current/latest does not fire because of runtime compatibility, reproduce on older supported target versions and use the highest verified working version as the ceiling, never the failed latest version. Use one token when only one version is established; use a range only when evidence supports the contiguous span. A payload that fires on a version its own metadata excludes fails the run.
 - A new PLUGIN MODE is NOT auto-covered: add a row to the curated table in `PluginFullMatrixGenerates` (a coverage guard fails the build if a whole new plugin is neither in the matrix nor excluded).
 
 AI instruction: when the user says "run full tests" (or "run the full suite"), set `YSONET_FULL_TESTS=1` and build Debug (or run `ysonet.Tests.exe --full`), then report the Passed/Failed summary. A normal request needs only the default Debug build.
+
+### How an automated run behaves (runner only, never the product)
+
+An automated run keeps itself off the maintainer's screen and publishes what it is doing.
+All of this belongs to `ysonet.Tests`. No product file, option, help text, completion entry,
+or interactive screen changes, and a hand-run `ysonet.exe -t` behaves exactly as before.
+
+- Hidden desktop. The runner relaunches itself once on a fresh Windows desktop, so a payload
+  window does not appear and does not steal focus; descendants inherit it. Control:
+  `--ui-isolation=auto|desktop|none` or `YSONET_UI_ISOLATION`. `auto` is `none` under a
+  debugger and on CI, `desktop` otherwise. It does not contain a process that explicitly
+  switches desktop or breaks away, and it must not be described as if it does.
+  One hole is measured and REPORTED, never papered over: on Windows 11 a NEW console is
+  hosted by the user's default terminal application, which is not a descendant of the runner
+  and never inherited the desktop, so a console window a payload opens can still appear (in
+  practice the product's non-raw `-c` wrapper, which runs `cmd /c ...`; a raw command runs the
+  windowless sink and shows nothing). The runner prints one note naming the setting that
+  closes it (default terminal application = "Windows Console Host"). It must never WRITE that
+  setting: a test run does not reconfigure the maintainer's machine.
+- WER job. The runner joins a job object with `JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION`,
+  which suppresses crash UI for the whole tree. Control: `--wer-containment=job|off` or
+  `YSONET_WER_CONTAINMENT`. `KILL_ON_JOB_CLOSE` is deliberately not set, so the job does not
+  redefine child lifetime and does not hide a hang.
+- Status file. One `key=value` snapshot per run, path printed as the first header line.
+  Control: `--status-file=auto|off|<path>` or `YSONET_TEST_STATUS_FILE`. READ IT BY POLLING
+  AND REOPENING the path: every update replaces the whole file, so a retained handle
+  (`Get-Content -Wait`) is not promised to follow it. `state=finished` means the run
+  completed, even when it failed. There is deliberately NO `crashed` state: a killed or
+  fail-fast run leaves `state=running` with a heartbeat that stops advancing, and a stale
+  running heartbeat is how you tell a run was interrupted. Do not add a crashed state; it
+  would be a promise the runner cannot keep.
+- Fire backend. Command fire rows start the windowless `ysonet.TestSink.exe` and assert the
+  exact argument it received. If that executable cannot run, the suite prints one reason and
+  automatically uses the older `cmd /c echo` marker; it NEVER skips a fire row over it.
+  Force the old marker with `YSONET_TEST_SINK=off`.
+
+An invalid value for one of those switches is the only thing that stops a run before it
+starts (exit code 2). Everything else - no desktop, no job, no writable status path, no
+usable sink - prints one line and the run carries on. Do not "fix" one of those fallbacks by
+failing the run or by skipping tests.
 
 ## Outdated libraries
 This project intentionally uses outdated libraries to demonstrate deserialization issues.
@@ -165,9 +273,11 @@ Every gadget declares discovery metadata via `Facets()` (payload kind, accepted 
 
 Runtime versions are the one axis with exact numbers, because "old build" does not tell an operator whether the payload lands:
 
-- Declare with `WithVersions(RuntimeVersion.Range(first, last))` (or single tokens). `Range` refuses a reversed pair and one that crosses runtime families.
+- The number describes the TARGET, never ysonet and never the machine you generated on. Ask what an operator has to check on the app in front of them. Usually that is the framework the target PROCESS RUNS ON; where the gate is a compile-time compatibility switch it is the framework the target APPLICATION WAS BUILT AGAINST (its `TargetFrameworkAttribute`). Both are versions and both get declared.
+- Every new or changed runtime-gated gadget must name at least one evidence-backed working version. Test current/latest first. If it does not fire because of runtime compatibility, test older supported target versions, use the highest verified working version as the ceiling, and document the latest tested non-working version.
+- Declare a single token when only one build is established. Use `WithVersions(RuntimeVersion.Range(first, last))` only when evidence supports the whole contiguous span. `Range` refuses a reversed pair and one that crosses runtime families.
 - A declaration means "reproduced or documented here", never "fails everywhere else". Only claim a version the repo, the tests, or the gadget's own documented behavior establishes.
-- Leave `unspecified` when nothing proves a version, and when the real gate is not a runtime version at all (an OS patch like CVE-2017-8565, a library version, a config switch). Put that gate in `AdditionalInfo()` instead. Do not fill the axis in to make it look complete.
+- Leave `unspecified` when the real gate is not a version at all (an OS patch like CVE-2017-8565, a library version, a machine-wide switch). Put that gate in `AdditionalInfo()` instead. An existing gadget with no version evidence can remain visibly `unspecified`; a new runtime-gated gadget with no known working version is unverified and unfinished. Do not guess to make the axis look complete - and do not leave it empty when a framework threshold IS known, even if that threshold sits on the target app's build rather than the installed runtime. `DataViewManagerXxe` and `DataSetXxe` are the worked example: they declare 4.0 - 4.5.1 because `EnableLegacyXmlSettings()` reads the target app's own attribute, and both were wrongly `unspecified` until someone asked why a fully patched machine still fires them.
 - Run the `ysonet-audit-gadget-metadata` skill (and `ysonet-categorize-gadget` for a new gadget) after changing metadata. The metadata tests in `ysonet.Tests` lock the vocabulary, the per-gadget expansion, and a representative audit table.
 
 ## Dependency freshness policy
@@ -189,6 +299,59 @@ The maintainers are authorized, ethical security researchers (recognized by comp
 ## Dev tooling hygiene
 Project agent tooling is tracked and public so contributors and their agents share it: `CLAUDE.md`, `AGENTS.md`, and any skills or agents under `.claude/`. Keep them free of anything machine-specific or sensitive (see "No local artifacts in commits" below). Only personal local settings (`.claude/settings.local.json`) and the private `dev-kitchen/` working area stay out of git.
 
+## Public and private content (the seam)
+
+This repository is PUBLIC. A contributor may keep private material next to it -
+research tooling, datasets, unpublished gadgets or plugins, working notes - in a
+separate private repository whose folders are linked into this checkout at ignored
+paths. Those paths look like ordinary folders and are often directory junctions, so a
+file you edit there is really a file in the other repository.
+
+Read this before writing anything, and treat it as a hard rule:
+
+- **Ignored means private, and private means another repo.** If a path is ignored
+  (`.gitignore`, and locally `.git/info/exclude`), it is not part of this project.
+  Never copy, move, or quote its content into a tracked file. Never `git add -f` it.
+  Content belongs where its repo is: public work in tracked files, private work in the
+  ignored area.
+- **Never name a private artifact in tracked content.** No private path, tool,
+  dataset, script, or file name in code, docs, comments, tests, help text, memory
+  files, commit messages, or `.gitignore` itself. Tracked text may describe a
+  CAPABILITY in general terms ("if a code graph is configured, use it"), never the
+  artifact that provides it.
+- **New ignore rules for private paths go in `.git/info/exclude`,** which is local and
+  never committed, not in the tracked `.gitignore`. A rule in `.gitignore` publishes
+  the name it mentions. Keep tracked `.gitignore` entries generic (`local/`,
+  `dev-kitchen/`, `**/private/`).
+- **Read the private index when it exists.** If `.claude/memory/private/index.md` is
+  present, read it at session start along with `.claude/memory/memory.md`. It lists
+  what is private on this machine and the check to run before committing.
+- **Verify before committing.** When a private area is set up it provides a seam check
+  script; the private index names it. Run it before any commit here, and stop if it
+  reports a leak.
+- **When in doubt, ask.** If a change looks like it needs private content in a tracked
+  file, or a public file to mention a private name, stop and ask the maintainer. Do
+  not solve it by weakening the rule.
+
+### A private gadget or plugin hides itself from listings
+
+The tool supports the same seam. A module in the git-ignored `Generators/Private/` or
+`Plugins/Private/` folder can declare itself private: a gadget with
+`GadgetTags.Private` in `Labels()`, a plugin by returning true from `IsPrivate()`.
+
+- Listings hide it by default. Every listing entry point takes `includePrivate` and
+  defaults it to false, so a surface that forgets the flag shows nothing private. The
+  global `--display-private` (`--prv`) turns them back on for one run, interactive
+  mode included.
+- Generation is NEVER gated. A name that is resolved goes through a lookup method,
+  which never filters, so typing the full command still builds the payload and the
+  errors stay generic. Do not add a privacy check to a lookup path.
+- The public catalog (`docs/gadgets-and-plugins.md`) never mentions a private module,
+  and no tracked file may name one. Public tests enumerate the public set only.
+
+The rule lives in `ysonet/Helpers/Core/PrivateModulePolicy.cs`. It is a recording and
+documentation hygiene feature, not a security control.
+
 ## Running build/test/git commands without getting blocked
 
 Agents in this repo run a lot of build, test, and git commands. Two separate layers gate them, and it helps to know which is which:
@@ -209,6 +372,16 @@ What actually reduces the blocks (observed, not guaranteed):
 When work leaves open items - a decision the maintainer must make, a follow-up, a known limitation, a "worth doing later" fix - write each as its own short markdown file in `dev-kitchen/todo/` (create the folder if needed), with a `README.md` index. Each file states the decision, options with short pros and cons, a recommendation, and references to the code/test locations.
 
 Do NOT bury these only in a committed plan file or in code comments. Commits are frequent, so changed and committed documents are hard for the maintainer to spot; they need one clear, uncommitted place to see what to decide or do next. `dev-kitchen/` is git-ignored, so these stay dev-only and always show up in the working tree. When an item is decided, move it to `dev-kitchen/to-be-implemented/` (to build) or delete it (rejected).
+
+### Exception: a plan under `dev-kitchen/ideas/` keeps its own questions
+
+A plan being drafted is itself an uncommitted `dev-kitchen/` file, so a separate todo note for its questions would just split one plan across two files. For a plan in `dev-kitchen/ideas/` (or `to-be-implemented/`):
+
+- Every question, decision, and known limitation that BELONGS to that plan stays inside the plan file. Put them in an "Open questions" section at the BOTTOM of the file, so the maintainer can scroll to the end and see everything that needs an answer, then keep answered ones below it as a record.
+- Ask the user those questions in chat, in one batch, and fold each answer back into the plan. A plan is not ready to implement while an open question is unanswered.
+- Write a `dev-kitchen/todo/` note only for an item the plan will NOT carry: work deferred out of scope, or a decision about something else. A todo note must never duplicate an item the plan already tracks.
+
+This exception covers plan files only. Everything else still follows the rule above.
 
 ## Git workflow
 

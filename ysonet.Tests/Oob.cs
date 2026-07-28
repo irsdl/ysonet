@@ -6,6 +6,18 @@ using System.Text;
 
 namespace ysonet.Tests
 {
+    // Why a read of the interaction log found nothing.
+    internal enum InteractionReadStatus
+    {
+        // The log was read and holds no record. That IS evidence about the network.
+        Empty = 0,
+        // The log was read and holds records.
+        Read = 1,
+        // The log could not be read, or only partially. This is evidence about the local
+        // machine and must never be reported as "the server saw nothing".
+        Unreadable = 2,
+    }
+
     // Out-of-band (OOB) observation harness, built on interactsh-client.
     //
     // Why it exists: some payload effects cannot be seen by the in-process
@@ -196,25 +208,39 @@ namespace ysonet.Tests
             return "\\\\" + HostFor(label) + "\\share\\payload.dll";
         }
 
-        // Wait until the server reports an interaction for this label. Any protocol
-        // counts: DNS alone already proves the callback was attempted.
-        public bool Observed(string label, int totalMs)
+        // Wait until the server reports THIS EXACT protocol for this label.
+        //
+        // Exact, not "any protocol": the effect under test is a DNS resolution, and an
+        // interaction over some other protocol for the same host would not prove it. The
+        // pinned client also emits more protocols than the three the docs used to list, so
+        // "any" quietly widens over time. Protocol names come from the server verbatim,
+        // which is why an HTTPS request is "https" and never "http".
+        public bool WaitForProtocol(string label, string protocol, int totalMs)
         {
             string protocols;
-            return Observed(label, totalMs, out protocols);
+            return WaitForProtocol(label, protocol, totalMs, out protocols);
         }
 
-        public bool Observed(string label, int totalMs, out string protocols)
+        public bool WaitForProtocol(string label, string protocol, int totalMs, out string protocols)
         {
             int waited = 0;
             for (; ; )
             {
                 protocols = ProtocolsFor(label);
-                if (protocols.Length > 0) return true;
+                if (HasProtocol(protocols, protocol)) return true;
                 if (waited >= totalMs) return false;
                 System.Threading.Thread.Sleep(500);
                 waited += 500;
             }
+        }
+
+        // Whether a comma separated protocol list from ProtocolsFor contains one exactly.
+        public static bool HasProtocol(string protocols, string protocol)
+        {
+            if (protocols == null || protocol == null) return false;
+            foreach (string p in protocols.Split(','))
+                if (string.Equals(p.Trim(), protocol, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
 
         // The protocols already recorded for this label, comma separated, empty when the
@@ -222,7 +248,8 @@ namespace ysonet.Tests
         public string ProtocolsFor(string label)
         {
             var seen = new List<string>();
-            foreach (string line in ReadInteractionLines())
+            InteractionReadStatus status;
+            foreach (string line in ReadInteractionLines(out status))
             {
                 string fullId = JsonString(line, "full-id");
                 if (fullId == null) continue;
@@ -239,14 +266,164 @@ namespace ysonet.Tests
             return string.Join(",", seen.ToArray());
         }
 
+        // Why the last read produced no match, so a caller can report honest evidence
+        // instead of implying the server said "nothing happened".
+        public InteractionReadStatus LastReadStatus
+        {
+            get
+            {
+                InteractionReadStatus status;
+                ReadInteractionLines(out status);
+                return status;
+            }
+        }
+
+        // ---- session-level (unlabeled) observation ------------------------------
+        //
+        // interactsh v1.3.1's SMB server writes an interaction with protocol "smb" and NO
+        // full-id, so ProtocolsFor can never find it: that method requires a label-bearing
+        // full-id. The only honest correlation left is positional - remember how many
+        // COMPLETE records the log held before the action, then look only at records after
+        // that point. Callers must serialize their actions and finish each wait before
+        // starting the next, or an earlier event can be attributed to a later row.
+
+        /// <summary>
+        /// How many complete JSONL records the log holds right now. A partial trailing
+        /// line (the client is mid-write) is deliberately not counted, so the cursor never
+        /// sits in the middle of a record.
+        /// </summary>
+        public int CaptureInteractionCursor()
+        {
+            InteractionReadStatus status;
+            List<string> lines = ReadInteractionLines(out status);
+            int complete = 0;
+            foreach (string line in lines)
+                if (IsCompleteRecord(line)) complete++;
+            return complete;
+        }
+
+        /// <summary>
+        /// Wait for a record with this exact protocol that arrived AFTER the cursor.
+        /// Used only for protocols the server does not label.
+        /// </summary>
+        public bool WaitForSessionProtocolAfter(int cursor, string protocol, int totalMs)
+        {
+            int waited = 0;
+            for (; ; )
+            {
+                if (SessionProtocolSeenAfter(cursor, protocol)) return true;
+                if (waited >= totalMs) return false;
+                System.Threading.Thread.Sleep(500);
+                waited += 500;
+            }
+        }
+
+        private bool SessionProtocolSeenAfter(int cursor, string protocol)
+        {
+            InteractionReadStatus status;
+            List<string> lines = ReadInteractionLines(out status);
+            int index = 0;
+            foreach (string line in lines)
+            {
+                if (!IsCompleteRecord(line)) continue;
+                index++;
+                if (index <= cursor) continue;
+                string proto = JsonString(line, "protocol");
+                if (proto != null && string.Equals(proto, protocol, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool IsCompleteRecord(string line)
+        {
+            string t = line.Trim();
+            return t.Length > 1 && t[0] == '{' && t[t.Length - 1] == '}';
+        }
+
+        // ---- egress probing -----------------------------------------------------
+
+        /// <summary>
+        /// Issue an ordinary GET at this run's OOB host so the report can say whether
+        /// plain HTTP and TLS actually leave this machine. Diagnostic only: it never gates
+        /// a payload row, so a failure here is evidence, not an exception.
+        ///
+        /// Certificate validation stays NORMAL on purpose. An accept-all callback would
+        /// have to be installed on a ServicePointManager process global, which every later
+        /// request in this process would inherit. A TLS trust failure is useful evidence;
+        /// silently bypassing trust is not.
+        /// </summary>
+        public bool TryHttpRequest(string label, bool useTls, out string evidence)
+        {
+            string url = (useTls ? "https://" : "http://") + HostFor(label) + "/";
+            return TryHttpRequestUrl(url, out evidence);
+        }
+
+        public static bool TryHttpRequestUrl(string url, out string evidence)
+        {
+            System.Net.WebResponse response = null;
+            try
+            {
+                var request = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(url);
+                request.Method = "GET";
+                request.Timeout = HttpProbeTimeoutMs;
+                request.ReadWriteTimeout = HttpProbeTimeoutMs;
+                request.AllowAutoRedirect = false;
+                response = request.GetResponse();
+                using (Stream body = response.GetResponseStream())
+                {
+                    if (body != null)
+                    {
+                        var buffer = new byte[512];
+                        try { body.Read(buffer, 0, buffer.Length); } catch { }
+                    }
+                }
+                evidence = "request completed";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // The request may still have reached the server (a 4xx, a reset after the
+                // request line). The exact-protocol wait decides that, not this bool.
+                evidence = ex.GetType().Name + ": " + FirstLines(ex.Message, 1);
+                return false;
+            }
+            finally
+            {
+                if (response != null) try { response.Close(); } catch { }
+            }
+        }
+
+        // Ten seconds each way, so one unreachable endpoint cannot stall the tier. The
+        // observation budget that follows is separate and longer.
+        public const int HttpProbeTimeoutMs = 10000;
+
+        // A session backed by a JSONL file instead of a live client, so the protocol
+        // matching and cursor rules can be tested without a network or a child process.
+        internal static OobSession ForTest(string interactionFile, string domain)
+        {
+            return new OobSession(null, null, interactionFile, domain, "test fixture", true);
+        }
+
+        // Test seam: how many sessions this process disposed. The OOB tier must create and
+        // dispose exactly one for all three of its checks.
+        internal static int DisposeCount;
+
         public void Dispose()
         {
+            DisposeCount++;
             try { if (_client != null && !_client.HasExited) _client.Kill(); } catch { }
             try { if (_client != null) _client.Dispose(); } catch { }
             _client = null;
             if (_keepFiles)
             {
-                Console.Error.WriteLine("    [oob] kept " + _interactionFile + " (YSONET_TRACE)");
+                // The interaction log can hold authentication material from an SMB
+                // interaction, so retaining it is a deliberate operator choice. A test
+                // fixture owns its own file and cleans up itself, so say nothing for it.
+                if (_payloadFile != null)
+                    Console.Error.WriteLine("    [oob] kept " + _interactionFile
+                        + " (YSONET_TRACE). It can contain sensitive interaction data; delete it"
+                        + " when you are done.");
                 return;
             }
             SafeDelete(_payloadFile);
@@ -293,8 +470,10 @@ namespace ysonet.Tests
         }
 
         // The client keeps both files open, so read them shared and tolerate a partial
-        // last line.
-        private IEnumerable<string> ReadInteractionLines()
+        // last line. The status matters: "the server recorded nothing" and "this machine
+        // could not read the log" look identical in the returned list, and only the first
+        // one is evidence about the network.
+        private List<string> ReadInteractionLines(out InteractionReadStatus status)
         {
             var lines = new List<string>();
             try
@@ -307,9 +486,19 @@ namespace ysonet.Tests
                     while ((line = sr.ReadLine()) != null)
                         if (line.Length > 0) lines.Add(line);
                 }
+                status = lines.Count == 0 ? InteractionReadStatus.Empty : InteractionReadStatus.Read;
             }
-            catch (FileNotFoundException) { /* no interaction yet */ }
-            catch (IOException) { /* mid-write; the next poll gets it */ }
+            catch (FileNotFoundException)
+            {
+                // The client has not recorded anything at all yet.
+                status = InteractionReadStatus.Empty;
+            }
+            catch (IOException)
+            {
+                // Mid-write, or the file is momentarily unreadable. Whatever was read is
+                // partial, so a caller must not report "nothing happened" from it.
+                status = InteractionReadStatus.Unreadable;
+            }
             return lines;
         }
 

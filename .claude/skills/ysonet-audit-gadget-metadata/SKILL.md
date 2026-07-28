@@ -84,8 +84,23 @@ from different variants.
   `uncategorized` is used for missing or unreviewed evidence.
 - A declared runtime version is backed by a reproduction or by documented
   behavior, and reads as "recorded here", not "fails everywhere else". A gadget
-  gated by an OS patch, a library version, or a config switch stays `unspecified`
-  and keeps that gate in `AdditionalInfo()`.
+  gated by an OS patch, a library version, or a machine-wide switch stays
+  `unspecified` and keeps that gate in `AdditionalInfo()`.
+- The version describes the TARGET, not ysonet and not the machine that built
+  the payload. Check WHICH target property the number refers to: usually the
+  framework the target process runs on, but for a compile-time compatibility
+  gate it is the framework the target application was built against (its
+  `TargetFrameworkAttribute`) - still a version, still declared. A gadget whose
+  `AdditionalInfo()` names a framework threshold while its version axis says
+  `unspecified` is a finding, not an acceptable default: the legacy-XML gadgets
+  hit exactly that and hid a known 4.0 - 4.5.1 span behind "nobody looked".
+- A new or changed runtime-gated gadget names at least one verified working
+  target version. If current/latest was tested and did not fire because of
+  runtime compatibility, `WithVersions` uses the highest verified working
+  version rather than the failed latest version, and the limitation names both.
+- A single token does not become a range without evidence for the contiguous
+  span. An existing runtime-gated gadget with no known working version remains
+  an explicit unresolved finding, not an inferred declaration.
 
 ## 5. Resolve findings
 
@@ -121,5 +136,7 @@ variants were checked, not merely state that no issue was found.
 - Every fix is traceable to evidence.
 - Missing evidence remained visible.
 - Variant facts were not merged.
+- Runtime-gated additions name a working version, and latest-version failures do
+  not overstate the `WithVersions` ceiling.
 - Generation and plugin behavior were untouched.
 - Help, CLI discovery, documentation, and tests agree.

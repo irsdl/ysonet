@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace ysonet.Interactive
@@ -118,8 +118,25 @@ namespace ysonet.Interactive
             if (j >= description.Length || description[j] != ':')
                 return ""; // "Default" not used as a "Default: value" marker
             j++; // past the colon
-            while (j < description.Length && description[j] == ' ')
+            while (j < description.Length && (description[j] == ' ' || description[j] == '\r' || description[j] == '\n'))
                 j++;
+            if (j >= description.Length)
+                return "";
+
+            // A QUOTED default is taken whole, spaces, commas and all. Without this a
+            // default can only ever be one bare token, which is fine for "AES" or
+            // "winforms" and useless for a value that legitimately contains separators -
+            // an assembly display name ("Name, Version=..., Culture=..., PublicKeyToken=...")
+            // is the case that needed it. Quoting is also what tells the parser the author
+            // MEANT the whole string, so nothing has to be guessed from punctuation.
+            char quote = description[j];
+            if (quote == '"' || quote == '\'')
+            {
+                int close = description.IndexOf(quote, j + 1);
+                if (close > j)
+                    return description.Substring(j + 1, close - j - 1);
+            }
+
             int k = j;
             while (k < description.Length && !IsTokenBreak(description[k]))
                 k++;
@@ -297,6 +314,19 @@ namespace ysonet.Interactive
         {
             segment = segment.Replace(" or ", ",").Replace(" and ", ",");
             string[] parts = segment.Split(',');
+
+            // SOME COMMAS SEPARATE THE PIECES OF ONE VALUE, not alternatives. An assembly
+            // display name is the case that exposed this:
+            //
+            //   System.Management.Automation, Version=3.0.0.0, Culture=neutral, PublicKeyToken=...
+            //
+            // Offered as choices, that let the operator pick "Version=3.0.0.0" as the whole
+            // value of WSManPluginInstance's --assembly - a payload naming a type in an
+            // assembly called "Version=3.0.0.0". The tell is two or more Name=Value parts
+            // carrying no spaces; a real list of alternatives does not look like that.
+            if (AttributeLikeParts(parts) >= 2)
+                return new List<string>();
+
             var list = new List<string>();
             foreach (string raw in parts)
             {
@@ -309,6 +339,34 @@ namespace ysonet.Interactive
 
         // A plausible single-token choice value: short, no spaces, starts
         // alphanumeric. Rejects prose fragments that slip past the split.
+        /// <summary>
+        /// How many of these comma-separated parts look like "Name=Value" with no
+        /// whitespace anywhere - the shape the trailing attributes of an assembly display
+        /// name, a connection string, or a URI query use.
+        ///
+        /// Spaces around '=' deliberately do NOT count, because a numbered choice list is
+        /// written "1 = bare ObjectDataProvider, 2 = ..." and must keep being detected.
+        /// </summary>
+        private static int AttributeLikeParts(string[] parts)
+        {
+            int n = 0;
+            foreach (string raw in parts)
+            {
+                string t = (raw ?? "").Trim();
+                int eq = t.IndexOf('=');
+                if (eq <= 0 || eq == t.Length - 1)
+                    continue;
+                if (t.IndexOf(' ') >= 0)
+                    continue;
+
+                char c0 = t[0];
+                bool nameStartsSanely = (c0 >= 'A' && c0 <= 'Z') || (c0 >= 'a' && c0 <= 'z');
+                if (nameStartsSanely)
+                    n++;
+            }
+            return n;
+        }
+
         private static bool LooksLikeToken(string t)
         {
             if (string.IsNullOrEmpty(t) || t.Length > 30)

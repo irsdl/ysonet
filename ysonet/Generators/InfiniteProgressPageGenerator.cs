@@ -92,6 +92,10 @@ namespace ysonet.Generators
 }";
             }
 
+            // The two templates above quote with SINGLE quotes, so EscapeForJson (which also
+            // escapes the apostrophe) is right there. The two below quote with DOUBLE quotes
+            // and use EscapeForJsonDoubleQuoted instead: \' is not a legal JSON escape and
+            // fastJSON DROPS the character, so a URL holding one would arrive changed.
             if (IsFormatter(formatter, Formatters.FastJson))
             {
                 return @"
@@ -100,7 +104,7 @@ namespace ysonet.Generators
         ""Microsoft.ApplicationId.Framework.InfiniteProgressPage, Microsoft.ApplicationId.Framework, Version=10.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"":""1""
     },
     ""$type"":""1"",
-    ""AnimatedPictureFile"":""" + EscapeForJson(input, rawInput) + @"""
+    ""AnimatedPictureFile"":""" + EscapeForJsonDoubleQuoted(input, rawInput) + @"""
 }";
             }
 
@@ -108,7 +112,7 @@ namespace ysonet.Generators
             {
                 return @"
 !<!Microsoft.ApplicationId.Framework.InfiniteProgressPage,Microsoft.ApplicationId.Framework,Version=10.0.0.0,Culture=neutral,PublicKeyToken=31bf3856ad364e35> {
-    AnimatedPictureFile: """ + EscapeForJson(input, rawInput) + @"""
+    AnimatedPictureFile: """ + EscapeForJsonDoubleQuoted(input, rawInput) + @"""
 }";
             }
 

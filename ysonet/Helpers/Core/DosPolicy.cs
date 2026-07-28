@@ -118,6 +118,26 @@ namespace ysonet.Helpers.Core
             return IsDosGadget(gadgetName) ? RefusalMessage(gadgetName) : null;
         }
 
+        // The same refusal, worded for someone sitting in the interactive editor. There the
+        // acknowledgement is a SETTING in the list they are looking at, so telling them to
+        // "re-run with --i-understand-dos" is an instruction for a different program: it
+        // reads as a dead end, when the answer is one row away. Same guardrail, same
+        // deliberate act - only the direction is worded for the surface the user is on.
+        public static string EditorBlockedMessage(string gadgetName)
+        {
+            return (gadgetName ?? "") + " is a denial-of-service payload, so it is not built "
+                + "by accident: switch the \"" + AckOptionName + "\" setting on to build it.";
+        }
+
+        // The blocked-report line for an interactive selection, or null when nothing is
+        // blocked. Mirrors RefusalIfUnacknowledged for the editor's pre-generate checks.
+        public static string EditorBlockedIfUnacknowledged(string gadgetName, bool acknowledged)
+        {
+            if (acknowledged)
+                return null;
+            return IsDosGadget(gadgetName) ? EditorBlockedMessage(gadgetName) : null;
+        }
+
         // The banner shown with an acknowledged DoS payload. It stays generic
         // about the effect and appends the gadget's own AdditionalInfo(), so
         // gadget-specific timing (for example an effect that only fires when the

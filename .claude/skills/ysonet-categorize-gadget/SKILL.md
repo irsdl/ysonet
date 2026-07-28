@@ -72,8 +72,10 @@ make the target payload an information-disclosure gadget.
 Use these user-provided forms:
 
 - `command`
-- `local-file`
+- `local-file` (read on the OPERATOR machine while building)
+- `target-path` (a path only the TARGET process touches)
 - `unc-path`
+- `host` (a bare host name or IP the target reaches)
 - `remote-url`
 - `source-code-file`
 - `assembly-file`
@@ -82,20 +84,33 @@ Use these user-provided forms:
 - `uncategorized`
 
 Normally omit `.WithInputs(...)` and let the reader derive the value from the
-effective `CommandInputType`:
+effective `CommandInputType`. The full table is `GadgetFacetReader.DeriveInput`,
+which has one arm per enum member:
 
 | CommandInputType | Accepted input |
 |---|---|
 | `ShellCommand` | `command` |
 | `CsSourceFile` | `source-code-file` |
 | `DllPath` | `assembly-file` |
+| `UncPath` | `unc-path` |
+| `HostName` | `host` |
 | `Url` | `remote-url` |
 | `FilePath` | `local-file` |
+| `TargetPath` | `target-path` |
+| `TargetPathPair` | `target-path` |
+| `TargetPathAndLocalFile` | `target-path` |
 | `Ignored` | `none` |
 
-Override the derived value only when code proves additional or different forms,
-such as both `local-file` and `unc-path`. Distinguish a file ysonet consumes from
-a path the generated payload uses in the detailed help.
+The path types say WHOSE file system a path belongs to, and that is the one thing
+a user has to get right on a file gadget: `local-file` is read here while
+building, `target-path` is only touched by the deserializing process. Do not fold
+them together.
+
+Override the derived value only when code proves additional or different forms:
+both `local-file` and `unc-path` for a gadget that accepts either, or
+`remote-url` plus `target-path` for one whose `-c` is a URL and whose second
+option names a file on the target. Distinguish a file ysonet consumes from a path
+the generated payload uses in the detailed help.
 
 ### Requirements
 
@@ -124,13 +139,37 @@ build numbers, because "old build" does not tell an operator whether the payload
 lands. Tokens live in `RuntimeVersion`: `net-fx-2.0` through `net-fx-4.8.1`,
 `net-5.0` through `net-10.0`, `mono`, plus `other` and `unspecified`.
 
-- Declare a contiguous span with `RuntimeVersion.Range(first, last)`, which
-  refuses a reversed pair and one that crosses runtime families.
+- THE VERSION DESCRIBES THE TARGET, never ysonet and never the machine the
+  payload was built on. Ask "what does the operator have to check on the app in
+  front of them". That is usually the framework the target PROCESS RUNS ON, but
+  when the gate is a compile-time compatibility switch it is the framework the
+  target APPLICATION WAS BUILT AGAINST (its `TargetFrameworkAttribute`). Both are
+  versions and both get declared. `DataViewManagerXxe` and `DataSetXxe` are the
+  worked example: `EnableLegacyXmlSettings()` reads the entry assembly's
+  attribute, so an app stamped below 4.5.2 is exploitable on a fully patched
+  machine and one stamped 4.5.2+ is not on any build - they declare 4.0 - 4.5.1,
+  and that span is about the app. Both were wrongly left `unspecified` at first
+  because the reviewer measured ysonet's own build instead of the target's.
+- A new or changed runtime-gated gadget must name at least one evidence-backed
+  working version. Test the current/latest candidate first. If it does not fire
+  because of runtime compatibility, reproduce on older supported target
+  versions and use the highest verified working version, never the failed latest
+  version. Record the latest tested non-working version in `AdditionalInfo()` or
+  the gadget docs.
+- Use a single token when only one target version is established. Declare a contiguous
+  span with `RuntimeVersion.Range(first, last)` only when evidence supports the
+  whole span; `Range` refuses a reversed pair and one that crosses runtime
+  families.
 - A declaration means "reproduced or documented here", never "fails everywhere
   else". An unlisted version means nobody recorded it.
-- Leave `unspecified` when nothing establishes a version, and when the real gate
-  is not a runtime version at all: an OS patch (PSObject and CVE-2017-8565), a
-  library version, or a config switch. That detail belongs in `AdditionalInfo()`.
+- Leave `unspecified` when the real gate is not a version at all: an OS patch
+  (PSObject and CVE-2017-8565), a library version, or a machine-wide switch
+  somebody can toggle. That detail belongs in `AdditionalInfo()`. A gate that IS
+  a framework version threshold does not qualify, even when the threshold is on
+  the target app's build rather than the installed runtime - declare it. For an
+  existing gadget, missing version evidence can remain visibly `unspecified`;
+  for a new runtime-gated gadget it is an unresolved finding, not a finished
+  declaration.
 - Never fill this axis in to make a gadget look better documented. `unspecified`
   is the honest and expected value for most of the catalog.
 
@@ -180,6 +219,10 @@ exact target dependencies, changed files, and verification results.
 - Input is derived unless an override is necessary.
 - Variants remain internally consistent.
 - `other` and `uncategorized` retain different meanings.
-- Runtime versions are declared only where evidence names them, never to look complete.
+- Every new runtime-gated gadget names at least one verified working version; if
+  latest failed, the highest verified working and latest tested non-working
+  versions are recorded.
+- Runtime versions are declared only where evidence names them, with a single
+  token or an evidence-backed contiguous range, never to look complete.
 - Formatter values match effective variant support.
 - No plugin facet work was introduced.

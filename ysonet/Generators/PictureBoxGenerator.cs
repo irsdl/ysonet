@@ -109,6 +109,10 @@ namespace ysonet.Generators
 }";
             }
 
+            // The two templates above quote with SINGLE quotes, so EscapeForJson (which also
+            // escapes the apostrophe) is right there. The two below quote with DOUBLE quotes
+            // and use EscapeForJsonDoubleQuoted instead: \' is not a legal JSON escape and
+            // fastJSON DROPS the character, so a URL holding one would arrive changed.
             if (IsFormatter(formatter, Formatters.FastJson))
             {
                 return @"
@@ -118,7 +122,7 @@ namespace ysonet.Generators
     },
     ""$type"":""1"",
     ""WaitOnLoad"":true,
-    ""ImageLocation"":""" + EscapeForJson(input, rawInput) + @"""
+    ""ImageLocation"":""" + EscapeForJsonDoubleQuoted(input, rawInput) + @"""
 }";
             }
 
@@ -127,7 +131,7 @@ namespace ysonet.Generators
                 return @"
 !<!System.Windows.Forms.PictureBox,System.Windows.Forms,Version=4.0.0.0,Culture=neutral,PublicKeyToken=b77a5c561934e089> {
     WaitOnLoad: true,
-    ImageLocation: """ + EscapeForJson(input, rawInput) + @"""
+    ImageLocation: """ + EscapeForJsonDoubleQuoted(input, rawInput) + @"""
 }";
             }
 

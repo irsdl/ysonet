@@ -61,7 +61,10 @@ namespace ysonet.Generators
             RunSelfTest(AsBytes(payload), formatter, inputArgs, delegate
             {
                 DeserializeHandWritten(payload, formatter, dataContractJsonRootType);
-            });
+            },
+            // The child process cannot be handed a Type, so it gets the name and resolves it
+            // itself. Null for every format that names its own type in the document.
+            dataContractJsonRootType == null ? null : dataContractJsonRootType.AssemblyQualifiedName);
 
             return payload;
         }
@@ -195,36 +198,30 @@ namespace ysonet.Generators
                     FormatterType.DataContractXML,
                     true);
 
+            if (IsFormatter(formatter, Formatters.DataContractSerializer)
+                // XmlSerializer documents in this project use the same <root type="...">
+                // envelope, so they shrink the same way.
+                || IsFormatter(formatter, Formatters.XmlSerializer))
+                return XmlMinifier.Minify(text, null, null, FormatterType.DataContractXML, true);
+
+            // FsPickler's wire format is a JSON document, so it shrinks like the others.
+            if (IsFormatter(formatter, Formatters.FsPickler))
+                return JsonMinifier.Minify(text, null, null);
+
             return payload;
         }
 
         // The in-process half of the self-test: read the payload back with the same serializer
         // the target would use. Throwing is normal here (most payloads fire and then fail);
         // RunSelfTest owns the catch and reports through Debugging.ShowErrors.
+        //
+        // The format-to-deserializer map itself lives in Helpers/Serialization/PayloadReader,
+        // because the OUT-of-process self-test (Helpers/Core/IsolatedSelfTest, used by a
+        // denial-of-service gadget) has to read exactly the same formats exactly the same way.
+        // Two copies of that map is how a child quietly ends up testing something else.
         private void DeserializeHandWritten(object payload, string formatter, Type dataContractJsonRootType)
         {
-            string text = payload as string;
-
-            if (IsFormatter(formatter, Formatters.JsonNet))
-                SerializersHelper.JsonNet_deserialize(text);
-            else if (IsFormatter(formatter, Formatters.JavaScriptSerializer))
-                SerializersHelper.JavaScriptSerializer_deserialize(text);
-            else if (IsFormatter(formatter, Formatters.FastJson))
-                SerializersHelper.FastJson_deserialize(text);
-            else if (IsFormatter(formatter, Formatters.YamlDotNet))
-                SerializersHelper.YamlDotNet_deserialize(text);
-            else if (IsFormatter(formatter, Formatters.Xaml))
-                SerializersHelper.Xaml_deserialize(text);
-            else if (IsFormatter(formatter, Formatters.SharpSerializerXml))
-                SerializersHelper.SharpSerializer_Xml_deserialize_FromString(text);
-            else if (IsFormatter(formatter, Formatters.SharpSerializerBinary))
-                SerializersHelper.SharpSerializer_Binary_deserialize_FromByteArray((byte[])payload);
-            else if (IsMessagePackTypeless(formatter))
-                MessagePackTypelessTypeSwap.Deserialize((byte[])payload, IsMessagePackLz4(formatter));
-            else if (IsFormatter(formatter, Formatters.DataContractJsonSerializer))
-                SerializersHelper.DataContractJsonSerializer_deserialize(text, dataContractJsonRootType, null);
-            else
-                throw UnsupportedFormatter(formatter);
+            PayloadReader.Read(payload, formatter, dataContractJsonRootType);
         }
 
         // RunSelfTest works in bytes, because the out-of-process path writes the payload to a

@@ -9,7 +9,8 @@ namespace ysonet.Tests
 {
     /// <summary>
     /// Runs a payload inside a child process whose XML resolver defaults are the PRE-4.5.2
-    /// ones, so DataViewManagerXxe can be fired without touching machine-wide state.
+    /// ones, so the external-DTD gadgets (DataViewManagerXxe, DataSetXxe) can be fired
+    /// without touching machine-wide state.
     ///
     /// Why a child process at all. System.Xml decides once per process whether to hand a
     /// legacy XmlTextReader a real XmlUrlResolver:
@@ -38,6 +39,22 @@ namespace ysonet.Tests
         internal const string LegacyMoniker = ".NETFramework,Version=v4.5.1";
         internal const string HardenedMoniker = ".NETFramework,Version=v4.7.2";
 
+        // The facet token the legacy moniker stands for. A fire row records THIS, not the
+        // framework installed on the machine: what decides whether the payload fetches is
+        // the target app's own TargetFrameworkAttribute, so that is the number the gadget's
+        // version facet has to earn and the number an operator checks on a real target.
+        internal const string LegacyVersionToken = ysonet.Generators.RuntimeVersion.NetFx451;
+
+        /// <summary>
+        /// What the startup sweep looks for in the BUILD folder. This child is the one
+        /// run-owned artifact that cannot live in the per-run artifact directory (it has to
+        /// sit beside ysonet.exe to resolve the same dependencies), so it carries the run
+        /// token in its NAME instead - otherwise two concurrent runners would compile over,
+        /// and then delete, each other's executable while it was being run. The pattern is
+        /// deliberately narrow: the folder it sweeps is the product build output.
+        /// </summary>
+        internal const string ArtifactPattern = "ysonet_legacyxml_*";
+
         private static readonly Dictionary<string, string> Built = new Dictionary<string, string>();
         private static readonly List<string> Produced = new List<string>();
         private static string _lastError;
@@ -63,7 +80,9 @@ namespace ysonet.Tests
 
             _lastError = null;
             string tag = targetFrameworkMoniker.Contains("v4.5.1") ? "451" : "472";
-            string exePath = Path.Combine(BinDir, "ysonet_legacyxml_" + tag + ".exe");
+            // The run token keeps this executable private to this runner; see ArtifactPattern.
+            string exePath = Path.Combine(BinDir,
+                "ysonet_legacyxml_" + tag + "_" + Tests.RunToken + ".exe");
 
             try
             {
@@ -227,6 +246,7 @@ internal static class LegacyXmlRunner
         string text = new UTF8Encoding(false).GetString(_raw);
         try
         {
+            // The PROPERTY SETTER family (DataViewManagerXxe).
             if (string.Equals(_formatter, ""Xaml"", StringComparison.OrdinalIgnoreCase))
                 SerializersHelper.Xaml_deserialize(text);
             else if (string.Equals(_formatter, ""JavaScriptSerializer"", StringComparison.OrdinalIgnoreCase))
@@ -237,13 +257,27 @@ internal static class LegacyXmlRunner
                 SerializersHelper.SharpSerializer_Xml_deserialize_FromString(text);
             else if (string.Equals(_formatter, ""SharpSerializerBinary"", StringComparison.OrdinalIgnoreCase))
                 SerializersHelper.SharpSerializer_Binary_deserialize_FromByteArray(_raw);
+            // The ISerializable CONSTRUCTOR family (DataSetXxe). Note which ones take the
+            // RAW BYTES and which take text: handing a binary stream over as a string would
+            // turn a fire cell into a silent no-op that still looks like a payload failure.
+            else if (string.Equals(_formatter, ""BinaryFormatter"", StringComparison.OrdinalIgnoreCase))
+                SerializersHelper.BinaryFormatter_deserialize(_raw);
+            else if (string.Equals(_formatter, ""SoapFormatter"", StringComparison.OrdinalIgnoreCase))
+                SerializersHelper.SoapFormatter_deserialize(text);
+            else if (string.Equals(_formatter, ""LosFormatter"", StringComparison.OrdinalIgnoreCase))
+                SerializersHelper.LosFormatter_deserialize(_raw);
+            else if (string.Equals(_formatter, ""Json.NET"", StringComparison.OrdinalIgnoreCase))
+                SerializersHelper.JsonNet_deserialize(text);
+            else if (string.Equals(_formatter, ""FsPickler"", StringComparison.OrdinalIgnoreCase))
+                SerializersHelper.FsPickler_deserialize(text);
             else
                 Console.Error.WriteLine(""[child] unknown formatter "" + _formatter);
         }
         catch (Exception ex)
         {
-            // The setter can still throw AFTER the fetch it was asked to make, so a throw
-            // is not a failure here. The listener in the parent decides.
+            // The setter, or the DataSet serialization constructor, can still throw AFTER
+            // the fetch it was asked to make, so a throw is not a failure here. The
+            // listener in the parent decides.
             Console.Error.WriteLine(""[child] "" + ex.GetType().Name + "": "" + ex.Message);
         }
     }

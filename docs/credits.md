@@ -53,12 +53,16 @@ Credits for available gadgets:
                 [Finders: Steven Seeley, Markus Wulftange, Khoa Dinh] [Contributors: Soroush Dalili]
         DataSetTypeSpoof
                 [Finders: James Forshaw] [Contributors: Soroush Dalili, Markus Wulftange, Jang]
+        DataSetXxe
+                [Finders: SCRT] [Contributors: Soroush Dalili]
         DataTable
                 [Finders: Soroush Dalili]
         DataViewManagerXxe
                 [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Soroush Dalili]
         FileLogTraceListener
                 [Finders: Piotr Bazydlo]
+        FileSystemInfo
+                [Finders: James Forshaw] [Contributors: Soroush Dalili]
         FormsIdentity
                 [Finders: Soroush Dalili]
         GenericIdentity
@@ -101,12 +105,16 @@ Credits for available gadgets:
                 [Finders: James Forshaw] [Contributors: Soroush Dalili]
         TypeConfuseDelegateMono
                 [Finders: James Forshaw] [Contributors: Denis Andzakovic, Soroush Dalili]
+        WbemClassObjectUnmarshal
+                [Finders: James Forshaw, SCRT] [Contributors: Soroush Dalili]
         WindowsClaimsIdentity
                 [Finders: Soroush Dalili]
         WindowsIdentity
                 [Finders: Levi Broderick] [Contributors: Alvaro Munoz, Soroush Dalili]
         WindowsPrincipal
                 [Finders: Steven Seeley of Qihoo 360 Vulcan Team] [Contributors: Chris Anastasio]
+        WSManPluginInstance
+                [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Soroush Dalili]
         XamlAssemblyLoadFromFile
                 [Finders: Soroush Dalili] [Contributors: russtone]
         XamlImageInfo

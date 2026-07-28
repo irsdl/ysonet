@@ -10,11 +10,24 @@ namespace ysonet.Generators
         // Discovery facets (category search only): loads an executing assembly via a
         // WinForms getter chain (CompilerResults). Accepts a DLL path, local on .NET
         // Framework or a remote UNC path on modern .NET. All variants share this.
+        //
+        // The versions are the MODERN .NET ones, and they are the documented remote
+        // DLL loading support (.NET 5, 6 and 7 with WPF enabled, which is where the
+        // getter-call gadgets live) - the same standard of evidence BaseActivationFactory
+        // is declared on. They describe the TARGET, like every version facet.
+        //
+        // The .NET Framework half is deliberately NOT on this axis. Local DLL loading
+        // there is gated by whether System.CodeDom is available, which is an assembly
+        // question rather than a version threshold, and no framework build has been
+        // recorded for it - the suite never fires this gadget. An unlisted version means
+        // nobody recorded it, so the requirement axis still says net-framework and
+        // AdditionalInfo() still states the System.CodeDom condition.
         public override GadgetFacetSet Facets()
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.CodeExecution)
                 .WithInputs(PayloadInput.AssemblyFile, PayloadInput.UncPath)
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.Net50, RuntimeVersion.Net70))
                 .WithRequirements(GadgetRequirement.NetFramework, GadgetRequirement.ModernDotNet);
         }
 

@@ -11,6 +11,11 @@
 # is maintained by hand; a test in ysonet.Tests fails if it drifts from the
 # tool's real options.
 #
+# Those `--list` calls deliberately pass no --display-private, so completion
+# never offers a private gadget or plugin name. Pressing TAB during a recorded
+# session is exactly the accidental disclosure that flag exists to prevent. A
+# private module still builds when its full name is typed.
+#
 # How to load it:
 #   1) One session only:   . \path\to\ysonet.ps1
 #   2) Every session:      add that dot-source line to your $PROFILE
@@ -48,9 +53,9 @@ $script:YsonetOptions = @(
     @{ Names = @('--category');                           Kind = 'text'      }
     @{ Names = @('--debugmode');                          Kind = 'none'      }
     @{ Names = @('--i-understand-dos');                   Kind = 'none'      }
-    @{ Names = @('--i-understand-dos');                    Kind = 'none'      }
     @{ Names = @('-h', '--help');                         Kind = 'none'      }
     @{ Names = @('--fullhelp');                           Kind = 'none'      }
+    @{ Names = @('--prv', '--display-private');           Kind = 'none'      }
     @{ Names = @('--credit');                             Kind = 'none'      }
     @{ Names = @('--checkupdate');                        Kind = 'none'      }
 )

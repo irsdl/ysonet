@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestConsoleApp_YSONET", "Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ysonet.Tests", "ysonet.Tests\ysonet.Tests.csproj", "{7C2E1B90-6A2D-4F1E-9C3A-2E7B6D40AB01}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ysonet.TestSink", "ysonet.TestSink\ysonet.TestSink.csproj", "{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -68,6 +70,18 @@ Global
 			{7C2E1B90-6A2D-4F1E-9C3A-2E7B6D40AB01}.Release|x64.Build.0 = Release|Any CPU
 			{7C2E1B90-6A2D-4F1E-9C3A-2E7B6D40AB01}.Release|x86.ActiveCfg = Release|Any CPU
 			{7C2E1B90-6A2D-4F1E-9C3A-2E7B6D40AB01}.Release|x86.Build.0 = Release|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Debug|Any CPU.Build.0 = Debug|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Debug|x64.ActiveCfg = Debug|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Debug|x64.Build.0 = Debug|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Debug|x86.ActiveCfg = Debug|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Debug|x86.Build.0 = Debug|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Release|Any CPU.ActiveCfg = Release|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Release|Any CPU.Build.0 = Release|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Release|x64.ActiveCfg = Release|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Release|x64.Build.0 = Release|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Release|x86.ActiveCfg = Release|Any CPU
+			{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

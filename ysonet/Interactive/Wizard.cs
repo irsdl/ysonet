@@ -23,6 +23,12 @@ namespace ysonet.Interactive
         private readonly Menu _menu;
         private readonly Picker _picker;
 
+        // Whether this session lists private gadgets and plugins, from
+        // `ysonet -i --display-private` (--prv). Read-only for the whole session:
+        // no screen can turn it on, so a recorded session cannot reveal a private
+        // module by accident.
+        private readonly bool _showPrivate;
+
         // Shared across builds in one session: the module editor and the run-all
         // sweep both read/update it (currently the last shell command typed).
         private readonly WizardSession _session = new WizardSession();
@@ -44,7 +50,11 @@ namespace ysonet.Interactive
             "searchformatter", "runallformatters", "list", "checkupdate",
             // category discovery is reached through the top menu, not as a payload
             // field.
-            "category"
+            "category",
+            // display-private changes which modules the menus LIST. It never changes
+            // the payload, and it is set once for the session on the `ysonet -i`
+            // command line, so it is not an editable field.
+            "display-private"
         };
 
         // Global options the wizard collects as payload-affecting fields. Together
@@ -61,12 +71,47 @@ namespace ysonet.Interactive
             DosPolicy.AckOptionName
         };
 
-        public Wizard(IKeyReader keys, Stream output)
+        public Wizard(IKeyReader keys, Stream output, bool showPrivate = false)
         {
             _keys = keys ?? new ConsoleKeyReader();
             _output = output ?? Console.OpenStandardOutput();
+            _showPrivate = showPrivate;
             _menu = new Menu(_keys);
             _picker = new Picker(_keys);
+        }
+
+        // ---- What this session may LIST ---------------------------------------
+        //
+        // Every screen that discovers gadgets or plugins reads one of these two
+        // helpers, so a new screen cannot forget the flag. The "Generic" internal
+        // placeholder is dropped here too, exactly as the old inline loops did.
+
+        internal List<string> VisibleGadgetNames()
+        {
+            var names = new List<string>();
+            foreach (string n in GadgetRegistry.GetGadgetNames(_showPrivate))
+                if (n != "Generic")
+                    names.Add(n);
+            return names;
+        }
+
+        internal List<string> VisiblePluginNames()
+        {
+            return new List<string>(PluginRegistry.GetPluginNames(_showPrivate));
+        }
+
+        // The same set as VisibleGadgetNames(), loaded. Used by the two screens that
+        // need the instances (formatter search, run-all).
+        private List<IGenerator> VisibleGadgets()
+        {
+            var gadgets = new List<IGenerator>();
+            foreach (string name in VisibleGadgetNames())
+            {
+                IGenerator gg = GadgetRegistry.CreateGadgetInstance(name);
+                if (gg != null)
+                    gadgets.Add(gg);
+            }
+            return gadgets;
         }
 
         public int Run()
@@ -243,19 +288,14 @@ namespace ysonet.Interactive
         // (Generate and quit), so the caller can leave the payload on screen.
         private bool RunGadgetFlow()
         {
-            var names = new List<string>();
-            foreach (string n in GadgetRegistry.GetAllGadgetNames())
-                if (n != "Generic")
-                    names.Add(n);
-            return new ModuleEditor(_keys, _output, true, names, _session).Run();
+            return new ModuleEditor(_keys, _output, true, VisibleGadgetNames(), _session, _showPrivate).Run();
         }
 
         // ---- Plugin path -------------------------------------------------------
 
         private bool RunPluginFlow()
         {
-            var names = new List<string>(PluginRegistry.GetAllPluginNames());
-            return new ModuleEditor(_keys, _output, false, names, _session).Run();
+            return new ModuleEditor(_keys, _output, false, VisiblePluginNames(), _session, _showPrivate).Run();
         }
 
         // ---- Session command memory -------------------------------------------
@@ -283,13 +323,8 @@ namespace ysonet.Interactive
 
             WriteLine("");
             WriteLine("Gadgets with a formatter containing \"" + term + "\":");
-            foreach (string gadgetName in GadgetRegistry.GetAllGadgetNames())
+            foreach (IGenerator gg in VisibleGadgets())
             {
-                if (gadgetName == "Generic")
-                    continue;
-                IGenerator gg = GadgetRegistry.CreateGadgetInstance(gadgetName);
-                if (gg == null)
-                    continue;
                 var hits = new List<string>();
                 foreach (string f in gg.SupportedFormatters())
                     if (f.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -314,16 +349,8 @@ namespace ysonet.Interactive
             ConsoleStyle.WriteLine("Run all formatters (mirrors --runallformatters):", ConsoleStyle.Heading);
             WriteLine("Pick an input type and a formatter; every gadget that accepts both is run.");
 
-            // Load all gadgets once.
-            var gadgets = new List<IGenerator>();
-            foreach (string name in GadgetRegistry.GetAllGadgetNames())
-            {
-                if (name == "Generic")
-                    continue;
-                IGenerator gg = GadgetRegistry.CreateGadgetInstance(name);
-                if (gg != null)
-                    gadgets.Add(gg);
-            }
+            // Load the gadgets this session may list, once.
+            var gadgets = VisibleGadgets();
 
             // A "generate everything" run never builds a denial-of-service payload.
             // Filtering here, before any count is taken, keeps every number shown
@@ -344,6 +371,7 @@ namespace ysonet.Interactive
             {
                 CommandInputType.ShellCommand, CommandInputType.CsSourceFile,
                 CommandInputType.DllPath, CommandInputType.UncPath,
+                CommandInputType.HostName,
                 CommandInputType.Url, CommandInputType.FilePath,
                 CommandInputType.TargetPath, CommandInputType.TargetPathPair,
                 CommandInputType.TargetPathAndLocalFile
@@ -584,6 +612,7 @@ namespace ysonet.Interactive
                 case CommandInputType.CsSourceFile: return ".cs source file";
                 case CommandInputType.DllPath: return "DLL path";
                 case CommandInputType.UncPath: return "UNC path";
+                case CommandInputType.HostName: return "Host name or IP";
                 case CommandInputType.Url: return "URL";
                 case CommandInputType.FilePath: return "File path";
                 case CommandInputType.TargetPath: return "Target path";
@@ -656,6 +685,7 @@ namespace ysonet.Interactive
                 case CommandInputType.CsSourceFile: return "Path to .cs source file (';' for extra assemblies)";
                 case CommandInputType.DllPath: return "Path to .dll";
                 case CommandInputType.UncPath: return "UNC path (\\\\host\\share\\file)";
+                case CommandInputType.HostName: return "Host name or IP the target connects to";
                 case CommandInputType.Url: return "URL";
                 case CommandInputType.FilePath: return "File path (e.g. a XAML file)";
                 case CommandInputType.TargetPath: return "Path on the target";
@@ -673,6 +703,7 @@ namespace ysonet.Interactive
                 case CommandInputType.CsSourceFile: return "This gadget compiles the .cs file. Example: ExploitClass.cs;System.Windows.Forms.dll";
                 case CommandInputType.DllPath: return "This gadget loads the DLL on the target. A UNC path works for remote loading.";
                 case CommandInputType.UncPath: return "A UNC path the TARGET opens over SMB, so the host must be reachable from it. Nothing is read here.";
+                case CommandInputType.HostName: return "A bare host name or IP the TARGET connects to, with no scheme and no path. Nothing is resolved here.";
                 case CommandInputType.Url: return "This gadget expects an absolute URL (e.g. a remoting endpoint).";
                 case CommandInputType.FilePath: return "This gadget reads the file HERE while building the payload (local or UNC path).";
                 case CommandInputType.TargetPath: return "A path on the TARGET, used when the payload runs. Nothing is read or written here.";

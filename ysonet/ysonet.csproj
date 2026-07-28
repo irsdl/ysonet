@@ -213,8 +213,10 @@
     <Compile Include="Generators\ClaimsPrincipalGenerator.cs" />
     <Compile Include="Generators\DataSetGenerator.cs" />
     <Compile Include="Generators\DataSetTypeSpoofGenerator.cs" />
+    <Compile Include="Generators\DataSetXxeGenerator.cs" />
     <Compile Include="Generators\DataTableGenerator.cs" />
     <Compile Include="Generators\DataViewManagerXxeGenerator.cs" />
+    <Compile Include="Generators\FileSystemInfoGenerator.cs" />
     <Compile Include="Generators\GetterSecurityExceptionGenerator.cs" />
     <Compile Include="Generators\GetterSettingsPropertyValueGenerator.cs" />
     <Compile Include="Generators\HostedPayloads\XamlAssemblyLoadFromFileGenerator.cs" />
@@ -240,6 +242,8 @@
     <Compile Include="Generators\TypeConfuseDelegateFileOperationsGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateMonoGenerator.cs" />
+    <Compile Include="Generators\WbemClassObjectUnmarshalGenerator.cs" />
+    <Compile Include="Generators\WSManPluginInstanceGenerator.cs" />
     <Compile Include="Generators\WindowsClaimsIdentityGenerator.cs" />
     <Compile Include="Generators\WindowsIdentityGenerator.cs" />
     <Compile Include="Interactive\IKeyReader.cs" />
@@ -274,7 +278,9 @@
     <Compile Include="Helpers\Cli\UpdateChecker.cs" />
     <Compile Include="Helpers\Core\DosPolicy.cs" />
     <Compile Include="Helpers\Core\IsolatedSelfTest.cs" />
+    <Compile Include="Helpers\Core\LegacyXmlDefaults.cs" />
     <Compile Include="Helpers\Core\PayloadRunner.cs" />
+    <Compile Include="Helpers\Core\PrivateModulePolicy.cs" />
     <Compile Include="Helpers\Crypto\MachineKey.cs" />
     <Compile Include="Helpers\Crypto\MachineKeyDataProtector.cs" />
     <Compile Include="Helpers\Crypto\Sp800_108.cs" />
@@ -283,6 +289,7 @@
     <Compile Include="Helpers\Discovery\GadgetRegistry.cs" />
     <Compile Include="Helpers\Discovery\PluginRegistry.cs" />
     <Compile Include="Helpers\Input\CommandArgSplitter.cs" />
+    <Compile Include="Helpers\Input\DtdSystemLiteral.cs" />
     <Compile Include="Helpers\Input\InputArgs.cs" />
     <Compile Include="Helpers\MessagePack\MessagePackTypelessTypeSwap.cs" />
     <Compile Include="Helpers\Minifiers\BinaryFormatterMinifier.cs" />
@@ -310,10 +317,12 @@
     <Compile Include="Helpers\SharpSerializer\SharpSerializerTypeSwap.cs" />
     <Compile Include="Helpers\Serialization\FormatterType.cs" />
     <Compile Include="Helpers\Serialization\MinifiedTextGuard.cs" />
+    <Compile Include="Helpers\Serialization\PayloadReader.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.BinaryFormatter.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.DataContract.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.FastJson.cs" />
+    <Compile Include="Helpers\Serialization\SerializersHelper.FsPickler.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.DataContractJson.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.JavaScript.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.Json.cs" />

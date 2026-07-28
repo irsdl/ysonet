@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using ysonet.Generators;
+using ysonet.Helpers.Core;
 
 namespace ysonet.Helpers
 {
@@ -9,6 +10,17 @@ namespace ysonet.Helpers
     /// Helper class for gadget discovery, validation, and instantiation.
     /// Provides centralized methods for all gadget-related operations.
     /// </summary>
+    //
+    // One rule decides whether a method filters private gadgets, and it is worth
+    // reading before adding a method here:
+    //
+    //   a name that is PRINTED goes through a LISTING method, which hides a private
+    //   gadget unless the caller asks for it (includePrivate, from --display-private);
+    //   a name that is RESOLVED goes through a LOOKUP method, which never filters.
+    //
+    // That split is what makes "typing the full command still works" true by
+    // construction: there is no privacy check anywhere in the generation path.
+    // See Helpers/Core/PrivateModulePolicy.cs.
     public static class GadgetRegistry
     {
         private static List<Type> _cachedGadgetTypes = null;
@@ -22,6 +34,15 @@ namespace ysonet.Helpers
             public string Name { get; set; }
             public string ClassName { get; set; }
             public Type Type { get; set; }
+
+            // True when the gadget declares GadgetTags.Private. Read once, here, so
+            // no listing has to instantiate the gadget again to decide visibility.
+            public bool IsPrivate { get; set; }
+
+            // Why the privacy declaration could not be read, or null. The gadget is
+            // then treated as PUBLIC (fail open), and Program reports this under
+            // --debugmode only, so a normal run's output is unchanged.
+            public Exception VisibilityError { get; set; }
 
             public GadgetInfo(string name, string className, Type type)
             {
@@ -65,10 +86,14 @@ namespace ysonet.Helpers
                 {
                     try
                     {
-                        string gadgetName = GetGadgetNameFromType(type);
-                        if (!string.IsNullOrEmpty(gadgetName))
+                        GadgetDescription described = Describe(type);
+                        if (!string.IsNullOrEmpty(described.Name))
                         {
-                            _cachedGadgetInfos.Add(new GadgetInfo(gadgetName, type.Name, type));
+                            _cachedGadgetInfos.Add(new GadgetInfo(described.Name, type.Name, type)
+                            {
+                                IsPrivate = described.IsPrivate,
+                                VisibilityError = described.VisibilityError
+                            });
                         }
                     }
                     catch
@@ -102,31 +127,100 @@ namespace ysonet.Helpers
             }
         }
 
+        // What one instantiation of a gadget type tells us: its name and whether it
+        // is private, plus why the privacy declaration could not be read.
+        private class GadgetDescription
+        {
+            public string Name;
+            public bool IsPrivate;
+            public Exception VisibilityError;
+        }
+
         /// <summary>
-        /// Gets the gadget name from a type by creating an instance and calling Name() method.
+        /// Reads a gadget type's name and privacy declaration with ONE instantiation.
         /// Falls back to class name processing if instantiation fails.
         /// </summary>
         /// <param name="type">The gadget type</param>
-        /// <returns>Gadget name</returns>
-        private static string GetGadgetNameFromType(Type type)
+        /// <returns>The name, the private flag, and any visibility-read failure</returns>
+        private static GadgetDescription Describe(Type type)
         {
+            var described = new GadgetDescription();
+            IGenerator generator;
             try
             {
-                // Try to create instance and get name from Name() method
                 var container = Activator.CreateInstance(null, type.FullName);
-                IGenerator generator = (IGenerator)container.Unwrap();
-                return generator.Name();
+                generator = (IGenerator)container.Unwrap();
+            }
+            catch (Exception e)
+            {
+                // Cannot construct it at all, so nothing about it can be read. Keep
+                // the class-derived name (a broken gadget stays visible instead of
+                // vanishing) and record why its visibility is a guess.
+                //
+                // An ABSTRACT type is the one expected case: the discovery sweep also
+                // picks up the GenericGenerator base, which every listing skips by
+                // name anyway. That is normal, so it is not reported as a failure.
+                described.Name = ClassDerivedName(type);
+                if (!type.IsAbstract)
+                    described.VisibilityError = e;
+                return described;
+            }
+
+            // The name and the privacy declaration are read SEPARATELY on purpose:
+            // if only one of them throws, the other is still trustworthy and must
+            // not be discarded with it.
+            try
+            {
+                described.Name = generator.Name();
             }
             catch
             {
-                // Fallback to class name processing
-                string name = type.Name;
-                if (name.EndsWith("Generator", StringComparison.OrdinalIgnoreCase))
-                {
-                    name = name.Substring(0, name.Length - "Generator".Length);
-                }
-                return name;
+                described.Name = ClassDerivedName(type);
             }
+
+            bool isPrivate;
+            Exception visibilityError;
+            PrivateModulePolicy.TryIsPrivate(generator, out isPrivate, out visibilityError);
+            described.IsPrivate = isPrivate;
+            described.VisibilityError = visibilityError;
+            return described;
+        }
+
+        // The historical fallback name: the class name without its "Generator" suffix.
+        private static string ClassDerivedName(Type type)
+        {
+            string name = type.Name;
+            if (name.EndsWith("Generator", StringComparison.OrdinalIgnoreCase))
+            {
+                name = name.Substring(0, name.Length - "Generator".Length);
+            }
+            return name;
+        }
+
+        /// <summary>
+        /// One line per gadget whose privacy declaration could not be read. Empty in
+        /// a healthy build. Program prints these under --debugmode only.
+        /// </summary>
+        public static List<string> VisibilityDiagnostics()
+        {
+            var notes = new List<string>();
+            foreach (GadgetInfo info in GetAllGadgetInfos())
+            {
+                if (info.VisibilityError == null)
+                    continue;
+                notes.Add("Gadget '" + info.Name + "' (" + info.ClassName
+                    + "): could not read its visibility declaration, treating it as public. "
+                    + info.VisibilityError.Message);
+            }
+            return notes;
+        }
+
+        // The gadgets a LISTING may show. Private ones are dropped unless the caller
+        // explicitly asked for them.
+        private static IEnumerable<GadgetInfo> Listable(bool includePrivate)
+        {
+            var gadgetInfos = GetAllGadgetInfos();
+            return includePrivate ? gadgetInfos : gadgetInfos.Where(g => !g.IsPrivate);
         }
 
         /// <summary>
@@ -166,21 +260,27 @@ namespace ysonet.Helpers
             return false;
         }
 
+        // The four LISTING methods are the three below plus GetGadgetsSupportingFormatter.
+        // Each takes includePrivate and defaults it to false, so a caller that forgets
+        // it prints nothing private. Every other method here is a LOOKUP and never
+        // filters (see the rule at the top of the class).
+
         /// <summary>
         /// Returns an array of gadget names that contain the provided input string.
         /// </summary>
         /// <param name="searchString">String to search for in gadget names</param>
         /// <param name="caseSensitive">Whether search should be case sensitive</param>
+        /// <param name="includePrivate">Include private gadgets (--display-private)</param>
         /// <returns>Array of matching gadget names</returns>
-        public static string[] GetGadgetsContaining(string searchString, bool caseSensitive = false)
+        public static string[] GetGadgetsContaining(string searchString, bool caseSensitive = false,
+            bool includePrivate = false)
         {
             if (string.IsNullOrWhiteSpace(searchString))
-                return GetAllGadgetNames();
+                return GetGadgetNames(includePrivate);
 
-            var gadgetInfos = GetAllGadgetInfos();
             var comparison = caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 
-            return gadgetInfos
+            return Listable(includePrivate)
                 .Where(g => g.Name.IndexOf(searchString, comparison) >= 0)
                 .Select(g => g.Name)
                 .Distinct()
@@ -189,13 +289,14 @@ namespace ysonet.Helpers
         }
 
         /// <summary>
-        /// Returns all existing gadget names.
+        /// Returns the gadget names a listing may show. Not "all": a private gadget
+        /// is left out unless includePrivate is set.
         /// </summary>
-        /// <returns>Array of all gadget names</returns>
-        public static string[] GetAllGadgetNames()
+        /// <param name="includePrivate">Include private gadgets (--display-private)</param>
+        /// <returns>Array of listable gadget names</returns>
+        public static string[] GetGadgetNames(bool includePrivate = false)
         {
-            var gadgetInfos = GetAllGadgetInfos();
-            return gadgetInfos
+            return Listable(includePrivate)
                 .Select(g => g.Name)
                 .Distinct()
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
@@ -203,13 +304,13 @@ namespace ysonet.Helpers
         }
 
         /// <summary>
-        /// Returns all existing gadget information as tuples of (Name, ClassName).
+        /// Returns listable gadget information as tuples of (Name, ClassName).
         /// </summary>
+        /// <param name="includePrivate">Include private gadgets (--display-private)</param>
         /// <returns>Array of tuples containing gadget name and class name pairs</returns>
-        public static (string Name, string ClassName)[] GetAllGadgetInfo()
+        public static (string Name, string ClassName)[] GetGadgetNameClassPairs(bool includePrivate = false)
         {
-            var gadgetInfos = GetAllGadgetInfos();
-            return gadgetInfos
+            return Listable(includePrivate)
                 .Select(g => (g.Name, g.ClassName))
                 .OrderBy(tuple => tuple.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -317,16 +418,16 @@ namespace ysonet.Helpers
         /// Gets gadgets that support a specific formatter.
         /// </summary>
         /// <param name="formatter">The formatter name</param>
+        /// <param name="includePrivate">Include private gadgets (--display-private)</param>
         /// <returns>Array of gadget names that support the formatter</returns>
-        public static string[] GetGadgetsSupportingFormatter(string formatter)
+        public static string[] GetGadgetsSupportingFormatter(string formatter, bool includePrivate = false)
         {
             if (string.IsNullOrWhiteSpace(formatter))
                 return new string[0];
 
             var supportedGadgets = new List<string>();
-            var gadgetInfos = GetAllGadgetInfos();
 
-            foreach (var gadgetInfo in gadgetInfos)
+            foreach (var gadgetInfo in Listable(includePrivate))
             {
                 try
                 {

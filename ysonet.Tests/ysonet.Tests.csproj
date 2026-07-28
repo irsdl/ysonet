@@ -39,6 +39,9 @@
     <Reference Include="System.Core" />
     <!-- For the XmlMinifier encodingStyle test: parse the minified output with XmlDocument. -->
     <Reference Include="System.Xml" />
+    <!-- For the DataSetXxe tests: name System.Data.DataSet directly instead of resolving it
+         through a type string on every assertion. -->
+    <Reference Include="System.Data" />
     <!-- For the SharePoint CVE-2026-50522 framing test: URL-decode the form body with HttpUtility. -->
     <Reference Include="System.Web" />
     <!-- For the FULL-tier ObjRef firing test: register a loopback remoting client channel. -->
@@ -59,10 +62,19 @@
     <Compile Include="DosFakes.cs" />
     <Compile Include="InstallerFixture.cs" />
     <Compile Include="LegacyXmlChild.cs" />
+    <Compile Include="LegacyXmlHttpServer.cs" />
+    <Compile Include="LoopbackListener.cs" />
     <Compile Include="Oob.cs" />
+    <Compile Include="PrivateFakes.cs" />
+    <Compile Include="RunStatus.cs" />
     <Compile Include="RuntimeBuild.cs" />
+    <Compile Include="TestEnvironment.cs" />
+    <Compile Include="TestRunOptions.cs" />
     <Compile Include="Tests.cs" />
+    <Compile Include="TestSink.cs" />
+    <Compile Include="UiIsolation.cs" />
     <Compile Include="VirtualTerminal.cs" />
+    <Compile Include="WerContainment.cs" />
     <!-- Optional local-only tests for unpublished gadgets/plugins; ignored, and the
          wildcard matches nothing in a normal clone. See ysonet.csproj. -->
     <Compile Include="Private\**\*.cs" />
@@ -71,6 +83,16 @@
     <ProjectReference Include="..\ysonet\ysonet.csproj">
       <Project>{6B40FDE7-14EA-4F57-8B7B-CC2EB4A25E6C}</Project>
       <Name>ysonet</Name>
+    </ProjectReference>
+    <!-- Build-order dependency only. ReferenceOutputAssembly=false keeps the sink out of
+         this assembly's references (it is a separate PROCESS a payload starts, never a
+         type we call), and Private=false stops it being copied by the normal reference
+         machinery, so the only path it reaches is the explicit Debug-only staging below. -->
+    <ProjectReference Include="..\ysonet.TestSink\ysonet.TestSink.csproj">
+      <Project>{C4A9E5B2-7D31-4F86-9A0C-3B5E82D7F410}</Project>
+      <Name>ysonet.TestSink</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
@@ -89,13 +111,24 @@
   <PropertyGroup>
     <RunYsonetTests Condition="'$(RunYsonetTests)' == ''">true</RunYsonetTests>
     <YsonetOutDir>$(MSBuildProjectDirectory)\..\ysonet\bin\Debug</YsonetOutDir>
+    <TestSinkExe>$(MSBuildProjectDirectory)\..\ysonet.TestSink\bin\$(Configuration)\ysonet.TestSink.exe</TestSinkExe>
   </PropertyGroup>
-  <Target Name="RunYsonetTests" AfterTargets="Build"
-          Condition="'$(Configuration)' == 'Debug' and '$(RunYsonetTests)' != 'false' and Exists('$(YsonetOutDir)\ysonet.exe')">
-    <Message Importance="high" Text="RunYsonetTests: running interactive/core tests from $(YsonetOutDir)" />
+
+  <!--
+    Stage everything the runner needs beside ysonet.exe. DEBUG ONLY, and SEPARATE from
+    RunYsonetTests on purpose: a "-p:RunYsonetTests=false" build must still leave a
+    CURRENT, runnable suite in ysonet\bin\Debug, which is how the runner matrix is driven
+    by hand. Nothing here copies into ysonet\bin\Release, so neither test executable can
+    reach a release artifact. When the sink is absent the suite falls back to the legacy
+    shell marker rather than losing a fire row.
+  -->
+  <Target Name="StageYsonetTests" AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Debug' and Exists('$(YsonetOutDir)\ysonet.exe')">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(YsonetOutDir)" OverwriteReadOnlyFiles="true" />
     <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(YsonetOutDir)"
           OverwriteReadOnlyFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    <Copy SourceFiles="$(TestSinkExe)" DestinationFolder="$(YsonetOutDir)"
+          OverwriteReadOnlyFiles="true" Condition="Exists('$(TestSinkExe)')" />
     <!-- The test exe runs from ysonet's output dir so the bundled DLLs resolve. Give it the
          same binding redirects as ysonet.exe by reusing ysonet.exe.config as
          ysonet.Tests.exe.config (single source of truth). The FULL suite needs these to load
@@ -104,6 +137,11 @@
           DestinationFiles="$(YsonetOutDir)\ysonet.Tests.exe.config"
           OverwriteReadOnlyFiles="true"
           Condition="Exists('$(YsonetOutDir)\ysonet.exe.config')" />
+  </Target>
+
+  <Target Name="RunYsonetTests" AfterTargets="Build" DependsOnTargets="StageYsonetTests"
+          Condition="'$(Configuration)' == 'Debug' and '$(RunYsonetTests)' != 'false' and Exists('$(YsonetOutDir)\ysonet.exe')">
+    <Message Importance="high" Text="RunYsonetTests: running interactive/core tests from $(YsonetOutDir)" />
     <Exec Command="&quot;$(YsonetOutDir)\ysonet.Tests.exe&quot;" WorkingDirectory="$(YsonetOutDir)" />
   </Target>
 </Project>

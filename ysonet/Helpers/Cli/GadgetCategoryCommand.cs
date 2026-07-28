@@ -72,12 +72,12 @@ namespace ysonet.Helpers
         // (each once) with its matching units in detail. Results go to stdout;
         // the header and the no-match note go to stderr. Returns the process exit
         // code: 0 when at least one gadget matched, 1 when none did.
-        public static int RunHumanSearch(GadgetCategoryQuery query)
+        public static int RunHumanSearch(GadgetCategoryQuery query, bool includePrivate = false)
         {
             Console.Error.WriteLine("Category search: " + query.Describe());
             Console.Error.WriteLine();
 
-            List<GadgetCapability> all = GadgetFacetReader.ExpandAll();
+            List<GadgetCapability> all = GadgetFacetReader.ExpandAll(includePrivate);
             var matchingByGadget = all
                 .Where(query.Matches)
                 .GroupBy(c => c.GadgetName, StringComparer.OrdinalIgnoreCase)
@@ -110,9 +110,9 @@ namespace ysonet.Helpers
 
         // Names-only matching gadgets, sorted, each once. Used by
         // `--list gadgets --category=...` for scripts.
-        public static List<string> MatchingGadgetNames(GadgetCategoryQuery query)
+        public static List<string> MatchingGadgetNames(GadgetCategoryQuery query, bool includePrivate = false)
         {
-            return GadgetFacetReader.ExpandAll()
+            return GadgetFacetReader.ExpandAll(includePrivate)
                 .Where(query.Matches)
                 .Select(c => c.GadgetName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)

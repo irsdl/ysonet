@@ -253,6 +253,15 @@ namespace ysonet.Generators
         // in debug mode.
         private void RunSelfTest(byte[] payload, string formatter, InputArgs inputArgs, Action inProcess)
         {
+            RunSelfTest(payload, formatter, inputArgs, inProcess, null);
+        }
+
+        // isolatedRootTypeName is the assembly qualified name a DataContractJsonSerializer
+        // payload must be read back as. That format writes no type name into the document, so
+        // the child has no other way to know one; every other format leaves it null.
+        private void RunSelfTest(byte[] payload, string formatter, InputArgs inputArgs, Action inProcess,
+            string isolatedRootTypeName)
+        {
             if (inputArgs == null || !inputArgs.Test)
                 return;
 
@@ -267,7 +276,7 @@ namespace ysonet.Generators
                         + "its own SerializationBinder, which the child process does not reproduce. "
                         + "Drop the binder or the SelfTestNeedsChildProcess override.");
 
-                Helpers.Core.IsolatedSelfTest.Run(payload, formatter, inputArgs, Name());
+                Helpers.Core.IsolatedSelfTest.Run(payload, formatter, inputArgs, Name(), isolatedRootTypeName);
                 return;
             }
 

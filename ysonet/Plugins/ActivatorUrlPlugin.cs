@@ -42,6 +42,9 @@ namespace ysonet.Plugins
             return "Harrison Neal";
         }
 
+        // A public plugin: it is listed everywhere, with or without --display-private.
+        public bool IsPrivate() { return false; }
+
         public OptionSet Options()
         {
             return options;

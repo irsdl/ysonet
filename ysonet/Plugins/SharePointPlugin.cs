@@ -75,6 +75,9 @@ namespace ysonet.Plugins
             return "CVE-2024-38018: Piotr Bazydło - explained by Khoa Dinh & implemented by Soroush Dalili, CVE-2025-49704: Khoa Dinh - implemented by Soroush Dalili, CVE-2025-53770: patch bypass of CVE-2025-49704 - implemented by Soroush Dalili, CVE-2026-50522: splitline of DEVCORE Research Team (ZDI-26-412) - implemented by Soroush Dalili, CVE-2018-8421: Soroush Dalili, CVE-2019-0604: Markus Wulftange, CVE-2020-1147: Oleksandr Mirosh, Markus Wulftange, Jonathan Birch, Steven Seeley (write-up)  - implemented by Soroush Dalili";
         }
 
+        // A public plugin: it is listed everywhere, with or without --display-private.
+        public bool IsPrivate() { return false; }
+
         public OptionSet Options()
         {
             return options;

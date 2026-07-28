@@ -1,0 +1,4 @@
+interface:
+  display_name: "Validate and Refine ysonet Document"
+  short_description: "Verify and improve plans and Markdown files"
+  default_prompt: "Use $ysonet-dev-validate-and-refine to verify every claim and refine this document until no uncertainty remains."

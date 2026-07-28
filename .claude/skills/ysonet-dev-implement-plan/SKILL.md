@@ -150,15 +150,30 @@ variants, facets, and the bridge members. A plan that lists only a formatter or
 a technique does not license leaving labels or other metadata at an empty
 placeholder.
 
-That includes the runtime version axis. After the FULL run, read its `Runtime:`
-line and the version report at the end of the execution matrix: a gadget that
-fired but declares no version is listed there by name. Declare
-`.WithVersions(RuntimeVersion.Range(floor, ceiling))` with the fired build as
-the ceiling and the documented type-introduction version as the floor (default
-`NetFx40`, `NetFx45` for the claims/WIF/`Comparer<T>.Create` families), repeat
-the range in every variant `FacetOverride`, and leave `unspecified` only when the
-real gate is not a runtime build. A plan that says nothing about versions is not
-authority to skip this. Additional branches that use existing
+That includes the runtime version axis. Every .NET Framework gadget plan and
+finished implementation must name at least one evidence-backed working target version.
+First identify whether the number describes the framework the target process
+runs on or, for a compile-time compatibility gate, the target application's
+`TargetFrameworkAttribute`; it never describes ysonet's own build.
+Test the current/latest candidate first. After a successful FULL run, read its
+`Runtime:` line and the version report at the end of the execution matrix: a
+gadget that fired but declares no version is listed there by name. If the latest
+candidate does not fire and runtime compatibility is the gate, reproduce the
+effect on older supported target versions and use the highest verified working
+version as the ceiling; never assign the failed latest version. Also record the
+latest tested non-working version in the gadget documentation or
+`AdditionalInfo()`.
+
+Use one runtime token when only one target version is established. Use
+`.WithVersions(RuntimeVersion.Range(floor, ceiling))` only when evidence supports
+the contiguous span, with the documented type-introduction version as the floor
+(default `NetFx40`, `NetFx45` for the claims/WIF/`Comparer<T>.Create` families).
+Repeat the declaration in every variant `FacetOverride`, and leave
+`unspecified` only when the real gate is not a runtime version. If a runtime-gated
+plan has no known working version, that is a material plan gap: stop and return
+it for evidence instead of guessing or declaring the implementation complete. A
+plan that says nothing about versions is not authority to skip this. Additional
+branches that use existing
 dependencies, targets, and public formatter tokens are required completion
 work, not a material deviation. If support requires an unapproved dependency,
 target change, new public formatter token, or different gadget technique, treat
@@ -199,6 +214,12 @@ Tests that write files follow `.claude/memory/testing.md`, use the repository's
 current test-artifact helpers, verify artifacts survive, and clean up in
 `finally`.
 
+For a gadget or plugin, run this coverage in the order required by the
+repository: first run only the changed module's focused tests and safe
+runtime-effect trigger. Keep that loop narrow until the module generates,
+deserializes, triggers as intended, and all of its focused assertions pass.
+Only then run repository-wide regression tests in step 8.
+
 ### 7. Update docs and public surfaces
 
 Apply the plan's documentation work and any newly discovered required updates:
@@ -215,29 +236,24 @@ Do not bump `VERSION` merely because documentation changed.
 
 ### 8. Verify and fix root causes
 
-Run the plan's exact commands when they remain valid. Otherwise use these
-defaults from the repository root:
+Use two verification gates for gadget/plugin work. Do not start with the
+automatic NORMAL tier or the FULL suite.
+
+First restore and compile without starting the post-build runner:
 
 ```text
 nuget restore ysonet.sln
-msbuild ysonet.sln -p:Configuration=Debug -v:minimal -nologo
+msbuild ysonet.sln -p:Configuration=Debug -p:RunYsonetTests=false -v:minimal -nologo
 ```
 
-The Debug build runs the normal tier. Run the FULL suite for any gadget,
-plugin, serializer, formatter, minifier, or cross-cutting payload change:
+Then run the plan's exact FOCUSED checks for the changed gadget or plugin only.
+Cover its generation, real deserializer paths, affected
+formatter/variant/mode/option/minify/error branches, and its safe runtime effect.
+Repeat only this focused set while fixing it. Do not treat a broad generation
+matrix as trigger evidence.
 
-```text
-cd ysonet/bin/Debug
-ysonet.Tests.exe --full
-```
-
-Run the standalone executable from its output directory so bundled assemblies
-resolve. Alternatively set `YSONET_FULL_TESTS=1` for the Debug build. Run a
-Release build when the plan changes packaging, build configuration, release
-output, or names it as a required check.
-
-Return to the repository root and smoke every changed runtime surface. Common
-checks include:
+Smoke every changed runtime surface during this focused gate. Common checks
+include:
 
 - `ysonet/bin/Debug/ysonet.exe --list gadgets`;
 - `ysonet/bin/Debug/ysonet.exe --list plugins`;
@@ -246,9 +262,45 @@ checks include:
 - interactive navigation; and
 - one representative real payload per materially different branch.
 
-Report command output honestly. Investigate and fix the root cause of each
-failure, then rerun the affected checks. If the required fix changes the design,
-return to step 4.
+Run a Release build here when the plan changes packaging, build configuration,
+release output, or names it as a required check.
+
+Only after the focused gate is green, run the repository regression gate from
+the repository root:
+
+```text
+msbuild ysonet.sln -p:Configuration=Debug -v:minimal -nologo
+```
+
+That Debug build runs the normal tier. Then run the FULL suite LAST for any
+gadget, plugin, serializer, formatter, minifier, or cross-cutting payload
+change:
+
+```text
+cd ysonet/bin/Debug
+ysonet.Tests.exe --full
+```
+
+Run the standalone executable from its output directory so bundled assemblies
+resolve. Alternatively set `YSONET_FULL_TESTS=1` for the final Debug build.
+When any final-regression failure needs a fix, return to the affected focused
+checks, repeat the normal tier, and rerun FULL. The final tested source state
+must end with a green FULL run.
+
+Report command output honestly. Read the `ENVIRONMENT VERDICT:` line printed just
+above the Passed/Failed summary BEFORE you attribute any failure to product code:
+
+- `clean` or `environment-limited`: any failure is ordinary work. Fix the root
+  cause. An `environment-limited` run also means checks did not run, so say which
+  ones were skipped rather than calling the coverage complete.
+- `environment-suspect` or `mixed`: at least one check reached its network action
+  with the capability available and still missed the effect. Report the capability
+  evidence from the report and ASK the maintainer how to proceed. Do not edit
+  product code or loosen an assertion over an environmental failure. Ordinary
+  failures in the same run stay actionable as usual.
+
+A skipped check is unverified, never passed. Then rerun the affected checks. If
+the required fix changes the design, return to step 4.
 
 ### 9. Review the final change
 
@@ -301,7 +353,9 @@ out in the final handoff.
       maximum verified formatter set even when the plan omitted that work.
 - [ ] New or changed gadgets followed the complete create-gadget skill.
 - [ ] New functions and behavior have focused and matrix/runtime coverage as applicable.
-- [ ] Debug tests, required FULL tests, optional Release checks, and smokes pass.
+- [ ] Gadget/plugin focused tests and runtime trigger passed before any repository-wide suite.
+- [ ] Smokes and optional Release checks passed before the final regression gate.
+- [ ] Debug tests passed and the final tested source state ends with a green FULL run.
 - [ ] Final diff and artifact scans are clean; unrelated user work is preserved.
 - [ ] `VERSION` was not changed and no commit or push occurred without approval.
 - [ ] Plan disposition (move, delete, or leave) was asked as explicit options,

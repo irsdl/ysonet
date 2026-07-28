@@ -147,14 +147,18 @@ namespace ysonet.Helpers
         // Parse a list of raw "axis=value" tokens into a query. Returns false with a
         // filled-in, actionable error on the first malformed token, unknown axis, or
         // unknown value. An empty input list parses to an empty query (matches all).
-        public static bool TryParse(IEnumerable<string> rawAxisValues, out GadgetCategoryQuery query, out string error)
+        public static bool TryParse(IEnumerable<string> rawAxisValues, out GadgetCategoryQuery query,
+            out string error, bool includePrivate = false)
         {
             query = new GadgetCategoryQuery();
             error = null;
             if (rawAxisValues == null)
                 return true;
 
-            string[] validFormatters = ValidFormatterTokens();
+            // Without --display-private a formatter only a private gadget offers is
+            // not a valid selection, and is not named in the "Valid formatters:"
+            // error either.
+            string[] validFormatters = ValidFormatterTokens(includePrivate);
 
             foreach (string raw in rawAxisValues)
             {
@@ -256,13 +260,13 @@ namespace ysonet.Helpers
             }
         }
 
-        // The distinct cleaned formatter tokens any gadget can actually produce.
-        // Used to validate a formatter= selection against real values.
-        public static string[] ValidFormatterTokens()
+        // The distinct cleaned formatter tokens any LISTABLE gadget can actually
+        // produce. Used to validate a formatter= selection against real values.
+        public static string[] ValidFormatterTokens(bool includePrivate = false)
         {
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var ordered = new List<string>();
-            foreach (GadgetCapability cap in GadgetFacetReader.ExpandAll())
+            foreach (GadgetCapability cap in GadgetFacetReader.ExpandAll(includePrivate))
                 foreach (string f in cap.Formatters)
                     if (set.Add(f))
                         ordered.Add(f);

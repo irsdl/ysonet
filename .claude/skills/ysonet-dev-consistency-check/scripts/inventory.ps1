@@ -62,6 +62,14 @@ function Get-ListFromExe([string]$category) {
     return @($out | ForEach-Object { $_.Trim() } | Where-Object { $_ -match $nameRe })
 }
 
+# Same listing with private modules included. The difference between the two IS
+# the private set, which is why the private source folders are never read here.
+function Get-ListFromExeWithPrivate([string]$category) {
+    $out = & $exePath "--list" $category "--display-private"
+    if ($LASTEXITCODE -ne 0) { throw "exe --list $category --display-private exited $LASTEXITCODE" }
+    return @($out | ForEach-Object { $_.Trim() } | Where-Object { $_ -match $nameRe })
+}
+
 function Get-StaticNames([string]$dir, [string]$suffix) {
     if (-not (Test-Path $dir)) { return @() }
     $files = Get-ChildItem -Path $dir -Recurse -Filter '*.cs' -ErrorAction SilentlyContinue
@@ -82,10 +90,15 @@ function Get-StaticNames([string]$dir, [string]$suffix) {
 
 $built = Test-Path $exePath
 $approx = $false
+$privateGadgets = @()
+$privatePlugins = @()
 if ($built) {
     try {
         $gadgets = Get-ListFromExe 'gadgets'
         $plugins = Get-ListFromExe 'plugins'
+        # The private set, derived from the tool itself. Empty in a clean clone.
+        $privateGadgets = @(Get-ListFromExeWithPrivate 'gadgets' | Where-Object { $gadgets -notcontains $_ })
+        $privatePlugins = @(Get-ListFromExeWithPrivate 'plugins' | Where-Object { $plugins -notcontains $_ })
     } catch {
         Write-Output "WARN: running the exe failed ($($_.Exception.Message)); falling back to static enumeration."
         $built = $false
@@ -207,8 +220,58 @@ foreach ($p in $plugins) {
 }
 "  ($pClean of $($plugins.Count) plugins present in ARCHITECTURE + docs + tests-dict)"
 ""
+"-- PRIVATE MODULES: visibility and placement ---------------------"
+if ($approx) {
+    "  SKIPPED: needs a Debug build (the private set is derived from --list vs --list --prv)."
+} else {
+    "Private gadgets: $($privateGadgets.Count)   Private plugins: $($privatePlugins.Count)"
+    "  (a private module is EXPECTED to be absent from the default listings and from"
+    "   every tracked doc; names are deliberately not printed)"
+
+    # A private module must not be named in any tracked file. Report WHERE, never WHO.
+    $leaks = 0
+    foreach ($n in @($privateGadgets + $privatePlugins)) {
+        foreach ($k in $docTexts.Keys) {
+            if (Test-Word $docTexts[$k] $n) { "  LEAK: a private module is named in docs/$k"; $leaks++ }
+        }
+        if (Test-Word $archText $n) { "  LEAK: a private module is named in docs/ARCHITECTURE.md"; $leaks++ }
+        if (Test-Word $testsText $n) { "  LEAK: a private module is named in ysonet.Tests/Tests.cs"; $leaks++ }
+    }
+    if ($leaks -eq 0) { "  no private module is named in the tracked docs or the public test file" }
+}
+
+# Static placement guard: a private DECLARATION belongs only in the private source
+# folders. A tracked public gadget/plugin marked private would silently vanish from
+# every listing, and the runtime cannot tell that apart from a real private module.
+$placementProblems = 0
+$implFiles = @()
+foreach ($d in @($generatorsDir, $pluginsDir)) {
+    if (Test-Path $d) {
+        $implFiles += Get-ChildItem -Path $d -Recurse -Filter '*.cs' -ErrorAction SilentlyContinue
+    }
+}
+foreach ($f in $implFiles) {
+    $rel = $f.FullName.Substring($RepoRoot.Length).TrimStart('\', '/') -replace '\\', '/'
+    # The private folders are where a declaration belongs; the contract files declare
+    # the tag/member itself and are not implementations.
+    if ($rel -match '/Private/') { continue }
+    if ($rel -match '/Base/IGenerator\.cs$' -or $rel -match '/base/IPlugin\.cs$') { continue }
+    $text = Get-Content -LiteralPath $f.FullName -Raw
+    if ($text -match 'GadgetTags\.Private') {
+        "  PLACEMENT: $rel declares GadgetTags.Private outside a Private/ folder"
+        $placementProblems++
+    }
+    if ($text -match 'IsPrivate\s*\(\s*\)\s*(\{[^}]*return\s+true|=>\s*true)') {
+        "  PLACEMENT: $rel returns true from IsPrivate() outside a Private/ folder"
+        $placementProblems++
+    }
+}
+if ($placementProblems -eq 0) {
+    "  no private declaration outside the private source folders"
+}
+""
 "-- FULL LISTS (for the agent's reference) ------------------------"
 "Gadgets: " + ($gadgets -join ', ')
 "Plugins: " + ($plugins -join ', ')
 ""
-"Done. Advisory only; confirm semantic claims and run the full test suite (check 7)."
+"Done. Advisory only; confirm semantic claims and run the full test suite (check 9)."

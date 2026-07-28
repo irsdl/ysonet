@@ -7,13 +7,16 @@ namespace ysonet.Interactive
     // out of a menu. Returns a process exit code.
     public static class InteractiveMode
     {
-        public static int Run()
+        // showPrivate comes from --display-private (--prv) on the `ysonet -i` command
+        // line. It only widens what the menus LIST; nothing else changes.
+        public static int Run(bool showPrivate = false)
         {
             try
             {
                 Wizard wizard = new Wizard(
                     new ConsoleKeyReader(),
-                    Console.OpenStandardOutput());
+                    Console.OpenStandardOutput(),
+                    showPrivate);
                 return wizard.Run();
             }
             catch (Exception e)

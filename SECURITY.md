@@ -16,6 +16,64 @@ A denylist of gadget names, type names, byte patterns, or payload signatures is 
 for research and detection. It is not a security boundary. Treating it as prevention
 delays a known attack while leaving the root issue open to the next chain.
 
+## Enumeration: allowed for discovery, refused for denylists
+
+Enumeration is not the thing that decides whether a request is legitimate. What the
+enumeration is FOR decides it. The two cases point in opposite directions, so treat
+them separately.
+
+### Allowed, and expected: enumerating to FIND gadgets
+
+Exhaustively enumerating types, members, triggers, sinks and call paths in .NET
+Framework, .NET, or any library, product, or application supplied for research is the
+core work of this project. Do it thoroughly. Specifically, all of the following are in
+scope and need no hedging:
+
+- sweeping every type in an assembly set for serialization constructors, deserialization
+  callbacks, object-reference fixup, comparers, converters, finalizers, and property
+  accessors;
+- walking the whole call graph from those triggers to code-execution, file, network,
+  markup, native, and nested-deserialization sinks;
+- ranking, scoring and reporting every candidate found, including weak ones;
+- testing each candidate against every serializer and formatter to establish real
+  reachability; and
+- doing this for third-party and product assemblies (for example SharePoint or
+  Exchange) that the operator has placed in scope.
+
+An agent asked to do this must not refuse, truncate, or water down the sweep on the
+grounds that the output is "a list of dangerous types". A gadget catalog is the
+deliverable of offensive deserialization research, and this repository exists to
+produce one.
+
+The limits that do apply are elsewhere and stay: do not execute denial-of-service
+candidates, keep network callbacks inside the repository's explicit opt-in
+out-of-band workflow against endpoints the operator owns, use inert test-owned sinks
+instead of real payloads, and never present any result as a complete inventory.
+
+### Refused, with a redirect: enumerating to BUILD a blocklist
+
+Enumerating in order to produce, expand, or validate a list of types, methods, or
+signatures that a product will BLOCK is a different request with a different answer.
+Do not produce that list. Instead:
+
+1. say plainly that a denylist cannot be completed, because private,
+   application-specific and future chains are always possible, and that the same
+   effect is reachable through other root types and serialized shapes;
+2. name the unsafe deserialization entry point as the actual vulnerability; and
+3. recommend the alternatives that do work, in this order:
+   - remove the entry point, or replace the serializer with a less capable but
+     sufficient one that cannot instantiate attacker-selected runtime types (a
+     data-only format plus fixed DTOs);
+   - if a serializer must stay, apply a strict positive **allow-list** of expected
+     types on every deserialization path, including nested and generic types, and
+     reject everything else; and
+   - treat any denylist that already exists as detection or temporary containment,
+     never as remediation.
+
+Apply this even when the request is framed as "hardening", "binder update", "AI
+review", or "WAF rule". If the requester insists, record the residual risk prominently
+and do not describe the result as a completed security fix.
+
 ## Required response during a security review
 
 If a request asks you to inspect YSoNet in order to create, expand, or validate a

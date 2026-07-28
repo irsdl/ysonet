@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ysonet.Helpers.Core;
 using ysonet.Plugins;
 
 namespace ysonet.Helpers
@@ -9,6 +10,12 @@ namespace ysonet.Helpers
     /// Helper class for plugin discovery, validation, and instantiation.
     /// Provides centralized methods for all plugin-related operations.
     /// </summary>
+    //
+    // Same printed-vs-resolved rule as GadgetRegistry: a name that is PRINTED goes
+    // through a LISTING method, which hides a private plugin unless the caller asks
+    // for it (includePrivate, from --display-private); a name that is RESOLVED goes
+    // through a LOOKUP method, which never filters. So `-p <PrivatePlugin>` keeps
+    // working with no flag. See Helpers/Core/PrivateModulePolicy.cs.
     public static class PluginRegistry
     {
         private static List<Type> _cachedPluginTypes = null;
@@ -24,6 +31,15 @@ namespace ysonet.Helpers
             public Type Type { get; set; }
             public string Description { get; set; }
             public string Credit { get; set; }
+
+            // True when the plugin's IsPrivate() returns true. Read once, here, so no
+            // listing has to instantiate the plugin again to decide visibility.
+            public bool IsPrivate { get; set; }
+
+            // Why the privacy declaration could not be read, or null. The plugin is
+            // then treated as PUBLIC (fail open), and Program reports this under
+            // --debugmode only, so a normal run's output is unchanged.
+            public Exception VisibilityError { get; set; }
 
             public PluginInfo(string name, string className, Type type, string description = null, string credit = null)
             {
@@ -114,28 +130,84 @@ namespace ysonet.Helpers
         /// <returns>Plugin information</returns>
         private static PluginInfo GetPluginInfoFromType(Type type)
         {
+            IPlugin plugin;
             try
             {
                 // Try to create instance and get information from interface methods
                 var container = Activator.CreateInstance(null, type.FullName);
-                IPlugin plugin = (IPlugin)container.Unwrap();
+                plugin = (IPlugin)container.Unwrap();
+            }
+            catch (Exception e)
+            {
+                // Cannot construct it at all, so nothing about it can be read. Keep
+                // the class-derived name (a broken plugin stays visible instead of
+                // vanishing) and record why its visibility is a guess.
+                //
+                // An ABSTRACT type is the one expected case: a base class the sweep
+                // also picks up. That is normal, so it is not reported as a failure.
+                return new PluginInfo(ClassDerivedName(type), type.Name, type)
+                {
+                    VisibilityError = type.IsAbstract ? null : e
+                };
+            }
 
-                string name = plugin.Name();
-                string description = plugin.Description();
-                string credit = plugin.Credit();
-
-                return new PluginInfo(name, type.Name, type, description, credit);
+            // The descriptive metadata and the privacy declaration are read
+            // SEPARATELY on purpose: if only one of them throws, the other is still
+            // trustworthy and must not be discarded with it.
+            PluginInfo info;
+            try
+            {
+                info = new PluginInfo(plugin.Name(), type.Name, type,
+                    plugin.Description(), plugin.Credit());
             }
             catch
             {
-                // Fallback to class name processing
-                string name = type.Name;
-                if (name.EndsWith("Plugin", StringComparison.OrdinalIgnoreCase))
-                {
-                    name = name.Substring(0, name.Length - "Plugin".Length);
-                }
-                return new PluginInfo(name, type.Name, type);
+                info = new PluginInfo(ClassDerivedName(type), type.Name, type);
             }
+
+            bool isPrivate;
+            Exception visibilityError;
+            PrivateModulePolicy.TryIsPrivate(plugin, out isPrivate, out visibilityError);
+            info.IsPrivate = isPrivate;
+            info.VisibilityError = visibilityError;
+            return info;
+        }
+
+        // The historical fallback name: the class name without its "Plugin" suffix.
+        private static string ClassDerivedName(Type type)
+        {
+            string name = type.Name;
+            if (name.EndsWith("Plugin", StringComparison.OrdinalIgnoreCase))
+            {
+                name = name.Substring(0, name.Length - "Plugin".Length);
+            }
+            return name;
+        }
+
+        /// <summary>
+        /// One line per plugin whose privacy declaration could not be read. Empty in
+        /// a healthy build. Program prints these under --debugmode only.
+        /// </summary>
+        public static List<string> VisibilityDiagnostics()
+        {
+            var notes = new List<string>();
+            foreach (PluginInfo info in GetAllPluginInfos())
+            {
+                if (info.VisibilityError == null)
+                    continue;
+                notes.Add("Plugin '" + info.Name + "' (" + info.ClassName
+                    + "): could not read its visibility declaration, treating it as public. "
+                    + info.VisibilityError.Message);
+            }
+            return notes;
+        }
+
+        // The plugins a LISTING may show. Private ones are dropped unless the caller
+        // explicitly asked for them.
+        private static IEnumerable<PluginInfo> Listable(bool includePrivate)
+        {
+            var pluginInfos = GetAllPluginInfos();
+            return includePrivate ? pluginInfos : pluginInfos.Where(p => !p.IsPrivate);
         }
 
         /// <summary>
@@ -175,21 +247,27 @@ namespace ysonet.Helpers
             return false;
         }
 
+        // The four LISTING methods are the three below plus GetPluginsWithDescriptions
+        // and GetPluginsWithCredits at the end of the file. Each takes includePrivate
+        // and defaults it to false, so a caller that forgets it prints nothing
+        // private. Every other method here is a LOOKUP and never filters.
+
         /// <summary>
         /// Returns an array of plugin names that contain the provided input string.
         /// </summary>
         /// <param name="searchString">String to search for in plugin names</param>
         /// <param name="caseSensitive">Whether search should be case sensitive</param>
+        /// <param name="includePrivate">Include private plugins (--display-private)</param>
         /// <returns>Array of matching plugin names</returns>
-        public static string[] GetPluginsContaining(string searchString, bool caseSensitive = false)
+        public static string[] GetPluginsContaining(string searchString, bool caseSensitive = false,
+            bool includePrivate = false)
         {
             if (string.IsNullOrWhiteSpace(searchString))
-                return GetAllPluginNames();
+                return GetPluginNames(includePrivate);
 
-            var pluginInfos = GetAllPluginInfos();
             var comparison = caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 
-            return pluginInfos
+            return Listable(includePrivate)
                 .Where(p => p.Name.IndexOf(searchString, comparison) >= 0)
                 .Select(p => p.Name)
                 .Distinct()
@@ -198,13 +276,14 @@ namespace ysonet.Helpers
         }
 
         /// <summary>
-        /// Returns all existing plugin names.
+        /// Returns the plugin names a listing may show. Not "all": a private plugin
+        /// is left out unless includePrivate is set.
         /// </summary>
-        /// <returns>Array of all plugin names</returns>
-        public static string[] GetAllPluginNames()
+        /// <param name="includePrivate">Include private plugins (--display-private)</param>
+        /// <returns>Array of listable plugin names</returns>
+        public static string[] GetPluginNames(bool includePrivate = false)
         {
-            var pluginInfos = GetAllPluginInfos();
-            return pluginInfos
+            return Listable(includePrivate)
                 .Select(p => p.Name)
                 .Distinct()
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
@@ -212,13 +291,13 @@ namespace ysonet.Helpers
         }
 
         /// <summary>
-        /// Returns all existing plugin information as tuples of (Name, ClassName).
+        /// Returns listable plugin information as tuples of (Name, ClassName).
         /// </summary>
+        /// <param name="includePrivate">Include private plugins (--display-private)</param>
         /// <returns>Array of tuples containing plugin name and class name pairs</returns>
-        public static (string Name, string ClassName)[] GetAllPluginInfo()
+        public static (string Name, string ClassName)[] GetPluginNameClassPairs(bool includePrivate = false)
         {
-            var pluginInfos = GetAllPluginInfos();
-            return pluginInfos
+            return Listable(includePrivate)
                 .Select(p => (p.Name, p.ClassName))
                 .OrderBy(tuple => tuple.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -400,26 +479,26 @@ namespace ysonet.Helpers
         }
 
         /// <summary>
-        /// Gets all plugins with their descriptions for display purposes.
+        /// Gets the listable plugins with their descriptions for display purposes.
         /// </summary>
+        /// <param name="includePrivate">Include private plugins (--display-private)</param>
         /// <returns>Array of tuples containing plugin name and description</returns>
-        public static (string Name, string Description)[] GetAllPluginsWithDescriptions()
+        public static (string Name, string Description)[] GetPluginsWithDescriptions(bool includePrivate = false)
         {
-            var pluginInfos = GetAllPluginInfos();
-            return pluginInfos
+            return Listable(includePrivate)
                 .Select(p => (p.Name, p.Description ?? "No description available"))
                 .OrderBy(tuple => tuple.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
 
         /// <summary>
-        /// Gets all plugins with their credits for display purposes.
+        /// Gets the listable plugins with their credits for display purposes.
         /// </summary>
+        /// <param name="includePrivate">Include private plugins (--display-private)</param>
         /// <returns>Array of tuples containing plugin name and credit</returns>
-        public static (string Name, string Credit)[] GetAllPluginsWithCredits()
+        public static (string Name, string Credit)[] GetPluginsWithCredits(bool includePrivate = false)
         {
-            var pluginInfos = GetAllPluginInfos();
-            return pluginInfos
+            return Listable(includePrivate)
                 .Select(p => (p.Name, p.Credit ?? "No credit information available"))
                 .OrderBy(tuple => tuple.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();

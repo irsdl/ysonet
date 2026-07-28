@@ -139,6 +139,11 @@ namespace ysonet.Generators
 }";
             }
 
+            // The two templates above quote with SINGLE quotes, so EscapeForJson (which also
+            // escapes the apostrophe) is right there. Every template from here down quotes
+            // with DOUBLE quotes and uses EscapeForJsonDoubleQuoted instead: \' is not a
+            // legal JSON escape, fastJSON DROPS the character, and a path like
+            // C:\John's dir would reach CustomLocation as C:\Johns dir.
             if (IsFormatter(formatter, Formatters.FastJson))
             {
                 return @"
@@ -147,7 +152,7 @@ namespace ysonet.Generators
         ""Microsoft.VisualBasic.Logging.FileLogTraceListener, Microsoft.VisualBasic, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"":""1""
     },
     ""$type"":""1"",
-    ""CustomLocation"":""" + EscapeForJson(input, rawInput) + @"""
+    ""CustomLocation"":""" + EscapeForJsonDoubleQuoted(input, rawInput) + @"""
 }";
             }
 
@@ -155,7 +160,7 @@ namespace ysonet.Generators
             {
                 return @"
 !<!Microsoft.VisualBasic.Logging.FileLogTraceListener,Microsoft.VisualBasic,Version=10.0.0.0,Culture=neutral,PublicKeyToken=b03f5f7f11d50a3a> {
-    CustomLocation: """ + EscapeForJson(input, rawInput) + @"""
+    CustomLocation: """ + EscapeForJsonDoubleQuoted(input, rawInput) + @"""
 }";
             }
 
@@ -175,7 +180,7 @@ namespace ysonet.Generators
                 // why SelfTestRootType above has to hand it to the self-test.
                 return @"
 {
-    ""CustomLocation"":""" + EscapeForJson(input, rawInput) + @"""
+    ""CustomLocation"":""" + EscapeForJsonDoubleQuoted(input, rawInput) + @"""
 }";
             }
 

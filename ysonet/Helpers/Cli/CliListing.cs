@@ -32,10 +32,13 @@ namespace ysonet.Helpers
         // would pick, so every listing hides it.
         private const string GenericName = "Generic";
 
-        // All gadget names a user can pass to -g.
-        public static List<string> Gadgets()
+        // The gadget names a user can pass to -g, minus any private gadget unless
+        // includePrivate is set (--display-private). Every method below is a
+        // LISTING, so each one carries that flag; the module-scoped helpers further
+        // down are lookups by a name the user already typed and never filter.
+        public static List<string> Gadgets(bool includePrivate = false)
         {
-            return GadgetRegistry.GetAllGadgetNames()
+            return GadgetRegistry.GetGadgetNames(includePrivate)
                 .Where(n => !string.Equals(n, GenericName, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -45,30 +48,31 @@ namespace ysonet.Helpers
         // null) query returns the same set as the parameterless Gadgets(), so
         // `--list gadgets` without a filter is byte-for-byte unchanged. The Generic
         // placeholder is excluded by the reader.
-        public static List<string> Gadgets(GadgetCategoryQuery query)
+        public static List<string> Gadgets(GadgetCategoryQuery query, bool includePrivate = false)
         {
             if (query == null || query.IsEmpty)
-                return Gadgets();
-            return GadgetCategoryCommand.MatchingGadgetNames(query);
+                return Gadgets(includePrivate);
+            return GadgetCategoryCommand.MatchingGadgetNames(query, includePrivate);
         }
 
-        // All plugin names a user can pass to -p.
-        public static List<string> Plugins()
+        // The plugin names a user can pass to -p, minus any private plugin unless
+        // includePrivate is set.
+        public static List<string> Plugins(bool includePrivate = false)
         {
-            return PluginRegistry.GetAllPluginNames()
+            return PluginRegistry.GetPluginNames(includePrivate)
                 .Where(n => !string.Equals(n, GenericName, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 
-        // The distinct set of formatter names supported by any gadget, cleaned of
-        // variant annotations ("Xaml (4)" -> "Xaml", "YamlDotNet < 5.0.0" ->
-        // "YamlDotNet"). Computed from the gadgets, so a new formatter shows up
+        // The distinct set of formatter names supported by any listable gadget,
+        // cleaned of variant annotations ("Xaml (4)" -> "Xaml", "YamlDotNet < 5.0.0"
+        // -> "YamlDotNet"). Computed from the gadgets, so a new formatter shows up
         // automatically.
-        public static List<string> Formatters()
+        public static List<string> Formatters(bool includePrivate = false)
         {
             var set = new HashSet<string>(StringComparer.Ordinal);
-            foreach (string name in GadgetRegistry.GetAllGadgetNames())
+            foreach (string name in GadgetRegistry.GetGadgetNames(includePrivate))
             {
                 if (string.Equals(name, GenericName, StringComparison.OrdinalIgnoreCase))
                     continue;
@@ -89,6 +93,8 @@ namespace ysonet.Helpers
 
         // The formatters a single gadget declares, kept as-is (including any
         // variant annotations) since that is exactly what the gadget reports.
+        // A LOOKUP by an exact name the user supplied, so it never filters: it does
+        // not disclose a private gadget, it answers about one already named.
         public static List<string> GadgetFormatters(string gadgetName)
         {
             IGenerator g = GadgetRegistry.CreateGadgetInstance(gadgetName);

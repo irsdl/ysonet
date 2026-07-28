@@ -102,24 +102,38 @@ unproven axis `uncategorized`, and never mix it with a real value on the same
 axis.
 
 Decide the runtime version axis here too, and do it last, after the runtime
-effect test in step 8 has actually fired the payload:
+effect test in step 8 has actually fired the payload. Every runtime-gated gadget
+or variant must name at least one evidence-backed WORKING VERSION before it is
+finished:
 
-- the CEILING is the build the FULL suite fired it on. Run FULL and read the
-  `Runtime:` line and the version report at the end of the execution matrix;
-  a gadget that fired but declares nothing is listed there by name.
-- the FLOOR is the documented introduction of the types the chain needs. A
-  payload that works on the newest build works on older ones too until it hits a
-  version where one of its types did not exist. Default `RuntimeVersion.NetFx40`
-  (the CLR v4 generation this tool targets); `NetFx45` when the chain goes
-  through `System.Security.Claims`, WIF, or `Comparer<T>.Create`. Microsoft
-  documentation is acceptable evidence for a floor.
-- declare it with
-  `.WithVersions(RuntimeVersion.Range(floor, ceiling))`, and repeat the range in
-  every variant `FacetOverride` (an override replaces the whole set; a standing
-  test fails the build when one variant declares versions and another does not).
+- identify what target property the version describes: normally the framework
+  the target process runs on, but for a compile-time compatibility gate it is
+  the target application's `TargetFrameworkAttribute`. Never use ysonet's build
+  merely because it is easy to read.
+- first test the current/latest candidate. Run FULL and read the `Runtime:` line
+  and the version report at the end of the execution matrix; a gadget that fired
+  but declares nothing is listed there by name.
+- if the effect does not fire on the latest candidate and the difference is a
+  runtime-version gate, do not use that version as the ceiling and do not finish
+  with vague compatibility. Reproduce on older supported target versions
+  (installed runtime or target-app stamp, as applicable) until at least one
+  fires, then use the highest verified working version as the ceiling. Record
+  the latest tested non-working version and the limitation in the gadget
+  documentation or `AdditionalInfo()`.
+- the FLOOR is the documented introduction of the types the chain needs. Default
+  `RuntimeVersion.NetFx40` (the CLR v4 generation this tool targets);
+  `NetFx45` when the chain goes through `System.Security.Claims`, WIF, or
+  `Comparer<T>.Create`. Microsoft documentation is acceptable evidence for a
+  floor.
+- use a single token when only one target version is verified. Use
+  `.WithVersions(RuntimeVersion.Range(floor, ceiling))` only when the evidence
+  supports that contiguous span. Repeat the declaration in every variant
+  `FacetOverride` (an override replaces the whole set; a standing test fails the
+  build when one variant declares versions and another does not).
 - leave `unspecified` when the gadget's real gate is not a runtime version at
-  all (an OS patch, a library version, a config switch) or when nothing fires it.
-  That gate belongs in `AdditionalInfo()`.
+  all (an OS patch, a library version, a config switch). That gate belongs in
+  `AdditionalInfo()`. If the gate is a runtime version but no working version has
+  been established, the gadget remains unverified and unfinished; never guess.
 
 ### 5. Implement the real chain
 
@@ -156,6 +170,37 @@ Keep the whole payload in the gadget's own file. This is a hard rule, and
   a type-name swap) still generates when the swap silently fails, so assert the
   target names in the emitted bytes, as
   `MessagePackTypelessCarriesTargetTypeNames` does.
+
+Take the operator's input as typed. Unless the user asked for validation, the only
+check is "not empty" (`RequireCommandInput`): no path, URL, scheme, host, extension,
+character-set, or assembly-identity check. What the value means is the TARGET's
+decision, ysonet never opens or resolves it, and a refusal only blocks the research.
+Teach the proven form in the option help, one line of `AdditionalInfo()`, and the
+docs; use `Debugging.ShowNote` for a hint, never a refusal. Refuse only what cannot
+be EMITTED. Escaping, the `--minify` corruption guard, and gadget scope are separate
+and still apply. Contract: `ysonet/Generators/README.md`, "Operator input: document
+it, do not police it".
+
+Accept `-t` by default, including when the effect leaves this machine - a callout is
+not damage. Refuse only when the self-test would damage or compromise the OPERATOR's
+machine (destroy their data, run their code, hand their unparsed bytes to native
+code), decided per VARIANT and before anything is constructed. A denial-of-service
+payload never deserializes in the ysonet process: route it through
+`SelfTestNeedsChildProcess` / `IsolatedSelfTest`, and refuse only where that child
+cannot run it. Contract: `ysonet/Generators/README.md`, "`-t` (self-test) policy".
+
+For a DENIAL-OF-SERVICE gadget, read `ysonet/Generators/README.md`, "Denial of
+service: one facet, and everything it turns on", and follow it in full. Declaring
+`PayloadKind.DenialOfService` is the single switch that arms the acknowledgement, the
+bulk exclusions, the test-tier exclusions and the interactive preview, so never add a
+second mechanism beside it. The parts that are NOT automatic are the ones to get
+right: `-t` through a child process with `PayloadReader.CanRead` covering every
+advertised formatter, one line printed before the child is terminated, never a row in
+any fire list, a short `AdditionalInfo()`, and per-formatter effect evidence produced
+by an operator-run harness that requires the TARGET'S OWN exception rather than
+merely a dead child. The acknowledgement is required on every surface and worded for
+each: the editor names the SETTING, never the command-line flag, and interactive use
+must not imply it.
 
 Write the gadget to be READ. It is research material: a human and an AI must be
 able to understand the technique from this one file. Nothing is hidden and
@@ -342,26 +387,39 @@ Do not document an unregistered draft as supported.
 
 ### 12. Verify in a loop
 
-Fix root causes and repeat until green:
+Keep the first test loop specific to the gadget. Restore and compile without
+starting the post-build runner:
 
 ```text
 nuget restore ysonet.sln
-msbuild ysonet.sln -p:Configuration=Debug -v:minimal -nologo
-cd ysonet/bin/Debug
-ysonet.Tests.exe --full
+msbuild ysonet.sln -p:Configuration=Debug -p:RunYsonetTests=false -v:minimal -nologo
 ```
 
-The Debug build runs the normal tier. The full tier is required for a gadget,
-formatter, or variant change. Run the standalone executable from its output
-directory so bundled assemblies resolve. If that route is not suitable, set
-`YSONET_FULL_TESTS=1` for the Debug build.
-
-Return to the repository root, then smoke:
+Run only the new gadget's focused generation/deserialization assertions,
+affected formatter/variant/option/minify/error cases, and safe runtime-effect
+trigger. Fix root causes and repeat this narrow set until the real payload
+triggers and every gadget-specific check passes. During that focused gate,
+smoke:
 
 - `ysonet/bin/Debug/ysonet.exe --list gadgets`;
 - `ysonet/bin/Debug/ysonet.exe --list formatters -g <Name>`;
 - one real generation for every materially different branch; and
 - the interactive module editor entry and category result.
+
+Only after that gate is green, run the normal Debug tests and then the FULL
+suite as the final regression gate:
+
+```text
+msbuild ysonet.sln -p:Configuration=Debug -v:minimal -nologo
+cd ysonet/bin/Debug
+ysonet.Tests.exe --full
+```
+
+Run the standalone executable from its output directory so bundled assemblies
+resolve. If that route is not suitable, set `YSONET_FULL_TESTS=1` for the final
+Debug build. If FULL exposes an issue, fix it, rerun the affected focused
+checks, and repeat the final regression gate. The final tested source state must
+end with a green FULL run.
 
 Report any environment-specific skip or blocker honestly.
 
@@ -377,13 +435,17 @@ Report any environment-specific skip or blocker honestly.
       variants, facets, and bridge members) has an evidence-backed value or an
       intentional default; none left at an unconsidered empty placeholder.
 - [ ] Facets, command input, labels, variants, and target requirements agree.
-- [ ] Runtime versions are declared from the build the FULL suite fired the
-      payload on plus a documented floor, repeated in every variant override, or
-      deliberately left `unspecified` with the real gate in `AdditionalInfo()`.
+- [ ] Every runtime-gated gadget or variant names at least one verified working
+      version. If latest failed, the highest verified working version is the
+      ceiling and the latest tested non-working version is documented.
+- [ ] `WithVersions` uses a single token for one established version or an
+      evidence-backed contiguous range, repeated in every variant override; a
+      non-runtime gate is deliberately left `unspecified` and documented.
 - [ ] Bridge metadata and `BridgedPayload` behavior are complete when applicable.
 - [ ] The old-style csproj entry is present only for the finished source.
-- [ ] Automatic generation, focused behavior, and runtime-effect coverage pass.
+- [ ] Focused generation, deserialization, behavior, and runtime-effect coverage passed first.
 - [ ] Public catalogs and help surfaces include the finished gadget.
-- [ ] Debug and FULL tests pass; reflection and interactive smokes pass.
+- [ ] Reflection and interactive smokes passed before the repository regression gate.
+- [ ] Debug tests passed and the final tested source state ends with a green FULL run.
 - [ ] No test was weakened, no fake placeholder was registered, and no version,
       commit, or push action was taken without the required approval.

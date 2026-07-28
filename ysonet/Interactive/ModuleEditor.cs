@@ -69,6 +69,12 @@ namespace ysonet.Interactive
         private readonly Menu _menu;
         private readonly Picker _picker;
 
+        // Whether this session lists private gadgets, from `ysonet -i --prv`. It has
+        // to reach the in-build category filter and the two gadget pickers as well as
+        // the module list, or a private gadget would show up and then vanish the
+        // moment a filter is opened.
+        private readonly bool _showPrivate;
+
         private ModuleView _view;
         private List<EditableField> _fields = new List<EditableField>();
 
@@ -91,13 +97,15 @@ namespace ysonet.Interactive
         private List<PluginMode> _modes;
         private EditableField _modeField;
 
-        public ModuleEditor(IKeyReader keys, Stream output, bool isGadget, List<string> moduleNames, WizardSession session)
+        public ModuleEditor(IKeyReader keys, Stream output, bool isGadget, List<string> moduleNames,
+            WizardSession session, bool showPrivate = false)
         {
             _keys = keys ?? new ConsoleKeyReader();
             _output = output ?? Console.OpenStandardOutput();
             _isGadget = isGadget;
             _moduleNames = moduleNames ?? new List<string>();
             _session = session ?? new WizardSession();
+            _showPrivate = showPrivate;
             _menu = new Menu(_keys);
             _picker = new Picker(_keys);
         }
@@ -132,7 +140,8 @@ namespace ysonet.Interactive
             if (!IsGadgetFilterActive)
                 return _moduleNames;
             var matches = new HashSet<string>(
-                GadgetCategoryCommand.MatchingGadgetNames(GadgetFilter), StringComparer.OrdinalIgnoreCase);
+                GadgetCategoryCommand.MatchingGadgetNames(GadgetFilter, _showPrivate),
+                StringComparer.OrdinalIgnoreCase);
             var result = new List<string>();
             foreach (string n in _moduleNames)
                 if (matches.Contains(n))
@@ -193,7 +202,7 @@ namespace ysonet.Interactive
         // query (so the gadget list narrows). The filter screen owns its own drawing.
         private void OpenGadgetCategoryFilter()
         {
-            new CategoryFilter(_keys, _session.CategorySelections).Run();
+            new CategoryFilter(_keys, _session.CategorySelections, _showPrivate).Run();
         }
 
         // Forces the single-panel presentation regardless of the console. Set by the
@@ -683,7 +692,7 @@ namespace ysonet.Interactive
             {
                 if (f == variantOpt)
                     continue;
-                list.Add(FromOption(f, false));
+                list.Add(FromOption(f, false, _showPrivate));
             }
 
             AddCommonTail(list);
@@ -738,7 +747,7 @@ namespace ysonet.Interactive
                 if (IsModeControlled(f.Name))
                     continue;
                 bool isGadgetPicker = string.Equals(f.Name, "gadget", StringComparison.OrdinalIgnoreCase);
-                list.Add(FromOption(f, isGadgetPicker));
+                list.Add(FromOption(f, isGadgetPicker, _showPrivate));
             }
             AddCommonTail(list);
             return list;
@@ -871,7 +880,7 @@ namespace ysonet.Interactive
                 {
                     Label = "bridgedgadgetchain",
                     Kind = FieldKind.Choice,
-                    Choices = BridgeGadgetNames(),
+                    Choices = BridgeGadgetNames(_showPrivate),
                     AllowCustom = true,
                     Help = "Advanced: feed another gadget's payload into this one (--bgc). Pick one, or type a comma-separated chain."
                 };
@@ -940,7 +949,7 @@ namespace ysonet.Interactive
 
         // Build an editor field from a gadget/plugin option, recovering a default,
         // a choice set and a required hint from the option's description text.
-        private static EditableField FromOption(OptionField f, bool gadgetPicker)
+        private static EditableField FromOption(OptionField f, bool gadgetPicker, bool includePrivate)
         {
             var ef = new EditableField { Label = f.DisplayName, Help = f.Description ?? "", ModuleOwn = true };
 
@@ -961,7 +970,7 @@ namespace ysonet.Interactive
             if (gadgetPicker)
             {
                 ef.Kind = FieldKind.Pick;
-                ef.Choices = GadgetNames();
+                ef.Choices = GadgetNames(includePrivate);
                 if (string.IsNullOrEmpty(f.Value))
                     f.Value = "ActivitySurrogateSelector";
                 return ef;
@@ -1232,6 +1241,7 @@ namespace ysonet.Interactive
                 case CommandInputType.CsSourceFile: return "ExploitClass.cs;System.Windows.Forms.dll";
                 case CommandInputType.DllPath: return "\\\\attacker\\share\\payload.dll";
                 case CommandInputType.UncPath: return "\\\\attacker\\share\\payload.dll";
+                case CommandInputType.HostName: return "attacker.example.com";
                 case CommandInputType.FilePath: return "C:\\path\\payload.xaml";
                 case CommandInputType.TargetPath: return "C:\\inetpub\\wwwroot\\dropped.txt";
                 case CommandInputType.TargetPathPair: return "C:\\work\\z-source.txt;C:\\work\\a-destination.txt";
@@ -1269,6 +1279,41 @@ namespace ysonet.Interactive
         // (each naming the setting, what it expects, and an example where relevant), and
         // the next step. Marked with a plain-ASCII "[!]" so the meaning does not depend
         // on color (which color-blind users may not distinguish).
+        // A denial-of-service selection with the acknowledgement still off. It is reported
+        // through the SAME blocked list as a missing command or an impossible
+        // variant/formatter pair, rather than being left to fail inside PayloadRunner,
+        // because that failure arrives as "Refused: ... Re-run with --i-understand-dos" -
+        // an instruction for the command-line tool, shown to someone whose settings list
+        // contains that exact switch one row away. The guardrail is unchanged: the operator
+        // still has to turn it on deliberately.
+        private string MissingDosAcknowledgementProblem()
+        {
+            if (!_isGadget || _view == null)
+                return null;
+
+            bool acknowledged = _dosAck != null && !_dosAck.Hidden
+                && string.Equals(_dosAck.Value, "true", StringComparison.OrdinalIgnoreCase);
+
+            // The bridged chain counts too, exactly as it does on the command line: naming a
+            // DoS gadget as an inner payload needs the same acknowledgement.
+            string blocked = DosPolicy.EditorBlockedIfUnacknowledged(_view.Name, acknowledged);
+            if (blocked != null)
+                return blocked;
+
+            if (_bridged != null && !_bridged.Hidden && !string.IsNullOrEmpty(_bridged.Value))
+            {
+                foreach (string inner in _bridged.Value.Split(','))
+                {
+                    blocked = DosPolicy.EditorBlockedIfUnacknowledged(inner.Trim(), acknowledged);
+                    if (blocked != null)
+                        return blocked;
+                }
+            }
+            return null;
+        }
+
+        internal string MissingDosAcknowledgementProblemForTest() { return MissingDosAcknowledgementProblem(); }
+
         private void ReportBlocked(List<string> problems)
         {
             ConsoleStyle.WriteLine("");
@@ -1296,6 +1341,9 @@ namespace ysonet.Interactive
             List<string> modeProblems = MissingRequiredModeProblems();
             if (modeProblems != null)
                 problems.AddRange(modeProblems);
+            string dosProblem = MissingDosAcknowledgementProblem();
+            if (dosProblem != null)
+                problems.Add(dosProblem);
             if (problems.Count > 0)
             {
                 ReportBlocked(problems);
@@ -1555,10 +1603,13 @@ namespace ysonet.Interactive
             return values;
         }
 
-        private static List<string> GadgetNames()
+        // The gadget names an inner-gadget picker may offer. Stays static and takes
+        // the flag explicitly rather than reading a field, so no static visibility
+        // state is introduced; the callers pass the editor's own value.
+        private static List<string> GadgetNames(bool includePrivate)
         {
             var names = new List<string>();
-            foreach (string n in GadgetRegistry.GetAllGadgetNames())
+            foreach (string n in GadgetRegistry.GetGadgetNames(includePrivate))
                 if (n != "Generic")
                     names.Add(n);
             return names;
@@ -1581,10 +1632,12 @@ namespace ysonet.Interactive
         // as the choices for the bridged-gadget-chain setting. A gadget is a bridge
         // when its labels include the Bridged tag - the same check PayloadRunner
         // uses to validate a chain.
-        private static List<string> BridgeGadgetNames()
+        // A private bridge gadget must not appear in the --bgc choice list either,
+        // which is why this takes the flag rather than listing everything.
+        private static List<string> BridgeGadgetNames(bool includePrivate)
         {
             var names = new List<string>();
-            foreach (string n in GadgetRegistry.GetAllGadgetNames())
+            foreach (string n in GadgetRegistry.GetGadgetNames(includePrivate))
             {
                 if (n == "Generic")
                     continue;

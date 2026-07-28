@@ -14,7 +14,20 @@ Pointers:
   payload is fully visible in the source and never obfuscated, encoded, or hidden):
   `ysonet/Generators/README.md`, summarized in `CLAUDE.md`
 - Contributing workflow: `CONTRIBUTING.md`
+- Test environment verdict - a run prints one `ENVIRONMENT VERDICT:` line before the
+  Passed/Failed summary. A skipped check is unverified, never passed, and on
+  `environment-suspect` or `mixed` you stop and ask instead of editing product code or an
+  assertion: see "Environment verdict" in `CLAUDE.md`
+- Gadget/plugin test order - while implementing, run only the changed module's focused
+  generation, deserialization, and runtime-effect checks first. Once they pass, run the
+  normal Debug tests and finish with the FULL suite; see "Gadget/plugin development test
+  order" in `CLAUDE.md`
 - Security-review rule: `SECURITY.md`
+- Public/private seam - this repo is public, and ignored paths may belong to a
+  contributor's separate private repo. Never move ignored content into a tracked file
+  and never name a private path, tool, or dataset in tracked content: see "Public and
+  private content (the seam)" in `CLAUDE.md`, and read `.claude/memory/private/index.md`
+  when it exists.
 
 ## Security-review rule
 

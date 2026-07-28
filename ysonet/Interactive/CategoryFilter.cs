@@ -32,9 +32,12 @@ namespace ysonet.Interactive
             Applied = applied ?? new GadgetCategoryQuery();
         }
 
-        public static CategoryFilterModel Load(GadgetCategoryQuery applied)
+        // Load the catalogue the filter offers values from. It must use the SAME
+        // visibility as the picker that opened it, or `-i --prv` would show a
+        // private gadget and then drop it the moment the filter is applied.
+        public static CategoryFilterModel Load(GadgetCategoryQuery applied, bool includePrivate = false)
         {
-            return new CategoryFilterModel(GadgetFacetReader.ExpandAll(), applied);
+            return new CategoryFilterModel(GadgetFacetReader.ExpandAll(includePrivate), applied);
         }
 
         public static string AxisTitle(CategoryAxis axis)
@@ -170,8 +173,8 @@ namespace ysonet.Interactive
         private readonly IKeyReader _keys;
         private readonly CategoryFilterModel _model;
 
-        public CategoryFilter(IKeyReader keys, GadgetCategoryQuery appliedState)
-            : this(keys, CategoryFilterModel.Load(appliedState))
+        public CategoryFilter(IKeyReader keys, GadgetCategoryQuery appliedState, bool includePrivate = false)
+            : this(keys, CategoryFilterModel.Load(appliedState, includePrivate))
         {
         }
 

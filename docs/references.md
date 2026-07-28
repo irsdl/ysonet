@@ -16,15 +16,17 @@ Back to [documentation index](README.md).
 - [.NET Remoting Revisited](https://codewhitesec.blogspot.com/2022/01/dotnet-remoting-revisited.html)
 - [Microsoft: BinaryFormatter security guide](https://learn.microsoft.com/en-us/dotnet/standard/serialization/binaryformatter-security-guide)
 - [Microsoft CA3075: Insecure DTD processing](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca3075)
-- [Microsoft: XmlReader.Create resolver default changed in .NET Framework 4.5.2](https://learn.microsoft.com/en-us/dotnet/fundamentals/runtime-libraries/system-xml-xmlreader-create) - the change DataViewManagerXxe depends on, and the `EnableLegacyXmlSettings` switch that reverts it.
+- [Microsoft: XmlReader.Create resolver default changed in .NET Framework 4.5.2](https://learn.microsoft.com/en-us/dotnet/fundamentals/runtime-libraries/system-xml-xmlreader-create) - the change DataViewManagerXxe and DataSetXxe both depend on, and the `EnableLegacyXmlSettings` switch that reverts it.
 - [Microsoft: Runtime XML changes for .NET Framework 4.5.x](https://learn.microsoft.com/en-us/dotnet/framework/migration-guide/runtime/4.5.x)
 - [Microsoft: `<loadFromRemoteSources>` element](https://learn.microsoft.com/en-us/dotnet/framework/configure-apps/file-schema/runtime/loadfromremotesources-element) - the security-zone rule that decides whether `AssemblyInstallerLoad` variant 2 can load an assembly from a share.
 - [Microsoft: `AssemblyInstaller` class](https://learn.microsoft.com/en-us/dotnet/api/system.configuration.install.assemblyinstaller) and [`RunInstallerAttribute`](https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.runinstallerattribute) - the documented behaviour `AssemblyInstallerLoad` drives.
-- [SSO Wars: The Token Menace - Whitepaper (Black Hat USA 2019)](https://i.blackhat.com/USA-19/Wednesday/us-19-Munoz-SSO-Wars-The-Token-Menace-wp.pdf)
+- [SSO Wars: The Token Menace - Whitepaper (Black Hat USA 2019)](https://i.blackhat.com/USA-19/Wednesday/us-19-Munoz-SSO-Wars-The-Token-Menace-wp.pdf) - where Oleksandr Mirosh and Alvaro Munoz published `WSManPluginManagedEntryInstanceWrapper`, the type WSManPluginInstance builds.
+- [More Than DoS: Progress Telerik UI for ASP.NET AJAX Unsafe Reflection (CVE-2025-3600), watchTowr Labs](https://labs.watchtowr.com/more-than-dos-progress-telerik-ui-for-asp-net-ajax-unsafe-reflection-cve-2025-3600/) - Piotr Bazydlo's write-up of the same finalizer used as a pre-auth denial of service. It reaches the type through unsafe reflection rather than a deserializer, and it is the clearest published description of why freeing the unallocated `GCHandle` terminates the process.
+- [Microsoft: `GCHandle.Free`](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.gchandle.free) - documents the `InvalidOperationException` on a handle that was never allocated, which is the exception WSManPluginInstance leaves on the target's finalizer thread.
 - [Finding and Exploiting .NET Remoting over HTTP using Deserialisation](https://web.archive.org/web/20190330065542/https://www.nccgroup.trust/uk/about-us/newsroom-and-events/blogs/2019/march/finding-and-exploiting-.net-remoting-over-http-using-deserialisation/)
 - [Attacking .NET serialization](https://speakerdeck.com/pwntester/attacking-net-serialization)
 - [Exploiting .NET Managed DCOM](https://googleprojectzero.blogspot.com.es/2017/04/exploiting-net-managed-dcom.html)
-- [.NET Serialiception (SCRT)](https://blog.scrt.ch/2016/05/12/net-serialiception/)
+- [.NET Serialiception (SCRT)](https://blog.scrt.ch/2016/05/12/net-serialiception/) - the published DataSet `XmlSchema` XXE path, including the out-of-band file read, that DataSetXxe implements.
 - [Exploit Remoting Service](https://github.com/tyranid/ExploitRemotingService)
 - [Are you my Type? - Slides](https://media.blackhat.com/bh-us-12/Briefings/Forshaw/BH_US_12_Forshaw_Are_You_My_Type_Slides.pdf)
 - [Are you my Type? - Whitepaper](https://media.blackhat.com/bh-us-12/Briefings/Forshaw/BH_US_12_Forshaw_Are_You_My_Type_WP.pdf)

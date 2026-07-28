@@ -74,10 +74,19 @@ namespace ysonet.Interactive
         // Pad a line with spaces to the console width so leftover characters from a
         // longer previous render are cleared. Truncates over-long lines to avoid
         // wrapping (which would break the line count used for redraw).
+        //
+        // IT ALSO GUARANTEES ONE LINE = ONE CONSOLE ROW, which the in-place redraw
+        // depends on completely: every screen counts the lines it wrote and moves the
+        // cursor up by that many. A single embedded newline makes one counted line
+        // occupy two rows, the move-up lands one row too low, the top of the old frame
+        // survives, and every later frame leaks a bit more - the "menu repeats down the
+        // screen" symptom. That is easy to hit by accident, because a module's option
+        // help is written with "\r\n" in it for the command-line help formatter and the
+        // same string is shown in the editor's footer. So control characters are folded
+        // to spaces here rather than trusted not to appear.
         public static string PadClear(string line)
         {
-            if (line == null)
-                line = "";
+            line = OneRow(line);
             try
             {
                 int width = T.BufferWidth - 1;
@@ -94,6 +103,33 @@ namespace ysonet.Interactive
                 // no console buffer; return as-is
             }
             return line;
+        }
+
+        /// <summary>
+        /// The same text with every control character (newline, carriage return, tab,
+        /// backspace, escape) replaced by a space, so writing it advances the cursor by
+        /// exactly its length and never by a row. Null becomes "".
+        ///
+        /// Use it on anything built from module-supplied text before writing it into a
+        /// fixed-height layout. It replaces rather than strips, so the words either side
+        /// of a newline do not run together.
+        /// </summary>
+        public static string OneRow(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return "";
+
+            char[] chars = null;
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (c >= ' ' && c != (char)127)
+                    continue;
+                if (chars == null)
+                    chars = text.ToCharArray();
+                chars[i] = ' ';
+            }
+            return chars == null ? text : new string(chars);
         }
     }
 }

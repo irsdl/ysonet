@@ -66,6 +66,9 @@ namespace ysonet.Plugins
             return "L@2uR1te";
         }
 
+        // A public plugin: it is listed everywhere, with or without --display-private.
+        public bool IsPrivate() { return false; }
+
         public OptionSet Options()
         {
             return options;

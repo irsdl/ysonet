@@ -68,6 +68,7 @@ namespace ysonet.Helpers
                 case CommandInputType.CsSourceFile: return PayloadInput.SourceCodeFile;
                 case CommandInputType.DllPath: return PayloadInput.AssemblyFile;
                 case CommandInputType.UncPath: return PayloadInput.UncPath;
+                case CommandInputType.HostName: return PayloadInput.Host;
                 case CommandInputType.Url: return PayloadInput.RemoteUrl;
                 case CommandInputType.FilePath: return PayloadInput.LocalFile;
                 case CommandInputType.TargetPath: return PayloadInput.TargetPath;
@@ -141,11 +142,13 @@ namespace ysonet.Helpers
             return cap;
         }
 
-        // Expand every discovered gadget (except the Generic placeholder).
-        public static List<GadgetCapability> ExpandAll()
+        // Expand every LISTABLE gadget (except the Generic placeholder). A private
+        // gadget is left out unless includePrivate is set: this feeds the category
+        // search and the interactive filter, which are listing surfaces.
+        public static List<GadgetCapability> ExpandAll(bool includePrivate = false)
         {
             var all = new List<GadgetCapability>();
-            foreach (string name in GadgetRegistry.GetAllGadgetNames())
+            foreach (string name in GadgetRegistry.GetGadgetNames(includePrivate))
             {
                 if (string.Equals(name, GenericName, StringComparison.OrdinalIgnoreCase))
                     continue;
@@ -294,6 +297,7 @@ namespace ysonet.Helpers
                 case PayloadInput.LocalFile: return "Local file";
                 case PayloadInput.TargetPath: return "Target path";
                 case PayloadInput.UncPath: return "UNC path";
+                case PayloadInput.Host: return "Host name or IP";
                 case PayloadInput.RemoteUrl: return "Remote URL";
                 case PayloadInput.SourceCodeFile: return "Source code file";
                 case PayloadInput.AssemblyFile: return "Assembly file";

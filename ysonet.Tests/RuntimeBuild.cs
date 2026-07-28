@@ -111,26 +111,80 @@ namespace ysonet.Tests
             }
         }
 
-        // ---- What fired on this build -----------------------------------------
+        // ---- What fired, and on WHICH framework version ------------------------
 
-        private static readonly HashSet<string> _fired =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Gadget name -> the version tokens its effect was actually observed on.
+        //
+        // The default is the build this run executes on, which is the right evidence
+        // for a payload fired in this process or in a plain child: the framework that
+        // decided the outcome is the one installed here. It is the WRONG evidence for
+        // a row whose whole point is a target built against a different framework. The
+        // legacy-XML gadgets fire into a child stamped with its own
+        // TargetFrameworkAttribute, and what decides whether they fetch is the CHILD's
+        // target framework, not this machine's build - a fully patched box runs them
+        // when the app on it was compiled against 4.5.1. Those rows pass their token
+        // explicitly, so the facet they earn is the one an operator has to check.
+        private static readonly Dictionary<string, HashSet<string>> _fired =
+            new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
         // Called by every fire helper the moment a payload's effect is observed
         // (marker file, listener hit, created directory, OOB callback). Gadgets only:
         // plugins carry no facets, so they have nothing to record against.
         public static void RecordFired(string gadgetName)
         {
-            if (!string.IsNullOrEmpty(gadgetName))
-                lock (_fired) _fired.Add(gadgetName);
+            RecordFired(gadgetName, Token());
+        }
+
+        // The overload for a row that knows better than the machine: the framework
+        // version the payload actually landed on.
+        public static void RecordFired(string gadgetName, string versionToken)
+        {
+            if (string.IsNullOrEmpty(gadgetName))
+                return;
+
+            lock (_fired)
+            {
+                HashSet<string> versions;
+                if (!_fired.TryGetValue(gadgetName, out versions))
+                {
+                    versions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    _fired[gadgetName] = versions;
+                }
+
+                // A host whose build could not be established still records the FIRE, so
+                // the run knows the payload worked; it just records no version, and the
+                // caller must read that as "no evidence" rather than as this machine's
+                // build. Guessing here is what would put a wrong number in the catalog.
+                if (!string.IsNullOrEmpty(versionToken))
+                    versions.Add(versionToken);
+            }
         }
 
         public static List<string> FiredGadgets()
         {
             lock (_fired)
             {
-                var list = new List<string>(_fired);
+                var list = new List<string>(_fired.Keys);
                 list.Sort(StringComparer.OrdinalIgnoreCase);
+                return list;
+            }
+        }
+
+        // The versions one gadget's effect was observed on this run, oldest first.
+        // Empty means it fired but nothing establishes a version.
+        public static List<string> FiredVersions(string gadgetName)
+        {
+            lock (_fired)
+            {
+                HashSet<string> versions;
+                if (gadgetName == null || !_fired.TryGetValue(gadgetName, out versions))
+                    return new List<string>();
+
+                var list = new List<string>(versions);
+                list.Sort(delegate(string a, string b)
+                {
+                    return RuntimeVersion.IndexOf(a).CompareTo(RuntimeVersion.IndexOf(b));
+                });
                 return list;
             }
         }
