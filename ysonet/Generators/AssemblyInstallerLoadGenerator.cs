@@ -167,13 +167,12 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
-            // FIRST, before the path is even looked at. -t deserializes the payload in THIS
-            // process, which would make ysonet load the operator's DLL and run its installer
-            // constructors on the operator's own machine. Refusing loudly (the exit code
-            // carries it) beats ignoring the flag, which would imply a self-test validated
-            // something. Everything below can therefore assume inputArgs.Test is false.
-            RefuseSelfTest(inputArgs);
-
+            // -t deserializes the payload in THIS process, which loads the operator's DLL
+            // and runs its installer constructors on the operator's own machine. That is a
+            // SELF-EXPLOIT, which is exactly what -t is for in ysonet (the same way -t on
+            // ObjectDataProvider runs the -c command here): you supplied the DLL, so running
+            // it on yourself is a demonstration, not damage. The option help says so, and
+            // FinishHandWrittenPayload below performs the deserialize when -t is set.
             string dllPath = ValidateDllPath(inputArgs);
             RequireSupportedGetter(formatter);
 
@@ -511,19 +510,6 @@ namespace ysonet.Generators
                 + " available with Json.NET and Xaml. " + formatter + " can only set a property, and the"
                 + " Items collection of that carrier has no setter, so it would deserialize empty."
                 + " Use --getter 1 (PropertyGrid) with " + formatter + ".");
-        }
-
-        // ---- Local safety ------------------------------------------------------
-
-        private void RefuseSelfTest(InputArgs inputArgs)
-        {
-            if (inputArgs == null || !inputArgs.Test)
-                return;
-
-            throw new ArgumentException(Name() + " refuses -t. A self-test deserializes the payload"
-                + " in THIS process, which would make ysonet load your DLL and run its installer"
-                + " constructors on YOUR machine. Generate without -t and deliver the payload to the"
-                + " target instead.");
         }
 
         /// <summary>

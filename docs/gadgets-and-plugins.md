@@ -1,6 +1,6 @@
 # Gadgets and Plugins
 
-The catalog of what YSoNet can generate. The lists below are a snapshot; the live, authoritative list comes from `ysonet.exe --fullhelp`.
+The catalog of what YSoNet can generate. The lists below are a snapshot; the live, authoritative list comes from `ysonet.exe --fullhelp`. A few gadgets are marked hidden and are left out of this snapshot, so `--fullhelp` can show more than you see here.
 
 > [!CAUTION]
 > Do not use this catalog as a deserialization blocklist. It cannot include private,
@@ -29,7 +29,9 @@ DataSetOldBehaviourFromFile (BinaryFormatter (2), LosFormatter (2))
 DataSetTypeSpoof (BinaryFormatter, LosFormatter, SoapFormatter)
 DataSetXxe (BinaryFormatter (2), FsPickler (2), Json.NET (2), LosFormatter (2), SoapFormatter (2))
 DataTable (BinaryFormatter (2), LosFormatter (2), SoapFormatter)
+DataTableTypeSpoof (BinaryFormatter (2), LosFormatter (2), SoapFormatter)
 DataViewManagerXxe (FastJson, JavaScriptSerializer, SharpSerializerBinary, SharpSerializerXml, Xaml)
+DynamicUpdateMapExtension (Xaml)
 FileLogTraceListener (DataContractJsonSerializer, FastJson, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, SharpSerializerXml, Xaml, YamlDotNet < 5.0.0)
 FileSystemInfo (BinaryFormatter (2), DataContractJsonSerializer (2), DataContractSerializer (2), Json.NET (2), LosFormatter (2), NetDataContractSerializer (2), SoapFormatter (2))
 FormsIdentity (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, LosFormatter, NetDataContractSerializer, SoapFormatter)
@@ -39,10 +41,12 @@ GetterCompilerResults (Json.NET (4))
 GetterSecurityException (Json.NET (4))
 GetterSettingsPropertyValue (Json.NET (4), MessagePackTypeless, MessagePackTypelessLz4, Xaml (4))
 InfiniteProgressPage (FastJson, JavaScriptSerializer, Json.NET, SharpSerializerXml, Xaml, YamlDotNet < 5.0.0)
-ObjectDataProvider (DataContractSerializer (2), FastJson, FsPickler, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, SharpSerializerBinary, SharpSerializerXml, Xaml (4), XmlSerializer (2), YamlDotNet < 5.0.0)
+ObjectDataProvider (DataContractSerializer (2), FastJson, FsPickler, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, SharpSerializerBinary, SharpSerializerXml, Xaml (2), XmlSerializer (2), YamlDotNet < 5.0.0)
 ObjRef (BinaryFormatter, LosFormatter, SoapFormatter)
 PictureBox (FastJson, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, SharpSerializerXml, Xaml, YamlDotNet < 5.0.0)
 PSObject (BinaryFormatter, LosFormatter, NetDataContractSerializer, SoapFormatter)
+ResourceDictionary (Xaml)
+ResXFileRef (Xaml (3), YamlDotNet < 5.0.0 (3))
 RolePrincipal (BinaryFormatter, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
 SessionSecurityToken (BinaryFormatter, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
 SessionViewStateHistoryItem (BinaryFormatter, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
@@ -53,9 +57,10 @@ TypeConfuseDelegate (BinaryFormatter (3), LosFormatter (3), NetDataContractSeria
 TypeConfuseDelegateFileOperations (BinaryFormatter (5), LosFormatter (5), NetDataContractSerializer (5))
 TypeConfuseDelegateMono (BinaryFormatter, LosFormatter, NetDataContractSerializer)
 WbemClassObjectUnmarshal (BinaryFormatter (2), DataContractSerializer (2), FsPickler (2), Json.NET (2), LosFormatter (2), NetDataContractSerializer (2), SoapFormatter (2))
-WindowsClaimsIdentity (BinaryFormatter (3), DataContractSerializer (2), Json.NET (2), LosFormatter (3), NetDataContractSerializer (3), SoapFormatter (2))
-WindowsIdentity (BinaryFormatter, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
+WindowsClaimsIdentity (BinaryFormatter (4), DataContractSerializer (3), Json.NET (3), LosFormatter (4), NetDataContractSerializer (4), SoapFormatter (3))
+WindowsIdentity (BinaryFormatter (3), DataContractSerializer (3), Json.NET (3), LosFormatter (3), NetDataContractSerializer (3), SoapFormatter (3))
 WindowsPrincipal (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
+WorkflowDesigner (FastJson, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, SharpSerializerBinary, SharpSerializerXml, Xaml)
 WSManPluginInstance (DataContractJsonSerializer, DataContractSerializer, FastJson, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, NetDataContractSerializer, SharpSerializerBinary, SharpSerializerXml, Xaml, XmlSerializer, YamlDotNet < 5.0.0)
 XamlAssemblyLoadFromFile (BinaryFormatter (2), LosFormatter (2), NetDataContractSerializer (2), SoapFormatter)
 XamlImageInfo (Json.NET (2))

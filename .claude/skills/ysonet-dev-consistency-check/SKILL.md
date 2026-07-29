@@ -1,6 +1,6 @@
 ---
 name: ysonet-dev-consistency-check
-description: Runs a whole-repo consistency audit of ysonet before a release or after a change. Checks that docs match the code, docs/ARCHITECTURE.md is current, both CLIs expose every gadget and plugin, each gadget and plugin has all required parts, tests exist for everything following the existing test patterns, all skills and agent files match the Anthropic skill standard, the git-tracked memory under .claude/memory/ is still true and indexed, no ignored, private, or machine-specific content leaked into tracked files, and the full test suite passes with zero errors. Use when the user asks to check consistency, audit the repo, verify docs and tests are in sync, check for private or local data leaking into the public repo, or confirm the tool is release-ready. Read-only until the user approves fixes.
+description: Runs a whole-repo consistency audit of ysonet before a release or after a change. Checks that docs match the code, docs/ARCHITECTURE.md is current, both CLIs expose every gadget and plugin, each gadget and plugin has all required parts, tests exist for everything following the existing test patterns, no test opens a real application and every fired command goes through the test sink, all skills and agent files match the Anthropic skill standard, the git-tracked memory under .claude/memory/ is still true and indexed, no ignored, private, or machine-specific content leaked into tracked files, and the full test suite passes with zero errors. Use when the user asks to check consistency, audit the repo, verify docs and tests are in sync, check for private or local data leaking into the public repo, or confirm the tool is release-ready. Read-only until the user approves fixes.
 ---
 
 # ysonet consistency check
@@ -44,9 +44,12 @@ claims and run the full suite yourself. Both auto-detect the repo root.
   `powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/scripts/inventory.ps1"`.
   It prints the authoritative gadget/plugin catalog (from the built exe's
   `--list`, or an APPROXIMATE static scan if there is no Debug build), the
-  ARCHITECTURE.md declared counts and `Last reviewed` version vs `VERSION`, and,
-  per gadget and plugin, whether it is missing from ARCHITECTURE.md, the docs, or
-  the tests. Build Debug first so the catalog is exact.
+  ARCHITECTURE.md declared counts and `Last reviewed` version vs `VERSION`,
+  validates every built gadget's variant-number sequence, audits test fire safety
+  (no fire scope executes a real application or a literal command; the sink is
+  wired and staged), and, per gadget and plugin, reports whether it is missing
+  from ARCHITECTURE.md, the docs, or the tests. Build Debug first so the catalog
+  and variant data are exact.
 - Skill/agent frontmatter and style (check 6): run
   `powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/scripts/check-skills.ps1"`.
   It validates every `.claude/skills/*/SKILL.md` against the hard limits in
@@ -158,6 +161,14 @@ doubles under a `Helpers.TestingArena` namespace merely for mentioning
   is the `WithVersions` ceiling and the latest tested non-working version is
   documented. A single token must not become a range without evidence for the
   contiguous span.
+- Variant numbers are ordered and contiguous. Every non-empty `Variants()` list
+  must contain exactly `1, 2, ..., N` in that order: variant 1 is the default,
+  and there are no gaps, duplicates, zero/negative numbers, or out-of-order
+  entries. `1, 2, 4` is invalid because it skips 3. A retired number is still a
+  gap and must be reported, not treated as an exception. Compare the list with
+  the selector's help text, every formatter-specific branch in `Generate()`,
+  the interactive choices, and both docs so renumbering cannot leave one surface
+  stale.
 - Formatter display annotations state the real variant count. A `(N)` suffix in a
   `SupportedFormatters()` token means "this formatter carries N variants"; a bare
   name means one. For every gadget with more than one `GadgetVariant`, derive the
@@ -246,6 +257,8 @@ Confirm the coverage norms from `CLAUDE.md` hold:
 - A new gadget/formatter/variant is covered by the generation matrix; if a new
   gadget needs an input the runner does not sample, `SampleInputForGadget` was
   extended.
+- `GadgetsDeclareVariants` enforces the catalogue-wide `1, 2, ..., N` ordering
+  invariant, rather than checking only a few representative gadgets.
 - A new gadget's runtime EFFECT has a row in the execution matrix.
 - A new runtime-gated gadget has evidence for at least one working target
   version. A failed current/latest row is followed by an older-version
@@ -257,6 +270,21 @@ Confirm the coverage norms from `CLAUDE.md` hold:
 Flag any gadget, plugin, plugin mode, option, or new function that has no
 matching test, and name where the missing test should go by analogy to the
 closest existing one.
+
+Nothing a test runs may open a real application, and a fired shell command comes
+from the shared sink. Full contract: `references/test-fire-safety.md`. In short:
+
+- Naming `calc.exe` or `notepad.exe` is fine as GENERATION input (the catalogue's
+  own examples, bytes only compared or encoded). It is a finding the moment that
+  payload is deserialized, self-tested (`-t`, `InputArgs.Test = true`), or run by
+  a subprocess. Report the path from the literal to the execution call.
+- A command fire row takes its command from `FireBackend.Create(...)`, passes
+  `fire.Command` with `IsRawCmd = true`, and waits on the target. A hand-written
+  `cmd /c ...` command, a private marker, or a copied wait loop is a finding.
+- A non-command sink (self-closing `.cs`, loopback listener, temp dir, OOB DNS)
+  keeps its own evidence; not using `FireTarget` there is not a finding.
+- The sink must be wired and staged, or rows drop to the weaker backend without
+  saying so. Confirm the run reports `test-sink` (check 9).
 
 When you CREATE a test that writes any file (a fixture, input, payload, or a
 marker the payload drops), follow `references/test-file-locations.md`: write to
@@ -385,6 +413,11 @@ plus the `Environment-skipped` count. They answer different questions: the
 summary says what passed, the verdict says whether this machine could run
 everything.
 
+Report the `Fire backend:` header line too. `test-sink (...)` is expected;
+`legacy-cmd (...)` means every command fire row used the weaker marker backend
+for the reason in the brackets, so name that reason and do not call it equivalent
+coverage. An application window appearing during the run is a check-5 finding.
+
 - Never call an `environment-limited` run complete coverage or release-ready.
   Name the skipped checks and the capability each one needed.
 - On `environment-suspect` or `mixed`, report the capability evidence and stop:
@@ -435,6 +468,8 @@ say which gadgets, plugins, docs, and surfaces were checked, not just "all good"
       gadget hands to `Serialize()` (check 4).
 - [ ] Every multi-variant gadget's `(N)` formatter annotation matches the real
       per-formatter variant count, in code and in both docs (check 4).
+- [ ] Every non-empty `Variants()` list is exactly `1, 2, ..., N` in order, and
+      `GadgetsDeclareVariants` enforces that invariant catalogue-wide (checks 4-5).
 - [ ] Every new runtime-gated gadget names a verified working target version,
       and a latest-version failure does not overstate `WithVersions` (check 4).
 - [ ] Skills/agents checked against `references/anthropic-skill-standards.md`.
@@ -446,8 +481,11 @@ say which gadgets, plugins, docs, and surfaces were checked, not just "all good"
       and memory, `.gitignore` still generic, no local path or build output
       tracked, branch commits and messages checked. No private name written into
       the repo by the report itself.
-- [ ] Full suite ran; Passed/Failed, the environment verdict, and the
-      environment-skipped count reported honestly; no test weakened; an
-      environment-limited run was not called complete coverage.
+- [ ] No test executes a real application, every executed shell command comes
+      from `FireBackend.Create(...)`, and the sink is wired and staged (check 5).
+- [ ] Full suite ran; Passed/Failed, the environment verdict, the
+      environment-skipped count, and the `Fire backend:` line reported honestly;
+      no test weakened; an environment-limited run was not called complete
+      coverage.
 - [ ] Gadget/plugin suggestion question asked; open items written to
       `dev-kitchen/todo/`.

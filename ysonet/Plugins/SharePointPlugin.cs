@@ -887,7 +887,14 @@ PublicKeyToken=31bf3856ad364e35"">
                 InputArgs inputArgs = new InputArgs();
                 inputArgs.Cmd = "foobar";
                 inputArgs.IsRawCmd = true;
-                inputArgs.ExtraInternalArguments = new List<String> { "--variant", "3", "--xamlurl", command };
+                // Steer TextFormattingRunProperties onto the URL form, which carries the
+                // ResourceDictionary gadget so the target fetches the markup. The variant
+                // number that used to accompany this selected ObjectDataProvider variant 3,
+                // which is now that gadget and takes the URL as its own -c.
+                inputArgs.ExtraInternalArguments = new List<String>
+                {
+                    TextFormattingRunPropertiesGenerator.XamlUrlArgument, command
+                };
                 inputArgs.Minify = true;
                 inputArgs.UseSimpleType = true;
 

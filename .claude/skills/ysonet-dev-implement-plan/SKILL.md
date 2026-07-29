@@ -262,6 +262,17 @@ include:
 - interactive navigation; and
 - one representative real payload per materially different branch.
 
+If the changed gadget or plugin's only runtime effect is an outbound UNC/SMB
+callback, it needs the opt-in OOB tier, and an automated run never touches a UNC
+path on the public endpoint. Use the maintainer's self-hosted interactsh server
+when they have one. When they do not, STOP AND ASK before the first UNC touch:
+state that the touch goes to a public third-party endpoint and that Windows sends
+authentication material when it opens the SMB session, then let them decide. Their
+explicit approval covers only the runs discussed and only this module. Never point
+`YSONET_INTERACTSH_SERVER` at a public endpoint yourself to make the gate pass.
+Without approval the check stays a named skip and the effect is reported as
+UNVERIFIED; do not report the plan step as done on generation evidence alone.
+
 Run a Release build here when the plan changes packaging, build configuration,
 release output, or names it as a required check.
 

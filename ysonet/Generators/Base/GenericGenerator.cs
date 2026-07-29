@@ -246,11 +246,25 @@ namespace ysonet.Generators
             return false;
         }
 
+        // Some targets can only be BUILT on a single-threaded-apartment thread: WPF
+        // objects, and anything whose constructor creates a System.Windows.Application.
+        // A gadget aimed at one of those overrides this so -t deserializes on an STA
+        // thread instead of the caller's; on a plain worker thread the payload throws
+        // before it reaches the sink, which reads as "the gadget does not work".
+        //
+        // This is about the TARGET's threading requirement, not about safety, so it is
+        // independent of SelfTestNeedsChildProcess: a gadget may need neither, either,
+        // or in principle both.
+        public virtual bool SelfTestNeedsStaThread(string formatter, InputArgs inputArgs)
+        {
+            return false;
+        }
+
         // The one place -t decides HOW to run. Called by each formatter branch below
         // with its own in-process deserialize; routes to a child process when the
-        // gadget declared it must. Swallowing the in-process error is the long-standing
-        // behavior (most gadgets throw after firing); Debugging.ShowErrors surfaces it
-        // in debug mode.
+        // gadget declared it must, and onto an STA thread when the target needs one.
+        // Swallowing the in-process error is the long-standing behavior (most gadgets
+        // throw after firing); Debugging.ShowErrors surfaces it in debug mode.
         private void RunSelfTest(byte[] payload, string formatter, InputArgs inputArgs, Action inProcess)
         {
             RunSelfTest(payload, formatter, inputArgs, inProcess, null);
@@ -280,8 +294,33 @@ namespace ysonet.Generators
                 return;
             }
 
+            if (SelfTestNeedsStaThread(formatter, inputArgs))
+            {
+                // Record it on the args as well as acting on it: IsSTAThread is what tells
+                // any later caller how this payload was tested, and it used to be the flag a
+                // gadget set for itself before this hook existed.
+                inputArgs.IsSTAThread = true;
+                RunOnStaThread(delegate
+                {
+                    try { inProcess(); }
+                    catch (Exception err) { Debugging.ShowErrors(inputArgs, err); }
+                });
+                return;
+            }
+
             try { inProcess(); }
             catch (Exception err) { Debugging.ShowErrors(inputArgs, err); }
+        }
+
+        // Run an action on a fresh STA thread and wait for it. The caller's thread may
+        // already be STA (ysonet's own Main is not), but a nested apartment is free and
+        // this way the behaviour does not depend on who called.
+        private static void RunOnStaThread(System.Threading.ThreadStart action)
+        {
+            var staThread = new System.Threading.Thread(action);
+            staThread.SetApartmentState(System.Threading.ApartmentState.STA);
+            staThread.Start();
+            staThread.Join();
         }
 
         public object Serialize(object payloadObj, string formatter, InputArgs inputArgs)

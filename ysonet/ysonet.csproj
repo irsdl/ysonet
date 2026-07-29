@@ -216,13 +216,18 @@
     <Compile Include="Generators\DataSetTypeSpoofGenerator.cs" />
     <Compile Include="Generators\DataSetXxeGenerator.cs" />
     <Compile Include="Generators\DataTableGenerator.cs" />
+    <Compile Include="Generators\DataTableTypeSpoofGenerator.cs" />
     <Compile Include="Generators\DataViewManagerXxeGenerator.cs" />
+    <Compile Include="Generators\DynamicUpdateMapExtensionGenerator.cs" />
     <Compile Include="Generators\FileSystemInfoGenerator.cs" />
     <Compile Include="Generators\GetterSecurityExceptionGenerator.cs" />
     <Compile Include="Generators\GetterSettingsPropertyValueGenerator.cs" />
     <Compile Include="Generators\HostedPayloads\XamlAssemblyLoadFromFileGenerator.cs" />
     <Compile Include="Generators\ObjRefGenerator.cs" />
+    <Compile Include="Generators\ResXFileRefGenerator.cs" />
+    <Compile Include="Generators\ResourceDictionaryGenerator.cs" />
     <Compile Include="Generators\ResourceSetGenerator.cs" />
+    <Compile Include="Generators\WorkflowDesignerGenerator.cs" />
     <Compile Include="Generators\SessionSecurityTokenGenerator.cs" />
     <Compile Include="Generators\SessionViewStateHistoryItemGenerator.cs" />
     <Compile Include="Generators\RolePrincipalGenerator.cs" />
@@ -466,6 +471,23 @@
     <Content Include="Helpers\ModifiedVulnerableBinaryFormatters\info.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+
+  <!--
+    The private-mode guarantee, checked instead of assumed. The OutputPath override above
+    only works because it sits ABOVE this import (OutDir is derived from OutputPath inside
+    it, at evaluation time). ysonet.Tests.csproj had the same block BELOW its import and
+    quietly wrote a private test binary into the public checkout with a green build, so
+    both projects now read the RESOLVED OutDir and fail rather than trust the layout.
+  -->
+  <Target Name="ValidatePrivateOutputIsOutsideTheRepository" BeforeTargets="Build"
+          Condition="'$(IncludePrivateModules)' == 'true'">
+    <PropertyGroup>
+      <_YsonetRepoRoot>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '..'))))</_YsonetRepoRoot>
+      <_YsonetResolvedOutDir>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(OutDir)'))))</_YsonetResolvedOutDir>
+    </PropertyGroup>
+    <Error Condition="$(_YsonetResolvedOutDir.ToLowerInvariant().StartsWith($(_YsonetRepoRoot.ToLowerInvariant())))"
+           Text="Private mode would write '$(_YsonetResolvedOutDir)', which is inside the public checkout '$(_YsonetRepoRoot)'. A binary carrying unpublished modules must never land there. Check that the private OutputPath override sits ABOVE the Microsoft.CSharp.targets import, and that PrivateBuildRoot points outside this repository." />
+  </Target>
 
   <!--
     Single source of truth for every version: the /VERSION file at the repo root. This

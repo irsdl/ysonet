@@ -138,7 +138,7 @@ namespace ysonet.Interactive
             }
 
             int k = j;
-            while (k < description.Length && !IsTokenBreak(description[k]))
+            while (k < description.Length && !IsTokenBreak(description, k))
                 k++;
             return description.Substring(j, k - j).Trim();
         }
@@ -377,9 +377,30 @@ namespace ysonet.Interactive
             return (c0 >= 'A' && c0 <= 'Z') || (c0 >= 'a' && c0 <= 'z') || (c0 >= '0' && c0 <= '9');
         }
 
-        private static bool IsTokenBreak(char c)
+        /// <summary>
+        /// Where an unquoted "Default: ..." value ends.
+        ///
+        /// A PERIOD ENDS THE VALUE ONLY WHEN IT ENDS THE SENTENCE - that is, when a space
+        /// or the end of the text follows it. This is the same rule SegmentAfter already
+        /// uses, and for the same reason: a dotted value is one value, not a value plus
+        /// prose. Breaking on every period silently truncated
+        /// "Default: System.Data.Entity.Design.SsdlGenerator.TableDetailsCollection" to
+        /// "System" and "(default: payload.resources)" to "payload", and a TRUNCATED
+        /// default is worse than none - the editor shows a plausible value and then emits
+        /// it, so the payload names something that does not exist and nothing fires.
+        /// "Default: AES. e.g: ..." still ends at the period, because that one is followed
+        /// by a space.
+        ///
+        /// A COMMA always ends it, so a value that contains one (an assembly display name)
+        /// still has to be QUOTED in the help text, which is what the quoted branch above
+        /// is for and what WSManPluginInstance's --assembly does.
+        /// </summary>
+        private static bool IsTokenBreak(string description, int k)
         {
-            return c == '.' || c == ',' || c == ' ' || c == ';' || c == ')' || c == '(' || c == '\r' || c == '\n';
+            char c = description[k];
+            if (c == '.')
+                return k + 1 >= description.Length || description[k + 1] == ' ';
+            return c == ',' || c == ' ' || c == ';' || c == ')' || c == '(' || c == '\r' || c == '\n';
         }
     }
 }

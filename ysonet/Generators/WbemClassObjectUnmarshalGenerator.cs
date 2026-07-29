@@ -223,6 +223,11 @@ namespace ysonet.Generators
                 new GadgetVariant(VariantPreparedBlob,
                         "Bring your own blob: ship the file in -c byte for byte - NOT a code-execution variant",
                         CommandInputType.FilePath)
+                    // -t would hand the operator's unparsed bytes to native COM here, so it
+                    // is refused (RefuseSelfTest below). This lets the interactive editor
+                    // hide its test toggle while variant 2 is selected; variant 1 (the
+                    // default) still accepts -t, so the editor keeps it there.
+                    .WithoutSelfTest()
                     // The operator's bytes decide what happens, so this variant claims no
                     // network effect. Repeating the versions is required: an override
                     // replaces the WHOLE facet set. Inputs are deliberately left to derive

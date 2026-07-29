@@ -67,7 +67,7 @@ When safe and practical, prove causality by showing that the same check fails be
 
 ## Build target
 
-All three projects (ysonet, ExploitClass, TestConsoleApp) target .NET Framework 4.7.2. Keep them unified on the same version.
+Every project in `ysonet.sln` targets .NET Framework 4.7.2. Keep them unified on the same version.
 
 - Why 4.7.2: it is the practical minimum. The NuGet dependencies (MessagePack, the System.* 9.0 era packages) need netstandard2.0, and 4.7.2 is the lowest framework where netstandard2.0 loads reliably in-box, without a fragile pile of shim assemblies and binding redirects.
 - Users need 4.7.2 or any newer 4.x (4.8, 4.8.1). A 4.x app runs on that version or higher, so newer runtimes are fine.
@@ -141,6 +141,24 @@ Rules:
   server the operator owns, because Windows sends authentication material when it opens an
   SMB session. On the default public endpoint both UNC checks are named skips. This gates
   the TEST HARNESS only; a user running `ysonet.exe ... -t` themselves is unchanged.
+
+#### UNC/SMB callback testing while developing a gadget or plugin
+
+An automated run never touches a UNC path on the public endpoint, and that stays true.
+Developing a new gadget or plugin is the one case where an agent may still need the touch,
+because a UNC/SMB callback effect cannot be proved any other way. Handle it like this:
+
+- If the maintainer has a self-hosted interactsh server, use it. Nothing else to decide.
+- If they do not, STOP AND ASK before the first UNC touch. Say plainly what it costs:
+  the touch goes to a public third-party endpoint, and Windows sends authentication
+  material when it opens the SMB session. Let the maintainer choose.
+- Only their explicit approval allows it, only for the runs being discussed, and only for
+  the module under development. Approval for one module or session does not carry over.
+- Never point `YSONET_INTERACTSH_SERVER` at a public endpoint to make the gate pass on
+  your own. That is defeating the safety gate, not configuring it.
+- Without approval the check stays a named skip and the runtime effect is reported as
+  UNVERIFIED. Do not call the gadget finished on generation evidence alone, and do not
+  swap in a weaker check that looks green.
 
 Tests live in `ysonet.Tests` (a self-contained console runner, no framework). They run on every Debug build as a post-build step, and also stand alone at `ysonet\bin\Debug\ysonet.Tests.exe`. A failed test fails the build. Two tiers:
 

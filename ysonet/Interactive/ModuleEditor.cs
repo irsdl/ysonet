@@ -461,6 +461,10 @@ namespace ysonet.Interactive
         internal void SnapshotToMemoryForTest() { SnapshotToMemory(); } // simulate leaving the editor
         internal List<string> PluginArgvForTest() { string of, op; return PluginArgv(out of, out op); }
         internal string GadgetCommandLineForTest() { return GadgetCommandLine(CollectGadget()); }
+        // The gadget-option argv this editor would really pass to PayloadRunner, so a test
+        // can generate exactly what pressing Generate generates. PluginArgvForTest is the
+        // plugin twin.
+        internal List<string> GadgetExtraArgvForTest() { return CollectGadget().Extra; }
         internal static void CommitTextForTest(EditableField f, string raw) { CommitText(f, raw); }
         internal string MissingRequiredCommandProblemForTest() { return MissingRequiredCommandProblem(); }
         internal string MissingVariantFormatterProblemForTest() { return MissingVariantFormatterProblem(); }
@@ -658,7 +662,12 @@ namespace ysonet.Interactive
             OptionField variantOpt = _view.VariantField();
             if (_view.Variants != null && _view.Variants.Count > 0 && variantOpt != null)
             {
-                variantOpt.Value = _view.Variants[0].Number.ToString();
+                // The variant the gadget itself builds with no arguments, which is NOT
+                // always the first one it lists (ResXFileRef lists 1, 2, 3 and defaults to
+                // 2). Getting this wrong makes the editor ship a different payload than the
+                // same command line would, so the gadget declares it with
+                // GadgetVariant.AsDefault() and the first variant is only the fallback.
+                variantOpt.Value = DefaultVariantNumber(_view.Variants).ToString();
                 var vf = new EditableField
                 {
                     Label = "variant",
@@ -1092,6 +1101,15 @@ namespace ysonet.Interactive
                     continue; // not one of the gadget's own options
                 f.Hidden = current != null && !current.UsesOption(f.Label);
             }
+
+            // The shared "test" toggle is not a gadget option, but a variant can refuse
+            // -t (WithoutSelfTest). Hide it there, so a refusing DEFAULT variant does not
+            // dead-end Generate with the gadget's -t refusal. The value is kept, so
+            // switching back to a variant that accepts -t restores it; CollectGadget also
+            // drops it for a refusing variant, so a stale on-value cannot leak into the
+            // emitted command.
+            if (_test != null)
+                _test.Hidden = current != null && current.RefusesSelfTest;
         }
 
         // The GadgetVariant the variant option currently points at, or null when the
@@ -1246,6 +1264,7 @@ namespace ysonet.Interactive
                 case CommandInputType.TargetPath: return "C:\\inetpub\\wwwroot\\dropped.txt";
                 case CommandInputType.TargetPathPair: return "C:\\work\\z-source.txt;C:\\work\\a-destination.txt";
                 case CommandInputType.TargetPathAndLocalFile: return "C:\\inetpub\\wwwroot\\shell.aspx;payload.aspx";
+                case CommandInputType.MemoryAddress: return "0x41414141";
                 case CommandInputType.Ignored: return "calc.exe (any placeholder)";
                 default: return "calc.exe";
             }
@@ -1414,7 +1433,12 @@ namespace ysonet.Interactive
             g.RawCmd = _rawcmd != null && !_rawcmd.Hidden && _rawcmd.IsOn;
             g.OutputFormat = OutputFormatValue();
             g.OutputPath = _outputPath.Value;
-            g.Minify = _minify.IsOn; g.Ust = _useSimpleType.IsOn; g.Test = _test.IsOn; g.Debug = _debugMode.IsOn;
+            // A variant that refuses -t never emits it, even if the toggle carried an
+            // on-value over from another module (the field is hidden for such a variant).
+            GadgetVariant currentVariant = CurrentVariant();
+            bool variantRefusesSelfTest = currentVariant != null && currentVariant.RefusesSelfTest;
+            g.Minify = _minify.IsOn; g.Ust = _useSimpleType.IsOn;
+            g.Test = _test.IsOn && !variantRefusesSelfTest; g.Debug = _debugMode.IsOn;
             // Only a bridge gadget emits --bgc; when the field is hidden (non-bridge
             // gadget) never pass a chain, even if one was carried over in memory.
             g.Bgc = (_bridged != null && !_bridged.Hidden) ? _bridged.Value : "";
@@ -1578,6 +1602,17 @@ namespace ysonet.Interactive
                 if (v.Number == num)
                     return v.Label;
             return numberText;
+        }
+
+        // The variant number a gadget builds when the variant option is not passed: the one
+        // that declared GadgetVariant.AsDefault(), or the first listed. Most gadgets default
+        // to the first, so nothing has to opt in.
+        private static int DefaultVariantNumber(List<GadgetVariant> variants)
+        {
+            foreach (GadgetVariant v in variants)
+                if (v.IsDefault)
+                    return v.Number;
+            return variants[0].Number;
         }
 
         private int VariantNumberForLabel(string label)

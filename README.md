@@ -1,4 +1,8 @@
-<img src="/logo.png" alt="logo" width="200" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="/docs/images/logo/dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="/docs/images/logo/white_polished.png" />
+  <img src="/docs/images/logo/white_polished.png" alt="YSoNet logo" width="200" />
+</picture>
 
 **YSoNet** is a fork of the original [YSoSerial.Net](https://github.com/pwntester/ysoserial.net), currently maintained by [@irsdl](https://github.com/irsdl).
 

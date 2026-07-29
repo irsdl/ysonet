@@ -1,9 +1,9 @@
-// Dev-only interactive-UI test harness. NOT shipped with the release (lives under
-// dev-kitchen/, which is git-ignored). It launches ysonet.exe in a REAL Windows
-// pseudo-console (ConPTY), sends keystrokes, interprets the terminal output into a
-// screen grid, and lets us assert on what the interactive UI actually draws.
+// Dev-only interactive-UI test harness. NOT shipped with the release and not part of
+// the ysonet build. It launches ysonet.exe in a REAL Windows pseudo-console (ConPTY),
+// sends keystrokes, interprets the terminal output into a screen grid, and lets us
+// assert on what the interactive UI actually draws.
 //
-// Build+run: dev-kitchen/ptytest/run.ps1  (compiles with csc, runs a scenario).
+// Build+run: compile this file with csc, then run it and pass the scenario to drive.
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;

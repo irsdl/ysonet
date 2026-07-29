@@ -406,6 +406,17 @@ smoke:
 - one real generation for every materially different branch; and
 - the interactive module editor entry and category result.
 
+If the gadget's only runtime effect is an outbound UNC/SMB callback, it needs the
+opt-in OOB tier, and an automated run never touches a UNC path on the public
+endpoint. Use the maintainer's self-hosted interactsh server when they have one.
+When they do not, STOP AND ASK before the first UNC touch: state that the touch
+goes to a public third-party endpoint and that Windows sends authentication
+material when it opens the SMB session, then let them decide. Their explicit
+approval covers only the runs discussed and only this gadget. Never point
+`YSONET_INTERACTSH_SERVER` at a public endpoint yourself to make the gate pass.
+Without approval the check stays a named skip and the runtime effect is reported
+as UNVERIFIED; do not call the gadget finished on generation evidence alone.
+
 Only after that gate is green, run the normal Debug tests and then the FULL
 suite as the final regression gate:
 

@@ -32,6 +32,13 @@ namespace ysonet.Tests
         private readonly Thread _thread;
         private readonly Dictionary<string, string> _routes =
             new Dictionary<string, string>(StringComparer.Ordinal);
+        // Per route, because one caller's answer has to be believed by a DTD parser and
+        // another's by the WPF markup loader, which picks its converter by CONTENT TYPE
+        // (MimeObjectFactory maps application/xaml+xml; anything else is fetched and
+        // dropped). Serving one fixed type would silently make that row untestable.
+        private readonly Dictionary<string, string> _contentTypes =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+        private const string DefaultContentType = "application/xml-dtd";
         private readonly List<string> _requests = new List<string>();
         private volatile bool _stop;
 
@@ -52,10 +59,26 @@ namespace ysonet.Tests
             return "http://127.0.0.1:" + Port + path;
         }
 
-        /// <summary>Answer <paramref name="path"/> with <paramref name="body"/> (UTF-8).</summary>
+        /// <summary>
+        /// Answer <paramref name="path"/> with <paramref name="body"/> (UTF-8), as an
+        /// external DTD.
+        /// </summary>
         public void Serve(string path, string body)
         {
-            lock (_routes) _routes[path] = body ?? "";
+            Serve(path, body, DefaultContentType);
+        }
+
+        /// <summary>
+        /// Same, under an explicit Content-Type. Use this when the CLIENT decides what to do
+        /// with the response by its content type.
+        /// </summary>
+        public void Serve(string path, string body, string contentType)
+        {
+            lock (_routes)
+            {
+                _routes[path] = body ?? "";
+                _contentTypes[path] = string.IsNullOrEmpty(contentType) ? DefaultContentType : contentType;
+            }
         }
 
         /// <summary>Every request target seen so far, in arrival order.</summary>
@@ -119,12 +142,18 @@ namespace ysonet.Tests
 
                     string body;
                     bool known;
-                    lock (_routes) known = _routes.TryGetValue(PathOf(target), out body);
+                    string contentType;
+                    lock (_routes)
+                    {
+                        known = _routes.TryGetValue(PathOf(target), out body);
+                        if (!known || !_contentTypes.TryGetValue(PathOf(target), out contentType))
+                            contentType = DefaultContentType;
+                    }
                     if (!known) body = "";
 
                     byte[] payload = new UTF8Encoding(false).GetBytes(body);
                     string head = (known ? "HTTP/1.1 200 OK\r\n" : "HTTP/1.1 404 Not Found\r\n")
-                        + "Content-Type: application/xml-dtd\r\n"
+                        + "Content-Type: " + contentType + "\r\n"
                         + "Content-Length: " + payload.Length + "\r\n"
                         + "Connection: close\r\n\r\n";
                     byte[] headBytes = Encoding.ASCII.GetBytes(head);

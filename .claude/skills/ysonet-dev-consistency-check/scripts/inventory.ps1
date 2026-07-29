@@ -2,8 +2,10 @@
 .SYNOPSIS
   Deterministic consistency inventory for ysonet. Cross-references the live
   gadget/plugin catalog against docs, docs/ARCHITECTURE.md, and the test suite,
-  and prints one compact report. Replaces dozens of manual Grep/Read calls for
-  checks 1-5 of the ysonet-dev-consistency-check skill.
+  validates gadget variant numbering, audits test fire safety (nothing opens a
+  real application, every fired command comes from the shared sink), and prints
+  one compact report. Replaces dozens of manual Grep/Read calls for checks 1-5
+  of the ysonet-dev-consistency-check skill.
 
 .DESCRIPTION
   The authoritative catalog is the built exe's `--list gadgets` / `--list
@@ -86,6 +88,38 @@ function Get-StaticNames([string]$dir, [string]$suffix) {
         }
     }
     return @($names | Sort-Object -Unique)
+}
+
+function Get-BuiltVariantNumbers([string]$assemblyPath, [string[]]$gadgetNames) {
+    $assembly = [System.Reflection.Assembly]::LoadFrom($assemblyPath)
+    $registry = $assembly.GetType('ysonet.Helpers.GadgetRegistry', $true)
+    $create = $registry.GetMethod('CreateGadgetInstance')
+    if ($null -eq $create) {
+        throw 'GadgetRegistry.CreateGadgetInstance was not found'
+    }
+
+    $byGadget = @{}
+    foreach ($name in $gadgetNames) {
+        $generator = $create.Invoke($null, @($name))
+        if ($null -eq $generator) {
+            throw "could not create gadget '$name'"
+        }
+
+        $variantsMethod = $generator.GetType().GetMethod('Variants')
+        if ($null -eq $variantsMethod) {
+            throw "gadget '$name' has no Variants() method"
+        }
+
+        $numbers = @()
+        $variants = $variantsMethod.Invoke($generator, $null)
+        if ($null -ne $variants) {
+            foreach ($variant in $variants) {
+                $numbers += [int]$variant.Number
+            }
+        }
+        $byGadget[$name] = @($numbers)
+    }
+    return $byGadget
 }
 
 $built = Test-Path $exePath
@@ -200,6 +234,42 @@ foreach ($g in $gadgets) {
 }
 "  ($gClean of $($gadgets.Count) gadgets present in ARCHITECTURE + docs + tests)"
 ""
+"-- GADGET VARIANTS: numbering and declaration order --------------"
+if (-not (Test-Path $exePath)) {
+    "  UNVERIFIED: needs a Debug build to inspect each gadget's Variants() result."
+} else {
+    try {
+        $variantNumbers = Get-BuiltVariantNumbers $exePath $gadgets
+        $withVariants = 0
+        $variantProblems = 0
+        foreach ($g in $gadgets) {
+            $numbers = @($variantNumbers[$g])
+            if ($numbers.Count -eq 0) { continue }
+
+            $withVariants++
+            $valid = $true
+            for ($i = 0; $i -lt $numbers.Count; $i++) {
+                if ($numbers[$i] -ne ($i + 1)) {
+                    $valid = $false
+                    break
+                }
+            }
+            if (-not $valid) {
+                $expected = 1..$numbers.Count
+                $message = "  ORDER: $g declares " + ($numbers -join ', ') +
+                    "; expected " + ($expected -join ', ')
+                $message
+                $variantProblems++
+            }
+        }
+        if ($variantProblems -eq 0) {
+            "  all $withVariants gadgets with variants declare exactly 1..N in order"
+        }
+    } catch {
+        "  UNVERIFIED: could not inspect built variant metadata ($($_.Exception.Message))."
+    }
+}
+""
 "-- PLUGINS: coverage across ARCHITECTURE / docs / tests ----------"
 $pClean = 0
 foreach ($p in $plugins) {
@@ -268,6 +338,189 @@ foreach ($f in $implFiles) {
 }
 if ($placementProblems -eq 0) {
     "  no private declaration outside the private source folders"
+}
+""
+"-- TEST FIRE SAFETY: nothing opens an app, fires use the sink -----"
+# A test may NAME calc.exe/notepad.exe as generation input (the catalogue's own
+# examples, bytes only compared or encoded). It must never EXECUTE one. Every fire
+# row therefore takes its command from FireBackend.Create(...).Command, which picks
+# the windowless ysonet.TestSink.exe when it is available and falls back to the
+# self-closing "cmd /c echo x > marker" only inside TestSink.cs.
+
+$testsDir = Join-Path $RepoRoot 'ysonet.Tests'
+$sinkOwnerFile = 'ysonet.Tests/TestSink.cs'
+$launcherRe = '(?i)\b(calc|notepad|mspaint|wordpad|winword|excel|iexplore|explorer|taskmgr|control|powershell|pwsh|wscript|cscript|rundll32|mshta)(\.exe)?\b'
+
+# Replace every string/char literal with a same-length filler, so brace depth and
+# the "//" comment index can be found without a literal confusing either.
+function Get-MaskedLine([string]$line) {
+    $ev = [System.Text.RegularExpressions.MatchEvaluator] {
+        param($m) ([string][char]1) * $m.Value.Length
+    }
+    $t = [regex]::Replace($line, '@"(?:[^"]|"")*"', $ev)
+    $t = [regex]::Replace($t, '"(?:\\.|[^"\\])*"', $ev)
+    $t = [regex]::Replace($t, "'(?:\\.|[^'\\])*'", $ev)
+    return $t
+}
+
+$fireProblems = 0
+$fireScopes = 0
+$reviewLines = New-Object System.Collections.Generic.List[string]
+$testFiles = @()
+if (Test-Path $testsDir) {
+    $testFiles = Get-ChildItem -Path $testsDir -Filter '*.cs' -ErrorAction SilentlyContinue
+}
+
+foreach ($f in $testFiles) {
+    $rel = $f.FullName.Substring($RepoRoot.Length).TrimStart('\', '/') -replace '\\', '/'
+    $lines = Get-Content -LiteralPath $f.FullName
+    $n = $lines.Count
+
+    # Per line: code with comments stripped (literals intact) and the brace depth.
+    $code = New-Object 'string[]' $n
+    $depthBefore = New-Object 'int[]' $n
+    $depthAfter = New-Object 'int[]' $n
+    $depth = 0
+    for ($i = 0; $i -lt $n; $i++) {
+        $masked = Get-MaskedLine $lines[$i]
+        $ci = $masked.IndexOf('//')
+        if ($ci -ge 0) {
+            $code[$i] = $lines[$i].Substring(0, $ci)
+            $masked = $masked.Substring(0, $ci)
+        } else {
+            $code[$i] = $lines[$i]
+        }
+        $depthBefore[$i] = $depth
+        $depth += ([regex]::Matches($masked, '\{')).Count
+        $depth -= ([regex]::Matches($masked, '\}')).Count
+        $depthAfter[$i] = $depth
+    }
+
+    # Every fire scope: a "using (FireTarget x = ...)" block, or the rest of the
+    # enclosing block after a "FireTarget x = null;" declaration (the try/finally form).
+    $scopes = @()
+    for ($i = 0; $i -lt $n; $i++) {
+        if ($code[$i] -match 'using\s*\(\s*(?:var\s+|FireTarget\s+)\w+\s*=\s*FireBackend\.Create') {
+            $start = $depthBefore[$i]
+            $entered = $false
+            $end = $n - 1
+            for ($j = $i; $j -lt $n; $j++) {
+                if ($depthAfter[$j] -gt $start) { $entered = $true }
+                elseif ($entered -and $depthAfter[$j] -le $start) { $end = $j; break }
+            }
+            $scopes += , @($i, $end)
+        }
+        elseif ($code[$i] -match 'FireTarget\s+\w+\s*=\s*null\s*;') {
+            $start = $depthBefore[$i]
+            $end = $n - 1
+            for ($j = $i + 1; $j -lt $n; $j++) {
+                if ($depthAfter[$j] -lt $start) { $end = $j; break }
+            }
+            $scopes += , @($i, $end)
+        }
+    }
+    $fireScopes += $scopes.Count
+
+    foreach ($s in $scopes) {
+        for ($i = $s[0]; $i -le $s[1]; $i++) {
+            $t = $code[$i]
+            if ($t -match $launcherRe) {
+                "  FIRE: ${rel}:$($i + 1) names a real application inside a fire scope: $($lines[$i].Trim())"
+                $fireProblems++
+            }
+            # The command of an executed payload must be fire.Command, never a literal.
+            elseif ($t -match '\.Cmd\s*=\s*(@?")' -or $t -match '"-c"\s*,\s*(@?")') {
+                "  FIRE: ${rel}:$($i + 1) sets a literal command inside a fire scope (use fire.Command): $($lines[$i].Trim())"
+                $fireProblems++
+            }
+        }
+    }
+
+    # A self-test deserializes in process (or in a child), so the command it carries
+    # is executed. The assignment and the "Test = true" usually sit lines apart, so
+    # this is per METHOD: the same variable set to a real application AND self-tested.
+    $methodStarts = @()
+    for ($i = 0; $i -lt $n; $i++) {
+        if ($code[$i] -match '^\s{4,}(?:\[[^\]]*\]\s*)?(?:private|public|internal|protected)\s' -and
+            $code[$i] -match '\(' -and $code[$i] -notmatch ';\s*$') {
+            $methodStarts += $i
+        }
+    }
+    for ($k = 0; $k -lt $methodStarts.Count; $k++) {
+        $from = $methodStarts[$k]
+        $to = if ($k + 1 -lt $methodStarts.Count) { $methodStarts[$k + 1] - 1 } else { $n - 1 }
+
+        $selfTested = @{}
+        $appCommand = @{}
+        $hasTestArg = $false
+        for ($i = $from; $i -le $to; $i++) {
+            $t = $code[$i]
+            foreach ($m in [regex]::Matches($t, '(\w+)\.Test\s*=\s*true')) {
+                $selfTested[$m.Groups[1].Value] = $i + 1
+            }
+            foreach ($m in [regex]::Matches($t, '(\w+)\.Cmd\s*=\s*@?"([^"]*)"')) {
+                if ($m.Groups[2].Value -match $launcherRe) { $appCommand[$m.Groups[1].Value] = $i + 1 }
+            }
+            if ($t -match '"\-t"' -or $t -match '\s\-t\b') { $hasTestArg = $true }
+        }
+        foreach ($v in $selfTested.Keys) {
+            if ($appCommand.ContainsKey($v)) {
+                "  SELFTEST: ${rel}:$($appCommand[$v]) sets '$v' to a real application and ${rel}:$($selfTested[$v]) self-tests it"
+                "            (confirm the gadget ignores the command; otherwise it launches)"
+                $fireProblems++
+            }
+        }
+        # A "-t" command line built in the same method as an application command.
+        if ($hasTestArg -and $selfTested.Count -eq 0) {
+            for ($i = $from; $i -le $to; $i++) {
+                if ($code[$i] -match '"[^"]*-c\s+[^"]*"' -and $code[$i] -match $launcherRe) {
+                    "  SELFTEST: ${rel}:$($i + 1) builds a -t command line with a real application: $($lines[$i].Trim())"
+                    $fireProblems++
+                }
+            }
+        }
+    }
+
+    # Hand-rolled shell fire commands. The two backends live in TestSink.cs; anywhere
+    # else this is either a bypass of the sink or a generation-only equality check.
+    if ($rel -ne $sinkOwnerFile) {
+        for ($i = 0; $i -lt $n; $i++) {
+            # A line asserting ON a FireTarget's own command describes the backend
+            # rather than building a command, so it is not a lead.
+            if ($code[$i] -match '\.Command\b') { continue }
+            if ($code[$i] -match '"cmd(\.exe)?\s*/[ckCK]\b') {
+                $reviewLines.Add("  REVIEW: ${rel}:$($i + 1) builds a literal shell command: $($lines[$i].Trim())")
+            }
+        }
+    }
+}
+
+if ($fireProblems -eq 0) {
+    "  no fire scope executes a real application or a literal command ($fireScopes fire scopes)"
+}
+foreach ($r in $reviewLines) { $r }
+if ($reviewLines.Count -gt 0) {
+    "  (REVIEW lines are leads: confirm each is generation-only. A literal shell"
+    "   command that is DESERIALIZED must come from FireBackend.Create instead.)"
+}
+
+# The preferred backend only gets selected if the sink executable is really staged.
+$sinkProj = Join-Path $RepoRoot 'ysonet.TestSink/ysonet.TestSink.csproj'
+$testsProjText = ''
+$testsProjPath = Join-Path $RepoRoot 'ysonet.Tests/ysonet.Tests.csproj'
+if (Test-Path $testsProjPath) { $testsProjText = Get-Content -LiteralPath $testsProjPath -Raw }
+if (-not (Test-Path $sinkProj)) {
+    "  SINK: ysonet.TestSink project is missing; every fire row would use the legacy marker"
+} elseif ($testsProjText -notmatch 'ysonet\.TestSink\.csproj') {
+    "  SINK: ysonet.Tests.csproj does not reference ysonet.TestSink; the sink may not be built"
+} else {
+    $stagedSink = Join-Path $RepoRoot 'ysonet/bin/Debug/ysonet.TestSink.exe'
+    if (Test-Path $stagedSink) {
+        "  sink wired: ysonet.TestSink referenced and staged beside the test exe"
+    } else {
+        "  SINK: ysonet.TestSink.exe is not staged in ysonet/bin/Debug (build Debug); a run"
+        "        there falls back to legacy-cmd, which check 9 must not accept silently"
+    }
 }
 ""
 "-- FULL LISTS (for the agent's reference) ------------------------"

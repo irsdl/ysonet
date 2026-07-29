@@ -91,6 +91,14 @@ namespace ysonet.Helpers
         // escaped path (&amp; for '&') is compared as the operator typed it.
         internal static List<string> XmlTextValues(string xml)
         {
+            return XmlTextValues(xml, true);
+        }
+
+        // The same, with attributes optional. A gadget whose value is element TEXT and whose
+        // element also carries an attribute (a xmlns, say) can ask for text nodes only, so a
+        // fragment of the attribute can never be mistaken for the delivered value.
+        internal static List<string> XmlTextValues(string xml, bool includeAttributes)
+        {
             var values = new List<string>();
             var settings = new System.Xml.XmlReaderSettings
             {
@@ -106,7 +114,8 @@ namespace ysonet.Helpers
                         || reader.NodeType == System.Xml.XmlNodeType.CDATA
                         || reader.NodeType == System.Xml.XmlNodeType.SignificantWhitespace)
                         values.Add(reader.Value);
-                    else if (reader.NodeType == System.Xml.XmlNodeType.Element && reader.HasAttributes)
+                    else if (includeAttributes
+                        && reader.NodeType == System.Xml.XmlNodeType.Element && reader.HasAttributes)
                     {
                         while (reader.MoveToNextAttribute())
                             values.Add(reader.Value);

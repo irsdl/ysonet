@@ -57,8 +57,12 @@ Credits for available gadgets:
                 [Finders: SCRT] [Contributors: Soroush Dalili]
         DataTable
                 [Finders: Soroush Dalili]
+        DataTableTypeSpoof
+                [Finders: Soroush Dalili]
         DataViewManagerXxe
                 [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Soroush Dalili]
+        DynamicUpdateMapExtension
+                [Finders: Soroush Dalili]
         FileLogTraceListener
                 [Finders: Piotr Bazydlo]
         FileSystemInfo
@@ -85,7 +89,11 @@ Credits for available gadgets:
                 [Finders: Piotr Bazydlo]
         PSObject
                 [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Alvaro Munoz]
+        ResourceDictionary
+                [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Soroush Dalili]
         ResourceSet
+                [Finders: Soroush Dalili]
+        ResXFileRef
                 [Finders: Soroush Dalili]
         RolePrincipal
                 [Finders: Soroush Dalili]
@@ -113,6 +121,8 @@ Credits for available gadgets:
                 [Finders: Levi Broderick] [Contributors: Alvaro Munoz, Soroush Dalili]
         WindowsPrincipal
                 [Finders: Steven Seeley of Qihoo 360 Vulcan Team] [Contributors: Chris Anastasio]
+        WorkflowDesigner
+                [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Alvaro Munoz, Soroush Dalili, Dane Evans]
         WSManPluginInstance
                 [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Soroush Dalili]
         XamlAssemblyLoadFromFile

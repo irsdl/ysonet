@@ -374,7 +374,7 @@ namespace ysonet.Interactive
                 CommandInputType.HostName,
                 CommandInputType.Url, CommandInputType.FilePath,
                 CommandInputType.TargetPath, CommandInputType.TargetPathPair,
-                CommandInputType.TargetPathAndLocalFile
+                CommandInputType.TargetPathAndLocalFile, CommandInputType.MemoryAddress
             };
             var typeLabels = new List<string>();
             var typeValues = new List<CommandInputType>();
@@ -618,6 +618,7 @@ namespace ysonet.Interactive
                 case CommandInputType.TargetPath: return "Target path";
                 case CommandInputType.TargetPathPair: return "Two target paths";
                 case CommandInputType.TargetPathAndLocalFile: return "Target path + local file";
+                case CommandInputType.MemoryAddress: return "Memory address";
                 case CommandInputType.Ignored: return "Ignored";
                 default: return "Shell command";
             }
@@ -691,6 +692,7 @@ namespace ysonet.Interactive
                 case CommandInputType.TargetPath: return "Path on the target";
                 case CommandInputType.TargetPathPair: return "Two target paths: source;destination";
                 case CommandInputType.TargetPathAndLocalFile: return "Target path;local content file";
+                case CommandInputType.MemoryAddress: return "Memory address in the target process (0x... or decimal)";
                 case CommandInputType.Ignored: return "Command (ignored by this gadget)";
                 default: return "Command to run";
             }
@@ -709,6 +711,7 @@ namespace ysonet.Interactive
                 case CommandInputType.TargetPath: return "A path on the TARGET, used when the payload runs. Nothing is read or written here.";
                 case CommandInputType.TargetPathPair: return "Two paths on the TARGET, separated by ';' (source first). Nothing is read or written here.";
                 case CommandInputType.TargetPathAndLocalFile: return "Where to write on the TARGET, ';', then a file on THIS machine whose text is embedded now.";
+                case CommandInputType.MemoryAddress: return "An address in the TARGET process, as 0x hex or decimal. Nothing here reads or writes it.";
                 case CommandInputType.Ignored: return "This gadget ignores the command, but a value is still required. A placeholder is fine.";
                 default: return "The command the gadget will execute on the target.";
             }

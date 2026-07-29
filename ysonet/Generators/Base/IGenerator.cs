@@ -78,6 +78,24 @@ namespace ysonet.Generators
         // as before, so no scripted command breaks.
         public readonly List<string> UnusedOptions = new List<string>();
 
+        // True when this variant refuses -t (self-test): deserializing its payload in
+        // the ysonet process would damage or compromise the operator's machine (run
+        // their code, hand their bytes to native code, run a BinaryFormatter over their
+        // own file), so the gadget throws for -t on this variant. The interactive editor
+        // reads this to HIDE the shared "test" toggle while such a variant is selected -
+        // the same affordance WithoutOptions gives a gadget option - so a default that
+        // refuses -t does not dead-end Generate. The CLI is unchanged: a scripted -t on
+        // this variant still refuses out loud. Declared with WithoutSelfTest().
+        public bool RefusesSelfTest;
+
+        // True for the variant the gadget builds when no variant option is passed.
+        // Most gadgets default to the FIRST variant they list, which is what every
+        // consumer assumes when nothing declares this, so it does not have to be set.
+        // A gadget whose default is NOT its first variant must declare it with
+        // AsDefault(), or the interactive editor would pre-select a different payload
+        // than the same command line builds.
+        public bool IsDefault;
+
         // Optional full facet override for THIS variant, used only by the category
         // search. Null (the default) means the variant inherits the gadget's
         // Facets(). When a variant's capability differs from the gadget (e.g.
@@ -169,6 +187,26 @@ namespace ysonet.Generators
             return true;
         }
 
+        // Fluent marker for the variant a gadget builds with no variant option.
+        // Declare it only when that variant is not the first one listed, e.g.
+        //   new GadgetVariant(2, "...").AsDefault()
+        public GadgetVariant AsDefault()
+        {
+            IsDefault = true;
+            return this;
+        }
+
+        // Fluent marker for a variant whose payload cannot be self-tested (see
+        // RefusesSelfTest). The generator still throws for -t on this variant; this
+        // declaration is what lets the interactive editor hide the "test" toggle for it,
+        // so a refusing DEFAULT variant does not dead-end Generate.
+        //   new GadgetVariant(2, "...").WithoutSelfTest()
+        public GadgetVariant WithoutSelfTest()
+        {
+            RefusesSelfTest = true;
+            return this;
+        }
+
         // Fluent full facet override for this variant. Returns this so it chains in
         // Variants(), e.g. new GadgetVariant(1, "...").WithFacets(new GadgetFacetSet()
         // .WithKinds(PayloadKind.NestedDeserialization)).
@@ -199,6 +237,7 @@ namespace ysonet.Generators
         TargetPath,     // a path on the TARGET, used only when the payload runs
         TargetPathPair, // "<target path>;<target path>", e.g. a copy/move source and destination
         TargetPathAndLocalFile, // "<target path>;<local file>": where to write, and what to write
+        MemoryAddress,  // an address in the TARGET process's address space (hex or decimal)
         Ignored         // the command is not used by this gadget
     }
 

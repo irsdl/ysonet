@@ -54,6 +54,16 @@
     <!-- For the AssemblyInstallerLoad runtime-effect tests: the WinForms getter carriers
          (PropertyGrid, ComboBox, ListBox, CheckedListBox) are built on deserialize. -->
     <Reference Include="System.Windows.Forms" />
+    <!-- For the ResourceDictionary tests: name System.Windows.ResourceDictionary directly, so
+         the formatter-audit assertions read the real type instead of a type string. -->
+    <Reference Include="PresentationFramework" />
+    <Reference Include="PresentationCore" />
+    <!-- For the ResourceDictionary formatter audit: DataContractSerializer, to show the
+         DataContract family writes a key/value collection with no member to set. -->
+    <Reference Include="System.Runtime.Serialization" />
+    <!-- For the DynamicUpdateMapExtension tests: XamlServices is the NON-WPF XAML reader, and
+         reaching the sink through it is what proves the gadget needs no WPF on the target. -->
+    <Reference Include="System.Xaml" />
     <Reference Include="NDesk.Options, Version=0.2.1.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\NDesk.Options.0.2.1\lib\NDesk.Options.dll</HintPath>
     </Reference>
@@ -66,7 +76,9 @@
     <Compile Include="LoopbackListener.cs" />
     <Compile Include="Oob.cs" />
     <Compile Include="PrivateFakes.cs" />
+    <Compile Include="ResourceSetLoadWitness.cs" />
     <Compile Include="RunStatus.cs" />
+    <Compile Include="StreamActivationWitness.cs" />
     <Compile Include="RuntimeBuild.cs" />
     <Compile Include="TestEnvironment.cs" />
     <Compile Include="TestRunOptions.cs" />
@@ -75,6 +87,8 @@
     <Compile Include="UiIsolation.cs" />
     <Compile Include="VirtualTerminal.cs" />
     <Compile Include="WerContainment.cs" />
+    <Compile Include="WriteOnlyMemberProbe.cs" />
+    <Compile Include="XamlLoadWitness.cs" />
   </ItemGroup>
   <!-- Optional local-only tests for unpublished gadgets/plugins; ignored, and the
        wildcard matches nothing in a normal clone. Compiled only in private mode,
@@ -98,6 +112,31 @@
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
+  <!--
+    Private build mode, matching ysonet.csproj. The two MUST agree: tests for an
+    unpublished module reference types that only exist when that module is compiled,
+    so a mismatch would not build. Following the same switch is what keeps them in
+    step, and it also keeps a test binary carrying unpublished names out of this
+    repository's bin\, exactly like the product one.
+
+    THIS BLOCK MUST STAY ABOVE the Microsoft.CSharp.targets import below. OutDir is
+    derived from OutputPath inside that import, at evaluation time, so an OutputPath
+    set after it changes nothing and the build quietly writes the private test binary
+    into the public checkout. (YsonetOutDir is a plain property only read inside a
+    target, so it does not care - which is why the mistake produced a private binary in
+    BOTH places and no error at all.)
+  -->
+  <PropertyGroup>
+    <IncludePrivateModules Condition="'$(IncludePrivateModules)' == ''">false</IncludePrivateModules>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(IncludePrivateModules)' == 'true'">
+    <OutputPath>$(PrivateBuildRoot)\ysonet.Tests\bin\$(Platform)\$(Configuration)\</OutputPath>
+  </PropertyGroup>
+  <Target Name="ValidatePrivateBuildRoot" BeforeTargets="PrepareForBuild"
+          Condition="'$(IncludePrivateModules)' == 'true' and '$(PrivateBuildRoot)' == ''">
+    <Error Text="IncludePrivateModules=true needs PrivateBuildRoot set to a folder OUTSIDE this repository. Set the PrivateBuildRoot environment variable (or pass -p:PrivateBuildRoot=...) and build again." />
+  </Target>
+
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 
   <!--
@@ -117,25 +156,32 @@
     <TestSinkExe>$(MSBuildProjectDirectory)\..\ysonet.TestSink\bin\$(Configuration)\ysonet.TestSink.exe</TestSinkExe>
   </PropertyGroup>
 
-  <!--
-    Private build mode, matching ysonet.csproj. The two MUST agree: tests for an
-    unpublished module reference types that only exist when that module is compiled,
-    so a mismatch would not build. Following the same switch is what keeps them in
-    step, and it also keeps a test binary carrying unpublished names out of this
-    repository's bin\, exactly like the product one.
-  -->
-  <PropertyGroup>
-    <IncludePrivateModules Condition="'$(IncludePrivateModules)' == ''">false</IncludePrivateModules>
-  </PropertyGroup>
+  <!-- The private half of the block above. It has to sit AFTER the default
+       YsonetOutDir a few lines up, which is unconditional and would otherwise
+       overwrite it, and it can sit after the import because a plain property read
+       inside a target is resolved when the target runs. OutputPath is the one that
+       could not wait; see the note above the import. -->
   <PropertyGroup Condition="'$(IncludePrivateModules)' == 'true'">
-    <OutputPath>$(PrivateBuildRoot)\ysonet.Tests\bin\$(Platform)\$(Configuration)\</OutputPath>
     <!-- Follow the product to its private location, so staging and the test run
          still find ysonet.exe and its bundled DLLs. -->
     <YsonetOutDir>$(PrivateBuildRoot)\ysonet\bin\$(Platform)\Debug</YsonetOutDir>
   </PropertyGroup>
-  <Target Name="ValidatePrivateBuildRoot" BeforeTargets="PrepareForBuild"
-          Condition="'$(IncludePrivateModules)' == 'true' and '$(PrivateBuildRoot)' == ''">
-    <Error Text="IncludePrivateModules=true needs PrivateBuildRoot set to a folder OUTSIDE this repository. Set the PrivateBuildRoot environment variable (or pass -p:PrivateBuildRoot=...) and build again." />
+
+  <!--
+    The guarantee, checked instead of assumed. "A binary carrying unpublished modules is
+    never written inside the public checkout" was a property of where one PropertyGroup
+    happened to sit, and when that went wrong the build stayed green and the private
+    binary simply appeared in bin\Debug. This reads the RESOLVED OutDir (after the import
+    above, so it exists) and fails the build instead.
+  -->
+  <Target Name="ValidatePrivateOutputIsOutsideTheRepository" BeforeTargets="Build"
+          Condition="'$(IncludePrivateModules)' == 'true'">
+    <PropertyGroup>
+      <_YsonetRepoRoot>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '..'))))</_YsonetRepoRoot>
+      <_YsonetResolvedOutDir>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(OutDir)'))))</_YsonetResolvedOutDir>
+    </PropertyGroup>
+    <Error Condition="$(_YsonetResolvedOutDir.ToLowerInvariant().StartsWith($(_YsonetRepoRoot.ToLowerInvariant())))"
+           Text="Private mode would write '$(_YsonetResolvedOutDir)', which is inside the public checkout '$(_YsonetRepoRoot)'. A binary carrying unpublished modules must never land there. Check that the private OutputPath override sits ABOVE the Microsoft.CSharp.targets import (OutDir is derived from OutputPath inside it), and that PrivateBuildRoot points outside this repository." />
   </Target>
 
   <!--

