@@ -439,17 +439,12 @@ namespace ysonet.Tests
             string explicitPath = Environment.GetEnvironmentVariable("YSONET_INTERACTSH_CLIENT");
             if (!string.IsNullOrEmpty(explicitPath) && File.Exists(explicitPath)) return explicitPath;
 
-            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-            while (dir != null)
+            string root = FindRepoRoot();
+            if (root != null)
             {
-                if (File.Exists(Path.Combine(dir.FullName, "ysonet.sln")))
-                {
-                    string candidate = Path.Combine(dir.FullName,
-                        Path.Combine("tools", Path.Combine("interactsh", Path.Combine("bin", ClientExeName))));
-                    if (File.Exists(candidate)) return candidate;
-                    break;
-                }
-                dir = dir.Parent;
+                string candidate = Path.Combine(root,
+                    Path.Combine("tools", Path.Combine("interactsh", Path.Combine("bin", ClientExeName))));
+                if (File.Exists(candidate)) return candidate;
             }
 
             string pathVar = Environment.GetEnvironmentVariable("PATH");
@@ -466,6 +461,33 @@ namespace ysonet.Tests
                     catch { /* a malformed PATH entry is not our problem */ }
                 }
             }
+            return null;
+        }
+
+        // The repository root, for locating a file that ships in the repo rather than in the
+        // build output. Walking up from the binary is the normal answer and is enough for an
+        // ordinary build.
+        //
+        // IT IS NOT ENOUGH WHEN THE BUILD WRITES ITS OUTPUT OUTSIDE THE REPOSITORY, which is a
+        // configuration this solution supports. There the walk never meets ysonet.sln, the
+        // client is reported "not found", and every OOB row logs a skip that reads like a
+        // missing install - so the tier silently covers nothing on a machine that has the
+        // client sitting in tools\interactsh\bin. YSONET_REPO_ROOT is the same fallback
+        // Tests.FindWorkspaceRoot uses, and it is only honoured when it really points at a
+        // workspace, so a stale value cannot produce a half answer.
+        private static string FindRepoRoot()
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "ysonet.sln"))) return dir.FullName;
+                dir = dir.Parent;
+            }
+
+            string root = Environment.GetEnvironmentVariable("YSONET_REPO_ROOT");
+            if (!string.IsNullOrEmpty(root) && File.Exists(Path.Combine(root, "ysonet.sln")))
+                return root;
+
             return null;
         }
 

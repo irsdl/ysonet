@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using System.Web.Configuration;
 using ysonet.Generators;
 using ysonet.Helpers;
+using ysonet.Helpers.Core;
 
 /**
  * Author: Soroush Dalili (@irsdl)
@@ -71,7 +72,7 @@ namespace ysonet.Plugins
             {"g|gadget=", "A gadget chain that supports LosFormatter. Default: ActivitySurrogateSelector.", v => gadget = v },
             {"c|command=", "The command suitable for the used gadget (will be ignored for ActivitySurrogateSelector).", v => command = v },
             {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
-            {"s|stdin", "The command to be executed will be read from standard input.", v => cmdstdin = v != null },
+            {"s|stdin", "The command to be executed will be read from standard input (the first line, up to 2,050 bytes). A non-empty command wins.", v => cmdstdin = v != null },
             {"usp|unsignedpayload=", "The unsigned LosFormatter payload (base64 encoded). The gadget and command parameters will be ignored.", v => unsignedPayload = v },
             {"isfileusp", "Indicates that the unsigned payload contains a file name (e.g., payload.txt).", v => isUnsignedPayloadAFile = v != null },
             {"vsg|generator=", "The __VIEWSTATEGENERATOR value in HEX, useful for .NET <= 4.0. When not empty, 'legacy' will be used and 'path' and 'apppath' will be ignored.", v => viewstateGenerator = v },
@@ -174,7 +175,19 @@ namespace ysonet.Plugins
                 extra = options.Parse(args);
                 if (String.IsNullOrEmpty(command) && cmdstdin)
                 {
-                    inputArgs.Cmd = Console.ReadLine();
+                    // The same reader the one-shot CLI uses, so -s means one thing in
+                    // the whole tool. Console.ReadLine() used to be enough, but it
+                    // returns null on an empty input and a bare byte-order mark as a
+                    // one-character line, so an empty standard input built a complete
+                    // ViewState around a junk command and still exited 0.
+                    string cmdFromStdin, stdinError;
+                    if (!StdinCommandReader.TryReadCommand(out cmdFromStdin, out stdinError))
+                    {
+                        // Throwing rather than exiting: the caller prints the message and
+                        // exits non-zero, and interactive mode keeps its session.
+                        throw new Exception(stdinError);
+                    }
+                    inputArgs.Cmd = cmdFromStdin;
                 }
                 else
                 {

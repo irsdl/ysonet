@@ -60,7 +60,12 @@ namespace ysonet.Tests
         // test-only type appear in the child ysonet.exe and must never name a real
         // private module. With no implementation the call below disappears at
         // compile time: there is no runtime branch and no conditional skip.
-        static partial void RunPrivateTests();
+        //
+        // It takes the run options so a private row can pick its own tier - a module
+        // whose only real effect leaves the process belongs in FULL exactly like a
+        // public one. The parameter names nothing private and a partial method with
+        // parameters is still erased when unimplemented, so a clean clone is unchanged.
+        static partial void RunPrivateTests(TestRunOptions options);
 
         private static int Main(string[] args)
         {
@@ -314,6 +319,11 @@ namespace ysonet.Tests
             Run("WbemClassObjectUnmarshal refuses a host it cannot honour", WbemClassObjectUnmarshalRefusesUnusableHosts);
             Run("WbemClassObjectUnmarshal variant 2 ships a prepared blob and validates the file", WbemClassObjectUnmarshalPreparedBlobVariant);
             Run("WbemClassObjectUnmarshal info panel still shows its formatters, input and categories", WbemClassObjectUnmarshalInfoPanelStillShowsItsFacts);
+            Run("WbemClassObjectUnmarshal root carrier 1 is byte-identical to no carrier option", WbemRootCarrierDefaultEqualsCarrierOne);
+            Run("WbemClassObjectUnmarshal root carrier 2 wraps the target in ManagementBaseObject", WbemRootCarrierTwoCarriesTheWrapperTypeAndTheNestedMember);
+            Run("WbemClassObjectUnmarshal refuses the carrier x formatter cells it cannot build", WbemRootCarrierRefusesFormattersItCannotProduce);
+            Run("WbemClassObjectUnmarshal refuses a root carrier number it has no branch for", WbemRootCarrierRejectsAnUnknownNumber);
+            Run("WbemClassObjectUnmarshal root carrier works with both variants", WbemRootCarrierWorksWithBothVariants);
             Run("FileSystemInfo drives the path normalizer on every formatter and variant", FileSystemInfoReachesThePathNormalizer);
             Run("FileSystemInfo carries the target type, both members and the path", FileSystemInfoCarriesTheTargetTypeAndPath);
             Run("FileSystemInfo refuses no path shape and describes the trigger honestly", FileSystemInfoShortNameRuleMatchesTheFramework);
@@ -528,6 +538,9 @@ namespace ysonet.Tests
             Run("Run-all reaches the sweep and accounts for every cell", RafSweepIsReachableAndAccounted);
             Run("Run-all refuses conflicting selectors and keeps information modes", RafUsageErrorsAndPrecedence);
             Run("Stdin commands are bounded and an empty one is reported", RafStdinIsBoundedAndReported);
+            Run("Stdin bytes parse into one command", StdinBytesParseIntoOneCommand);
+            Run("Stdin reads one whole line through the CLI", StdinReadsOneWholeLine);
+            Run("The ViewState plugin refuses an empty stdin command", ViewStatePluginRefusesEmptyStdin);
             Run("Run-all counts an unwritable output path as a failure", RafCountsOutputFailuresAsFailures);
             Run("Run-all help states its contract", RafHelpDescribesItsContract);
 
@@ -561,7 +574,7 @@ namespace ysonet.Tests
 
             // Rows owned by a mounted private test area. Compiled away when there is
             // none, so a clean clone runs exactly the rows above.
-            RunPrivateTests();
+            RunPrivateTests(options);
 
             // FULL tier (opt-in): the exhaustive combination suite. It is slower and
             // flashes many self-closing cmd windows / binds loopback sockets, so it
@@ -5169,6 +5182,338 @@ namespace ysonet.Tests
                     + " setting");
             AssertTrue(!string.IsNullOrEmpty(variant.Help),
                 "the variant setting carries its help text into the editor");
+
+            // The carrier selector is a second gadget option and needs the same reach: a
+            // green CLI matrix has already once hidden a setting the interactive build
+            // could not choose.
+            EditableField carrier = FindEditable(ed.BuildFieldsForTest(WbemGadget),
+                WbemClassObjectUnmarshalGenerator.RootCarrierOptionName);
+            AssertTrue(carrier != null && !carrier.Hidden,
+                "the editor offers the " + WbemClassObjectUnmarshalGenerator.RootCarrierOptionName
+                    + " setting");
+            AssertTrue(!string.IsNullOrEmpty(carrier.Help),
+                "the carrier setting carries its help text into the editor");
+        }
+
+        // Same as GenerateWbem, but also picks the root carrier. Kept separate so the
+        // existing rows keep proving that a run with NO --rootcarrier behaves exactly as
+        // it did before the option existed.
+        private static RunResult GenerateWbemCarrier(string formatter, bool minify, int variant,
+            int carrier, string cmd)
+        {
+            WbemGenerationCount++;
+            InputArgs ia = new InputArgs();
+            ia.Cmd = cmd;
+            ia.Minify = minify;
+            ia.Test = false;
+            ia.ExtraArguments = new List<string>
+            {
+                "--" + WbemClassObjectUnmarshalGenerator.VariantOptionName, variant.ToString(),
+                "--" + WbemClassObjectUnmarshalGenerator.RootCarrierOptionName, carrier.ToString()
+            };
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = WbemGadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+        }
+
+        // The two formatters that CANNOT carry the ManagementBaseObject wrapper, named here
+        // as literals because they are a measurement, not a restatement of the product's own
+        // list. WbemRootCarrierRefusesFormattersItCannotProduce asserts the product agrees
+        // with these two, so widening the product list without new evidence fails the row.
+        //
+        // Measured (loopback, carrier 2, each read back with DeserializeWbem):
+        //   BinaryFormatter             reached CoUnmarshalInterface, 0x80070776 OR_INVALID_OXID
+        //   SoapFormatter               same
+        //   LosFormatter                same
+        //   NetDataContractSerializer   same
+        //   Json.NET                    same
+        //   DataContractSerializer      XmlException "'Element' is an invalid XmlNodeType"
+        //   FsPickler                   NonSerializableTypeException on ManagementBaseObject
+        private static readonly string[] WbemCarrierTwoImpossible =
+        {
+            "DataContractSerializer", "FsPickler"
+        };
+
+        private static bool WbemCarrierTwoSupports(string formatter)
+        {
+            foreach (string impossible in WbemCarrierTwoImpossible)
+                if (formatter == impossible)
+                    return false;
+            return true;
+        }
+
+        // Carrier 1 must be byte-identical to passing no --rootcarrier at all. This is the
+        // whole no-regression guarantee of the option: every payload and every scripted
+        // command that existed before it still produces exactly the same bytes. It mirrors
+        // XamlContainerDefaultEqualsContainerOne on the --rootcontainer gadgets.
+        private static void WbemRootCarrierDefaultEqualsCarrierOne()
+        {
+            foreach (string formatter in WbemFormatters)
+            {
+                foreach (bool minify in new[] { false, true })
+                {
+                    string label = formatter + (minify ? " --minify" : "");
+                    RunResult bare = GenerateWbem(formatter, minify, 1, WbemLoopbackHost);
+                    RunResult one = GenerateWbemCarrier(formatter, minify, 1,
+                        WbemClassObjectUnmarshalGenerator.CarrierBare, WbemLoopbackHost);
+
+                    AssertTrue(bare.Success, label + " generates with no carrier option: " + bare.ErrorMessage);
+                    AssertTrue(one.Success, label + " generates with carrier 1: " + one.ErrorMessage);
+                    AssertTrue(ByteEquals(Bytes(bare.Raw), Bytes(one.Raw)),
+                        label + ": carrier 1 is byte-identical to no --rootcarrier at all");
+
+                    // And the wrapper really is a different payload, so the row above is not
+                    // passing because the option does nothing.
+                    if (!WbemCarrierTwoSupports(formatter))
+                        continue;
+                    RunResult two = GenerateWbemCarrier(formatter, minify, 1,
+                        WbemClassObjectUnmarshalGenerator.CarrierManagementBaseObject, WbemLoopbackHost);
+                    AssertTrue(two.Success, label + " generates with carrier 2: " + two.ErrorMessage);
+                    AssertTrue(!ByteEquals(Bytes(bare.Raw), Bytes(two.Raw)),
+                        label + ": carrier 2 produces a different payload from carrier 1");
+                }
+            }
+        }
+
+        // What carrier 2 has to put on the wire, for every formatter that can build it: the
+        // PUBLIC wrapper type at the root, its one member name, the INTERNAL inner type
+        // (which the outer constructor's `as` cast needs, so naming anything else there is a
+        // payload that deserializes and calls nobody), the blob member, and the OBJREF bytes
+        // unchanged.
+        private static void WbemRootCarrierTwoCarriesTheWrapperTypeAndTheNestedMember()
+        {
+            byte[] expected = WbemClassObjectUnmarshalGenerator.BuildStandardObjRef(WbemLoopbackHost);
+            string expectedBase64 = Convert.ToBase64String(expected);
+            int covered = 0;
+
+            foreach (string formatter in WbemFormatters)
+            {
+                if (!WbemCarrierTwoSupports(formatter))
+                    continue;
+
+                foreach (bool minify in new[] { false, true })
+                {
+                    string label = formatter + " carrier 2" + (minify ? " --minify" : "");
+                    RunResult r = GenerateWbemCarrier(formatter, minify, 1,
+                        WbemClassObjectUnmarshalGenerator.CarrierManagementBaseObject, WbemLoopbackHost);
+                    AssertTrue(r.Success, label + " generates: " + r.ErrorMessage);
+
+                    byte[] searchable = WbemSearchableBytes(formatter, r.Raw);
+                    string text = Encoding.UTF8.GetString(searchable);
+
+                    // SoapFormatter splits a type name between the element and its xmlns, so
+                    // it gets the same two-part assertion the bare rows use.
+                    if (formatter == "SoapFormatter")
+                    {
+                        AssertTrue(text.Contains(
+                                WbemClassObjectUnmarshalGenerator.ManagementBaseObjectBareTypeName),
+                            label + " names the wrapper element");
+                        AssertTrue(text.Contains("System.Management"),
+                            label + " names the System.Management assembly in its clr namespace");
+                    }
+                    else
+                    {
+                        AssertTrue(text.Contains(
+                                WbemClassObjectUnmarshalGenerator.ManagementBaseObjectClrName),
+                            label + " names "
+                                + WbemClassObjectUnmarshalGenerator.ManagementBaseObjectClrName
+                                + " at the root");
+                    }
+
+                    AssertTrue(text.Contains(WbemClassObjectUnmarshalGenerator.WbemObjectMemberName),
+                        label + " names the "
+                            + WbemClassObjectUnmarshalGenerator.WbemObjectMemberName
+                            + " member the wrapper's constructor reads");
+                    AssertTrue(text.Contains(WbemBareTypeName),
+                        label + " still names the inner " + WbemBareTypeName
+                            + ", which the wrapper's `as` cast needs");
+                    AssertTrue(text.Contains(WbemClassObjectUnmarshalGenerator.BlobMemberName),
+                        label + " still names " + WbemClassObjectUnmarshalGenerator.BlobMemberName);
+
+                    if (WbemCarriesRawBytes(formatter))
+                        AssertTrue(IndexOfBytes(searchable, expected) >= 0,
+                            label + " carries the OBJREF bytes verbatim");
+                    else
+                        AssertTrue(StripWs(text).Contains(StripWs(expectedBase64)),
+                            label + " carries the OBJREF as base64 that survived generation"
+                                + (minify ? " and minification" : ""));
+                    covered++;
+                }
+            }
+
+            AssertEqual((WbemFormatters.Length - WbemCarrierTwoImpossible.Length) * 2, covered,
+                "every formatter carrier 2 supports was checked in both minify states");
+        }
+
+        // A carrier x formatter cell that cannot be built is REFUSED by name, never emitted
+        // as a document that deserializes into nothing. The same formatter must still work on
+        // carrier 1, which is what proves the refusal is about the carrier and not about the
+        // formatter being broken.
+        private static void WbemRootCarrierRefusesFormattersItCannotProduce()
+        {
+            // The product's own list must match the measured one. Widening it silently would
+            // otherwise ship a cell no test ever read back.
+            AssertEqual(WbemCarrierTwoImpossible.Length,
+                WbemClassObjectUnmarshalGenerator.CarrierTwoUnsupportedFormatters.Length,
+                "the gadget refuses exactly the formatters the audit measured as impossible");
+            foreach (string impossible in WbemCarrierTwoImpossible)
+                AssertTrue(Array.IndexOf(
+                        WbemClassObjectUnmarshalGenerator.CarrierTwoUnsupportedFormatters,
+                        impossible) >= 0,
+                    "the gadget lists " + impossible + " as impossible for carrier 2");
+
+            foreach (string formatter in WbemCarrierTwoImpossible)
+            {
+                RunResult refused = GenerateWbemCarrier(formatter, false, 1,
+                    WbemClassObjectUnmarshalGenerator.CarrierManagementBaseObject, WbemLoopbackHost);
+                AssertTrue(!refused.Success, formatter + " with carrier 2 is refused");
+                AssertTrue(refused.Raw == null, formatter + ": a refused run returns no payload");
+
+                string message = refused.ErrorMessage ?? "";
+                AssertTrue(message.Contains(formatter),
+                    formatter + ": the refusal names the formatter: " + message);
+                AssertTrue(message.Contains(
+                        WbemClassObjectUnmarshalGenerator.RootCarrierOptionName),
+                    formatter + ": the refusal names the option: " + message);
+
+                // The same formatter on carrier 1 is untouched.
+                RunResult ok = GenerateWbemCarrier(formatter, false, 1,
+                    WbemClassObjectUnmarshalGenerator.CarrierBare, WbemLoopbackHost);
+                AssertTrue(ok.Success,
+                    formatter + " still builds carrier 1: " + ok.ErrorMessage);
+            }
+        }
+
+        // A carrier number the gadget has no branch for must be refused, not rounded down to
+        // the default. The two carriers differ only in a type name, so a silent fall back
+        // would ship a payload that looks exactly as correct as the one that was asked for.
+        private static void WbemRootCarrierRejectsAnUnknownNumber()
+        {
+            foreach (string bad in new[] { "0", "3", "-1", "abc", "" })
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = WbemLoopbackHost;
+                ia.ExtraArguments = new List<string>
+                {
+                    "--" + WbemClassObjectUnmarshalGenerator.RootCarrierOptionName, bad
+                };
+                RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = WbemGadget,
+                    FormatterName = "BinaryFormatter",
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+
+                string label = "--" + WbemClassObjectUnmarshalGenerator.RootCarrierOptionName
+                    + " \"" + bad + "\"";
+                AssertTrue(!r.Success, label + " is refused");
+                AssertTrue(r.Raw == null, label + ": a refused run returns no payload");
+                AssertTrue((r.ErrorMessage ?? "").Contains(
+                        WbemClassObjectUnmarshalGenerator.RootCarrierOptionName),
+                    label + ": the message names the option and its allowed values: "
+                        + r.ErrorMessage);
+            }
+        }
+
+        // The two axes are independent, so every combination has to hold: carrier 2 must ship
+        // an operator's prepared blob (variant 2) as faithfully as the built one, and the -t
+        // refusal must still be about the VARIANT, never about the carrier.
+        private static void WbemRootCarrierWorksWithBothVariants()
+        {
+            byte[] prepared = WbemClassObjectUnmarshalGenerator.BuildStandardObjRef(
+                "prepared.example.com");
+            string preparedBase64 = Convert.ToBase64String(prepared);
+
+            string blobPath = TestArtifactPath("ysonet_wbem_carrier_prepared.bin");
+            SafeDelete(blobPath);
+            try
+            {
+                File.WriteAllBytes(blobPath, prepared);
+                AssertTrue(File.Exists(blobPath), "the prepared blob fixture survives being written");
+
+                foreach (string formatter in WbemFormatters)
+                {
+                    if (!WbemCarrierTwoSupports(formatter))
+                        continue;
+
+                    RunResult r = GenerateWbemCarrier(formatter, false, 2,
+                        WbemClassObjectUnmarshalGenerator.CarrierManagementBaseObject, blobPath);
+                    string label = formatter + " carrier 2 + variant 2";
+                    AssertTrue(r.Success, label + " generates: " + r.ErrorMessage);
+
+                    byte[] searchable = WbemSearchableBytes(formatter, r.Raw);
+                    if (WbemCarriesRawBytes(formatter))
+                        AssertTrue(IndexOfBytes(searchable, prepared) >= 0,
+                            label + " ships the prepared blob byte for byte");
+                    else
+                        AssertTrue(StripWs(Encoding.UTF8.GetString(searchable))
+                                .Contains(StripWs(preparedBase64)),
+                            label + " ships the prepared blob byte for byte");
+
+                    AssertTrue(Encoding.UTF8.GetString(searchable).Contains(
+                            WbemClassObjectUnmarshalGenerator.WbemObjectMemberName),
+                        label + " still wraps it in the "
+                            + WbemClassObjectUnmarshalGenerator.WbemObjectMemberName + " member");
+
+                    // -t stays refused for variant 2 on either carrier: the reason is the
+                    // operator's unparsed bytes reaching native COM, which the wrapper does
+                    // not change.
+                    InputArgs ia = new InputArgs();
+                    ia.Cmd = blobPath;
+                    ia.Test = true;
+                    ia.ExtraArguments = new List<string>
+                    {
+                        "--" + WbemClassObjectUnmarshalGenerator.VariantOptionName, "2",
+                        "--" + WbemClassObjectUnmarshalGenerator.RootCarrierOptionName,
+                        WbemClassObjectUnmarshalGenerator.CarrierManagementBaseObject.ToString()
+                    };
+                    RunResult tested = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = WbemGadget,
+                        FormatterName = formatter,
+                        OutputFormat = "",
+                        InputArgs = ia,
+                    });
+                    AssertTrue(!tested.Success, label + " with -t is still refused");
+                    AssertTrue((tested.ErrorMessage ?? "").Contains("-t"),
+                        label + ": the refusal still names -t: " + tested.ErrorMessage);
+                }
+
+                // Carrier 2 with variant 1 and -t is ACCEPTED, like carrier 1: the blob is one
+                // ysonet built and the only local effect is the loopback callback.
+                RunResult selfTested = GenerateWbemCarrierWithTest("BinaryFormatter", 1,
+                    WbemClassObjectUnmarshalGenerator.CarrierManagementBaseObject, WbemLoopbackHost);
+                AssertTrue(selfTested.Success,
+                    "carrier 2 + variant 1 accepts -t: " + selfTested.ErrorMessage);
+                AssertTrue(selfTested.Raw != null,
+                    "carrier 2 + variant 1 still returns a payload under -t");
+            }
+            finally { SafeDelete(blobPath); }
+        }
+
+        private static RunResult GenerateWbemCarrierWithTest(string formatter, int variant,
+            int carrier, string cmd)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = cmd;
+            ia.Test = true;
+            ia.ExtraArguments = new List<string>
+            {
+                "--" + WbemClassObjectUnmarshalGenerator.VariantOptionName, variant.ToString(),
+                "--" + WbemClassObjectUnmarshalGenerator.RootCarrierOptionName, carrier.ToString()
+            };
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = WbemGadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
         }
 
         // The bare type name, which is what SoapFormatter and the XML formats use as an
@@ -16541,17 +16886,38 @@ namespace ysonet.Tests
             // 127.0.0.1:135 answering is a prerequisite, not part of what is under test.
             // Resolve it once and then name every cell that did not run, so the report
             // says which 14 combinations lost coverage rather than just "RPC absent".
+            // Both root carriers are fired, because a wrapper that generated cleanly and
+            // never reached the sink would look exactly like a working one: the carrier 2
+            // cells are the only proof that the outer ManagementBaseObject constructor
+            // really passes the nested member down. The two formatters carrier 2 cannot
+            // build are refused by the gadget and asserted in the normal tier instead
+            // (WbemRootCarrierRefusesFormattersItCannotProduce), so they are skipped here
+            // rather than counted as a missing cell.
+            int cells = WbemFormatters.Length * 2
+                + (WbemFormatters.Length - WbemCarrierTwoImpossible.Length) * 2;
+
             CapabilityState rpc = TestEnvironment.State(TestEnvironment.LocalRpcEndpointMapper);
             if (rpc == CapabilityState.Unknown)
                 TestEnvironment.RecordUnverified(TestEnvironment.LocalRpcEndpointMapper,
-                    WbemGadget + " COM sink (all " + (WbemFormatters.Length * 2) + " cells)");
+                    WbemGadget + " COM sink (all " + cells + " cells)");
             bool rpcUsable = rpc != CapabilityState.Absent;
 
             foreach (string formatter in WbemFormatters)
+            foreach (int carrier in new[]
             {
+                WbemClassObjectUnmarshalGenerator.CarrierBare,
+                WbemClassObjectUnmarshalGenerator.CarrierManagementBaseObject
+            })
+            {
+                if (carrier == WbemClassObjectUnmarshalGenerator.CarrierManagementBaseObject
+                    && !WbemCarrierTwoSupports(formatter))
+                    continue;
+
                 foreach (bool minify in new[] { false, true })
                 {
-                    string label = WbemGadget + " -f " + formatter + (minify ? " --minify" : "");
+                    string label = WbemGadget + " -f " + formatter
+                        + " --" + WbemClassObjectUnmarshalGenerator.RootCarrierOptionName
+                        + " " + carrier + (minify ? " --minify" : "");
                     if (!rpcUsable)
                     {
                         TestEnvironment.RecordSkip(TestEnvironment.LocalRpcEndpointMapper, "fire " + label);
@@ -16560,7 +16926,7 @@ namespace ysonet.Tests
                     if (trace) { Console.Error.WriteLine("    [fire] " + label); Console.Error.Flush(); }
                     try
                     {
-                        RunResult r = GenerateWbem(formatter, minify, 1, WbemLoopbackHost);
+                        RunResult r = GenerateWbemCarrier(formatter, minify, 1, carrier, WbemLoopbackHost);
                         if (!r.Success)
                         {
                             failures.Add("fire " + label + ": generation failed: " + r.ErrorMessage);
@@ -18740,8 +19106,14 @@ namespace ysonet.Tests
                     "no Wbem payload was generated");
                 AssertEqual(0, fired, "nothing fired");
                 AssertEqual(0, failures.Count, "and a missing capability is not a failure");
-                AssertEqual(5 + WbemFormatters.Length * 2, TestEnvironment.EnvironmentSkipCount,
-                    "five loopback rows plus every Wbem cell are named individually");
+                // Every Wbem cell means both root carriers, minus the carrier 2 x formatter
+                // cells the gadget cannot build at all. A skip is unverified coverage, so
+                // the count has to name each one rather than reporting "RPC absent" once.
+                AssertEqual(5 + WbemFormatters.Length * 2
+                        + (WbemFormatters.Length - WbemCarrierTwoImpossible.Length) * 2,
+                    TestEnvironment.EnvironmentSkipCount,
+                    "five loopback rows plus every Wbem carrier x formatter x minify cell are "
+                        + "named individually");
             });
         }
 
@@ -19099,6 +19471,16 @@ namespace ysonet.Tests
         {
             if (!object.Equals(expected, actual))
                 throw new Exception(msg + " (expected '" + expected + "', got '" + actual + "')");
+        }
+
+        // Captured child output in a failure message, short enough to read. A sweep can
+        // print tens of kilobytes and only the start of it says what went wrong.
+        private static string Excerpt(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return "<empty>";
+            text = text.Replace("\r", "").Replace("\n", " ");
+            return text.Length <= 300 ? text : text.Substring(0, 300) + "...";
         }
 
         // ---- Quiet and observable test runs ------------------------------------
@@ -21660,6 +22042,135 @@ namespace ysonet.Tests
             AssertTrue(!se.Contains(empty), "a one-byte command is not an empty input");
             AssertEqual(0, exit, "a one-byte command reaches generation");
             AssertTrue(so.Contains("ObjectDataProvider"), "and the payload names the carrier");
+
+            // A bare line ending carries no command either, and it is one byte shorter
+            // than the CRLF the reader strips.
+            TryRunYsonet("-g ObjectDataProvider -f Json.NET -s", "\n", out exit, out so, out se);
+            AssertTrue(exit != 0, "a lone newline is not a command");
+            AssertTrue(se.Contains(empty), "and it is reported as an empty input");
+        }
+
+        // The byte-level rules of a stdin command, stated on the bytes themselves. The
+        // process rows below cannot do this part: on a machine whose console code page is
+        // UTF-8 the runtime puts a byte-order mark in the child's pipe before a test can
+        // write anything (see TryRunYsonet), so an exact input is only expressible here.
+        private static void StdinBytesParseIntoOneCommand()
+        {
+            byte[] bom = new byte[] { 0xEF, 0xBB, 0xBF };
+
+            AssertEqual("", Parse(new byte[0]), "no bytes carry no command");
+            AssertEqual("", Parse(null), "no buffer carries no command");
+            AssertEqual("", Parse(Encoding.ASCII.GetBytes("\n")), "a bare newline is not a command");
+            AssertEqual("", Parse(Encoding.ASCII.GetBytes("\r\n")), "a bare CRLF is not a command");
+            AssertEqual("x", Parse(Encoding.ASCII.GetBytes("x")), "one byte and no newline is a command");
+            AssertEqual("calc.exe", Parse(Encoding.ASCII.GetBytes("calc.exe")), "a plain command");
+            AssertEqual("calc.exe", Parse(Encoding.ASCII.GetBytes("calc.exe\r\n")), "a CRLF is not part of it");
+            AssertEqual("calc.exe", Parse(Encoding.ASCII.GetBytes("calc.exe\n")), "nor is a lone LF");
+
+            // A command is ONE line. Stopping at the first newline is also what lets the
+            // reader stop reading there, so a hand-typed command still ends at Enter
+            // instead of waiting for Ctrl+Z.
+            AssertEqual("calc.exe", Parse(Encoding.ASCII.GetBytes("calc.exe\r\nnotpartofit")),
+                "only the first line is the command");
+
+            // The mark that a redirecting .NET caller sends whether it means to or not.
+            // Decoded as ASCII it used to become the literal command `???`, so an EMPTY
+            // stdin built a full payload and a real command arrived as `???calc.exe`.
+            AssertEqual("", Parse(bom), "a byte-order mark alone carries no command");
+            AssertEqual("calc.exe", Parse(Concat(bom, Encoding.ASCII.GetBytes("calc.exe"))),
+                "and it is not part of a command that follows it");
+            AssertEqual("", Parse(Concat(bom, Encoding.ASCII.GetBytes("\r\n"))),
+                "a marked empty line still carries no command");
+
+            // Exactly one mark is framing. A second one is content, and it decodes to '?'
+            // like any other non-ASCII byte rather than being stripped in a loop.
+            AssertEqual("???", Parse(Concat(bom, bom)), "a second mark is content, not framing");
+
+            // count, not buffer length, decides what was read: the reader hands over a
+            // 2,050 byte buffer with only the first few bytes filled.
+            byte[] big = new byte[64];
+            Buffer.BlockCopy(Encoding.ASCII.GetBytes("calc.exe"), 0, big, 0, 8);
+            AssertEqual("calc.exe", StdinCommandReader.ParseCommand(big, 8), "only the bytes read are used");
+            AssertEqual("", StdinCommandReader.ParseCommand(big, 0), "a filled buffer read as 0 bytes is empty");
+            AssertEqual("calc.exe", StdinCommandReader.ParseCommand(Encoding.ASCII.GetBytes("calc.exe"), 999),
+                "a count past the buffer is clamped, not thrown");
+        }
+
+        private static string Parse(byte[] bytes)
+        {
+            return StdinCommandReader.ParseCommand(bytes, bytes == null ? 0 : bytes.Length);
+        }
+
+        private static byte[] Concat(byte[] a, byte[] b)
+        {
+            byte[] joined = new byte[a.Length + b.Length];
+            Buffer.BlockCopy(a, 0, joined, 0, a.Length);
+            Buffer.BlockCopy(b, 0, joined, a.Length, b.Length);
+            return joined;
+        }
+
+        // The same rules through the real CLI, where the command has to survive the pipe
+        // and reach the payload. Every row asserts the command that ended up IN the
+        // payload, not just that a payload was produced: one built around a corrupted
+        // command still looks like a success.
+        private static void StdinReadsOneWholeLine()
+        {
+            int exit; string so, se;
+            // --rawcmd so the payload carries the command with no `cmd /c ` in front of
+            // it, which makes an exact-match assertion possible.
+            const string args = "-g ObjectDataProvider -f Json.NET --rawcmd -s";
+
+            if (!TryRunYsonet(args, Encoding.ASCII.GetBytes("calc.exe"), out exit, out so, out se))
+            {
+                Console.Error.WriteLine("  [skip] StdinReadsOneWholeLine: ysonet.exe not found beside the test exe");
+                return;
+            }
+            AssertEqual(0, exit, "a redirected command reaches generation");
+            AssertTrue(so.Contains("'calc.exe'"), "the payload carries the command exactly: " + Excerpt(so));
+            AssertTrue(!so.Contains("?calc.exe"), "with nothing in front of it: " + Excerpt(so));
+
+            // Anything after the first line is not part of the command.
+            TryRunYsonet(args, Encoding.ASCII.GetBytes("calc.exe\r\nnotpartofit"), out exit, out so, out se);
+            AssertEqual(0, exit, "a command followed by more lines reaches generation");
+            AssertTrue(so.Contains("'calc.exe'"), "the first line is the command: " + Excerpt(so));
+            AssertTrue(!so.Contains("notpartofit"), "and the rest of the input is not: " + Excerpt(so));
+
+            // One Read is not a read-to-end. A pipe may hand over the command in pieces,
+            // and the old single Read took whatever arrived first, so the payload was
+            // built from a TRUNCATED command with no error at all. Sent one byte at a
+            // time with a pause, so the child's first read cannot hold the whole command.
+            // If the writes coalesce anyway the row still passes; it can never fail for a
+            // timing reason, only for a real one.
+            TryRunYsonet(args, Encoding.ASCII.GetBytes("calc.exe\r\n"), 40, out exit, out so, out se);
+            AssertEqual(0, exit, "a chunked command reaches generation");
+            AssertTrue(so.Contains("'calc.exe'"), "and arrives whole, not truncated: " + Excerpt(so));
+        }
+
+        // The ViewState plugin has its own -s option, so it needs the same answer. It
+        // used to call Console.ReadLine(), which returns null on an empty input and a
+        // byte-order mark as a one-character line, and the plugin then built a complete,
+        // signed ViewState around that non-command and exited 0.
+        private static void ViewStatePluginRefusesEmptyStdin()
+        {
+            const string vk = "70DBADBFF4B7A13BE67DD0B11B177936F8F3C98BCE2E0A4F222F7A769804D451ACDB196572FFF76106F33DCEA1571D061336E68B12CF0AF62D56829D2A48F1B0";
+            string args = "-p ViewState -g TypeConfuseDelegate --validationkey=" + vk + " --validationalg=SHA1 -s";
+            int exit; string so, se;
+
+            if (!TryRunYsonet(args, new byte[0], out exit, out so, out se))
+            {
+                Console.Error.WriteLine("  [skip] ViewStatePluginRefusesEmptyStdin: ysonet.exe not found beside the test exe");
+                return;
+            }
+            AssertTrue(exit != 0, "the plugin exits non-zero on an empty stdin command");
+            // The plugin throws and the CLI prints the message, which the plugin path
+            // sends to stdout rather than stderr.
+            AssertTrue((so + se).Contains(StdinCommandReader.EmptyInputError),
+                "and reports the empty input: " + Excerpt(so + se));
+
+            // A real command still works, and the plugin still signs a ViewState.
+            TryRunYsonet(args, Encoding.ASCII.GetBytes("calc.exe\r\n"), out exit, out so, out se);
+            AssertEqual(0, exit, "a real stdin command still builds a ViewState");
+            AssertTrue(so.Trim().Length > 100, "and the ViewState was written: " + Excerpt(so));
         }
 
         private static void RafCountsOutputFailuresAsFailures()
@@ -22015,22 +22526,57 @@ namespace ysonet.Tests
         // Returns false if the exe is not found, so the caller can skip cleanly.
         private static bool TryRunYsonet(string args, out int exit, out string outText, out string errText)
         {
-            return TryRunYsonet(args, null, out exit, out outText, out errText);
+            // (string)null, not a bare null: there is also a byte[] overload.
+            return TryRunYsonet(args, (string)null, out exit, out outText, out errText);
         }
 
         // Same, but with text fed to the child's standard input. Pass null to leave
-        // stdin alone (every existing caller), or a string to redirect it.
+        // stdin alone (every existing caller), or a string to redirect it. The text is
+        // sent as ASCII; use the byte[] overload to control the exact bytes.
+        private static bool TryRunYsonet(string args, string stdinText, out int exit, out string outText, out string errText)
+        {
+            return TryRunYsonet(args, stdinText == null ? null : Encoding.ASCII.GetBytes(stdinText),
+                out exit, out outText, out errText);
+        }
+
+        // Send these bytes on the child's standard input, or null to leave stdin alone.
         //
-        // The bytes are written to the raw stream, not through the StreamWriter, so
-        // no console code page can add a byte-order mark the tool would read as part
-        // of the command, and no newline is appended: an empty string proves the EOF
-        // case and "calc.exe\r\n" proves the line-ending case. stdin is then CLOSED,
-        // so a child reading to EOF cannot hang.
+        // Read this before writing an assertion about the child's exact stdin bytes,
+        // because THIS METHOD CANNOT PROMISE THEM. Redirecting standard input hands us a
+        // StreamWriter whose AutoFlush is already on, and turning AutoFlush on flushes,
+        // which writes the encoding preamble. That happens inside Process.Start, before
+        // this method can do anything. So on a machine whose console code page is UTF-8
+        // (65001) the child receives EF BB BF FIRST, whatever is passed here - measured:
+        // starting a child and closing the pipe with nothing written still delivered
+        // those three bytes. It is not avoidable from here: the preamble is already in
+        // the pipe, .NET Framework has no ProcessStartInfo.StandardInputEncoding, and
+        // setting Console.InputEncoding to suppress it would reconfigure the console a
+        // test run does not own.
+        //
+        // Two consequences:
+        //  - An "empty stdin" row is really a byte-order-mark row on such a machine, and
+        //    that is exactly the case that used to build a payload with the command `???`.
+        //    Keep it; it is the end-to-end regression row here.
+        //  - Passing a mark of your own would make it the SECOND one. For byte-level
+        //    rules, test StdinCommandReader.ParseCommand directly instead.
+        //
+        // Writes go to the BaseStream, not through the StreamWriter, so no console code
+        // page re-encodes the bytes and no newline is appended: an empty array proves the
+        // end-of-stream case and "calc.exe\r\n" proves the line-ending case.
         //
         // Both output pipes are drained concurrently. A sweep writes payloads to
         // stdout and its failure records to stderr, so reading one to the end before
         // touching the other can deadlock once the unread pipe fills.
-        private static bool TryRunYsonet(string args, string stdinText, out int exit, out string outText, out string errText)
+        private static bool TryRunYsonet(string args, byte[] stdinBytes, out int exit, out string outText, out string errText)
+        {
+            return TryRunYsonet(args, stdinBytes, 0, out exit, out outText, out errText);
+        }
+
+        // With chunkDelayMs > 0, the bytes go out one at a time with that pause between
+        // them, so the child's first read can only see part of the command. That is the
+        // short-read case a single Read cannot handle.
+        private static bool TryRunYsonet(string args, byte[] stdinBytes, int chunkDelayMs,
+            out int exit, out string outText, out string errText)
         {
             exit = 0; outText = ""; errText = "";
             string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
@@ -22041,22 +22587,36 @@ namespace ysonet.Tests
             psi.CreateNoWindow = true;
             psi.RedirectStandardOutput = true;
             psi.RedirectStandardError = true;
-            psi.RedirectStandardInput = stdinText != null;
+            psi.RedirectStandardInput = stdinBytes != null;
             using (var proc = System.Diagnostics.Process.Start(psi))
             {
                 var outTask = proc.StandardOutput.ReadToEndAsync();
                 var errTask = proc.StandardError.ReadToEndAsync();
 
-                if (stdinText != null)
+                if (stdinBytes != null)
                 {
+                    Stream raw = proc.StandardInput.BaseStream;
                     try
                     {
-                        byte[] inBytes = Encoding.ASCII.GetBytes(stdinText);
-                        proc.StandardInput.BaseStream.Write(inBytes, 0, inBytes.Length);
-                        proc.StandardInput.BaseStream.Flush();
+                        if (chunkDelayMs > 0)
+                        {
+                            foreach (byte b in stdinBytes)
+                            {
+                                raw.WriteByte(b);
+                                raw.Flush();
+                                System.Threading.Thread.Sleep(chunkDelayMs);
+                            }
+                        }
+                        else if (stdinBytes.Length > 0)
+                        {
+                            raw.Write(stdinBytes, 0, stdinBytes.Length);
+                            raw.Flush();
+                        }
                     }
                     catch { /* the child may have exited before reading; EOF is what matters */ }
-                    try { proc.StandardInput.Close(); } catch { }
+                    // The BaseStream, so nothing this method wrote is re-encoded, and a
+                    // child reading to EOF cannot hang.
+                    try { raw.Close(); } catch { }
                 }
 
                 if (!proc.WaitForExit(20000)) { try { proc.Kill(); } catch { } }

@@ -56,7 +56,7 @@ namespace ysonet
                 {"f|formatter=", "The formatter.", v => formatter_name = v },
                 {"c|command=", "The command to be executed.", v => cmd = v },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after first space is an argument).", v => rawcmd =  v != null },
-                {"s|stdin", "The command to be executed will be read from standard input.", v => cmdstdin = v != null },
+                {"s|stdin", "The command to be executed will be read from standard input (the first line, up to 2,050 bytes). A non-empty -c wins.", v => cmdstdin = v != null },
                 {"bgc|bridgedgadgetchains=", "Chain of bridged gadgets separated by comma (,). Each gadget will be used to complete the next bridge gadget. The last one will be used in the requested gadget. This will be ignored when using the searchformatter argument.", v => bridged_gadget_chain = v },
                 {"t|test", "Whether to run payload locally. Default: false" , v => test =  v != null },
                 {"outputpath=", "The output file path. It will be ignored if empty.", v => outputpath = v },
@@ -722,35 +722,22 @@ namespace ysonet
         }
 
         // Read the command from standard input when -s was used and -c was empty.
-        // Both generation paths call this, so there is one bounded ASCII read (the
-        // historic 2,050 byte limit) and one place that removes a trailing line
-        // ending. A non-empty -c always wins, so -c with -s never reads stdin.
+        // Both generation paths call this, so the option is answered once. The reading
+        // itself lives in the shared StdinCommandReader, which the ViewState plugin uses
+        // too, so "what counts as a command" has one answer on every surface: the first
+        // line, bounded at 2,050 bytes, ASCII, with a leading UTF-8 byte-order mark
+        // dropped and an input that carries no command reported instead of generated.
         //
-        // The length is checked BEFORE the line ending is removed: empty or one-byte
-        // input used to index off the end of the string and crash with an
-        // IndexOutOfRangeException. An input that carries no command is now a
-        // defined failure the caller reports.
+        // A non-empty -c always wins, so -c with -s never reads stdin.
         private static bool TryReadCommandFromStdin(InputArgs inputArgs, out string error)
         {
             error = "";
             if (cmd != "" || !cmdstdin)
                 return true;
 
-            Stream stdin = Console.OpenStandardInput(2050);
-            byte[] inBuffer = new byte[2050];
-            int outLen = stdin.Read(inBuffer, 0, inBuffer.Length);
-            string text = new string(Encoding.ASCII.GetChars(inBuffer, 0, outLen));
-
-            if (text.EndsWith("\r\n"))
-                text = text.Substring(0, text.Length - 2);
-            else if (text.EndsWith("\n"))
-                text = text.Substring(0, text.Length - 1);
-
-            if (text == "")
-            {
-                error = "Standard input did not contain a command.";
+            string text;
+            if (!StdinCommandReader.TryReadCommand(out text, out error))
                 return false;
-            }
 
             cmd = text;
             if (inputArgs != null)

@@ -209,6 +209,53 @@
           Condition="Exists('$(YsonetOutDir)\ysonet.exe.config')" />
   </Target>
 
+  <!--
+    Make the test project's OWN output runnable too, instead of only the staged folder.
+
+    StageYsonetTests above is the supported way to run the suite: it copies the test exe
+    beside ysonet.exe, where every runtime fixture already lives, and RunYsonetTests
+    executes it there. But this project's own bin\ ALSO ends up holding a ysonet.Tests.exe
+    (it is the build output), and running that copy used to fail four rows with
+    "Could not find file ...\e.dll" and "ysonet.TestSink.exe was not found beside the test
+    executable" - messages that read like a staging defect rather than "you are in the
+    wrong folder". Private mode makes it easier to pick wrong, because there are then two
+    plausible Debug folders under $(PrivateBuildRoot).
+
+    So the fixtures are mirrored here as well. Everything else the runner needs is already
+    in this folder (ysonet.exe and the bundled dlls\ tree arrive through the project
+    reference); these four files do not, because E.dll and its two source fixtures are
+    written straight into ysonet's output by ExploitClass, and the sink is a build-order
+    reference with Private=false so nothing copies it.
+
+    Debug only, matching the two targets above: the suite never runs from a Release build,
+    and no test executable or fixture may reach a release artifact. Each copy is guarded by
+    Exists, so a partial build skips it rather than failing.
+  -->
+  <Target Name="StageFixturesBesideTheTestBinary" AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Debug'">
+    <!-- E.dll is loaded from beside the running tool at generation time by the
+         ActivitySurrogate family; the two .cs files are compiled at generation time by the
+         variants that build their own assembly. -->
+    <Copy SourceFiles="$(YsonetOutDir)\E.dll" DestinationFolder="$(OutDir)"
+          OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
+          Condition="Exists('$(YsonetOutDir)\E.dll')" />
+    <Copy SourceFiles="$(YsonetOutDir)\E.pdb" DestinationFolder="$(OutDir)"
+          OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
+          Condition="Exists('$(YsonetOutDir)\E.pdb')" />
+    <Copy SourceFiles="$(YsonetOutDir)\ExploitClass.cs" DestinationFolder="$(OutDir)"
+          OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
+          Condition="Exists('$(YsonetOutDir)\ExploitClass.cs')" />
+    <Copy SourceFiles="$(YsonetOutDir)\GhostWebShell.cs" DestinationFolder="$(OutDir)"
+          OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
+          Condition="Exists('$(YsonetOutDir)\GhostWebShell.cs')" />
+    <!-- The windowless fire sink. Without it the suite falls back to the legacy
+         "cmd /c echo" marker instead of skipping a fire row, but the sink probe row
+         reports the fallback as a failure, so the copy is what keeps it green. -->
+    <Copy SourceFiles="$(TestSinkExe)" DestinationFolder="$(OutDir)"
+          OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
+          Condition="Exists('$(TestSinkExe)')" />
+  </Target>
+
   <Target Name="RunYsonetTests" AfterTargets="Build" DependsOnTargets="StageYsonetTests"
           Condition="'$(Configuration)' == 'Debug' and '$(RunYsonetTests)' != 'false' and Exists('$(YsonetOutDir)\ysonet.exe')">
     <Message Importance="high" Text="RunYsonetTests: running interactive/core tests from $(YsonetOutDir)" />

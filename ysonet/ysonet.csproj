@@ -288,6 +288,7 @@
     <Compile Include="Helpers\Core\LegacyXmlDefaults.cs" />
     <Compile Include="Helpers\Core\PayloadRunner.cs" />
     <Compile Include="Helpers\Core\PrivateModulePolicy.cs" />
+    <Compile Include="Helpers\Core\StdinCommandReader.cs" />
     <Compile Include="Helpers\Crypto\MachineKey.cs" />
     <Compile Include="Helpers\Crypto\MachineKeyDataProtector.cs" />
     <Compile Include="Helpers\Crypto\Sp800_108.cs" />

@@ -15,6 +15,7 @@ Maintain a structured, git-tracked memory system rooted at `.claude/memory/`, sh
 
 ### Rules
 0. Never record local or sensitive data (absolute local paths like `C:\Users\...`, keys, tokens, usernames).
+0b. **A file under `.claude/memory/` is TRACKED and PUBLIC, so rule 0 of the seam applies to every entry: never NAME a private artifact in one.** That means no git-ignored path, dataset, folder, script, tool, gadget or plugin name - not even as a "see also" pointer at the end of an otherwise public lesson, which is the shape this keeps happening in. Describe the capability generically ("the private research area", "if a code graph is configured") and put the artifact's name in the private memory instead. When an entry cannot be written without naming one, the whole entry belongs in `.claude/memory/private/`; if part of it is a genuinely reusable public lesson, write that part as its own artifact-free public entry rather than trimming the private one. `dev-kitchen` itself is the one sanctioned public name (`CLAUDE.md` documents the workflow around it), but a path BELOW it that identifies private research is not. The seam check and the pre-commit hook catch this, so getting it wrong costs a blocked commit rather than a leak - but they catch it at commit time, long after the entry was written.
 1. When you learn something worth remembering, write it to the right topic file immediately.
 2. Keep `memory.md` a current index: one line per file with a description and a last-updated date.
 3. Entries use the format `date - what - why`. Nothing more.
@@ -404,6 +405,8 @@ What actually reduces the blocks (observed, not guaranteed):
 When work leaves open items - a decision the maintainer must make, a follow-up, a known limitation, a "worth doing later" fix - write each as its own short markdown file in `dev-kitchen/todo/` (create the folder if needed), with a `README.md` index. Each file states the decision, options with short pros and cons, a recommendation, and references to the code/test locations.
 
 Do NOT bury these only in a committed plan file or in code comments. Commits are frequent, so changed and committed documents are hard for the maintainer to spot; they need one clear, uncommitted place to see what to decide or do next. `dev-kitchen/` is git-ignored, so these stay dev-only and always show up in the working tree. When an item is decided, move it to `dev-kitchen/to-be-implemented/` (to build) or delete it (rejected).
+
+**When you have fixed or implemented EVERYTHING a `dev-kitchen/todo/` file tracks, ASK the maintainer whether to delete it.** Do it in the same reply that reports the work, do not wait to be asked, and do not decide it yourself: `dev-kitchen/` is git-ignored, so a deleted note is gone for good, and a resolved note left lying around makes the list read as open work. Before asking, make the deletion SAFE - move any durable lesson the note is the only home for into `.claude/memory/` (or `.claude/memory/private/` when it names a private artifact), so the answer is only about the file, never about losing the knowledge. Until the maintainer answers, mark the file and its `README.md` row `RESOLVED <date>` with a one-line summary of what was done.
 
 ### Exception: a plan under `dev-kitchen/ideas/` keeps its own questions
 

