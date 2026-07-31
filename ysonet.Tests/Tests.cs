@@ -61,10 +61,11 @@ namespace ysonet.Tests
         // private module. With no implementation the call below disappears at
         // compile time: there is no runtime branch and no conditional skip.
         //
-        // The run options are handed over so those rows can pick their own tier the way
-        // a public row does - a cheap wire-shape check in NORMAL, an expensive or
-        // off-machine one behind Full/Oob. A partial method WITH parameters is still
-        // erased when nothing implements it, so a clean clone is unchanged.
+        // It takes the run options so a private row can pick its TIER the way a public
+        // one does: keep a slow or off-machine row out of NORMAL, or run it only under
+        // --full / --oob. The parameter names nothing private, and a partial method WITH
+        // parameters is still erased when nothing implements it, so a clean clone is
+        // unchanged.
         static partial void RunPrivateTests(TestRunOptions options);
 
         private static int Main(string[] args)
