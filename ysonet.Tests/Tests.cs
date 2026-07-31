@@ -60,7 +60,12 @@ namespace ysonet.Tests
         // test-only type appear in the child ysonet.exe and must never name a real
         // private module. With no implementation the call below disappears at
         // compile time: there is no runtime branch and no conditional skip.
-        static partial void RunPrivateTests();
+        //
+        // It takes the run options so a private row can pick its TIER the way a public
+        // one does - keep a slow or off-machine row out of NORMAL, or run only under
+        // --full / --oob. A partial method WITH parameters is still erased when nothing
+        // implements it, so a clean clone is unchanged.
+        static partial void RunPrivateTests(TestRunOptions options);
 
         private static int Main(string[] args)
         {
@@ -561,7 +566,7 @@ namespace ysonet.Tests
 
             // Rows owned by a mounted private test area. Compiled away when there is
             // none, so a clean clone runs exactly the rows above.
-            RunPrivateTests();
+            RunPrivateTests(options);
 
             // FULL tier (opt-in): the exhaustive combination suite. It is slower and
             // flashes many self-closing cmd windows / binds loopback sockets, so it
