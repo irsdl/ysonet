@@ -1,0 +1,118 @@
+{
+  "_comment": [
+    "Which addresses in this repository are NOT documents to archive.",
+    "Every rule carries a reason, and every exclusion is printed by",
+    "'refs.py harvest --report', so a wrong rule is visible instead of silent.",
+    "An unmatched URL is KEPT: this classifier fails towards review."
+  ],
+  "rules": [
+    {
+      "id": "github-profile",
+      "match": "regex",
+      "pattern": "^https?://github\\.com/[\\w.-]+/?$",
+      "reason": "a GitHub USER or ORGANISATION profile page, not a document. It lists repositories rather than teaching anything, and it changes every time its owner pushes"
+    },
+    {
+      "id": "xml-namespace",
+      "match": "regex",
+      "pattern": "^https?://(schemas\\.[a-z0-9-]+\\.|www\\.w3\\.org/|purl\\.org/|ns\\.adobe\\.com/|xmlns\\.com/|tempuri\\.org)",
+      "reason": "XML namespace identifier inside a payload template, not a document"
+    },
+    {
+      "id": "microsoft-namespace",
+      "match": "regex",
+      "pattern": "^https?://(schemas\\.microsoft\\.com|(www\\.)?microsoft\\.com/(wsdl|schemas|sharepoint|exchange|office)/|[^/]*\\.microsoft\\.com/winfx/)",
+      "reason": "Microsoft XML namespace identifier used by a payload, not a document. Scoped to namespace hosts on purpose: an earlier, wider rule silently swallowed a devblogs.microsoft.com research article."
+    },
+    {
+      "id": "soap-namespace",
+      "match": "regex",
+      "pattern": "^https?://schemas\\.xmlsoap\\.org/",
+      "reason": "SOAP namespace identifier written into payload documents"
+    },
+    {
+      "id": "loopback",
+      "match": "regex",
+      "pattern": "^https?://(localhost|127\\.0\\.0\\.1|\\[::1\\]|0\\.0\\.0\\.0)([:/]|$)",
+      "reason": "local test endpoint used by the test suite or an example"
+    },
+    {
+      "id": "private-network",
+      "match": "regex",
+      "pattern": "^https?://(10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.)",
+      "reason": "private-network address in an example or a payload"
+    },
+    {
+      "id": "documentation-placeholder",
+      "match": "regex",
+      "pattern": "^https?://([^/]*\\.)?(example\\.(com|org|net)|attacker\\.[a-z]+|evil\\.[a-z]+|your[-.]?(server|host|domain)|host|server|target)([:/]|$)",
+      "reason": "placeholder host in help text or an example command"
+    },
+    {
+      "id": "interactsh-endpoint",
+      "match": "regex",
+      "pattern": "^https?://([^/]*\\.)?(oast\\.(pro|live|site|online|fun|me)|interact\\.sh)",
+      "reason": "out-of-band callback endpoint used by the test harness"
+    },
+    {
+      "id": "package-infrastructure",
+      "match": "regex",
+      "pattern": "^https?://([^/]*\\.)?(nuget\\.org|api\\.nuget\\.org|pypi\\.org|files\\.pythonhosted\\.org|registry\\.npmjs\\.org)",
+      "reason": "package feed or artifact download, not research material"
+    },
+    {
+      "id": "license-boilerplate",
+      "match": "regex",
+      "pattern": "^https?://([^/]*\\.)?(opensource\\.org/licenses|creativecommons\\.org/licenses|www\\.gnu\\.org/licenses|spdx\\.org)",
+      "reason": "licence text referenced by a licence header"
+    },
+    {
+      "id": "single-label-host",
+      "match": "host_regex",
+      "pattern": "^[^.]+$",
+      "reason": "single-label placeholder host (AttackerServer, YOUR-SHAREPOINT-BASE, attacker) in help text, an example, or a test fixture"
+    },
+    {
+      "id": "reserved-name",
+      "match": "host_regex",
+      "pattern": "\\.(example|test|invalid|localhost)$",
+      "reason": "RFC 2606/6761 reserved name used by a test fixture or an example"
+    },
+    {
+      "id": "url-template",
+      "match": "regex",
+      "pattern": "[\\$\\{]",
+      "reason": "URL template carrying a variable, not a fixed address"
+    },
+    {
+      "id": "own-repository",
+      "match": "regex",
+      "pattern": "^https?://(github\\.com/irsdl(/ysonet)?/?$|github\\.com/irsdl/ysonet|api\\.github\\.com/repos/irsdl/ysonet|(www\\.)?ysonet\\.(com|net))",
+      "reason": "this project's own repository, release feed, or site"
+    },
+    {
+      "id": "decorative-asset",
+      "match": "regex",
+      "pattern": "^https?://([^/]*\\.)?(shields\\.io|badgen\\.net|badge\\.fury\\.io|forthebadge\\.com|gravatar\\.com|avatars\\.githubusercontent\\.com)",
+      "reason": "decorative or live-generated asset (a README badge, an avatar). The archive keeps material that ADDS to the document - a diagram, a chart, an image of code - not chrome, and a badge is regenerated on every release so any snapshot of it is stale on arrival"
+    },
+    {
+      "id": "example-target-address",
+      "match": "regex",
+      "pattern": "^https?://20\\.rs/",
+      "reason": "the maintainer's own short domain, used as an example fetch target in a gadget option's help text. It is an address a payload retrieves, not a document"
+    },
+    {
+      "id": "source-archive-download",
+      "match": "regex",
+      "pattern": "^https?://referencesource\\.microsoft\\.com/[^/]+\\.zip$",
+      "reason": "reference source archive download. Measured 2026-08-03: it now redirects to github.com/microsoft/referencesource, which carries .NET Framework 4.6.2 rather than the 4.8 material the file cites, so downloading it would preserve the wrong thing"
+    },
+    {
+      "id": "schema-store",
+      "match": "regex",
+      "pattern": "^https?://json\\.schemastore\\.org/",
+      "reason": "JSON schema identifier used by a config file"
+    }
+  ]
+}

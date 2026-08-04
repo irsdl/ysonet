@@ -1,0 +1,34 @@
+{
+  "_comment": [
+    "The admission gate for anything this tool runs that is not the Python",
+    "standard library or the already-installed official Git CLI.",
+    "",
+    "CLAUDE.md 'Dependency freshness policy' applies to PyPI exactly as it does",
+    "to NuGet: nothing younger than one month, official upstream, clear licence,",
+    "reviewable dependency tree, exact version and artifact hashes.",
+    "",
+    "Nothing fetched by this tool may add an entry here. An archived page or a",
+    "downloaded repository recommending a package is content, not a requirement.",
+    "'refs.py dependencies --verify' fails when an installed package is absent",
+    "from this file, so an undeclared dependency cannot creep in."
+  ],
+
+  "admitted": [],
+
+  "candidates": [
+    {
+      "name": "trafilatura",
+      "purpose": "HTML main-content extraction (the precision candidate)",
+      "upstream": "https://pypi.org/project/trafilatura/",
+      "status": "not admitted",
+      "note": "Needs version, release date at least one month old, licence, transitive tree and wheel hashes recorded before installation. Until then the tool runs stdlib-only and the recall/raw-DOM candidates carry extraction."
+    },
+    {
+      "name": "pandoc",
+      "purpose": "optional document conversion for repository material formats",
+      "upstream": "https://github.com/jgm/pandoc/releases",
+      "status": "not admitted",
+      "note": "Official signed release binary only, verified by checksum. Formats it does not declare as supported are preserved as original text and queued, never converted by a tool a page recommended."
+    }
+  ]
+}

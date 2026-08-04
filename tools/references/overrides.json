@@ -1,0 +1,37 @@
+{
+  "_comment": [
+    "Hand-curated recovery policy, one entry per URL. Nothing in this file is",
+    "written by the tool, and no fetched page can add to it: a source that asks",
+    "to be read from somewhere else is content, not configuration.",
+    "",
+    "canonical_sources: a publisher's current index/sitemap the resolver may",
+    "  search before asking an archive. A migration by the author is not a mirror.",
+    "author_copies: material supplied by the author. Import records provenance",
+    "  and a hash; the local path is never stored or published.",
+    "mirror_sources: an independent republication, used only after canonical.",
+    "urls: per-URL pins. 'depth' pins one reference lighter than the repository",
+    "  default; 'snapshot' pins one exact capture; 'canonical' pins the current",
+    "  location for a page whose migration the maintainer verified.",
+    "decisions: per-URL judgement about whether the archive keeps a document at",
+    "  all. Keyed by URL. {outcome: archive|skip, class, reason}. A rule never",
+    "  overwrites one of these, and a skip is not fetched again: the reason is",
+    "  what the next run reads instead. Use it for the two things no rule can",
+    "  safely decide - a page that restates a source already archived, and a",
+    "  tool's usage page with no technique in it."
+  ],
+  "canonical_sources": [
+    {
+      "host": "soroush.me",
+      "index": "https://soroush.me/blog/",
+      "covers": [
+        "soroush.me",
+        "soroush.secproject.com"
+      ],
+      "reason": "Author-confirmed migration: every cited item moved under the current blog collection, including some PDFs. Search here before Wayback."
+    }
+  ],
+  "author_copies": [],
+  "mirror_sources": [],
+  "urls": {},
+  "decisions": {}
+}

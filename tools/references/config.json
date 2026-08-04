@@ -1,0 +1,78 @@
+{
+  "_comment": [
+    "Hand-edited policy for the reference archive tool. Generated state lives in",
+    "the archive manifest, never here, so a re-run never conflicts with a human",
+    "decision. A fork changes 'depth' and re-renders offline."
+  ],
+  "archive_dir": "docs/references-md",
+  "primary_document": "docs/dotnet-deserialization-research.md",
+  "curated_documents": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+  ],
+  "required_documents": [
+    "docs/dotnet-deserialization-research.md"
+  ],
+  "skip_paths": {
+    "_comment": [
+      "Tracked paths whose URLs are another tool's WORKING DATA rather than",
+      "citations by this project. Harvesting them is not a boundary violation,",
+      "it is just wrong: a link ledger repeats every URL on the research page",
+      "with a health verdict attached, and a discovery-source list names feeds",
+      "to check rather than documents this project cites. Including them added",
+      "25 phantom references and a cited_by row pointing at a log file.",
+      "",
+      "This is a path prefix list. It is not an exclusion RULE, because nothing",
+      "here is a judgement about a URL.",
+      "docs/references-md/ is the archive's OWN OUTPUT. Harvesting it would treat every link inside an archived article as a citation by this project, which is how a 519-reference inventory silently becomes thousands.",
+      ".claude/ and tools/ are this repository's own tooling. A URL in a skill's",
+      "reference notes, a dependency policy or the archive's own overrides file is",
+      "the tool's working data, not a source this project cites: they added Claude",
+      "documentation, a pandoc release page and the archive's own canonical-source",
+      "pin to the inventory."
+    ],
+    "prefixes": [
+      ".claude/",
+      ".claude/skills/ysonet-curate-research-links/",
+      "docs/references-md/",
+      "tools/",
+      "tools/references/tests/"
+    ]
+  },
+  "depth": "full",
+  "media_policy": {
+    "_comment": [
+      "Maintainer decision 2026-08-03: do not download binary media. A PDF, a",
+      "slide deck or a video can be opened at its own URL by whoever reads the",
+      "archive, and a local copy of a 30 MB deck earns little.",
+      "",
+      "The cost, recorded rather than glossed over: if one of those sources goes",
+      "offline, the archive has the citation and the attribution but no content,",
+      "which is the exact case the archive exists for. This is a switch, not a",
+      "rule: set store_binaries true to preserve them instead.",
+      "",
+      "Video is excluded on separate grounds anyway - the useful part is",
+      "metadata, description and captions, none of which is the media file."
+    ],
+    "store_binaries": false,
+    "binary_kinds": [
+      "whitepaper",
+      "slides",
+      "video",
+      "image"
+    ]
+  },
+  "ledger": {
+    "_comment": "Optional and read-only. Absent, stale or schema-changed means 'no hint'.",
+    "path": ".claude/skills/ysonet-curate-research-links/log/link-ledger.json",
+    "freshness_days": 30
+  },
+  "host_aliases": {
+    "_comment": "Only genuine host RENAMES belong here. Two hosts publishing the same article are a content-dedup question, not a URL identity one.",
+    "docs.microsoft.com": "learn.microsoft.com",
+    "msdn.microsoft.com": "learn.microsoft.com"
+  },
+  "locale_stripped_hosts": [
+    "learn.microsoft.com"
+  ]
+}

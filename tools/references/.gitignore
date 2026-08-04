@@ -1,0 +1,8 @@
+# Local cache view of the content store. The durable store lives outside the
+# workspace (YSONET_REFS_STORE); this folder is a convenience copy and must
+# never be the only copy of an acquired document.
+cache/
+
+# Python bytecode from a local run.
+__pycache__/
+*.pyc
