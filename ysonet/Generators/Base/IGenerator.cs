@@ -29,6 +29,12 @@ namespace ysonet.Generators
         CommandInputType CommandInput();
         List<GadgetVariant> Variants();
 
+        // Whether this gadget accepts the global --legacyfx generation context.
+        // Most gadgets retain the historical default. Exact CLR4/Mono graphs that
+        // cannot exist on the CLR-v2 target opt out so the CLI refuses the flag and
+        // the interactive editor does not offer it.
+        bool SupportsLegacyFx();
+
         // Broad discovery metadata: which payload family this builds, what input a
         // user can provide, what the target must have, and the exact runtime
         // versions the effect is known to work on. It drives the category search
@@ -396,7 +402,7 @@ namespace ysonet.Generators
     // How the catalog's spans were arrived at, so a per-gadget comment can stay to
     // one line:
     //  - UPPER bound: the newest version the payload was OBSERVED to work on.
-    //    Every fire helper records one (ysonet.Tests/RuntimeBuild.cs): normally the
+    //    Every fire helper records one (ysonet.Tests/Runner/RuntimeBuild.cs): normally the
     //    build the run executes on, read from the documented NDP\v4\Full Release
     //    value, and for a row that fires into a child stamped with its own
     //    TargetFrameworkAttribute, that CHILD's version - because that is what

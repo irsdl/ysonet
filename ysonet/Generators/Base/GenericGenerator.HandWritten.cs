@@ -1,6 +1,8 @@
 using NDesk.Options;
 using System;
+using System.Runtime.Remoting;
 using System.Text;
+using System.Xml;
 using ysonet.Helpers;
 
 namespace ysonet.Generators
@@ -40,7 +42,33 @@ namespace ysonet.Generators
             InputArgs inputArgs,
             Type dataContractJsonRootType)
         {
-            payload = MinifyHandWrittenPayload(payload, formatter, inputArgs);
+            return FinishHandWrittenPayload(payload, formatter, inputArgs, dataContractJsonRootType, false);
+        }
+
+        /// <summary>
+        /// Same, for a gadget that has ALREADY shrunk its payload itself.
+        ///
+        /// The shared minifier below knows the JSON, YAML, XAML and DataContract/XmlSerializer
+        /// shapes. A gadget whose document needs different minifier arguments - a SoapFormatter
+        /// or NetDataContractSerializer document, or one with its own loose-assembly list -
+        /// does that step in its own file and passes <paramref name="alreadyMinified"/> so this
+        /// one does not shrink it twice.
+        ///
+        /// Everything AFTER minification is still shared, and that is the point: the
+        /// generation boundary (--legacyfx today) and the self-test both run here, in that
+        /// order, so -t reads the exact bytes the operator is handed. A branch that returns its
+        /// own payload and runs its own deserialize check silently opts out of both.
+        /// </summary>
+        protected object FinishHandWrittenPayload(
+            object payload,
+            string formatter,
+            InputArgs inputArgs,
+            Type dataContractJsonRootType,
+            bool alreadyMinified)
+        {
+            if (!alreadyMinified)
+                payload = MinifyHandWrittenPayload(payload, formatter, inputArgs);
+            payload = FinalizeGeneratedPayload(payload, formatter, inputArgs);
 
             if (inputArgs != null && inputArgs.Test
                 && IsFormatter(formatter, Formatters.DataContractJsonSerializer)
@@ -130,12 +158,96 @@ namespace ysonet.Generators
         }
 
         /// <summary>
+        /// The operator's text, ready to sit inside XML ELEMENT TEXT. Escapes what element
+        /// content needs (&amp;, &lt;, &gt;) and leaves a double quote alone, which the
+        /// attribute escaper above would turn into &amp;#x22;. Use this for a value that
+        /// travels between tags, such as a XAML x:Arguments string.
+        /// <paramref name="rawInput"/> (the --rawinput option) passes it through untouched.
+        /// </summary>
+        protected static string EscapeForXmlText(string input, bool rawInput)
+        {
+            return rawInput ? input : CommandArgSplitter.XmlStringHTMLEscape(input);
+        }
+
+        /// <summary>
         /// Case-insensitive formatter name test, so a gadget's Generate() reads as a list of
         /// formats rather than a list of string comparisons.
         /// </summary>
         protected static bool IsFormatter(string formatter, string name)
         {
             return formatter != null && formatter.Equals(name, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Replace one non-generic, generation-only SOAP element with the CLR identity of
+        /// the real target type. SoapFormatter's writer rejects a closed generic object
+        /// before asking it for serialization data, while its reader can consume the same
+        /// data once the element carries the genuine closed-generic name. The gadget owns
+        /// every alias and target name; this helper owns only the namespace-safe XML node
+        /// replacement and the proof that no alias survived.
+        /// </summary>
+        protected static void RewriteSoapTypeAlias(XmlDocument document,
+            string aliasNamespace, string aliasType,
+            string targetFullTypeName, string targetAssembly)
+        {
+            string sourceNamespace = SoapServices.CodeXmlNamespaceForClrTypeNamespace(
+                aliasNamespace, aliasNamespace);
+            string targetNamespace = SoapServices.CodeXmlNamespaceForClrTypeNamespace(
+                "", targetAssembly);
+            string encodedTargetType = XmlConvert.EncodeLocalName(targetFullTypeName);
+            XmlNodeList matches = document.GetElementsByTagName(aliasType, sourceNamespace);
+            if (matches.Count != 1)
+                throw new InvalidOperationException("Expected exactly one generation-only SOAP "
+                    + "alias element " + aliasNamespace + "." + aliasType + ", found "
+                    + matches.Count + ".");
+
+            XmlElement source = matches[0] as XmlElement;
+            if (source == null || source.ParentNode == null)
+                throw new InvalidOperationException("The generation-only SOAP alias element "
+                    + aliasNamespace + "." + aliasType + " has no replaceable parent.");
+
+            XmlElement replacement = document.CreateElement(source.Prefix,
+                encodedTargetType, targetNamespace);
+            const string xmlnsNamespace = "http://www.w3.org/2000/xmlns/";
+            XmlAttribute targetDeclaration = document.CreateAttribute(
+                String.IsNullOrEmpty(source.Prefix) ? "" : "xmlns",
+                String.IsNullOrEmpty(source.Prefix) ? "xmlns" : source.Prefix,
+                xmlnsNamespace);
+            targetDeclaration.Value = targetNamespace;
+            replacement.Attributes.Append(targetDeclaration);
+
+            foreach (XmlAttribute attribute in source.Attributes)
+            {
+                bool ownAliasDeclaration = attribute.NamespaceURI == xmlnsNamespace
+                    && ((!String.IsNullOrEmpty(source.Prefix)
+                            && attribute.LocalName == source.Prefix)
+                        || (String.IsNullOrEmpty(source.Prefix)
+                            && attribute.LocalName == "xmlns"));
+                if (!ownAliasDeclaration)
+                    replacement.Attributes.Append(
+                        (XmlAttribute)attribute.CloneNode(true));
+            }
+            while (source.FirstChild != null)
+                replacement.AppendChild(source.FirstChild);
+            source.ParentNode.ReplaceChild(replacement, source);
+
+            foreach (XmlNode node in document.GetElementsByTagName("*"))
+            {
+                XmlElement element = node as XmlElement;
+                if (element == null) continue;
+                for (int i = element.Attributes.Count - 1; i >= 0; i--)
+                {
+                    XmlAttribute attribute = element.Attributes[i];
+                    if (attribute.NamespaceURI == xmlnsNamespace
+                        && attribute.Value == sourceNamespace)
+                        element.Attributes.RemoveAt(i);
+                }
+                if (element.NamespaceURI == sourceNamespace
+                    || element.LocalName == aliasType)
+                    throw new InvalidOperationException("The finished SOAP document still names "
+                        + "the generation-only alias " + aliasNamespace + "." + aliasType
+                        + ".");
+            }
         }
 
         /// <summary>

@@ -28,7 +28,9 @@ The normal shape is:
   exclusive interactive workflows.
 
 `IPlugin` requires `Name()`, `Description()`, `Credit()`, `IsPrivate()`,
-`Options()`, and `Run(string[] args)`. `IsPrivate()` returns `false` for every
+`RuntimeVersions()`, `Options()`, and `Run(string[] args)`. `RuntimeVersions()` describes
+the complete plugin envelope and consumer and defaults to a one-item
+`RuntimeVersion.Unspecified` list until a direct effect earns a version. `IsPrivate()` returns `false` for every
 plugin that ships in this repository; return `true` only for unpublished research
 kept in the git-ignored `ysonet/Plugins/Private/` folder, which then keeps the
 plugin out of every listing until `--display-private` (see

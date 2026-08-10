@@ -34,6 +34,15 @@ namespace ysonet.Helpers
         internal static List<string> MissingTextValues(object serializedPayload,
             IEnumerable<string> required)
         {
+            return MissingTextValues(serializedPayload, required, true);
+        }
+
+        // The same, with attributes optional. A gadget whose value is element TEXT asks for
+        // text nodes only, so an attribute the payload also carries (a xmlns, a fixed
+        // xml:space) can never stand in for the delivered value and hide a real loss.
+        internal static List<string> MissingTextValues(object serializedPayload,
+            IEnumerable<string> required, bool includeAttributes)
+        {
             var missing = new List<string>();
             if (required == null)
                 return missing;
@@ -42,7 +51,7 @@ namespace ysonet.Helpers
             if (xml == null)
                 return missing;             // binary output; nothing rewrites the strings
 
-            List<string> values = XmlTextValues(xml);
+            List<string> values = XmlTextValues(xml, includeAttributes);
             foreach (string wanted in required)
             {
                 if (string.IsNullOrEmpty(wanted))
@@ -79,6 +88,39 @@ namespace ysonet.Helpers
             if (trimmed.Length > 0 && trimmed[0] == (char)0xFEFF)
                 trimmed = trimmed.Substring(1).TrimStart();
             return trimmed.Length > 0 && trimmed[0] == '<' ? trimmed : null;
+        }
+
+        // How many elements in the document carry xml:space="preserve". A XAML gadget that
+        // passes operator data as a constructor argument marks each such argument with it, so
+        // that the target's XAML reader does not normalize the value; the gadget then checks
+        // this count matches the number of arguments it emitted. Losing the attribute leaves the
+        // text exact while changing what the target sees, which no text-value check would catch.
+        // Read back with an XmlReader rather than matched as a string, so a minifier that rewrote
+        // the prefix or the quoting still counts.
+        internal static int CountXmlSpacePreserve(string xml)
+        {
+            if (string.IsNullOrEmpty(xml))
+                return 0;
+
+            int count = 0;
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ConformanceLevel = System.Xml.ConformanceLevel.Fragment,
+                DtdProcessing = System.Xml.DtdProcessing.Ignore,
+            };
+            using (var sr = new StringReader(xml))
+            using (System.Xml.XmlReader reader = System.Xml.XmlReader.Create(sr, settings))
+            {
+                while (reader.Read())
+                {
+                    if (reader.NodeType != System.Xml.XmlNodeType.Element || !reader.HasAttributes)
+                        continue;
+                    string space = reader.GetAttribute("space", "http://www.w3.org/XML/1998/namespace");
+                    if (string.Equals(space, "preserve", StringComparison.Ordinal))
+                        count++;
+                }
+            }
+            return count;
         }
 
         // Every text, CDATA and ATTRIBUTE value in the document. Fragment conformance,

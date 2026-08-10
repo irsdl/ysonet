@@ -75,11 +75,46 @@ jobs:
       - name: Setup NuGet
         uses: NuGet/setup-nuget@fd55a6f3b34392fa83fde1454582407d8c714123 # v4.0 (2026-04-15)
 
+      - name: Ensure CLR2 self-test host toolchain
+        shell: pwsh
+        run: |
+          $compiler = Join-Path $env:SystemRoot "Microsoft.NET\Framework\v3.5\csc.exe"
+          if (-not (Test-Path $compiler)) {
+            & dism.exe /Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart
+            if ($LASTEXITCODE -ne 0) { throw "Could not enable the .NET Framework 3.5 build feature (DISM exit $LASTEXITCODE)." }
+          }
+          if (-not (Test-Path $compiler)) { throw "The CLR2 C# compiler is still unavailable at the standard framework location." }
+          Write-Host "CLR2 self-test host compiler is available."
+
       - name: Restore
         run: nuget restore ysonet.sln
 
       - name: Build (Release)
         run: msbuild ysonet.sln -p:Configuration=Release -m
+
+      - name: Verify CLR2 self-test host
+        shell: pwsh
+        run: |
+          $host = ".\ysonet\bin\Release\ysonet.Clr2TestHost.exe"
+          $config = "$host.config"
+          if (-not (Test-Path $host)) { throw "Release is missing ysonet.Clr2TestHost.exe." }
+          if (-not (Test-Path $config)) { throw "Release is missing the CLR2 host runtime config." }
+          $probe = (& $host --probe 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw "CLR2 host probe failed: $probe" }
+          if ($probe -notmatch '(?m)^clr=2\.0\.50727') { throw "CLR2 host did not report CLR 2.0.50727: $probe" }
+          Write-Host $probe.Trim()
+
+      - name: Verify CLR4 test host
+        shell: pwsh
+        run: |
+          $host = ".\ysonet\bin\Release\ysonet.Clr4TestHost.exe"
+          $config = "$host.config"
+          if (-not (Test-Path $host)) { throw "Release is missing ysonet.Clr4TestHost.exe." }
+          if (-not (Test-Path $config)) { throw "Release is missing the CLR4 host runtime config." }
+          $probe = (& $host --probe 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw "CLR4 host probe failed: $probe" }
+          if ($probe -notmatch '(?m)^clr=4\.') { throw "CLR4 host did not report a CLR 4 runtime: $probe" }
+          Write-Host $probe.Trim()
 
       # The Release build string-encrypts ysonet.exe (see ysonet/obfuscar.xml and the
       # ObfuscateOutput target). String hiding is surgical: gadget signature strings are

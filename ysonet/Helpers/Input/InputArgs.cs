@@ -15,12 +15,14 @@ namespace ysonet.Helpers
         private CommandType _cmdType = CommandType.None;
 
         private bool _test = false;
+        private bool _testClr2 = false;
         private bool _minify = false;
         private bool _useSimpleType = false;
         private bool _isRawCmd = false;
         private bool _isDebugMode = false;
         private bool _isSTAThread = false; // this is for when STAThreadAttribute is needed to execute!
         private bool _dosAcknowledged = false; // the user accepted the denial-of-service warning (--i-understand-dos)
+        private bool _legacyFx = false; // rewrite framework assembly identities to the CLR-v2 ones (--legacyfx)
         private List<String> _extraArguments = new List<string>();
         private List<String> _extraInternalArguments = new List<string>(); // This is used as ExtraArguments when calling GenerateWithNoTest to stop passing unwanted extra options 
 
@@ -162,6 +164,24 @@ namespace ysonet.Helpers
             set
             {
                 _test = value;
+            }
+        }
+
+        // True when Test should deserialize in the separately shipped CLR2 victim instead of
+        // this CLR4 process (--testclr2). Test remains true as well so every existing gadget
+        // follows its normal self-test generation path; the shared runner chooses the process.
+        public bool TestClr2
+        {
+            get
+            {
+                return _testClr2;
+            }
+
+            set
+            {
+                _testClr2 = value;
+                if (value)
+                    _test = true;
             }
         }
 
@@ -314,6 +334,27 @@ namespace ysonet.Helpers
             }
         }
 
+        // Ask for the CLR-v2 generation (.NET Framework 2.0/3.0/3.5) assembly identities in
+        // every payload layer that has one (--legacyfx). Like Minify it is GENERATION
+        // CONTEXT, not a gadget option: it is kept as its own property and never placed in
+        // ExtraArguments, where a gadget's option parsing would see it. Default false, so a
+        // normal run is byte for byte what it always was.
+        //
+        // It is a requested TRANSFORM and never a compatibility claim: see
+        // Helpers/Serialization/LegacyFrameworkIdentities.cs.
+        public bool LegacyFx
+        {
+            get
+            {
+                return _legacyFx;
+            }
+
+            set
+            {
+                _legacyFx = value;
+            }
+        }
+
         public InputArgs ShallowCopy()
         {
             return (InputArgs)this.MemberwiseClone();
@@ -325,12 +366,14 @@ namespace ysonet.Helpers
             newInputArgs.Cmd = this._cmdRawNoEncoding;
             newInputArgs.IsRawCmd = this._isRawCmd;
             newInputArgs.Test = this._test;
+            newInputArgs.TestClr2 = this._testClr2;
             newInputArgs.Minify = this._minify;
             newInputArgs.UseSimpleType = this._useSimpleType;
             newInputArgs.ExtraArguments = this.ExtraArguments;
             newInputArgs.ExtraInternalArguments = this.ExtraInternalArguments;
             newInputArgs.IsDebugMode = this.IsDebugMode;
             newInputArgs.DosAcknowledged = this._dosAcknowledged;
+            newInputArgs.LegacyFx = this._legacyFx;
             return newInputArgs;
         }
 

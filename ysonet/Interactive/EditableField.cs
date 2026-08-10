@@ -23,6 +23,7 @@ namespace ysonet.Interactive
         public FieldKind Kind;
         public bool Required;         // best-effort; advisory highlight, not enforced
         public bool Hidden;           // computed rows that do not apply right now
+        public bool Locked;           // visible fixed value; the editor cannot change/reset it
         public bool ModuleOwn;        // a gadget/plugin-specific option (vs a shared built-in)
         public bool Touched;          // the user changed this value (so it is worth remembering)
         public List<string> Choices;  // Choice/Pick: the offered values
@@ -87,13 +88,16 @@ namespace ysonet.Interactive
             {
                 if (Kind == FieldKind.Action)
                     return "";
+                string value;
                 if (Kind == FieldKind.Flag)
-                    return IsOn ? "on" : "off";
-                if (string.IsNullOrEmpty(Value))
-                    return ExplicitEmpty ? "(empty string)" : (Required ? "(required)" : "(unset)");
-                if (Value != Value.Trim())
-                    return "\"" + Value + "\""; // has leading/trailing space, quoted so it is visible
-                return Value;
+                    value = IsOn ? "on" : "off";
+                else if (string.IsNullOrEmpty(Value))
+                    value = ExplicitEmpty ? "(empty string)" : (Required ? "(required)" : "(unset)");
+                else if (Value != Value.Trim())
+                    value = "\"" + Value + "\""; // has leading/trailing space, quoted so it is visible
+                else
+                    value = Value;
+                return Locked ? value + " (fixed)" : value;
             }
         }
 

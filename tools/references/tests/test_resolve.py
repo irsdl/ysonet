@@ -96,8 +96,8 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(self.classify("https://example.org/x", status=404).status, "dead")
 
     def test_a_dns_failure_is_dns_dead_not_ok(self):
-        health = resolve.classify("https://www.nccgroup.trust/x",
-                                  Response("https://www.nccgroup.trust/x", 0, {}, b"", [],
+        health = resolve.classify("https://www.examplelabs.trust/x",
+                                  Response("https://www.examplelabs.trust/x", 0, {}, b"", [],
                                            "dns: getaddrinfo failed"))
         self.assertEqual(health.status, "dns-dead")
         self.assertIn("dns", health.evidence)
@@ -132,18 +132,18 @@ class TestClassification(unittest.TestCase):
 
     def test_a_redirect_to_a_section_index_is_redirect_root(self):
         health = resolve.classify(
-            "https://research.nccgroup.com/2019/08/23/getting-shell/",
-            response("https://research.nccgroup.com/research/", status=200,
-                     chain=[(301, "https://research.nccgroup.com/2019/08/23/getting-shell/",
-                             "https://research.nccgroup.com/research/")]))
+            "https://research.examplelabs.com/2019/08/23/getting-shell/",
+            response("https://research.examplelabs.com/research/", status=200,
+                     chain=[(301, "https://research.examplelabs.com/2019/08/23/getting-shell/",
+                             "https://research.examplelabs.com/research/")]))
         self.assertEqual(health.status, "redirect-root")
 
     def test_a_redirect_preserving_the_slug_to_another_host_is_ok_redirect(self):
         health = resolve.classify(
-            "https://soroush.secproject.com/blog/2019/08/getting-shell/",
-            response("https://soroush.me/blog/getting-shell", status=200,
-                     chain=[(301, "https://soroush.secproject.com/blog/2019/08/getting-shell/",
-                             "https://soroush.me/blog/getting-shell")]))
+            "https://jane.oldblog.dev/blog/2019/08/getting-shell/",
+            response("https://janeresearcher.dev/blog/getting-shell", status=200,
+                     chain=[(301, "https://jane.oldblog.dev/blog/2019/08/getting-shell/",
+                             "https://janeresearcher.dev/blog/getting-shell")]))
         self.assertEqual(health.status, "ok-redirect")
 
     def test_a_redirect_to_an_unrelated_article_is_lowmatch(self):

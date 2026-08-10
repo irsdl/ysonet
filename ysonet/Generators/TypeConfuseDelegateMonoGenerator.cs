@@ -8,6 +8,11 @@ namespace ysonet.Generators
 {
     public class TypeConfuseDelegateMonoGenerator : GenericGenerator
     {
+        public override bool SupportsLegacyFx()
+        {
+            return false;
+        }
+
         // Discovery facets (category search only): same code-execution mechanism as
         // TypeConfuseDelegate, Mono-compatible (mscorlib/System, built-in). The
         // whole point of this variant is the Mono field layout, so Mono is the
@@ -22,7 +27,8 @@ namespace ysonet.Generators
 
         public override string AdditionalInfo()
         {
-            return "Tweaked TypeConfuseDelegate gadget to work with Mono";
+            return "Tweaked TypeConfuseDelegate gadget to work with Mono; --legacyfx is "
+                + "not supported because that option targets .NET Framework CLR2.";
         }
 
         public override string Finders()

@@ -439,8 +439,16 @@ namespace ysonet.Generators
             throw new ArgumentException(Name() + " cannot deliver this path with " + formatter
                 + (minified ? " and --minify" : "") + ": the payload no longer carries \"" + path
                 + "\" exactly, so the target would normalize a different path."
+                // The minified branch may NOT lead with "drop --minify". Only some of these
+                // losses belong to the minifier: a carriage return, and leading or trailing
+                // whitespace in a text node, are rewritten by the XML writer with no minifier
+                // at all, so an operator who dropped the flag on their account would be
+                // refused again by this same sentence. Say what dropping it really recovers,
+                // and give a value that works either way.
                 + (minified
-                    ? " Drop --minify, or use a path with no repeated spaces and no \"; \" sequence."
+                    ? " Use a path with no carriage return and no leading or trailing whitespace"
+                        + " in a component; dropping --minify additionally recovers a repeated"
+                        + " space and a \"; \" sequence, and nothing else."
                     : " Use a path with no carriage return and no leading or trailing whitespace"
                         + " in a component.")
                 + " BinaryFormatter and LosFormatter carry the string unchanged.");

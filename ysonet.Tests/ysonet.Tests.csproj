@@ -64,31 +64,71 @@
     <!-- For the DynamicUpdateMapExtension tests: XamlServices is the NON-WPF XAML reader, and
          reaching the sink through it is what proves the gadget needs no WPF on the target. -->
     <Reference Include="System.Xaml" />
+    <!-- For the AssemblyCatalogLoad formatter audit: name
+         System.ComponentModel.Composition.Hosting.AssemblyCatalog directly, so the "no settable
+         member, eight constructors, not [Serializable]" assertions read the real type. -->
+    <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="NDesk.Options, Version=0.2.1.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\NDesk.Options.0.2.1\lib\NDesk.Options.dll</HintPath>
     </Reference>
+    <!-- PayloadReader reaches MessagePack through the ysonet project reference. These three
+         dependencies are loaded only by particular runtime formatter paths, so old-style
+         project-reference transitivity does not copy them into this project's own output.
+         Reference them explicitly: ysonet.Tests.exe is documented as runnable from its own
+         bin folder, not only after StageYsonetTests puts it beside ysonet.exe. -->
+    <Reference Include="Microsoft.Bcl.AsyncInterfaces, Version=9.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Bcl.AsyncInterfaces.9.0.0\lib\net462\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Collections.Immutable, Version=9.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Collections.Immutable.9.0.0\lib\net462\System.Collections.Immutable.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Threading.Tasks.Extensions, Version=4.2.1.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Threading.Tasks.Extensions.4.6.0\lib\net462\System.Threading.Tasks.Extensions.dll</HintPath>
+    </Reference>
   </ItemGroup>
+  <!--
+    Layout (see README.md beside this file). The runner is ONE partial class spread over
+    Tests.cs and the tier files, so a folder here says what a file is FOR, never what
+    namespace it is in: everything stays in `ysonet.Tests`.
+
+      Tests.cs    the runner and every ordinary row
+      Runner\     how a run configures, isolates, reports and records itself
+      Tiers\      machinery that exists for ONE opt-in tier (OOB, LEGACY)
+      Harness\    machinery ordinary rows share (child processes, listeners, the fire sink)
+      Fixtures\   test-owned types a payload acts on, plus fakes and probes
+      Private\    an optional private area, git-ignored, wildcard-compiled below
+  -->
   <ItemGroup>
-    <Compile Include="DosFakes.cs" />
-    <Compile Include="InstallerFixture.cs" />
-    <Compile Include="LegacyXmlChild.cs" />
-    <Compile Include="LegacyXmlHttpServer.cs" />
-    <Compile Include="LoopbackListener.cs" />
-    <Compile Include="Oob.cs" />
-    <Compile Include="PrivateFakes.cs" />
-    <Compile Include="ResourceSetLoadWitness.cs" />
-    <Compile Include="RunStatus.cs" />
-    <Compile Include="StreamActivationWitness.cs" />
-    <Compile Include="RuntimeBuild.cs" />
-    <Compile Include="TestEnvironment.cs" />
-    <Compile Include="TestRunOptions.cs" />
     <Compile Include="Tests.cs" />
-    <Compile Include="TestSink.cs" />
-    <Compile Include="UiIsolation.cs" />
-    <Compile Include="VirtualTerminal.cs" />
-    <Compile Include="WerContainment.cs" />
-    <Compile Include="WriteOnlyMemberProbe.cs" />
-    <Compile Include="XamlLoadWitness.cs" />
+
+    <Compile Include="Runner\RunStatus.cs" />
+    <Compile Include="Runner\RuntimeBuild.cs" />
+    <Compile Include="Runner\TestEnvironment.cs" />
+    <Compile Include="Runner\TestRunOptions.cs" />
+    <Compile Include="Runner\UiIsolation.cs" />
+    <Compile Include="Runner\WerContainment.cs" />
+
+    <Compile Include="Tiers\LegacyClrChild.cs" />
+    <Compile Include="Tiers\LegacyClrLane.cs" />
+    <Compile Include="Tiers\LegacyClrTier.cs" />
+    <Compile Include="Tiers\Net40Target.cs" />
+    <Compile Include="Tiers\Net40Tier.cs" />
+    <Compile Include="Tiers\Oob.cs" />
+
+    <Compile Include="Harness\LegacyXmlChild.cs" />
+    <Compile Include="Harness\LegacyXmlHttpServer.cs" />
+    <Compile Include="Harness\LoopbackListener.cs" />
+    <Compile Include="Harness\TestSink.cs" />
+    <Compile Include="Harness\ViewStateTestHarness.cs" />
+
+    <Compile Include="Fixtures\DosFakes.cs" />
+    <Compile Include="Fixtures\InstallerFixture.cs" />
+    <Compile Include="Fixtures\PrivateFakes.cs" />
+    <Compile Include="Fixtures\ResourceSetLoadWitness.cs" />
+    <Compile Include="Fixtures\StreamActivationWitness.cs" />
+    <Compile Include="Fixtures\VirtualTerminal.cs" />
+    <Compile Include="Fixtures\WriteOnlyMemberProbe.cs" />
+    <Compile Include="Fixtures\XamlLoadWitness.cs" />
   </ItemGroup>
   <!-- Optional local-only tests for unpublished gadgets/plugins; ignored, and the
        wildcard matches nothing in a normal clone. Compiled only in private mode,
@@ -154,7 +194,31 @@
     <RunYsonetTests Condition="'$(RunYsonetTests)' == ''">true</RunYsonetTests>
     <YsonetOutDir>$(MSBuildProjectDirectory)\..\ysonet\bin\Debug</YsonetOutDir>
     <TestSinkExe>$(MSBuildProjectDirectory)\..\ysonet.TestSink\bin\$(Configuration)\ysonet.TestSink.exe</TestSinkExe>
+    <Net40TestHostSource>$(MSBuildProjectDirectory)\..\tools\net40-test-host\Net40TestHost.cs</Net40TestHostSource>
+    <Net40TestHostConfig>$(MSBuildProjectDirectory)\..\tools\net40-test-host\Net40TestHost.exe.config</Net40TestHostConfig>
+    <Net40TestHostExe>$(TargetDir)ysonet.Net40TestHost.exe</Net40TestHostExe>
+    <Net40Compiler>$(SystemRoot)\Microsoft.NET\Framework\v4.0.30319\csc.exe</Net40Compiler>
+    <Net40ReferenceDir>$(MSBuildProgramFiles32)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0</Net40ReferenceDir>
+    <Net40ReferenceDir Condition="'$(MSBuildProgramFiles32)' == ''">$(ProgramFiles)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0</Net40ReferenceDir>
   </PropertyGroup>
+
+  <!--
+    Build the unsafe victim with the .NET 4.0 compiler and exact 4.0 reference set. This
+    does not make the local machine a 4.0 target: 4.5+ replaces 4.0 in place. The executable
+    is copied into an isolated 4.0 VM and the NET40 tier talks to it through a shared folder.
+  -->
+  <Target Name="BuildNet40TestHost" AfterTargets="CoreCompile"
+          Condition="'$(Configuration)' == 'Debug'">
+    <MakeDir Directories="$(TargetDir)" />
+    <Exec Condition="Exists('$(Net40Compiler)') and Exists('$(Net40ReferenceDir)\mscorlib.dll')"
+          Command="&quot;$(Net40Compiler)&quot; /nologo /noconfig /nostdlib+ /target:exe /platform:anycpu /optimize+ /warn:4 /out:&quot;$(Net40TestHostExe)&quot; /reference:&quot;$(Net40ReferenceDir)\mscorlib.dll&quot; /reference:&quot;$(Net40ReferenceDir)\System.dll&quot; /reference:&quot;$(Net40ReferenceDir)\System.Web.dll&quot; /reference:&quot;$(Net40ReferenceDir)\System.Runtime.Serialization.Formatters.Soap.dll&quot; &quot;$(Net40TestHostSource)&quot;" />
+    <Copy SourceFiles="$(Net40TestHostConfig)"
+          DestinationFiles="$(Net40TestHostExe).config"
+          OverwriteReadOnlyFiles="true"
+          Condition="Exists('$(Net40TestHostExe)')" />
+    <Warning Condition="!Exists('$(Net40Compiler)') or !Exists('$(Net40ReferenceDir)\mscorlib.dll')"
+             Text="The .NET Framework 4.0 compiler/reference assemblies are absent. ysonet.Net40TestHost.exe was not built, so the NET40 test tier cannot be used from this output." />
+  </Target>
 
   <!-- The private half of the block above. It has to sit AFTER the default
        YsonetOutDir a few lines up, which is unconditional and would otherwise
@@ -192,13 +256,17 @@
     reach a release artifact. When the sink is absent the suite falls back to the legacy
     shell marker rather than losing a fire row.
   -->
-  <Target Name="StageYsonetTests" AfterTargets="Build"
+  <Target Name="StageYsonetTests" AfterTargets="Build" DependsOnTargets="BuildNet40TestHost"
           Condition="'$(Configuration)' == 'Debug' and Exists('$(YsonetOutDir)\ysonet.exe')">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(YsonetOutDir)" OverwriteReadOnlyFiles="true" />
     <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(YsonetOutDir)"
           OverwriteReadOnlyFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
     <Copy SourceFiles="$(TestSinkExe)" DestinationFolder="$(YsonetOutDir)"
           OverwriteReadOnlyFiles="true" Condition="Exists('$(TestSinkExe)')" />
+    <Copy SourceFiles="$(Net40TestHostExe)" DestinationFolder="$(YsonetOutDir)"
+          OverwriteReadOnlyFiles="true" Condition="Exists('$(Net40TestHostExe)')" />
+    <Copy SourceFiles="$(Net40TestHostExe).config" DestinationFolder="$(YsonetOutDir)"
+          OverwriteReadOnlyFiles="true" Condition="Exists('$(Net40TestHostExe).config')" />
     <!-- The test exe runs from ysonet's output dir so the bundled DLLs resolve. Give it the
          same binding redirects as ysonet.exe by reusing ysonet.exe.config as
          ysonet.Tests.exe.config (single source of truth). The FULL suite needs these to load
@@ -233,6 +301,15 @@
   -->
   <Target Name="StageFixturesBesideTheTestBinary" AfterTargets="Build"
           Condition="'$(Configuration)' == 'Debug'">
+    <!-- The project reference places ysonet.exe.config beside this executable, but MSBuild
+         independently emits a smaller ysonet.Tests.exe.config. Reuse the product config here
+         too: it is the single source of truth for MessagePack's late-loaded dependency
+         redirects, and without the Immutable redirect a direct run fails only when it reaches
+         a sufficiently complex Typeless object. -->
+    <Copy SourceFiles="$(TargetDir)ysonet.exe.config"
+          DestinationFiles="$(TargetPath).config"
+          OverwriteReadOnlyFiles="true"
+          Condition="Exists('$(TargetDir)ysonet.exe.config')" />
     <!-- E.dll is loaded from beside the running tool at generation time by the
          ActivitySurrogate family; the two .cs files are compiled at generation time by the
          variants that build their own assembly. -->

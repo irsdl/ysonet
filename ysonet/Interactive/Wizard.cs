@@ -64,7 +64,7 @@ namespace ysonet.Interactive
         public static readonly string[] SurfacedGlobalOptions = new string[]
         {
             "gadget", "plugin", "formatter", "command", "rawcmd", "output",
-            "outputpath", "minify", "usesimpletype", "test",
+            "outputpath", "minify", "usesimpletype", "legacyfx", "test", "testclr2",
             "bridgedgadgetchains", "debugmode",
             // The module editor shows this as a field, but only when the current
             // selection actually involves a denial-of-service gadget.
@@ -702,7 +702,7 @@ namespace ysonet.Interactive
         {
             switch (t)
             {
-                case CommandInputType.CsSourceFile: return "This gadget compiles the .cs file. Example: ExploitClass.cs;System.Windows.Forms.dll";
+                case CommandInputType.CsSourceFile: return "This gadget compiles the .cs file. Example: ExploitClass.cs;System.dll";
                 case CommandInputType.DllPath: return "This gadget loads the DLL on the target. A UNC path works for remote loading.";
                 case CommandInputType.UncPath: return "A UNC path the TARGET opens over SMB, so the host must be reachable from it. Nothing is read here.";
                 case CommandInputType.HostName: return "A bare host name or IP the TARGET connects to, with no scheme and no path. Nothing is resolved here.";

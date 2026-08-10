@@ -87,8 +87,8 @@
     {
       "id": "own-repository",
       "match": "regex",
-      "pattern": "^https?://(github\\.com/irsdl(/ysonet)?/?$|github\\.com/irsdl/ysonet|api\\.github\\.com/repos/irsdl/ysonet|(www\\.)?ysonet\\.(com|net))",
-      "reason": "this project's own repository, release feed, or site"
+      "pattern": "^https?://(github\\.com/[^/]+/ysonet(/|$)|api\\.github\\.com/repos/[^/]+/ysonet(/|$)|(www\\.)?ysonet\\.(com|net))",
+      "reason": "this project's own repository, release feed, or site. The owner segment is deliberately not pinned to one account, so the rule survives a transfer or a rename and no personal handle is hardcoded in the tool"
     },
     {
       "id": "decorative-asset",

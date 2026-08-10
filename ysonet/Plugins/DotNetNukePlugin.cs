@@ -45,6 +45,11 @@ namespace ysonet.Plugins
         // A public plugin: it is listed everywhere, with or without --display-private.
         public bool IsPrivate() { return false; }
 
+        public List<string> RuntimeVersions()
+        {
+            return new List<string> { RuntimeVersion.Unspecified };
+        }
+
         public OptionSet Options()
         {
             return options;
@@ -59,7 +64,7 @@ namespace ysonet.Plugins
                 new PluginMode {
                     Name = "Run command (run_command)",
                     Description = "Execute a command on the target.",
-                    Options = new string[] { "command", "minify" },
+                    Options = new string[] { "command", "rawcmd", "minify" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "mode", "run_command" } },
                 },

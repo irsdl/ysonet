@@ -1,6 +1,6 @@
 # Credits
 
-Who built YSoNet and who found the gadgets and plugins it ships. If you want to learn more about .NET deserialization itself, see [References](references.md).
+Who built YSoNet and who found the gadgets and plugins it ships. If you want to learn more about .NET deserialization itself, see [References](references.md) and the wider [.NET deserialization research](dotnet-deserialization-research.md) list.
 
 YSoNet is the continuation and update of [YSoSerial.Net](https://github.com/pwntester/ysoserial.net), which was originally developed by Alvaro Munoz (@pwntester). YSoNet is now developed and maintained by Soroush Dalili (@irsdl). The original tool was inspired by [Chris Frohoff's ysoserial](https://github.com/frohoff/ysoserial) for Java.
 
@@ -67,6 +67,8 @@ Credits for available gadgets:
                 [Finders: Piotr Bazydlo]
         FileSystemInfo
                 [Finders: James Forshaw] [Contributors: Soroush Dalili]
+        FileSystemProxyCurrentDirectory
+                [Finders: Piotr Bazydlo] [Contributors: Soroush Dalili]
         FormsIdentity
                 [Finders: Soroush Dalili]
         GenericIdentity
@@ -111,6 +113,8 @@ Credits for available gadgets:
                 [Finders: James Forshaw] [Contributors: Alvaro Munoz, Soroush Dalili]
         TypeConfuseDelegateFileOperations
                 [Finders: James Forshaw] [Contributors: Soroush Dalili]
+        TypeConfuseDelegateLegacyWorkflow
+                [Finders: James Forshaw] [Contributors: Soroush Dalili]
         TypeConfuseDelegateMono
                 [Finders: James Forshaw] [Contributors: Denis Andzakovic, Soroush Dalili]
         WbemClassObjectUnmarshal
@@ -129,6 +133,10 @@ Credits for available gadgets:
                 [Finders: Soroush Dalili] [Contributors: russtone]
         XamlImageInfo
                 [Finders: Piotr Bazydlo]
+        XmlDocumentSurrogateXxe
+                [Finders: Soroush Dalili]
+        XmlDocumentXxe
+                [Finders: Oleksandr Mirosh, Alvaro Munoz] [Contributors: Soroush Dalili]
 
 Credits for available plugins:
         ActivatorUrl

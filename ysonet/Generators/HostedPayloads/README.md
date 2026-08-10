@@ -24,13 +24,18 @@ Notes for adding one:
 - Keep the namespace `ysonet.Generators`. The folder is for humans; discovery is by
   reflection over `IGenerator` and ignores namespaces.
 - Add the file to `ysonet.csproj` `<Compile Include="Generators\HostedPayloads\...">`.
-- The host chain decides the formatter set. `GetXamlGadget` returns a generic sorted
-  container, which SoapFormatter cannot serialize, so a variant using it must declare
-  `.Without(Formatters.SoapFormatter)` and call `GuardVariantFormatter`.
+- The host chain decides the formatter set. `GetXamlGadget` returns a live closed-generic
+  sorted container, which SoapFormatter's stock writer rejects. For roots whose direct SOAP
+  document is implemented, call `SerializeSoapXamlGadget` instead; it authors through
+  non-generic aliases and exposes the native CLR4 TCD types to the target. An unsupported
+  document shape must be refused explicitly.
 - `GetXamlGadget(xaml, container)` picks that root: 1 `SortedSet` (default, the shipped
   bytes), 2 `SortedDictionary`, 3 `TreeSet`. Both members above expose it as a
-  `--rootcontainer` option to evade a blocklist on the exact `SortedSet` wire name. All
-  three are generic, so the SoapFormatter opt-out is unchanged. Variant 2 declares
+  `--rootcontainer` option to evade a blocklist on the exact `SortedSet` wire name.
+  SoapFormatter directly supports roots 1 and 3; the deeper SortedDictionary root 2 is
+  refused before generation (and before the `.cs` compile in XamlAssemblyLoadFromFile).
+  This is not a Workflow surrogate or an outer carrier: the SOAP reader sees the selected
+  native `SortedSet<string>` or `TreeSet<string>` root. Variant 2 declares
   `WithoutOptions("rootcontainer")`, so the interactive editor hides the setting when
   the TextFormattingRunProperties wrapper is selected.
 - Both members override `SelfTestNeedsChildProcess` for variant 1. Deserializing this

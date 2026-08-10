@@ -40,7 +40,7 @@ literal.
 
 ## An executed shell command comes from the shared sink
 
-`ysonet.Tests/TestSink.cs` selects one fire backend for the whole run and
+`ysonet.Tests/Harness/TestSink.cs` selects one fire backend for the whole run and
 prefers the windowless `ysonet.TestSink.exe`, which records the exact argument
 the process received. The self-closing `cmd /c echo x > marker` form is its
 automatic fallback and belongs to that file alone.

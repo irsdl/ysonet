@@ -5,11 +5,11 @@ Container-level chrome removal (`extract_html`) catches a `<footer>` or a
 flow with no class worth naming, and a lot of it does:
 
     ## Ready to engage
-    with MDSec?
+    with us?
 
-    [ Get in touch ](https://www.mdsec.co.uk/contact)
+    [ Get in touch ](https://example.com/contact)
 
-     Copyright 2026 MDSec
+     Copyright 2026 Example Consulting
 
 That is the end of seven archived files. Another twenty-one end with a vendor's
 "Learn how it works / See how you're protected" panel, nine with Medium's "Press

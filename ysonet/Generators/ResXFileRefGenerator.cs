@@ -487,8 +487,15 @@ namespace ysonet.Generators
                 throw new ArgumentException(Name() + " cannot deliver this path with " + formatter
                     + (minified ? " and --minify" : "") + ": the payload no longer carries \""
                     + path + "\" exactly, so the target would open a different file."
+                    // The minified branch may NOT lead with "drop --minify". A carriage return
+                    // and leading or trailing whitespace are rewritten by the XML writer with
+                    // no minifier at all, so an operator who dropped the flag on that advice
+                    // would be refused again by this same sentence. Say what dropping it
+                    // really recovers, and give a path that works either way.
                     + (minified
-                        ? " Drop --minify, or use a path with no repeated spaces, no \"; \" and no \", \" sequence."
+                        ? " Use a path with no carriage return and no leading or trailing"
+                            + " whitespace; dropping --minify additionally recovers a repeated"
+                            + " space and a \"; \" or \", \" sequence, and nothing else."
                         : " Use a path with no carriage return and no leading or trailing whitespace."));
 
             string lostIdentifier = FirstMissingIdentifier(delivered, typeName, encodingName);

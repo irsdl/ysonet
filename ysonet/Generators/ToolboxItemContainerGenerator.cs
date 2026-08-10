@@ -107,18 +107,7 @@ namespace ysonet.Generators
                     }
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.SoapFormatter_deserialize(payload);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else
             {

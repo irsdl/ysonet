@@ -23,8 +23,9 @@ To exclude a reference yourself, add it to the `decisions` map in
 `refs.py acquire --only <url>`.
 
 
-1 reference(s) excluded.
+2 reference(s) excluded.
 
 | Reference | Why | Decided by |
 |---|---|---|
-| <https://www.broadcom.com/support/security-center/protection-bulletin/cve-2024-38094-microsoft-sharepoint-deserialization-vulnerability-exploited-in-the-wild> | **broken-capture** - the page served its consent banner rather than the document (matched 'store or retrieve information on your browser', and consent wording runs through 2467 characters of it) | rule:broken-capture 2026-08-04 |
+| <https://www.blackhat.com/docs/us-17/thursday/us-17-Munoz-Friday-The-13th-Json-Attacks.pdf> | **derivative** - Maintainer 2026-08-04: the Black Hat USA 2017 deck of 'Friday the 13th: JSON Attacks' is the same talk the archive already holds, whose DEF CON 25 slides and write-up are archived and readable. The PDF's own text layer cannot be converted (6% of characters fail to decode and its /ToUnicode map does not fix it), so keeping it would mean storing confident nonsense beside a copy that reads. | maintainer 2026-08-04 |
+| <https://www.youtube.com/watch?v=ZcOZNAmKR0c&feature=youtu.be> | **out-of-scope** - Maintainer 2026-08-05: a screen recording, 'A Demonstration of CVE-2022-47504: An RCE in SolarWinds NPM'. The talk has no caption track, and what a demonstration carries is the recording itself, not text an archive can hold. The citation keeps the link; there is nothing to convert. | maintainer 2026-08-04 |

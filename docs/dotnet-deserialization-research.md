@@ -1,0 +1,516 @@
+# .NET deserialization research
+
+A wide reading list for .NET deserialization: background material, talks, related tools,
+uses in the wild, and CTF write-ups. It is a superset of [References](references.md),
+which holds only the short list this project itself draws on.
+
+Nothing here is required to use YSoNet. Add a link if it teaches something about .NET
+deserialization, even when this project does not cite it. To see who found the gadgets and
+built the tool, see [Credits](credits.md).
+
+Back to [documentation index](README.md).
+
+## Additional reading
+
+- [Friday the 13th: JSON Attacks - Slides](https://www.blackhat.com/docs/us-17/thursday/us-17-Munoz-Friday-The-13th-Json-Attacks.pdf)
+- [Friday the 13th: JSON Attacks - Whitepaper](https://www.blackhat.com/docs/us-17/thursday/us-17-Munoz-Friday-The-13th-JSON-Attacks-wp.pdf)
+- [Friday the 13th: JSON Attacks - Video (demos)](https://www.youtube.com/watch?v=ZBfBYoK_Wr0)
+- [Making Serialization Gadgets by Hand - .NET (VulnCheck)](https://www.vulncheck.com/blog/making-dotnet-gadgets)
+- [BinaryFormatter is removed from .NET 9](https://devblogs.microsoft.com/dotnet/binaryformatter-removed-from-dotnet-9/)
+- [Exploiting Hardened .NET Deserialization - Hexacon 2023 Whitepaper](https://github.com/thezdi/presentations/blob/main/2023_Hexacon/whitepaper-net-deser.pdf)
+- [Bypassing .NET Serialization Binders](https://codewhitesec.blogspot.com/2022/06/bypassing-dotnet-serialization-binders.html)
+- [.NET Remoting Revisited](https://codewhitesec.blogspot.com/2022/01/dotnet-remoting-revisited.html)
+- [Microsoft: BinaryFormatter security guide](https://learn.microsoft.com/en-us/dotnet/standard/serialization/binaryformatter-security-guide)
+- [Microsoft CA3075: Insecure DTD processing](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca3075)
+- [Microsoft: XmlReader.Create resolver default changed in .NET Framework 4.5.2](https://web.archive.org/web/20241010111936/https://learn.microsoft.com/en-us/dotnet/fundamentals/runtime-libraries/system-xml-xmlreader-create) - the change DataViewManagerXxe and DataSetXxe both depend on, and the `EnableLegacyXmlSettings` switch that reverts it.
+- [Microsoft: Runtime XML changes for .NET Framework 4.5.x](https://learn.microsoft.com/en-us/dotnet/framework/migration-guide/runtime/4.5.x)
+- [Microsoft: `<loadFromRemoteSources>` element](https://learn.microsoft.com/en-us/dotnet/framework/configure-apps/file-schema/runtime/loadfromremotesources-element) - the security-zone rule that decides whether `AssemblyInstallerLoad` variant 2 can load an assembly from a share.
+- [Microsoft: `AssemblyInstaller` class](https://learn.microsoft.com/en-us/dotnet/api/system.configuration.install.assemblyinstaller) and [`RunInstallerAttribute`](https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.runinstallerattribute) - the documented behaviour `AssemblyInstallerLoad` drives.
+- [SSO Wars: The Token Menace - Whitepaper (Black Hat USA 2019)](https://i.blackhat.com/USA-19/Wednesday/us-19-Munoz-SSO-Wars-The-Token-Menace-wp.pdf) - where Oleksandr Mirosh and Alvaro Munoz published `WSManPluginManagedEntryInstanceWrapper`, the type WSManPluginInstance builds.
+- [More Than DoS: Progress Telerik UI for ASP.NET AJAX Unsafe Reflection (CVE-2025-3600), watchTowr Labs](https://labs.watchtowr.com/more-than-dos-progress-telerik-ui-for-asp-net-ajax-unsafe-reflection-cve-2025-3600/) - Piotr Bazydlo's write-up of the same finalizer used as a pre-auth denial of service. It reaches the type through unsafe reflection rather than a deserializer, and it is the clearest published description of why freeing the unallocated `GCHandle` terminates the process.
+- [Microsoft: `GCHandle.Free`](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.gchandle.free) - documents the `InvalidOperationException` on a handle that was never allocated, which is the exception WSManPluginInstance leaves on the target's finalizer thread.
+- [Finding and Exploiting .NET Remoting over HTTP using Deserialisation](https://soroush.me/blog/finding-and-exploiting-net-remoting-over-http-using-deserialisation)
+- [Attacking .NET serialization](https://speakerdeck.com/pwntester/attacking-net-serialization)
+- [Exploiting .NET Managed DCOM](https://projectzero.google/2017/04/exploiting-net-managed-dcom.html)
+- [.NET Serialiception (SCRT)](https://blog.scrt.ch/2016/05/12/net-serialiception/) - the published DataSet `XmlSchema` XXE path, including the out-of-band file read, that DataSetXxe implements.
+- [Exploit Remoting Service](https://github.com/tyranid/ExploitRemotingService)
+- [Are you my Type? - Slides](https://media.blackhat.com/bh-us-12/Briefings/Forshaw/BH_US_12_Forshaw_Are_You_My_Type_Slides.pdf)
+- [Are you my Type? - Whitepaper](https://media.blackhat.com/bh-us-12/Briefings/Forshaw/BH_US_12_Forshaw_Are_You_My_Type_WP.pdf)
+- [Use of Deserialisation in .NET Framework Methods and Classes (session-token research)](https://soroush.me/downloadable/use_of_deserialisation_in_dotnet_framework_methods_and_classes.pdf)
+- [ASP.NET resource files (.resx) and deserialisation issues](https://soroush.me/blog/asp-net-resource-files-resx-and-deserialization-issues) - the .resx research, with the [paper](https://soroush.me/downloadable/aspnet_resource_files_resx_deserialization_issues.pdf) linked from the post.
+- [SharePoint CVE-2026-50522: ZDI-26-412 advisory](https://www.zerodayinitiative.com/advisories/ZDI-26-412/)
+- [SharePoint CVE-2026-50522: NVD record](https://nvd.nist.gov/vuln/detail/CVE-2026-50522)
+- [SharePoint CVE-2026-50522: Microsoft update](https://support.microsoft.com/en-us/servicing/office/update/2026/5002882)
+- [Breaking change: BinaryFormatter serialization methods are obsolete (.NET 5)](https://learn.microsoft.com/en-us/dotnet/core/compatibility/serialization/5.0/binaryformatter-serialization-obsolete)
+- [Breaking change: BinaryFormatter serialization APIs produce compiler errors (.NET 7)](https://learn.microsoft.com/en-us/dotnet/core/compatibility/serialization/7.0/binaryformatter-apis-produce-errors)
+- [BinaryFormatter obsoletion design proposal](https://github.com/dotnet/designs/blob/main/accepted/2020/better-obsoletion/binaryformatter-obsoletion.md) - Microsoft design doc explaining why BinaryFormatter is being retired.
+- [BinaryFormatter migration guide](https://learn.microsoft.com/en-us/dotnet/standard/serialization/binaryformatter-migration-guide/) - Microsoft guidance for moving off insecure BinaryFormatter to safe serializers.
+- [BinaryFormatter is being removed in .NET 9 (announcement)](https://github.com/dotnet/announcements/issues/293) - Official announcement removing BinaryFormatter entirely from .NET 9.
+- [OWASP Deserialization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Deserialization_Cheat_Sheet.html) - OWASP defensive guidance including .NET serializers and TypeNameHandling.
+- [OWASP: Insecure Deserialization](https://owasp.org/www-community/vulnerabilities/Insecure_Deserialization) - OWASP community background explainer on insecure deserialization.
+- [Insecure deserialization - PortSwigger Web Security Academy](https://portswigger.net/web-security/deserialization) - Learning material covering deserialization including .NET ViewState.
+- [Exploiting insecure deserialization vulnerabilities - PortSwigger](https://portswigger.net/web-security/deserialization/exploiting) - Tutorial on exploiting deserialization, including gadget chains.
+- [ASP.NET ViewState without MAC enabled - PortSwigger](https://portswigger.net/kb/issues/00400600_asp-net-viewstate-without-mac-enabled) - Reference on unsigned ViewState enabling deserialization attacks.
+- [ViewState snooping - PortSwigger](https://portswigger.net/blog/viewstate-snooping) - Classic explainer on reading and understanding ASP.NET ViewState contents.
+- [HackTricks: Basic .NET deserialization (ObjectDataProvider, ExpandedWrapper, Json.Net)](https://hacktricks.wiki/en/pentesting-web/deserialization/basic-.net-deserialization-objectdataprovider-gadgets-expandedwrapper-and-json.net.html) - Primer on core .NET deserialization gadgets and formatters.
+- [HackTricks: Exploiting __VIEWSTATE without knowing the secrets](https://hacktricks.wiki/en/pentesting-web/deserialization/exploiting-__viewstate-parameter.html) - Reference on ViewState deserialization exploitation techniques.
+- [PayloadsAllTheThings: .NET Deserialization](https://swisskyrepo.github.io/PayloadsAllTheThings/Insecure%20Deserialization/DotNET/) - Community cheat sheet of .NET deserialization payloads and techniques.
+- [PayloadsAllTheThings: IIS Machine Keys](https://swisskyrepo.github.io/PayloadsAllTheThings/API%20Key%20Leaks/IIS-Machine-Keys/) - Cheat sheet of machine-key sources, Blacklist3r and ysoserial ViewState commands.
+- [.NET Deserialization Cheat Sheet (SohelParashar)](https://github.com/SohelParashar/.Net-Deserialization-Cheat-Sheet) - Collected .NET deserialization gadgets, formatters, and exploitation references.
+- [Y4er dotnet-deserialization: BinaryFormatter](https://github.com/Y4er/dotnet-deserialization/blob/main/BinaryFormatter.md) - Detailed notes on BinaryFormatter internals and gadget chains.
+- [Y4er dotnet-deserialization: ViewState](https://github.com/Y4er/dotnet-deserialization/blob/main/ViewState.md) - ObjectStateFormatter/ViewState deserialization exploitation notes.
+- [Now You Serial, Now You Don't - Systematically Hunting for Deserialization Exploits (Mandiant)](https://cloud.google.com/blog/topics/threat-intelligence/hunting-deserialization-exploits/) - Systematic hunting and detection of .NET deserialization gadget chains.
+- [Newtonsoft Json.NET TypeNameHandling enumeration](https://www.newtonsoft.com/json/help/html/t_newtonsoft_json_typenamehandling.htm) - Official Json.NET docs cautioning about TypeNameHandling security risks.
+- [.NET JSON.NET Deserialization RCE (Invicti)](https://www.invicti.com/web-application-vulnerabilities/net-json-net-deserialization-rce) - Vendor explainer on Json.NET TypeNameHandling deserialization RCE.
+- [ASP.NET ViewState Weak Validation Key (Invicti)](https://www.invicti.com/web-application-vulnerabilities/asp-net-viewstate-weak-validation-key) - Explainer on weak validation keys enabling ViewState tampering and RCE.
+- [Serialize type hierarchies securely with System.Text.Json (dotnet/runtime #63747)](https://github.com/dotnet/runtime/issues/63747) - Design rationale for constrained, secure polymorphism in System.Text.Json.
+- [System.Text.Json polymorphism docs](https://github.com/dotnet/docs/blob/main/docs/standard/serialization/system-text-json/polymorphism.md) - Official System.Text.Json polymorphism docs including opt-in security constraints.
+- [Security Considerations for Data - WCF](https://learn.microsoft.com/en-us/dotnet/framework/wcf/feature-details/security-considerations-for-data) - Guidance on DataContract(Json)Serializer known-type resolution risks.
+- [Serialization and Deserialization - WCF](https://learn.microsoft.com/en-us/dotnet/framework/wcf/feature-details/serialization-and-deserialization) - WCF serializers overview; NetDataContractSerializer insecurity noted.
+- [Data Contract Serializer - WCF](https://learn.microsoft.com/en-us/dotnet/framework/wcf/feature-details/data-contract-serializer) - Reference for DataContractSerializer used by WCF endpoints.
+- [fastJSON polymorphic .NET JSON serializer](https://github.com/mgholam/fastJSON) - $type polymorphic serializer whose readme carries the HP security warning.
+- [VulnJsonWebApi](https://github.com/arale61/VulnJsonWebApi) - Deliberately vulnerable .NET web API for JSON deserialization testing.
+- [rce-serialization-dotnet](https://github.com/johniwasz/rce-serialization-dotnet) - Repository of reproducible .NET JSON and binary deserialization vulnerability examples.
+- [TypeNameHandling.All security risk (workflow-core #1280)](https://github.com/danielgerlag/workflow-core/issues/1280) - Real project discussion of TypeNameHandling.All deserialization risk.
+- [.NET JavaScriptSerializer Deserialization Vulnerability (writeup)](https://hackmd.io/@onsra03/SJ8Ke4ahC) - Walk-through of JavaScriptSerializer SimpleTypeResolver deserialization exploitation.
+- [DataSet and DataTable security guidance](https://learn.microsoft.com/en-us/dotnet/framework/data/adonet/dataset-datatable-dataview/security-guidance) - Microsoft's official guidance on unsafe DataSet/DataTable deserialization.
+- [Working with .resx files programmatically](https://learn.microsoft.com/en-us/dotnet/core/extensions/work-with-resx-files-programmatically) - Docs on .resx/ResXResourceReader/SafeMode, background for resource-file gadgets.
+- [XamlReader.Parse method (System.Windows.Markup)](https://learn.microsoft.com/en-us/dotnet/api/system.windows.markup.xamlreader.parse) - Reference for the XamlReader.Parse sink used by XAML gadgets.
+- [ObjectStateFormatter.Deserialize method (System.Web.UI)](https://learn.microsoft.com/en-us/dotnet/api/system.web.ui.objectstateformatter.deserialize?view=netframework-4.8.1) - Docs for the formatter that deserializes __VIEWSTATE.
+- [BinaryServerFormatterSink.TypeFilterLevel property](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.remoting.channels.binaryserverformattersink.typefilterlevel?view=netframework-4.8) - Docs on the Low/Full remoting deserialization filter setting.
+- [BinaryServerFormatterSink class](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.remoting.channels.binaryserverformattersink?view=netframework-4.8) - Reference for the remoting sink that deserializes requests.
+- [MS-WPO: IManagedObject Interface Protocol](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-wpo/6196e693-41ae-47a3-871d-ee9bfc6d82a0) - Spec behind DCOM GetSerializedBuffer managed-object marshalling and deserialization.
+- [MS-PSRP: PowerShell Remoting Protocol](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-psrp/602ee78e-9a19-45ad-90fa-bb132b7cecec) - Spec for how CLIXML objects traverse WSMan/WinRM.
+- [How objects are sent to and from PowerShell remote sessions](https://devblogs.microsoft.com/powershell/how-objects-are-sent-to-and-from-remote-sessions/) - Official explainer on PSRP serialization, Deserialized. property bags, and TargetTypeForDeserialization rehydration.
+- [Using WS-Management (WSMan) remoting in PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/security/remoting/wsman-remoting-in-powershell) - Background on the transport underlying PowerShell remoting and CLIXML exchange.
+- [Import-Clixml (Microsoft.PowerShell.Utility)](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/import-clixml) - Cmdlet reference flagging importing untrusted CLIXML as a security risk.
+- [ConvertFrom-CliXml (Microsoft.PowerShell.Utility)](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/convertfrom-clixml) - Reference for the CLIXML-string-to-PSObject cmdlet, a string-based deserialization entry point.
+- [PowerShell serialization payload signing in Exchange Server](https://practical365.com/powershell-serialization-payload-signing-in-exchange-server/) - Explains Exchange certificate-based serialization payload signing that mitigates the 2022 deserialization RCE.
+- [Code injection attacks using publicly disclosed ASP.NET machine keys (Microsoft)](https://www.microsoft.com/en-us/security/blog/2025/02/06/code-injection-attacks-using-publicly-disclosed-asp-net-machine-keys/) - Microsoft explainer on 3000+ leaked keys enabling ViewState code injection.
+- [Project Blacklist3r (Claranet)](https://www.claranet.com/us/blog/2018-11-18-project-blacklist3r) - Introduces the pre-shared machine-key database project and its goals.
+- [Path Traversal to Remote Code Execution (Claranet)](https://www.claranet.com/us/blog/2023-04-17-path-traversal-remote-code-execution) - Reading web.config to recover machineKey then ViewState deserialization RCE.
+- [Telerik Web Forms cryptographic weakness (vendor KB)](https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/common-cryptographic-weakness) - Vendor KB on default/hardcoded Telerik encryption keys and remediation.
+- [Decrypting ASP.NET Identity cookies](https://lowleveldesign.wordpress.com/2014/11/11/decrypting-asp-net-identity-cookies/) - Machine-key based decryption of ASP.NET auth cookies, related to ViewState crypto.
+- Microsoft .NET code-analysis security rules, each documenting an insecure deserializer or deserialization sink:
+  - [CA2300: Do not use insecure deserializer BinaryFormatter](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2300)
+  - [CA2301: Do not call BinaryFormatter.Deserialize without first setting Binder](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2301)
+  - [CA2302: Ensure BinaryFormatter.Binder is set before calling Deserialize](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2302)
+  - [CA2321: Do not deserialize with JavaScriptSerializer using a SimpleTypeResolver](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2321)
+  - [CA2322: Ensure JavaScriptSerializer is not initialized with SimpleTypeResolver before deserializing](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2322)
+  - [CA2326: Do not use TypeNameHandling values other than None](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2326)
+  - [CA2327: Do not use insecure JsonSerializerSettings](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2327)
+  - [CA2328: Ensure that JsonSerializerSettings are secure](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2328)
+  - [CA2329: Do not deserialize with JsonSerializer using an insecure configuration](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2329)
+  - [CA2330: Ensure that JsonSerializer has a secure configuration when deserializing](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2330)
+  - [CA2350: Ensure DataTable.ReadXml()'s input is trusted](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2350)
+  - [CA2351: Ensure DataSet.ReadXml()'s input is trusted](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2351)
+  - [CA2352: Unsafe DataSet or DataTable in serializable type can be vulnerable to remote code execution attacks](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2352)
+  - [CA2355: Unsafe DataSet or DataTable in deserialized object graph](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2355)
+  - [CA2356: Unsafe DataSet or DataTable type in web deserialized object graph](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2356)
+  - [CA3010: Review code for XAML injection vulnerabilities](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca3010)
+  - [CA5360: Do not call dangerous methods in deserialization](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca5360)
+  - [CA5369: Use XmlReader for Deserialize](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca5369)
+  - [SYSLIB0011: BinaryFormatter serialization is obsolete](https://learn.microsoft.com/en-us/dotnet/fundamentals/syslib-diagnostics/syslib0011)
+- [YSoSerial.Net references (pwntester gist)](https://gist.github.com/pwntester/f3693395000331d93de99f1ae560eb7a) - Curated reference list maintained alongside the original ysoserial.net.
+- [protobuf-net v3.0 release notes (DynamicType removed)](https://protobuf-net.github.io/protobuf-net/3_0.html) - Drops DynamicType because object-typed metadata carries BinaryFormatter-like deserialization danger.
+- [RavenDB deserialization security](https://docs.ravendb.net/7.1/client-api/security/deserialization-security/) - Serialization binder and RegisterForbiddenNamespace defenses against gadget RCE.
+- [Serialization vulnerabilities (rce-serialization-dotnet)](https://johniwasz.github.io/rce-serialization-dotnet/serialization/serialization.html) - Reference enumerating unsafe .NET serializers with deserialization RCE examples.
+- [SerialDetector speeds up discovery of .NET deserialization bugs (The Daily Swig)](https://web.archive.org/web/20251117215145/https://portswigger.net/daily-swig/open-source-tool-serialdetector-speeds-up-discovery-of-net-deserialization-bugs) - Coverage of the SerialDetector research and its Azure DevOps Server findings.
+- [SerialDetector: Principled and Practical Exploration of Object Injection Vulnerabilities for the Web (NDSS 2021)](https://www.ndss-symposium.org/ndss-paper/serialdetector-principled-and-practical-exploration-of-object-injection-vulnerabilities-for-the-web/) - First systematic taint analysis of .NET object injection; found Azure DevOps RCE.
+- [SerialDetector (NDSS 2021 paper PDF)](https://people.kth.se/~musard/research/pubs/ndss21.pdf) - Full paper of the KTH .NET object-injection taint-analysis work.
+- [Code-Reuse Attacks in Managed Programming Languages and Runtimes (KTH PhD thesis)](https://kth.diva-portal.org/smash/record.jsf?pid=diva2%3A1905323&dswid=-4319) - Shcherbakov thesis containing the SerialDetector .NET object-injection research.
+- [System.Text.Json threat model](https://github.com/dotnet/runtime/blob/main/src/libraries/System.Text.Json/docs/ThreatModel.md) - STJ security model, including risks of polymorphic type-metadata deserialization.
+- [BinaryFormatter migration guide: compatibility package](https://learn.microsoft.com/en-us/dotnet/standard/serialization/binaryformatter-migration-guide/compatibility-package) - The System.Runtime.Serialization.Formatters package that restores the unsafe BinaryFormatter on .NET 9.
+- [BinaryFormatter removal from .NET 9 is complete (announcement)](https://github.com/dotnet/announcements/issues/317) - Official announcement that in-box BinaryFormatter now always throws.
+- [Y4er dotnet-deserialization (notes repository)](https://github.com/Y4er/dotnet-deserialization) - Comprehensive Chinese notes: formatters, gadget chains, ViewState, Remoting.
+- [Y4er dotnet-deserialization: .NET Remoting](https://github.com/Y4er/dotnet-deserialization/blob/main/.NET%20Remoting.md) - .NET Remoting deserialization exploitation notes.
+- [Y4er dotnet-deserialization: Json.Net](https://github.com/Y4er/dotnet-deserialization/blob/main/Json.Net.md) - Json.NET TypeNameHandling ObjectDataProvider gadget analysis.
+- [Ivan1ee NET-Deserialize (index of the .NET code-audit series)](https://github.com/Ivan1ee/NET-Deserialize) - Index of 20+ formatter-by-formatter .NET deserialization audit articles.
+- [.NET advanced code-audit deserialization series (Anquanke subject index)](https://www.anquanke.com/subject/id/173339) - Ivan1ee formatter-by-formatter .NET deserialization series landing page.
+- [nice_0e3 .NET security blog (deserialization category)](https://www.cnblogs.com/nice0e3/category/2025550.html) - Chinese blog series on .NET deserialization gadget chains.
+- [.NET ViewState deserialization (Chaitin)](https://rivers.chaitin.cn/blog/cq9ka0h0lnechd245pu0) - Chaitin overview of ASP.NET ViewState/ObjectStateFormatter deserialization.
+- [Why Microsoft removed BinaryFormatter (Japanese)](https://zenn.dev/litharge/articles/16862a6d6884b8) - Japanese explainer on why BinaryFormatter deserialization is insecure and was removed.
+- [Disabling ViewState's MAC: why you deserve a broken ASP.NET web application (Compass Security)](https://blog.compass-security.com/2014/09/disabling-viewstates-mac-why-you-deserve-having-now-a-broken-asp-net-web-application/) - Foundational research on how disabling EnableViewStateMac enables ViewState deserialization RCE.
+- [Farewell, EnableViewStateMac! (Microsoft)](https://devblogs.microsoft.com/dotnet/farewell-enableviewstatemac/) - Microsoft removes the ability to disable the ViewState MAC after the RCE risk became clear.
+- [Freddy: identifying deserialisation issues in Java and .NET (NCC Group)](https://www.nccgroup.com/research/freddy-an-extension-for-automatically-identifying-deserialisation-issues-in-java-and-net-applications/) - NCC Group introduction to the Freddy Burp extension for Java and .NET deserialization.
+- [Insecure Serialization and new Gadgets in .NET framework - Part 1 (Ngocanh Le)](https://viblo.asia/p/insecure-serialization-and-new-gadgets-in-net-framework-p1-3RlL53kB4bB) - the serialization side: `SettingsPropertyValue` and `SecurityException` getters that reach `BinaryFormatter.Deserialize` when an object graph is serialized back out, which is why a deserialize-then-serialize workflow is a sink too.
+- [Insecure Serialization and new Gadgets in .NET framework - Part 2 (Ngocanh Le)](https://viblo.asia/p/insecure-serialization-and-new-gadgets-in-net-framework-p2-r1QLxBo24Aw) - pairs the `PropertyGrid` and `ComboBox` arbitrary-getter gadgets with those two, across Json.NET, BinaryFormatter, XamlReader and MessagePack.
+
+## Talks
+
+- [Exploiting Hardened .NET Deserialization (HEXACON 2023) - Video](https://www.youtube.com/watch?v=_CJmUh0_uOM)
+- [Second Breakfast: Implicit and Mutation-Based Serialization Vulnerabilities in .NET (DEF CON 31)](https://forum.defcon.org/node/245716)
+  - [Slides](https://media.defcon.org/DEF%20CON%2031/DEF%20CON%2031%20presentations/Jonathan%20Birch%20-%20Second%20Breakfast%20Implicit%20and%20Mutation-Based%20Serialization%20Vulnerabilities%20in%20.NET.pdf)
+  - [Whitepaper](https://media.defcon.org/DEF%20CON%2031/DEF%20CON%2031%20presentations/Jonathan%20Birch%20-%20Second%20Breakfast%20Implicit%20and%20Mutation-Based%20Serialization%20Vulnerabilities%20in%20.NET-whitepaper.pdf)
+- [RCEvil.net (BSides Iowa)](https://illuminopi.com/assets/files/BSidesIowa_RCEvil.net_20190420.pdf)
+- [Security boot camp for .NET developers (Confoo)](https://gosecure.github.io/presentations/2018-03-18-confoo_mtl/Security_boot_camp_for_.NET_developers_Confoo_v2.pdf)
+- [Nullcon Goa 2018 slides](https://web.archive.org/web/20260227084925/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf)
+- [.NET serialization: detecting and defending vulnerable endpoints](https://speakerdeck.com/pwntester/dot-net-serialization-detecting-and-defending-vulnerable-endpoints)
+- [Dangerous Contents - Securing .Net Deserialization (Jonathan Birch, BlueHat v17)](https://www.youtube.com/watch?v=oxlD8VWWHE8)
+- [Are You My Type? Breaking .NET Sandboxes Through Serialization (James Forshaw, Black Hat USA 2012 - video)](https://www.youtube.com/watch?v=Xfbu-pQ1tIc)
+- [Dangerous Contents - Securing .NET Deserialization (Jonathan Birch - slides)](https://www.slideshare.net/slideshow/dangerous-contents-securing-net-deserialization/83686352)
+- [History of Deserialization RCE for modern web applications (GoSecure)](https://gosecure.github.io/presentations/2019-04-29_atlseccon/History_of_Deserialization_v2.2.pdf)
+- [Friday the 13th: Attacking JSON (AppSec USA 2017 - video)](https://www.youtube.com/watch?v=NqHsaVhlxAQ)
+- [Friday the 13th: JSON Attacks (Black Hat USA 2017 - Internet Archive recording)](https://archive.org/details/youtube-oUAeWhW5b8c)
+- [Attacking .NET Deserialization (Alvaro Munoz, Insomni'hack 2018 - video)](https://www.youtube.com/watch?v=eDfGpu3iE4Q)
+- [.NET Serialization: Detecting and Defending Vulnerable Endpoints (video)](https://www.youtube.com/watch?v=qDoBlLwREYk)
+- [.NET Serialization: Detecting and Defending Vulnerable Endpoints (alternate recording)](https://www.youtube.com/watch?v=8cMmNSThVAM)
+- [.Net Roulette: Exploiting Insecure Deserialization in Telerik UI (Caleb Gross, 2020 - video)](https://www.youtube.com/watch?v=--6PiuvBGAU)
+- [.Net Roulette: Exploiting Insecure Deserialization in Telerik UI (Bishop Fox - slides and resources)](https://bishopfox.com/resources/exploiting-insecure-deserialization-in-telerik-ui-derpcon-2020)
+- [.NET deserialization attacks and their associated threats in the world of CMS](https://www.youtube.com/watch?v=tFYi5Nftc4A)
+- [Second Breakfast: Implicit and Mutation-Based Serialization Vulnerabilities in .NET (DEF CON 31 - video)](https://www.youtube.com/watch?v=v0fraChyonQ)
+- [SOAPwn: Pwning .NET Framework Applications Through HTTP Client Proxies and WSDL (Piotr Bazydlo, Black Hat EU 2025 - slides)](https://i.blackhat.com/BH-EU-25/eu-25-Bazydlo-SOAPwn.pdf)
+- [SOAPwn: Pwning .NET Framework Applications Through HTTP Client Proxies and WSDL (Black Hat EU 2025 - whitepaper)](https://i.blackhat.com/BH-EU-25/eu-25-Bazydlo-SOAPwn-wp.pdf)
+- [ProxyLogon Is Just the Tip of the Iceberg: A New Attack Surface on Microsoft Exchange Server (Orange Tsai, Black Hat USA 2021 - slides)](https://i.blackhat.com/USA21/Wednesday-Handouts/us-21-ProxyLogon-Is-Just-The-Tip-Of-The-Iceberg-A-New-Attack-Surface-On-Microsoft-Exchange-Server.pdf)
+- [Friday the 13th: JSON Attacks (Alvaro Munoz and Oleksandr Mirosh, DEF CON 25 - slides)](https://media.defcon.org/DEF%20CON%2025/DEF%20CON%2025%20presentations/DEF%20CON%2025%20-%20Alvaro-Munoz-and-Oleksandr-Mirosh-JSON-Attacks-UPDATED.pdf)
+- [Half Measures and Full Compromise: Exploiting Microsoft Exchange PowerShell Remoting (Piotr Bazydlo, OffensiveCon 2024 - video)](https://www.youtube.com/watch?v=AxNO2iA2fAg)
+- [.NET Deserialization Attacks (Dharmalingam Ganesan - slides)](https://www.slideshare.net/slideshow/net-deserialization-attacks/264388492)
+- [Deserialization: RCE for Modern Web Applications (NorthSec 2019)](https://nsec.io/session/2019-deserialization-rce-for-modern-web-applications.html)
+- [(De)serial Killers (Dor Tumarkin, BSides Las Vegas / AppSec IL 2018 - slides)](https://www.slideshare.net/DorTumarkin/deserial-killers-bsides-las-vegas-appsec-il-2018-113212745)
+- [Transformers: Dark Side of the Type - Weaponizing the Conversion Layer (Oleksandr Mirosh, Black Hat USA 2026 - slides)](https://i.blackhat.com/BH-USA-26/Presentations/BHUS26-Mirosh-Transformers-Dark-Side-Slides.pdf) - treats string-to-object conversion as its own bug class, separate from insecure deserialization: five primitives that resolve an attacker-named type with no serializer in between (TypeConverter.ConvertFrom, static Parse, new T(string), property accessors, custom logic), with ResXFileRef, ResourceSet, WorkflowServiceBehavior, XamlImageInfo, ImageSourceConverter and ObjectDataProvider as the gadgets, plus CVE-2020-1460 and four 2026 SharePoint CVEs walked end to end.
+- [Transformers: Dark Side of the Type - Weaponizing the Conversion Layer (Oleksandr Mirosh, Black Hat USA 2026 - whitepaper)](https://i.blackhat.com/BH-USA-26/Presentations/BHUS26-Mirosh-Transformers-Dark-Side-WP.pdf) - the full 66-page paper behind the slides: a table classifying every .NET string-to-object mechanism and why BitConverter, XmlConvert, conversion operators and Convert.ChangeType fall out of scope, a four-condition definition of an Insecure String Transformer, the type-availability split between the GAC on .NET Framework and shared framework plus deps.json on modern .NET, the gadget listings, the full SharePoint disclosure chains, and hunting regexes with a triage checklist. Cites Soroush Dalili's .RESX paper for ResXFileRef and for ResourceSet, ResXResourceSet and ResourceReader as the stream gadgets.
+
+## Related tools
+
+- [ProjectDiscovery DSL deserialization package](https://pkg.go.dev/github.com/projectdiscovery/dsl/deserialization) - Go helper that generates .NET (and Java) deserialization gadgets, reusing ysoserial-style gadget names.
+- [GadgetExplorer](https://github.com/nines-nine/GadgetExplorer) - tooling to discover .NET deserialization gadget chains.
+- [Metasploit .NET deserialization library / CLI](https://docs.metasploit.com/docs/development/developing-modules/libraries/deserialization/dot-net-deserialization.html) - `Msf::Util::DotNetDeserialization` and `tools/payloads/ysoserial/dot_net.rb`, argument-compatible with YSoSerial.NET and reusing its gadget/formatter names, including ViewState signing. See also the [API docs](https://docs.metasploit.com/api/Msf/Util/DotNetDeserialization.html).
+- [ViewStatePayloadGenerator](https://github.com/pwntester/ViewStatePayloadGenerator)
+- [viewgen](https://github.com/0xACB/viewgen)
+- [RCEvil.NET](https://github.com/Illuminopi/RCEvil.NET)
+- [GadgetToJScript](https://github.com/med0x2e/GadgetToJScript) - generates .NET serialized gadgets that trigger assembly load/execution via BinaryFormatter from JS/VBS/VBA.
+- [YSoSerial.Net](https://github.com/pwntester/ysoserial.net) - the original .NET tool by Alvaro Munoz (@pwntester) that YSoNet continues and updates.
+- [DotNetToJScript](https://github.com/tyranid/DotNetToJScript) - embeds a BinaryFormatter-serialized .NET object into JScript to bootstrap in-memory assembly loading.
+- [ysoserial](https://github.com/frohoff/ysoserial) - Chris Frohoff's original Java tool that inspired the .NET port.
+- [ysoserial.net (Mono fork)](https://github.com/revoverflow/ysoserial) - ysoserial.net fork adding Mono support for .NET payload generation.
+- [Blacklist3r](https://github.com/NotSoSecure/Blacklist3r) - Audits apps for pre-published machine keys to decrypt or sign ViewState and cookies.
+- [badsecrets](https://github.com/blacklanternsecurity/badsecrets) - Detects known machine keys by validating __VIEWSTATE against a key corpus.
+- [crapsecrets](https://github.com/irsdl/crapsecrets) - Fork of badsecrets for detecting known secrets across web frameworks.
+- [viewstate (Python)](https://github.com/yuvadm/viewstate) - Python library to decode and inspect ASP.NET __VIEWSTATE data.
+- [viewstate-decoder](https://github.com/defensahacker/viewstate-decoder) - Small CLI wrapper to decode ASP.NET __VIEWSTATE during web pentests.
+- [viewstalker](https://github.com/isclayton/viewstalker) - Identifies and exploits vulnerable ASP.NET ViewState implementations at scale.
+- [ViewState Editor (Burp extension)](https://github.com/PortSwigger/viewstate-editor) - Burp extension to view and edit ASP.NET ViewState structure.
+- [ViewStateDecoder (Burp extension)](https://github.com/raise-isayan/ViewStateDecoder) - Burp extension that parses and decodes ASP.NET ViewState.
+- [dotnet-beautifier (Burp extension)](https://github.com/PortSwigger/dotnet-beautifier) - Beautifies .NET parameters including __VIEWSTATE for testing.
+- [Freddy (Burp extension)](https://github.com/nccgroup/freddy) - Burp extension detecting and exploiting Java and .NET deserialization via active and passive scans.
+- [RAU_crypto](https://github.com/bao7uo/RAU_crypto) - Breaks Telerik RadAsyncUpload fixed-key encryption for CVE-2017-11317/CVE-2019-18935.
+- [SerialDetector](https://github.com/KTH-LangSec/SerialDetector) - Taint-based tool detecting and exploiting .NET object injection vulnerabilities in assemblies.
+- [ActivitySurrogateSelector .NET 3.5 exploit generator](https://github.com/Dor-Tumarkin/ActivitySurrogateSelector-.NET-3.5-Exploit-Generator) - Builds ActivitySurrogateSelector chains for legacy .NET 3.5 BinaryFormatter/LosFormatter.
+- [MSMQ BinaryMessageFormatter exploit for .NET 4.5](https://github.com/Dor-Tumarkin/MSMQ-BinaryMessageFormatter-Exploit-for-.NET-4.5) - MSMQ BinaryMessageFormatter BinaryFormatter deserialization exploit ((DE)SERIAL KILLERS, BSidesLV).
+- [MSMQ BinaryMessageFormatter exploit for .NET 3.5](https://github.com/Dor-Tumarkin/MSMQ-BinaryMessageFormatter-Exploit-for-.NET-3.5) - The .NET 3.5 variant of the MSMQ BinaryMessageFormatter deserialization exploit.
+- [ExploitDotNetDCOM](https://github.com/tyranid/ExploitDotNetDCOM) - James Forshaw's tool exploiting .NET DCOM deserialization for EoP/RCE.
+- [ExploitRemotingService (Code White fork)](https://github.com/codewhitesec/ExploitRemotingService) - Fork adding useobjref and GenuineChannels .NET Remoting exploitation tricks.
+- [RogueRemotingServer](https://github.com/codewhitesec/RogueRemotingServer) - Malicious remoting server replying with gadget payloads for the ObjRef gadget.
+- [HttpRemotingObjRefLeak](https://github.com/codewhitesec/HttpRemotingObjRefLeak) - PoC leaking and exploiting ObjRefs over HTTP .NET Remoting (CVE-2024-29059).
+- [NewRemotingTricks](https://github.com/codewhitesec/NewRemotingTricks) - PoC tooling for exploiting hardened .NET Remoting servers.
+- [DCOMIllusionist](https://github.com/synacktiv/DCOMIllusionist) - Synacktiv DCOM in-memory fileless lateral movement via .NET deserialization.
+- [Aladdin](https://github.com/nettitude/Aladdin) - Generates remoting deserialization payloads executing .NET assemblies in AddInProcess.
+- [desharialize](https://github.com/Voulnet/desharialize) - Serializes custom payloads for SharePoint deserialization RCE (CVE-2019-0604).
+- [SharpShooter](https://github.com/mdsecactivebreach/SharpShooter) - Payload framework weaponizing the DotNetToJScript deserialization gadget for WSH scripts.
+- [dotNetFuzz](https://github.com/debasishm89/dotNetFuzz) - A .NET Deserialize_* fuzzer built on Forshaw's DotNetToJScript.
+- [dp_crypto](https://github.com/bao7uo/dp_crypto) - Padding-oracle key recovery for the Telerik dialog handler (CVE-2017-9248).
+- [VulnerableDotNetHTTPRemoting](https://github.com/nccgroup/VulnerableDotNetHTTPRemoting/tree/master/ysoserial.net-v2) - NCC Group vulnerable .NET HTTP Remoting lab plus a ysoserial.net variant for testing.
+- [SafeDeserializationHelpers](https://github.com/zyanfx/SafeDeserializationHelpers) - Library that fixes known BinaryFormatter deserialization gadget vulnerabilities.
+- [insecure-deserialisation-net-poc](https://github.com/omerlh/insecure-deserialisation-net-poc) - Deliberately vulnerable .NET app: Json.Net ObjectDataProvider deserialization RCE.
+- [heyserial](https://github.com/mandiant/heyserial) - Mandiant tool that generates YARA/Snort hunting rules for ViewState and .NET deserialization payloads.
+- [.NET Deserialization Scanner (Burp extension)](https://github.com/pwntester/dotnet-deserialization-scanner) - Burp passive scanner flagging .NET deserialization sinks in traffic.
+- [MSTIC MachineKeyScan](https://github.com/microsoft/mstic/blob/master/RapidReleaseTI/MachineKeyScan.ps1) - Microsoft PowerShell scanner detecting publicly disclosed ASP.NET machine keys in web.config.
+- [Security Code Scan](https://github.com/security-code-scan/security-code-scan) - Roslyn SAST analyzer that flags BinaryFormatter and insecure .NET deserialization.
+- [CodeQL: Deserialization of untrusted data (C#)](https://codeql.github.com/codeql-query-help/csharp/cs-unsafe-deserialization-untrusted-input/) - CodeQL query detecting untrusted-input deserialization sinks in C#/.NET.
+
+## Uses in the wild
+
+A collection of research and advisories that use YSoNet / ysoserial.net.
+
+### Research
+
+- https://www.resecurity.com/blog/article/from-web-request-to-domain-compromise-understanding-the-july-2026-sharepoint-attacks
+- https://kudelskisecurity.com/research/persistent-exploitation-of-asp-net-components-fuels-remote-code-execution-attacks
+- https://www.thezdi.com/blog/2024/9/18/exploiting-exchange-powershell-after-proxynotshell-part-3-dll-loading-chain-for-rce
+- https://www.thezdi.com/blog/2024/9/11/exploiting-exchange-powershell-after-proxynotshell-part-2-approvedapplicationcollection
+- https://www.thezdi.com/blog/2024/9/4/exploiting-exchange-powershell-after-proxynotshell-part-1-multivaluedproperty
+- https://www.truesec.com/hub/blog/attacking-powershell-clixml-deserialization
+- https://exp10it.io/posts/dotnet-new-deserialization-gadgets/
+- https://exp10it.io/posts/dotnet-insecure-serialization/
+- https://code-white.com/blog/teaching-the-old-net-remoting-new-exploitation-tricks/
+- https://code-white.com/blog/leaking-objrefs-to-exploit-http-dotnet-remoting/
+- https://community.opentext.com/t5/Security-Research-Blog/New-NET-deserialization-gadget-for-compact-payload-When-size/ba-p/1763282
+- https://www.mdsec.co.uk/2020/04/introducing-ysoserial-net-april-2020-improvements/
+- https://muffsec.com/blog/finding-a-new-datacontractserializer-rce-gadget-chain/
+- https://soroush.me/blog/file-upload-attack-using-xamlx-files
+- https://soroush.me/blog/uploading-web-config-for-fun-and-profit-2
+- https://soroush.me/blog/exploiting-deserialisation-in-asp-net-via-viewstate
+- https://swapneildash.medium.com/deep-dive-into-net-viewstate-deserialization-and-its-exploitation-54bf5b788817
+- https://www.netspi.com/blog/technical-blog/red-teaming/re-animating-activitysurrogateselector/
+- https://www.alphabot.com/security/blog/2017/net/How-to-configure-Json.NET-to-create-a-vulnerable-web-API.html
+- https://soroush.me/blog/more-research-on-net-deserialization
+- https://code-white.com/blog/2022-06-bypassing-dotnet-serialization-binders/
+- https://code-white.com/blog/2022-01-dotnet-remoting-revisited/
+- https://medium.com/@frycos/yet-another-net-deserialization-35f6ce048df7
+- https://russtone.io/2023/05/30/programming-with-xaml/
+- https://modzero.com/en/blog/deserialization-attacks-in-dotnet-games/
+- https://almightysec.com/deserialization-rce/
+- https://www.netwrix.com/en/resources/blog/generating-deserialization-payloads-for-messagepack-cs-typeless-mode/
+- https://johniwasz.github.io/rce-serialization-dotnet/serialization/NET8JSON.html
+- https://systemweakness.com/exploiting-json-serialization-in-net-core-694c111faa15
+- https://dotnet9.com/2022/05/Net-advanced-code-audit-detailed-explanation-of-deserialization-gadget-Xaml
+- https://znlive.com/xmlserializer-deserialization-vulnerability
+- https://zeroed.tech/blog/viewstate-the-unpatchable-iis-forever-day-being-actively-exploited/
+- https://zeroed.tech/blog/decrypting-viewstate-messages/
+- https://zac-tee.medium.com/deriving-actual-machine-keys-with-isolateapps-modifier-2d38d2681619
+- https://blog.blacklanternsecurity.com/p/yet-another-telerik-ui-revisit
+- https://blog.blacklanternsecurity.com/p/introducing-badsecrets
+- https://isc.sans.edu/diary/32174
+- https://www.tiraniddo.dev/2019/10/bypassing-low-type-filter-in-net.html
+- https://www.tiraniddo.dev/2014/11/stupid-is-as-stupid-does-when-it-comes.html
+- https://www.lrqa.com/en/cyber-labs/introducing-aladdin/
+- https://www.mdsec.co.uk/2020/09/i-like-to-move-it-windows-lateral-movement-part-2-dcom/
+- https://siebene.github.io/2023/03/27/Learning-Exploit-of-NET-Remoting/
+- https://www.ibm.com/think/x-force/fileless-lateral-movement-trapped-com-objects
+- https://mohamed-fakroud.gitbook.io/red-teamings-dojo/abusing-idispatch-for-trapped-com-object-access-and-injecting-into-ppl-processes
+- https://www.truesec.com/hub/blog/how-to-break-out-of-hyper-v-and-compromise-your-admins
+- https://www.zerodayinitiative.com/blog/2022/11/14/control-your-types-or-get-pwned-remote-code-execution-in-exchange-powershell-backend
+- https://www.zerodayinitiative.com/blog/2024/9/25/exploiting-exchange-powershell-after-proxynotshell-part-4-no-argument-constructor
+- https://chudypb.github.io/exchange-powershell.html
+- https://testbnull.medium.com/microsoft-exchange-powershell-remoting-deserialization-lead-to-rce-cve-2023-21707-4d0e6d282f02
+- https://code-white.com/blog/exploiting-asp.net-templateparser-part-2/
+- https://code-white.com/blog/2019-02-telerik-revisited/
+- https://trustedsec.com/blog/spec-tac-ula-deserialization-deploying-specula-with-net
+- https://mijailovic.net/2023/02/20/stack-overflow-exception/
+- https://web.archive.org/web/20230817214112/https://xz.aliyun.com/t/9598
+- https://web.archive.org/web/20240618062749/https://xz.aliyun.com/t/13002
+- https://www.cnblogs.com/zpchcbd/p/17395442.html
+- https://www.cnblogs.com/nice0e3/p/16945401.html
+- https://exp10it.io/posts/asp-net-viewstate-deserialization/
+- https://www.anquanke.com/post/id/221630
+- https://3gstudent.github.io/DotNet%E5%8F%8D%E5%BA%8F%E5%88%97%E5%8C%96-%E7%94%9F%E6%88%90ViewState%E7%9A%84%E7%A8%8B%E5%BA%8F%E5%AE%9E%E7%8E%B0
+- https://3gstudent.github.io/GadgetToJScript%E5%88%A9%E7%94%A8%E5%88%86%E6%9E%90
+- https://blog.wanghw.cn/security/dotnet-viewstate-no-file-godzilla-memshell.html
+- https://cyku.tw/play-with-dotnet-viewstate-exploit-and-create-fileless-webshell/
+- https://labs.watchtowr.com/soapwn-pwning-net-framework-applications-through-http-client-proxies-and-wsdl/
+- https://www.keysight.com/blogs/en/tech/nwvs/2022/03/10/cve-2020-17144-microsoft-exchange-server-ews-insecure-deserialization
+- https://ssd-disclosure.com/ssd-advisory-microsoft-sharepoint-server-wizardconnecttodatastep4-deserialization-of-untrusted-data-rce/
+- https://soroush.me/downloadable/workflows_rce_upon_compiling_xoml_using_deserialization.pdf
+- https://github.com/alienkeric/VisualStudio-RCE-EvilSln
+- https://www.mdsec.co.uk/2017/09/exploiting-cve-2017-8759-soap-wsdl-parser-code-injection/
+- https://www.tiraniddo.dev/2020/05/old-net-vulnerability-5-security.html
+- https://www.tiraniddo.dev/2017/07/dg-on-windows-10-s-executing-arbitrary.html
+- https://soroush.me/blog/story-of-two-published-rces-in-sharepoint-workflows
+- https://claroty.com/team82/research/exploiting-a-classic-deserialization-vulnerability-in-siemens-simatic-energy-manager
+- https://blog.viettelcybersecurity.com/sharepoint-toolshell/
+- https://blog.viettelcybersecurity.com/sharepoint_properties_deser/
+
+### Usage
+
+- https://thehackernews.com/2026/07/cisa-adds-exploited-sharepoint-rce-zero.html
+- https://www.rapid7.com/blog/post/ve-cve-2026-55040-microsoft-sharepoint-jwt-token-authentication-bypass-fixed/
+- https://thehackernews.com/2026/05/microsoft-patches-sharepoint-rce-flaw.html
+- https://cloud.google.com/blog/topics/threat-intelligence/viewstate-deserialization-zero-day-vulnerability
+- https://research.eye.security/sharepoint-under-siege/
+- https://www.microsoft.com/en-us/security/blog/2025/07/22/disrupting-active-exploitation-of-on-premises-sharepoint-vulnerabilities/
+- https://success.trendmicro.com/en-US/solution/KA-0019926
+- https://www.bleepingcomputer.com/news/security/centrestack-rce-exploited-as-zero-day-to-breach-file-sharing-servers/
+- https://kudelskisecurity.com/research/gladinet-centrestack-and-gladinet-triofox---critical-rce
+- https://labs.watchtowr.com/by-executive-order-we-are-banning-blacklists-domain-level-rce-in-veeam-backup-replication-cve-2025-23120/
+- https://www.broadcom.com/support/security-center/protection-bulletin/cve-2024-38094-microsoft-sharepoint-deserialization-vulnerability-exploited-in-the-wild
+- https://labs.watchtowr.com/veeam-backup-response-rce-with-auth-but-mostly-without-auth-cve-2024-40711-2/
+- https://github.com/gh-ost00/CVE-2024-4358
+- https://www.telerik.com/report-server/documentation/knowledge-base/deserialization-vulnerability-cve-2024-1800
+- https://blog.blacklanternsecurity.com/p/aspnet-cryptography-for-pentesters
+- https://www.zerodayinitiative.com/blog/2023/9/21/finding-deserialization-bugs-in-the-solarwind-platform
+- https://www.assetnote.io/resources/research/moveit-transfer-rce-part-two-cve-2023-34362
+- https://starlabs.sg/blog/2023/04-microsoft-exchange-powershell-remoting-deserialization-leading-to-rce-cve-2023-21707/
+- https://www.thezdi.com/blog/2023/2/27/cve-2022-38108-rce-in-solarwinds-network-performance-monitor
+- https://www.microsoft.com/en-us/security/blog/2022/09/30/analyzing-attacks-using-the-exchange-vulnerabilities-cve-2022-41040-and-cve-2022-41082/
+- https://web.archive.org/web/20220619183339/https://starlabs.sg/blog/2022/05/new-wine-in-old-bottle-microsoft-sharepoint-post-auth-deserialization-rce-cve-2022-29108/
+- https://www.mdsec.co.uk/2022/03/abc-code-execution-for-veeam/
+- https://mogwailabs.de/en/blog/2022/01/vulnerability-spotlight-rce-in-ajax.net-professional/
+- https://medium.com/@frycos/searching-for-deserialization-protection-bypasses-in-microsoft-exchange-cve-2022-21969-bfa38f63a62d
+- https://testbnull.medium.com/note-nhanh-v%E1%BB%81-binaryformatter-binder-v%C3%A0-cve-2022-23277-6510d469604c
+- https://gmo-cybersecurity.com/blog/net-remoting-english/
+- https://testbnull.medium.com/some-notes-of-microsoft-exchange-deserialization-rce-cve-2021-42321-f6750243cdcd
+- https://peterjson.medium.com/some-notes-about-microsoft-exchange-deserialization-rce-cve-2021-42321-110d04e8852
+- https://www.assetnote.io/resources/research/sitecore-experience-platform-pre-auth-rce-cve-2021-42237
+- https://www.mdsec.co.uk/2021/09/nsa-meeting-proposal-for-proxyshell/
+- https://web.archive.org/web/20220809200800/https://labs.withsecure.com/blog/autocad-designing-a-kill-chain/
+- https://www.zerodayinitiative.com/blog/2021/6/1/cve-2021-31181-microsoft-sharepoint-webpart-interpretation-conflict-remote-code-execution-vulnerability
+- https://www.zerodayinitiative.com/blog/2021/3/17/cve-2021-27076-a-replay-style-deserialization-attack-against-sharepoint
+- https://srcincite.io/pocs/cve-2020-16952.py.txt
+- https://srcincite.io/blog/2020/07/20/sharepoint-and-pwn-remote-code-execution-against-sharepoint-server-abusing-dataset.html
+- https://www.modzero.com/modlog/archives/2020/06/16/mz-20-03_-_new_security_advisory_regarding_vulnerabilities_in__net/index.html
+- https://www.mdsec.co.uk/2020/05/analysis-of-cve-2020-0605-code-execution-using-xps-files-in-net/
+- https://www.thezdi.com/blog/2020/4/28/cve-2020-0932-remote-code-execution-on-microsoft-sharepoint-using-typeconverters
+- https://www.zerodayinitiative.com/blog/2020/4/28/cve-2020-0932-remote-code-execution-on-microsoft-sharepoint-using-typeconverters
+- https://www.mdsec.co.uk/2020/02/cve-2020-0618-rce-in-sql-server-reporting-services-ssrs/
+- https://www.thezdi.com/blog/2020/2/24/cve-2020-0688-remote-code-execution-on-microsoft-exchange-server-through-fixed-cryptographic-keys
+- https://www.zerodayinitiative.com/blog/2020/2/24/cve-2020-0688-remote-code-execution-on-microsoft-exchange-server-through-fixed-cryptographic-keys
+- https://blog.devsecurity.eu/en/blog/dnspy-deserialization-vulnerability
+- https://www.youtube.com/watch?v=ZcOZNAmKR0c&feature=youtu.be
+- https://bishopfox.com/blog/cve-2019-18935-remote-code-execution-in-telerik-ui
+- https://github.com/noperator/CVE-2019-18935
+- https://www.zerodayinitiative.com/blog/2019/10/23/cve-2019-1306-are-you-my-index
+- https://dreadlocked.github.io/2019/10/25/kentico-cms-rce/
+- https://www.zerodayinitiative.com/blog/2019/3/13/cve-2019-0604-details-of-a-microsoft-sharepoint-rce-vulnerability
+- https://www.synacktiv.com/ressources/advisories/Sitecore_CSRF_deserialize_RCE.pdf
+- https://www.nccgroup.com/research/technical-advisory-multiple-vulnerabilities-in-smartermail/
+- https://cert.360.cn/warning/detail?id=e689288863456481733e01b093c986b6
+- https://medium.com/@qazbnm456/umbraco-lfi-exploitation-d32803661fa3
+- https://notsosecure.com/exploiting-viewstate-deserialization-using-blacklist3r-and-ysoserial-net
+- https://soroush.me/downloadable/bypassing_workflows_protection_mechanisms_remote_code_execution_on_sharepoint.pdf
+- https://srcincite.io/blog/2018/08/31/you-cant-contain-me-analyzing-and-exploiting-an-elevation-of-privilege-in-docker-for-windows.html
+- https://www.zerodayinitiative.com/blog/2018/8/14/voicemail-vandalism-getting-remote-code-execution-on-microsoft-exchange-server
+- https://www.redteam-pentesting.de/de/advisories/rt-sa-2017-014/
+- https://web.archive.org/web/20190920114132/https://labs.mwrinfosecurity.com/advisories/milestone-xprotect-net-deserialization-vulnerability/
+- https://github.com/murataydemir/CVE-2017-9822
+- https://devme4f.github.io/posts/2023/dotnetnuke_cve-2017-9822/
+- https://sec.vnpt.vn/2021/11/some-notes-of-microsoft-exchange-deserialization-rce-cve-2021-42321
+- https://securitylab.github.com/research/exchange-rce-CVE-2020-0688/
+- https://research.eye.security/wsus-deserialization-exploit-in-the-wild-cve-2025-59287/
+- https://blog.securelayer7.net/cve-2026-44963-veeam-backup-authenticated-rce-binaryformatter-bypass/
+- https://github.com/sinsinology/CVE-2022-26503
+- https://security.snyk.io/vuln/SNYK-DOTNET-SERVICESTACKTEXT-10500472
+- https://cloud.google.com/blog/topics/threat-intelligence/knowledgedeliver-viewstate-deserialization-vulnerability
+- https://www.sonicwall.com/blog/critical-viewstate-deserialization-zero-day-in-sitecore-cve-2025-53690-
+- https://unit42.paloaltonetworks.com/initial-access-broker-exploits-leaked-machine-keys/
+- https://hadrian.io/blog/cve-2025-53690-critical-vulnerability-in-sitecore-leads-to-remote-code-execution
+- https://versprite.com/resources/vs-labs/exploitation-of-remote-services/
+- https://blog.stratumsecurity.com/2023/01/23/remote-code-execution-through-deserializtion/
+- https://www.hacktron.ai/blog/dassault-delmia-apriso-rce/
+- https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/asyncupload-unrestricted-file-upload
+- https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/asyncupload-insecure-direct-object-reference
+- https://community.progress.com/s/article/resolving-security-vulnerability-cve-2017-9248
+- https://medium.com/@Whyte_/remote-code-execution-rce-via-telerik-dialog-handler-exploit-f6fa026d16c1
+- https://www.rapid7.com/db/vulnerabilities/cve-2018-9843/
+- https://www.exploit-db.com/exploits/44429
+- https://www.levelblue.com/blogs/spiderlabs-blog/unauthenticated-remote-code-execution-in-kentico-cms/
+- https://beaglesecurity.com/blog/vulnerability/kentico-cms-insecure-deserialization-rce.html
+- https://www.thezdi.com/blog/2019/9/18/cve-2019-1257-code-execution-on-microsoft-sharepoint-through-bdc-deserialization
+- https://medium.com/@alii76tt/net-deserialization-leading-to-remote-code-execution-in-composite-c1-cms-cve-2019-18211-f6874c45ce30
+- https://iltosec.com/blog/post/net-deserialization-leading-to-remote-code-execution-cve-2019-18211/
+- https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/common-allows-javascriptserializer-deserialization
+- https://www.exploit-db.com/exploits/49216
+- https://www.tenable.com/cve/CVE-2019-9874
+- https://thehackernews.com/2025/03/cisa-flags-two-six-year-old-sitecore.html
+- https://www.rapid7.com/db/vulnerabilities/cve-2021-25274/
+- https://testbnull.medium.com/microsoft-exchange-from-deserialization-to-post-auth-rce-cve-2021-28482-e713001d915f
+- https://www.thezdi.com/blog/2021/8/17/from-pwn2own-2021-a-new-attack-surface-on-microsoft-exchange-proxyshell
+- https://www.rapid7.com/blog/post/2021/08/12/proxyshell-more-widespread-exploitation-of-microsoft-exchange-servers/
+- https://attackerkb.com/topics/RY7LpTmyCj/cve-2021-34523
+- https://www.zerodayinitiative.com/advisories/ZDI-21-1304/
+- https://www.rapid7.com/blog/post/ra-cve-2021-42237-analysis/
+- https://www.assetnote.io/resources/research/advisory-sitecore-rce-via-insecure-deserialization-cve-2021-42237
+- https://hnd3884.github.io/posts/cve-2022-22005-microsoft-sharepoint-RCE/
+- https://securitylab.github.com/advisories/GHSL-2022-001_Orckestra_C1_CMS/
+- https://www.veeam.com/kb4288
+- https://www.veeam.com/kb4289
+- https://dbugs.ptsecurity.com/vulnerability/PT-2022-19168
+- https://www.thezdi.com/blog/2023/9/21/finding-deserialization-bugs-in-the-solarwind-platform
+- https://github.com/Orckestra/C1-CMS-Foundation/security/advisories/GHSA-gfhp-jgp6-838j
+- https://unit42.paloaltonetworks.com/proxynotshell-cve-2022-41040-cve-2022-41082/
+- https://www.crowdstrike.com/en-us/blog/owassrf-exploit-analysis-and-recommendations/
+- https://www.rapid7.com/blog/post/2022/12/21/cve-2022-41080-cve-2022-41082-rapid7-observed-exploitation-of-owassrf-in-exchange-for-rce/
+- https://www.greynoise.io/blog/greynoise-analysis-of-a-quartet-of-exchange-remote-code-execution-vulnerabilities-cve-2023-21529-cve-2023-21706-cve-2023-21707-cve-2023-21710
+- https://www.veeam.com/kb4424
+- https://www.rapid7.com/blog/post/ra-cve-2023-27532-analysis/
+- https://www.tenable.com/blog/cve-2023-29357-cve-2023-24955-exploit-chain-released-for-microsoft-sharepoint-server
+- https://www.darkreading.com/vulnerabilities-threats/reseachers-release-details-of-new-rce-exploit-chain-for-sharepoint
+- https://www.rapid7.com/blog/post/2023/06/01/rapid7-observed-exploitation-of-critical-moveit-transfer-vulnerability/
+- https://www.assetnote.io/resources/research/rce-in-progress-ws-ftp-ad-hoc-via-iis-http-modules-cve-2023-40044
+- https://www.rapid7.com/blog/post/ra-cve-2023-40044-analysis/
+- https://www.zerodayinitiative.com/advisories/ZDI-24-403/
+- https://www.telerik.com/products/reporting/documentation/knowledge-base/deserialization-vulnerability-cve-2024-1801-cve-2024-1856
+- https://medium.com/@tvvzvpb186/ivanti-epm-rce-via-net-remoting-deserialization-cve-2024-29847-a74c94c38fe5
+- https://www.yahooinc.com/paranoids/paranoids-vulnerability-research-ivanti-issues-security-alert
+- https://www.rapid7.com/blog/post/2024/10/30/investigating-a-sharepoint-compromise-ir-tales-from-the-field/
+- https://www.telerik.com/products/reporting/documentation/knowledge-base/deserialization-vulnerability-cve-2024-4200
+- https://www.telerik.com/products/reporting/documentation/knowledge-base/unsafe-reflection-cve-2024-6096
+- https://www.telerik.com/report-server/documentation/knowledge-base/deserialization-vulnerability-cve-2024-6327
+- https://labs.watchtowr.com/visionaries-at-citrix-have-democratised-remote-network-access-citrix-virtual-apps-and-desktops-cve-unknown/
+- https://github.com/watchtowrlabs/Citrix-Virtual-Apps-XEN-Exploit
+- https://www.darkreading.com/cloud-security/citrix-recording-manager-zero-day-bug-unauthenticated-rce
+- https://www.huntress.com/blog/gladinet-centrestack-triofox-local-file-inclusion-flaw
+- https://thehackernews.com/2025/10/from-lfi-to-rce-active-exploitation.html
+- https://attackerkb.com/topics/Dyo4zUm2tv/cve-2025-27218
+- https://slcyber.io/blog/sitecore-unsafe-deserialization-again-cve-2025-27218/
+- https://www.0xlanks.me/blog/cve-2025-28367-advisory/
+- https://undercodetesting.com/unauthenticated-rce-vulnerability-in-mojoportal-cms-cve-from-directory-traversal-to-code-execution/
+- https://zeropath.com/blog/microsoft-sharepoint-cve-2025-30382-deserialization-rce
+- https://www.huntress.com/blog/active-exploitation-gladinet-centrestack-triofox-insecure-cryptography-vulnerability
+- https://thehackernews.com/2025/04/cisa-warns-of-centrestacks-hard-coded.html
+- https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/kb-security-unsafe-reflection-cve-2025-3600
+- https://zeropath.com/blog/veeam-cve-2025-48983-rce-summary
+- https://unit42.paloaltonetworks.com/microsoft-sharepoint-cve-2025-49704-cve-2025-49706-cve-2025-53770/
+- https://viettelsecurity.com/microsoft-sharepoint-breach-linked-to-vulnerability-discovered-by-viettel-cyber-security-customer-alert-latest-research-and-recommendations/
+- https://www.sonicwall.com/blog/exploited-in-the-wild-delmia-apriso-insecure-deserialization-cve-2025-5086-
+- https://www.3ds.com/trust-center/security/security-advisories/cve-2025-5086
+- https://labs.watchtowr.com/cache-me-if-you-can-sitecore-experience-platform-cache-poisoning-to-rce/
+- https://www.eye.security/blog/eye-security-uncovers-actively-exploited-zero-day-in-microsoft-sharepoint-cve-2025-53770
+- https://www.rapid7.com/blog/post/etr-zero-day-exploitation-of-microsoft-sharepoint-servers-cve-2025-53770/
+- https://github.com/mandiant/Vulnerability-Disclosures/blob/master/2026/MNDT-2026-0009.md
+- https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/kb-security-deserialization-of-untrusted-data-cve-2026-6023
+- https://www.helpnetsecurity.com/2026/07/28/teamcity-rce-cve-2026-63077-fixed/
+- https://www.csoonline.com/article/4203872/jetbrains-says-a-crafted-http-request-could-break-teamcity.html
+- https://blog.orange.tw/posts/2021-08-proxylogon-a-new-attack-surface-on-ms-exchange-part-1/
+- https://labs.watchtowr.com/bypassing-authentication-like-its-the-90s-pre-auth-rce-chain-s-in-kentico-xperience-cms/
+- https://www.assetnote.io/resources/research/leveraging-an-order-of-operations-bug-to-achieve-rce-in-sitecore-8-x---10-x
+- https://labs.watchtowr.com/buy-a-help-desk-bundle-a-remote-access-solution-solarwinds-web-help-desk-pre-auth-rce-chain-s/
+- https://www.zerodayinitiative.com/blog/2024/12/11/solarwinds-access-rights-manager-one-vulnerability-to-lpe-them-all
+- https://github.com/FDlucifer/Proxy-Attackchain
+- https://github.com/Immersive-Labs-Sec/SharePoint-CVE-2025-53770-POC
+- https://github.com/asynkron/Wire/security/advisories/GHSA-hpw7-3vq3-mmv6
+- https://github.com/advisories/GHSA-rpch-cqj9-h65r
+- https://security.snyk.io/vuln/SNYK-DOTNET-YAMLDOTNET-60255
+- https://www.zerodayinitiative.com/advisories/ZDI-25-416/
+- https://security.snyk.io/vuln/SNYK-DOTNET-SERVICESTACKTEXT-10500474
+- https://github.com/advisories/GHSA-7j9m-j397-g4wx
+- https://www.miggo.io/vulnerability-database/cve/CVE-2022-48282
+- https://devhub.checkmarx.com/cve-details/cve-2022-23535/
+- https://www.miggo.io/vulnerability-database/cve/CVE-2022-23535
+- https://github.com/advisories/GHSA-qhmf-xw27-6rqr
+- https://github.com/advisories/GHSA-7q36-4xx7-xcxf
+- https://github.com/advisories/GHSA-6r7c-6w96-8pvw
+- https://milestonesys.my.site.com/developer/s/article/XProtect-NET-security-vulnerability
+- https://github.com/advisories/GHSA-qjrp-xr9r-wmrg
+- https://attackerkb.com/topics/o59vR5d8MG/cve-2025-3935
+- https://advisories.gitlab.com/pkg/nuget/umbracoforms/CVE-2025-68924/
+- https://www.bleepingcomputer.com/news/security/knowledgedeliver-flaw-exploited-as-a-zero-day-to-install-web-shells/
+- https://www.zcgonvh.com/post/weaponizing_CVE-2020-0688_and_about_dotnet_deserialize_vulnerability.html
+- https://thehackernews.com/2025/12/net-soapwn-flaw-opens-door-for-file.html
+- https://www.herodevs.com/vulnerability-directory/cve-2024-48924
+- https://www.secpod.com/learn/security-research/solarwinds-fixed-critical-rce-cve-2024-28991-in-access-rights-manager-patch-now
+- https://www.securityweek.com/solarwinds-patches-high-severity-flaws-in-access-rights-manager/
+- https://www.rapid7.com/db/vulnerabilities/cve-2024-5016/
+- https://summoning.team/blog/progress-whatsup-gold-rce-cve-2024-4885/
+- https://summoning.team/blog/progress-whatsup-gold-writedatafile-cve-2024-4883-rce/
+- https://www.ionix.io/threat-center/cve-2026-13181/
+- https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/kb-security-critical-rce-chain-bulletin-july-2026
+- https://pentest-tools.com/blog/exploit-dotnetnuke-cookie-deserialization
+- https://www.claroty.com/team82/research/critical-vulnerabilities-found-in-rockwell-factorytalk-assetcentre
+- https://www.zerodayinitiative.com/advisories/ZDI-20-261/
+- https://www.cisa.gov/news-events/ics-advisories/icsa-23-290-01
+- https://www.cisa.gov/news-events/ics-advisories/icsa-25-224-03
+- https://www.se.com/ph/en/download/document/SEVD-2026-069-06/
+- https://www.cisa.gov/news-events/ics-advisories/icsa-22-298-07
+- https://www.zerodayinitiative.com/advisories/ZDI-23-1754/
+- https://www.kb.cert.org/vuls/id/706695
+- https://www.exploit-db.com/exploits/41903
+- https://certvde.com/en/advisories/VDE-2026-051
+
+### CTF write-ups
+
+- https://0xdf.gitlab.io/2022/10/15/htb-perspective.html
+- https://cyku.tw/ctf-hitcon-2018-why-so-serials/
+- https://github.com/orangetw/My-CTF-Web-Challenges
+- https://web.archive.org/web/20240113211930/https://xz.aliyun.com/t/3019
+- https://ctftime.org/writeup/16802
+- https://snowscan.io/htb-writeup-json/
+- https://0xdf.gitlab.io/2021/05/01/htb-sharp.html
+- https://0xdf.gitlab.io/2024/06/08/htb-pov.html
+- https://jorianwoltjer.com/blog/p/ctf/htb-university-ctf-2023/nexus-void
+- https://github.com/hackthebox/uni-ctf-2023
+- https://medium.com/@NourBassiouny/ascwg-2025-ctf-finals-neon-maze-challenge-writeup-7cf426672a58
+- https://blog.awoo.systems/posts/2024-06-04-defcon-quals
+- https://book.jorianwoltjer.com/languages/c
+- https://0xdf.gitlab.io/2022/10/01/htb-scrambled.html
+- https://hackmd.io/@michellenovenda/By4lXzywgl
+- https://hackmd.io/@meowhecker/ryd4Jz17A

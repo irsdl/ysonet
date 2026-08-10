@@ -43,6 +43,25 @@ namespace ysonet.Generators
      * the intended behavior, but it is genuinely DESTRUCTIVE - it deletes exactly the paths
      * in -c/--extrafile - so the option help warns to -t only paths you are willing to lose.
      *
+     * BELOW .NET 4.0 THE FORMATTER DECIDES, NOT THE TECHNIQUE. The payload names the target
+     * type as "System, Version=4.0.0.0" (the constant below), and on CLR 2 (2.0/3.0/3.5) the
+     * readers disagree about that identity. Measured by the LEGACY test tier in all three
+     * lanes: BinaryFormatter and LosFormatter DELETE the file, because the BinaryFormatter
+     * binder unifies the 4.0.0.0 System identity to the 2.0 System.dll that is sitting there;
+     * SoapFormatter (identity in a percent-encoded namespace URI), NetDataContractSerializer
+     * (z:Type/z:Assembly) and DataContractSerializer (the <root type=...> envelope, resolved
+     * with Type.GetType) all bind it verbatim and fail before the payload is reached. Nothing
+     * in the chain is 4.x, so this is a wire-format question, not a technique limit. The
+     * version facet carries the whole 2.0 - 4.8.1 span because that axis has no per-formatter
+     * dimension; AdditionalInfo() states the split for an operator.
+     *
+     * --legacyfx CLOSES THAT SPLIT, and the LEGACY tier measured it closing: with the option
+     * on, the payload names System 2.0.0.0 and all three strict readers accept it. SoapFormatter
+     * then deletes the file on 2.0, 3.0 and 3.5; NetDataContractSerializer and
+     * DataContractSerializer on 3.0 and 3.5, which is simply where those two readers start. So
+     * on an old target the wire format is a choice rather than a limit, and the only thing an
+     * operator has to add is the flag.
+     *
      * The framework type carries a FullTrust LinkDemand. That matters for a partially trusted
      * caller, not for the fully trusted deserialization this targets, so it is recorded as a
      * compatibility note rather than as a supported/unsupported claim.
@@ -83,9 +102,10 @@ namespace ysonet.Generators
                 .WithKinds(PayloadKind.FileSystem)
                 .WithInputs(PayloadInput.TargetPath, PayloadInput.UncPath)
                 .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
-                // TempFileCollection predates CLR v4, but 4.0 is the floor this project
-                // records (see RuntimeVersion); fired on 4.8.1.
-                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
+                // Fired on 4.8.1, and the LEGACY test tier fired it on CLR 2 in all three
+                // lanes (2.0, 3.0, 3.5): BinaryFormatter and LosFormatter as they ship, and
+                // the three strict readers with --legacyfx. See the file comment above.
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx20, RuntimeVersion.NetFx481));
         }
 
         public override string Finders()
@@ -104,9 +124,13 @@ namespace ysonet.Generators
         // help, which --fullhelp and the editor both show.
         public override string AdditionalInfo()
         {
-            return "System.CodeDom.Compiler.TempFileCollection deletes the supplied target paths "
-                + "when the deserialized object is disposed or finalized. -t self-tests here, so "
-                + "it DELETES those paths on THIS machine.";
+            // The interactive info panel renders a fixed number of rows, and this text is at
+            // its budget: anything longer pushes "Formatters:" off the visible area
+            // (TempFileCollectionInfoPanelStillShowsItsFacts). Keep it tight, and put the
+            // reasoning in the file comment above rather than here.
+            return "System.CodeDom.Compiler.TempFileCollection deletes the target paths when the "
+                + "deserialized object is disposed or finalized. -t DELETES them on THIS machine. "
+                + "Below 4.0 the three strict readers need --legacyfx.";
         }
 
         public override List<string> Labels()
@@ -270,6 +294,13 @@ namespace ysonet.Generators
                     : XmlMinifier.Minify(payload, null, null, FormatterType.NetDataContractXML, true);
             }
 
+            // The shared generation boundary, after this path's own minification and before the
+            // intactness check, so the check reads the exact bytes the operator gets. There is
+            // deliberately no self-test on this branch (see Generate: -t deletes files, and
+            // only the BF/Soap/Los shapes reach the finalizer), so the boundary is called
+            // directly rather than through FinishHandWrittenPayload.
+            payload = (string)FinalizeGeneratedPayload(payload,
+                Formatters.NetDataContractSerializer, inputArgs);
             RequirePathsArriveIntact(payload, Formatters.NetDataContractSerializer, paths, minify);
             return payload;
         }
@@ -298,6 +329,8 @@ namespace ysonet.Generators
             if (minify)
                 payload = XmlMinifier.Minify(payload, null, null, FormatterType.DataContractXML, true);
 
+            payload = (string)FinalizeGeneratedPayload(payload,
+                Formatters.DataContractSerializer, inputArgs);
             RequirePathsArriveIntact(payload, Formatters.DataContractSerializer, paths, minify);
             return payload;
         }
@@ -453,18 +486,31 @@ namespace ysonet.Generators
             if (missing.Count == 0)
                 return;
 
+            // Both halves of the cause are true at once under --minify, and saying only the
+            // first one is what made the old advice wrong: the minifier rewrites whitespace
+            // inside text content, AND the XML writer loses a carriage return with no minifier
+            // at all. A message that blames only the minifier invites "drop --minify", which
+            // for a carriage return lands the operator back on this same refusal.
             string cause = minify
-                ? Name() + " cannot use --minify with " + formatter + " for this input: the XML "
-                    + "minifier rewrites whitespace inside text content"
+                ? Name() + " cannot carry this input through " + formatter + " with --minify: the "
+                    + "XML minifier rewrites whitespace inside text content, and its XML writer "
+                    + "does not preserve a carriage return either"
                 : Name() + " cannot carry this input through " + formatter + ": its XML writer "
                     + "does not preserve the value (a carriage return is written raw and every "
                     + "XML parser normalizes it away)";
 
+            // Lead with the escape that always works. Dropping --minify is offered second and
+            // only together with the value change it does not cover, so it is never a promise
+            // on its own.
             throw new ArgumentException(cause + ", so the path \"" + Preview(missing[0])
                 + "\" would not reach the target intact, and this gadget deletes the path it "
-                + "carries. " + (minify ? "Drop --minify, or use " : "Use ")
-                + "BinaryFormatter or LosFormatter, whose streams carry the string unchanged. "
-                + "(Trailing whitespace, a carriage return, and \"; \" are the parts that get "
+                + "carries. Use BinaryFormatter or LosFormatter, whose streams carry the string "
+                + "unchanged"
+                + (minify
+                    ? ", or drop --minify and use a path with no carriage return and no trailing "
+                        + "whitespace"
+                    : "")
+                + ". (Trailing whitespace, a carriage return, and \"; \" are the parts that get "
                 + "rewritten.)");
         }
 

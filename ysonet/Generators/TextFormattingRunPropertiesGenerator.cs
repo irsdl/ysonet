@@ -80,7 +80,7 @@ namespace ysonet.Generators
         {
             OptionSet options = new OptionSet()
             {
-                {"xamlurl=", "This is to create a very short payload when the affected box can read the target XAML URL e.g. \"http://b8.ee/x\" (can be a UNC path on a shared drive or a path on the local system). It carries the ResourceDictionary gadget instead of ObjectDataProvider, so the target FETCHES and loads that URL rather than running a command, and the command parameter is ignored. The shorter the better!", v => xaml_url = v },
+                {"xamlurl=", "This is to create a very short payload when the affected box can read the target XAML URL e.g. \"http://example.local/x\" (can be a UNC path on a shared drive or a path on the local system). It carries the ResourceDictionary gadget instead of ObjectDataProvider, so the target FETCHES and loads that URL rather than running a command, and the command parameter is ignored. The shorter the better!", v => xaml_url = v },
                 {"hasRootDCS", "To include a root element with the DataContractSerializer payload.", v => hasRootDCS = v != null },
             };
 

@@ -384,9 +384,10 @@ class Ladder(object):
                 break
             # Settle on VISIBLE TEXT, never on HTML length. A JavaScript shell
             # is 300 KB of script the instant it loads, so "len(html) > 2000"
-            # declared the page finished before the article existed: mdsec
-            # returned a 315,652 byte DOM carrying 171 characters of text, and
-            # sec.vnpt 453,118 bytes carrying none at all. Eight references
+            # declared the page finished before the article existed: one
+            # consultancy blog returned a 315,652 byte DOM carrying 171
+            # characters of text, and another 453,118 bytes carrying none at
+            # all. Eight references
             # failed extraction for this reason with a perfectly good page
             # sitting behind them.
             _title, text, _noscript = htmltext.read(html)

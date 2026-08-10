@@ -85,18 +85,7 @@ namespace ysonet.Generators
                 }
 
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.JsonNet_deserialize(payload);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("datacontractserializer"))
             {
@@ -110,18 +99,7 @@ namespace ysonet.Generators
                     payload = XmlMinifier.Minify(payload, null, null);
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.DataContractSerializer_deserialize(payload, null, "root", "type");
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("netdatacontractserializer"))
             {
@@ -134,6 +112,12 @@ namespace ysonet.Generators
                 {
                     payload = XmlMinifier.Minify(payload, null, null);
                 }
+
+                // The shared generation boundary. This branch keeps its own self-test because
+                // the <root> envelope needs the child element name, which the shared reader
+                // does not take, so the boundary is called directly and the self-test below
+                // still reads the exact bytes the operator gets.
+                payload = (string)FinalizeGeneratedPayload(payload, formatter, inputArgs);
 
                 if (inputArgs.Test)
                 {
@@ -165,18 +149,7 @@ namespace ysonet.Generators
                     payload = XmlMinifier.Minify(payload, null, null, FormatterType.SoapFormatter);
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.SoapFormatter_deserialize(payload);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else
             {

@@ -67,7 +67,11 @@ def render(record, content="", depth="full"):
     lines = []
     lines.append(_frontmatter(record, depth))
     lines.append("")
-    lines.append("# " + _plain(record["title"]))
+    # THE HEADING IS FOR THE READER, THE CITATION IS FOR THE SOURCE. A title in
+    # a language the reader cannot follow tells them nothing about whether the
+    # file is worth opening, so the English one goes here; the attribution block
+    # below still carries the title exactly as the source spells it.
+    lines.append("# " + _plain(record.get("title_english") or record["title"]))
     lines.append("")
     lines.append(attribution_block(record))
     lines.append("")
@@ -101,6 +105,14 @@ def render(record, content="", depth="full"):
         lines.append("")
         lines.append("## Content (original)")
         lines.append("")
+        # SAY WHY UNTRANSLATED TEXT IS SITTING HERE. Without this the section is
+        # just a heading followed by Chinese, and it reads as work nobody
+        # finished - it was reported as exactly that.
+        lines.append("_The source's own words, kept unchanged on purpose: a machine")
+        lines.append("translation of a security write-up is evidence ABOUT the original")
+        lines.append("rather than a replacement for it, so the English above can always")
+        lines.append("be checked against this._")
+        lines.append("")
     else:
         lines.append("## Content")
         lines.append("")
@@ -124,6 +136,12 @@ def attribution_block(record):
     lines = [
         "**%s** - %s, %s." % (_plain(record["title"]), who, publisher),
         "",
+    ]
+    if record.get("title_english") and record["title_english"] != record["title"]:
+        lines.append("- Title in English: %s" % _plain(record["title_english"]))
+    if record.get("publisher_english") and record["publisher_english"] != publisher:
+        lines.append("- Publisher in English: %s" % _plain(record["publisher_english"]))
+    lines += [
         "- Published: %s" % published,
         "- Original: <%s>" % record["original_url"],
     ]
@@ -328,6 +346,11 @@ def _frontmatter(record, depth):
         "raw_sha256": record.get("raw_sha256") or "",
         "content_sha256": record.get("content_sha256") or "",
         "language": record.get("language") or "",
+        # Recorded beside the originals rather than replacing them. The OKF
+        # `title` above stays exactly as the source spells it, because that is
+        # what a citation has to match.
+        "title_english": record.get("title_english") or "",
+        "publisher_english": record.get("publisher_english") or "",
         "depth": depth,
         "depth_reason": record.get("depth_reason") or "default",
         "cited_by": record.get("cited_by") or [],

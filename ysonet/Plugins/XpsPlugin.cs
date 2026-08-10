@@ -111,6 +111,11 @@ namespace ysonet.Plugins
         // A public plugin: it is listed everywhere, with or without --display-private.
         public bool IsPrivate() { return false; }
 
+        public List<string> RuntimeVersions()
+        {
+            return new List<string> { RuntimeVersion.Unspecified };
+        }
+
         public OptionSet Options()
         {
             return options;

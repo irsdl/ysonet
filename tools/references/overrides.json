@@ -17,7 +17,11 @@
     "  overwrites one of these, and a skip is not fetched again: the reason is",
     "  what the next run reads instead. Use it for the two things no rule can",
     "  safely decide - a page that restates a source already archived, and a",
-    "  tool's usage page with no technique in it."
+    "  tool's usage page with no technique in it.",
+    "  An entry may also carry 'title'. The probe records what the page called",
+    "  itself, so a page that answered with a bot check is archived under the",
+    "  wall's title; stating the real one corrects the heading, the frontmatter",
+    "  and the file name. Only a human can know it, which is why it lives here."
   ],
   "canonical_sources": [
     {
@@ -33,5 +37,26 @@
   "author_copies": [],
   "mirror_sources": [],
   "urls": {},
-  "decisions": {}
+  "decisions": {
+    "https://www.blackhat.com/docs/us-17/thursday/us-17-Munoz-Friday-The-13th-Json-Attacks.pdf": {
+      "outcome": "skip",
+      "class": "derivative",
+      "reason": "Maintainer 2026-08-04: the Black Hat USA 2017 deck of 'Friday the 13th: JSON Attacks' is the same talk the archive already holds, whose DEF CON 25 slides and write-up are archived and readable. The PDF's own text layer cannot be converted (6% of characters fail to decode and its /ToUnicode map does not fix it), so keeping it would mean storing confident nonsense beside a copy that reads."
+    },
+    "https://github.com/danielgerlag/workflow-core/issues/1280": {
+      "outcome": "archive",
+      "class": "records",
+      "reason": "Maintainer 2026-08-05: the whole issue is one report - WorkflowCore.Providers.Azure sets TypeNameHandling.All in its JsonSerializerSettings, which might be exploited. That is a thin record by design, not a document with something missing, so it is complete as archived and off the work list."
+    },
+    "https://www.youtube.com/watch?v=ZcOZNAmKR0c&feature=youtu.be": {
+      "outcome": "skip",
+      "class": "out-of-scope",
+      "reason": "Maintainer 2026-08-05: a screen recording, 'A Demonstration of CVE-2022-47504: An RCE in SolarWinds NPM'. The talk has no caption track, and what a demonstration carries is the recording itself, not text an archive can hold. The citation keeps the link; there is nothing to convert."
+    },
+    "https://kth.diva-portal.org/smash/record.jsf?pid=diva2%3A1905323&dswid=-4319": {
+      "outcome": "archive",
+      "title": "Code-Reuse Attacks in Managed Programming Languages and Runtimes",
+      "reason": "Maintainer 2026-08-04: the portal answered the probe with a bot check, so the reference was recorded under the wall's own title, 'Making sure you're not a bot!'. This is the doctoral thesis itself (Mikhail Shcherbakov, KTH, 2024), obtained by hand as a PDF."
+    }
+  }
 }

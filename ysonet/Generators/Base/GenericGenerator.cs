@@ -97,6 +97,30 @@ namespace ysonet.Generators
             return new List<GadgetVariant>();
         }
 
+        // --legacyfx predates per-gadget capability metadata, so the compatibility
+        // default is true. A gadget whose graph is tied to CLR4 (or another runtime)
+        // overrides this to keep the option off its interactive/CLI surface.
+        public virtual bool SupportsLegacyFx()
+        {
+            return true;
+        }
+
+        private void GuardLegacyFx(InputArgs inputArgs)
+        {
+            if (inputArgs != null && inputArgs.LegacyFx && !SupportsLegacyFx())
+            {
+                GadgetFacetSet facets = Facets();
+                string targets = facets != null && facets.Versions != null
+                    && facets.Versions.Count > 0
+                    ? string.Join(", ", facets.Versions.ToArray())
+                    : "a non-CLR2 runtime";
+                throw new NotSupportedException(Name() + " does not support --legacyfx; "
+                    + "its payload graph targets " + targets + " and cannot be rewritten "
+                    + "into a CLR2 graph. Drop --legacyfx or select the target-specific "
+                    + "gadget for that runtime.");
+            }
+        }
+
         // Broad discovery facets. The honest default is "uncategorized" on kind and
         // requirements, with input left to derive from CommandInput(). A gadget
         // overrides this to declare what its source, tests, and help actually prove.
@@ -115,8 +139,8 @@ namespace ysonet.Generators
         // produce (via GadgetVariant.Without in Variants()). Call it at the top of
         // Generate(), after Init() has parsed the variant number. It turns an
         // impossible pair into one clear message (naming the formatter, variant, and
-        // gadget) instead of a deep framework exception - e.g. SoapFormatter cannot
-        // serialize the generic SortedSet that TypeConfuseDelegate builds. On the
+        // gadget) instead of a deep framework exception - e.g. a variant whose document
+        // shape has no implementation for the requested formatter. On the
         // non-UI paths (CLI, sweep, bridged, tests) PayloadRunner wraps this throw
         // into a clean RunResult.Fail; the interactive editor validates the same rule
         // up front. An unknown variant number or an empty opt-out list is a no-op.
@@ -144,6 +168,8 @@ namespace ysonet.Generators
         // with the payload; this throw is the backstop, not the primary gate.
         public object GenerateWithInit(string formatter, InputArgs inputArgs)
         {
+            GuardLegacyFx(inputArgs);
+
             if ((inputArgs == null || !inputArgs.DosAcknowledged) && Helpers.Core.DosPolicy.IsDosGadget(this))
                 throw new Exception(Helpers.Core.DosPolicy.RefusalMessage(Name()));
 
@@ -189,6 +215,7 @@ namespace ysonet.Generators
 
         public object SerializeWithInit(object payloadObj, string formatter, InputArgs inputArgs)
         {
+            GuardLegacyFx(inputArgs);
             Init(inputArgs);
             return Serialize(payloadObj, formatter, inputArgs);
         }
@@ -279,6 +306,23 @@ namespace ysonet.Generators
             if (inputArgs == null || !inputArgs.Test)
                 return;
 
+            if (inputArgs.TestClr2)
+            {
+                // The shipped host reads with a plain framework formatter. A custom binder
+                // would make the local and CLR2 reads resolve different types, so retain the
+                // same refusal used by the ordinary isolated-child path.
+                if (serializationBinder != null)
+                    throw new Exception(Name() + " cannot run a CLR2 self-test: it installs "
+                        + "its own SerializationBinder, which the CLR2 host does not reproduce.");
+
+                Console.Error.WriteLine("[self-test CLR2] " + Name()
+                    + ": launching the deliberately vulnerable one-shot CLR2 test process.");
+                Helpers.Core.Clr2SelfTestResult result = Helpers.Core.Clr2SelfTest.Run(
+                    payload, formatter);
+                Helpers.Core.Clr2SelfTest.PrintResult(Name(), result);
+                return;
+            }
+
             if (SelfTestNeedsChildProcess(formatter, inputArgs))
             {
                 // The child deserializes with a plain formatter, so a gadget that installs
@@ -323,6 +367,40 @@ namespace ysonet.Generators
             staThread.Join();
         }
 
+        // The ONE place a finished payload LAYER is post-processed before anybody sees it.
+        //
+        // Both payload paths call it at the same point: after format-specific minification,
+        // and BEFORE RunSelfTest and the return. That order is what makes -t read the exact
+        // bytes the operator gets, and it is why the hook cannot live in PayloadRunner: by
+        // the time PayloadRunner has the outer payload, a bridged or hard-coded inner gadget
+        // has already been embedded, and some LosFormatter payloads are a native
+        // ObjectStateFormatter record rather than a BinaryFormatter blob the outer bytes
+        // would reveal. Finishing here means each layer transforms its own format, in its own
+        // generator, before the next layer wraps it.
+        //
+        // Today it does one thing: the --legacyfx assembly identity rewrite, which is a no-op
+        // (and allocates nothing) unless the operator asked for it. A new whole-payload step
+        // belongs here rather than in a second boundary.
+        protected object FinalizeGeneratedPayload(object payload, string formatter, InputArgs inputArgs)
+        {
+            // Backstop direct Generate()/Serialize() callers that bypass GenerateWithInit.
+            GuardLegacyFx(inputArgs);
+
+            if (inputArgs == null || !inputArgs.LegacyFx)
+                return payload;
+
+            LegacyFrameworkIdentities.RewriteReport report;
+            object result = LegacyFrameworkIdentities.Apply(payload, formatter, inputArgs, out report);
+            Debugging.ShowNote(inputArgs, "--legacyfx: " + report.Detail);
+            return result;
+        }
+
+        // The same hook where the caller already knows it is holding bytes.
+        private byte[] FinalizeGeneratedBytes(byte[] payload, string formatter, InputArgs inputArgs)
+        {
+            return (byte[])FinalizeGeneratedPayload(payload, formatter, inputArgs);
+        }
+
         public object Serialize(object payloadObj, string formatter, InputArgs inputArgs)
         {
             MemoryStream stream = new MemoryStream();
@@ -342,13 +420,14 @@ namespace ysonet.Generators
                 }
 
 
-                byte[] bfPayload = stream.ToArray();
+                // The self-test reads the FINAL bytes, not the pre-transform stream, so -t
+                // always exercises exactly what the operator is handed.
+                byte[] bfPayload = FinalizeGeneratedBytes(stream.ToArray(), formatter, inputArgs);
                 RunSelfTest(bfPayload, formatter, inputArgs, delegate
                 {
-                    stream.Position = 0;
                     if (serializationBinder != null)
                         fmt.Binder = serializationBinder;
-                    fmt.Deserialize(stream);
+                    fmt.Deserialize(new MemoryStream(bfPayload));
                 });
                 return bfPayload;
             }
@@ -391,13 +470,12 @@ namespace ysonet.Generators
                     }
                 }
 
-                byte[] soapPayload = stream.ToArray();
+                byte[] soapPayload = FinalizeGeneratedBytes(stream.ToArray(), formatter, inputArgs);
                 RunSelfTest(soapPayload, formatter, inputArgs, delegate
                 {
-                    stream.Position = 0;
                     if (serializationBinder != null)
                         sf.Binder = serializationBinder;
-                    sf.Deserialize(stream);
+                    sf.Deserialize(new MemoryStream(soapPayload));
                 });
                 return soapPayload;
             }
@@ -419,13 +497,12 @@ namespace ysonet.Generators
                     }
                 }
 
-                byte[] ndcsPayload = stream.ToArray();
+                byte[] ndcsPayload = FinalizeGeneratedBytes(stream.ToArray(), formatter, inputArgs);
                 RunSelfTest(ndcsPayload, formatter, inputArgs, delegate
                 {
-                    stream.Position = 0;
                     if (serializationBinder != null)
                         ndcs.Binder = serializationBinder;
-                    ndcs.Deserialize(stream);
+                    ndcs.Deserialize(new MemoryStream(ndcsPayload));
                 });
                 return ndcsPayload;
             }
@@ -442,11 +519,10 @@ namespace ysonet.Generators
                     lf.Serialize(stream, payloadObj);
                 }
 
-                byte[] losPayload = stream.ToArray();
+                byte[] losPayload = FinalizeGeneratedBytes(stream.ToArray(), formatter, inputArgs);
                 RunSelfTest(losPayload, formatter, inputArgs, delegate
                 {
-                    stream.Position = 0;
-                    lf.Deserialize(stream);
+                    lf.Deserialize(new MemoryStream(losPayload));
                 });
                 return losPayload;
             }

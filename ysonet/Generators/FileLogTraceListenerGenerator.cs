@@ -36,8 +36,19 @@ namespace ysonet.Generators
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.FileSystem)
                 .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
-                // fired on 4.8.1
-                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
+                // Fired on 4.8.1, and the LEGACY test tier fired it on CLR 2 in the 3.5 lane on
+                // BOTH of its CLR-v2-capable readers: JavaScriptSerializer and
+                // DataContractJsonSerializer each created the directory on a real 2.0.50727
+                // child, with --legacyfx. 3.5 is the FLOOR because that is where the earliest
+                // reader this gadget advertises exists (JavaScriptSerializer is
+                // System.Web.Extensions, DataContractJsonSerializer is System.ServiceModel.Web);
+                // the carrier itself is older, since Microsoft.VisualBasic has shipped
+                // FileLogTraceListener since 2.0. The conditions are in AdditionalInfo:
+                // --legacyfx (the payload has to name Microsoft.VisualBasic 8.0.0.0 rather than
+                // 10.0.0.0, which is versioned off the VB product number), plus, for
+                // DataContractJsonSerializer only, a consumer whose root type is that same
+                // identity, because that format's document names no type at all.
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx35, RuntimeVersion.NetFx481));
         }
 
         public override string Finders()
@@ -47,7 +58,7 @@ namespace ysonet.Generators
 
         public override string AdditionalInfo()
         {
-            return "Microsoft.VisualBasic.Logging.FileLogTraceListener creates the supplied directory through CustomLocation. With elevated privileges, directory creation in sensitive locations may cause denial of service.";
+            return "Microsoft.VisualBasic.Logging.FileLogTraceListener creates the supplied directory through CustomLocation. With elevated privileges, directory creation in sensitive locations may cause denial of service. On .NET Framework 3.5 both JavaScriptSerializer and DataContractJsonSerializer reach it with --legacyfx (Microsoft.VisualBasic is 8.0.0.0 there, not 10.0.0.0); DataContractJsonSerializer additionally needs a consumer whose root type is that same identity.";
         }
 
         public override List<string> Labels()

@@ -101,6 +101,17 @@ from different variants.
 - A single token does not become a range without evidence for the contiguous
   span. An existing runtime-gated gadget with no known working version remains
   an explicit unresolved finding, not an inferred declaration.
+- FLOOR CANDIDATE (a flag, never a declaration). Most of the catalog carries a
+  4.0 floor by default rather than by measurement. Flag a gadget that declares
+  `net-fx-4.0` as its lowest version while its generated payload names NO 4.x
+  assembly version: it may already reach CLR 2, and the LEGACY tier
+  (`ysonet.Tests.exe --legacy`) is what would settle it. The evidence is free -
+  a NORMAL run prints the `LEGACY floor candidates` list - so an audit reads
+  that list rather than generating anything itself. Report it as a candidate for
+  someone to measure. This skill never lowers a floor on static evidence: the
+  measured cases show a payload whose types all exist on 2.0 still failing
+  because of the assembly VERSION it writes, so static evidence is a filter and
+  not a verdict.
 
 ## 5. Resolve findings
 

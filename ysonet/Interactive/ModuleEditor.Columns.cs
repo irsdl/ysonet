@@ -310,9 +310,12 @@ namespace ysonet.Interactive
                         }
                         else
                         {
-                            BeginEdit(f, out choiceItems, out choiceIndex, out editingText, out textBuf);
-                            editing = f;
-                            focus = 2;
+                            if (!f.Locked)
+                            {
+                                BeginEdit(f, out choiceItems, out choiceIndex, out editingText, out textBuf);
+                                editing = f;
+                                focus = 2;
+                            }
                         }
                     }
                 }
@@ -355,7 +358,7 @@ namespace ysonet.Interactive
                     if (focus == 1 && loaded && visible.Count > 0)
                     {
                         EditableField f = visible[fieldIndex];
-                        if (!f.IsAction)
+                        if (!f.IsAction && !f.Locked)
                             ResetFieldToDefault(f);
                     }
                 }

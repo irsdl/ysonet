@@ -12,7 +12,7 @@ cannot be discovered safely, and group related questions into a short round.
 | Exact primitive and target behavior | implementation, `AdditionalInfo()`, uniqueness | "AcmeCell.OnDeserialized feeds its Data field to BinaryFormatter." |
 | Technique source | implementation evidence and comments | PoC file, paper, issue, or write-up URL |
 | Original researcher names | `Finders()` | `Jane Researcher` |
-| ysonet implementer | `Contributors()` | `Soroush Dalili` |
+| ysonet implementer | `Contributors()` | `Alex Contributor` |
 | CVE and reference links | comments, docs, `AdditionalInfo()` | `CVE-2026-XXXX`, public write-up |
 
 Verify names and links. `Finders()` credits the original technique research;

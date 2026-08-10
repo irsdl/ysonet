@@ -13,17 +13,17 @@ import unittest
 from refslib import render
 
 RECORD = {
-    "slug": "2019-nccgroup-getting-shell-with-xamlx-files",
+    "slug": "2019-examplelabs-getting-shell-with-xamlx-files",
     "title": "Getting Shell with XAMLX Files",
-    "authors": ["Soroush Dalili"],
-    "publisher": "NCC Group",
+    "authors": ["Jane Researcher"],
+    "publisher": "Example Labs",
     "published": "2019-08-23",
     "kind": "article",
     "licence": "unknown",
-    "original_url": "https://research.nccgroup.com/2019/08/23/getting-shell-with-xamlx-files/",
-    "canonical_url": "https://soroush.me/blog/file-upload-attack-using-xamlx-files",
+    "original_url": "https://research.examplelabs.com/2019/08/23/getting-shell-with-xamlx-files/",
+    "canonical_url": "https://janeresearcher.dev/blog/file-upload-attack-using-xamlx-files",
     "retrieved_kind": "canonical-migration",
-    "retrieved_from": "https://soroush.me/blog/file-upload-attack-using-xamlx-files",
+    "retrieved_from": "https://janeresearcher.dev/blog/file-upload-attack-using-xamlx-files",
     "retrieved_utc": "2026-08-03T10:00:00Z",
     "cited_by": ["docs/dotnet-deserialization-research.md:118"],
     "why": "Backs the XamlAssemblyLoadFromFile gadget.",
@@ -51,15 +51,15 @@ class TestAttributionIsRequired(unittest.TestCase):
 
     def test_the_original_url_the_route_and_the_date_are_in_the_file(self):
         text = render.render(RECORD, CONTENT, "full")
-        self.assertIn("- Original: <https://research.nccgroup.com/2019/08/23/"
+        self.assertIn("- Original: <https://research.examplelabs.com/2019/08/23/"
                       "getting-shell-with-xamlx-files/>", text)
-        self.assertIn("- Preserved from: https://soroush.me/blog/file-upload-attack-using-xamlx-files "
+        self.assertIn("- Preserved from: https://janeresearcher.dev/blog/file-upload-attack-using-xamlx-files "
                       "(canonical-migration) on 2026-08-03", text)
 
     def test_the_author_and_publisher_are_named(self):
         text = render.render(RECORD, CONTENT, "full")
-        self.assertIn("Soroush Dalili", text)
-        self.assertIn("NCC Group", text)
+        self.assertIn("Jane Researcher", text)
+        self.assertIn("Example Labs", text)
 
     def test_an_unknown_licence_is_stated_rather_than_omitted(self):
         record = dict(RECORD)
@@ -108,7 +108,7 @@ class TestDepth(unittest.TestCase):
         text = render.render(RECORD, CONTENT, "metadata")
         self.assertNotIn("ResourceDictionary", text)
         self.assertIn("not mirrored here", text)
-        self.assertIn("soroush.me/blog/file-upload-attack-using-xamlx-files", text)
+        self.assertIn("janeresearcher.dev/blog/file-upload-attack-using-xamlx-files", text)
         self.assertEqual(render.check_attribution(text), [])
 
     def test_the_untrusted_banner_sits_above_the_content(self):
@@ -200,10 +200,10 @@ class TestOkfConformance(unittest.TestCase):
         self.assertNotIn("verified:", self.frontmatter())
 
     def test_verified_appears_once_a_verification_event_exists(self):
-        record = dict(RECORD, verified=[{"by": "human:irsdl", "at": "2026-08-03T00:00:00Z"}])
+        record = dict(RECORD, verified=[{"by": "human:maintainer", "at": "2026-08-03T00:00:00Z"}])
         block = self.frontmatter(record)
         self.assertIn("verified:", block)
-        self.assertIn("human:irsdl", block)
+        self.assertIn("human:maintainer", block)
 
     def test_status_reflects_what_the_archive_knows(self):
         self.assertIn("status: stable", self.frontmatter())
@@ -246,3 +246,37 @@ class TestPlaceholderSectionsAreGone(unittest.TestCase):
         self.assertIn("## Why it is in ysonet", text)
         self.assertIn("Backs the XamlAssemblyLoadFromFile gadget.", text)
         self.assertIn("## Summary", text)
+
+
+class TestATranslationAndItsOriginal(unittest.TestCase):
+    """A translated reference carries BOTH: the English a reader can use, and
+    the source's own words they can check it against. Maintainer decision,
+    2026-08-04, after the dual layout was reported as untranslated content."""
+
+    FOREIGN = "本系列是笔者对dotnet反序列化的学习笔记。\n"
+    ENGLISH = "This series is the author's notes on dotnet deserialization.\n"
+
+    def _translated(self):
+        record = dict(RECORD, language="zh-cn", translation=self.ENGLISH)
+        return render.render(record, self.FOREIGN, "full")
+
+    def test_the_english_comes_first(self):
+        text = self._translated()
+        self.assertLess(text.index("## Content (translated into English)"),
+                        text.index("## Content (original)"))
+
+    def test_both_texts_are_present(self):
+        text = self._translated()
+        self.assertIn(self.ENGLISH.strip(), text)
+        self.assertIn(self.FOREIGN.strip(), text)
+
+    def test_the_original_section_says_why_it_is_untranslated(self):
+        """Without this the section is a heading followed by Chinese, which
+        reads as work nobody finished."""
+        after = self._translated().split("## Content (original)")[1]
+        self.assertIn("kept unchanged on purpose", after)
+
+    def test_an_untranslated_reference_has_one_plain_content_section(self):
+        text = render.render(dict(RECORD), CONTENT, "full")
+        self.assertIn("## Content\n", text)
+        self.assertNotIn("## Content (original)", text)

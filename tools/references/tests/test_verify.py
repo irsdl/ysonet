@@ -166,8 +166,108 @@ class TestManifestAndStore(unittest.TestCase):
         self.assertTrue(any("absolute path" in item.what for item in findings))
 
 
+class TestNoLocalPathInState(unittest.TestCase):
+    """The channel a real leak used: an absolute path baked into a free-text
+    field (a git clone target in a failure 'reason') that PATH_FIELDS does not
+    cover, and the append-only journal that keeps it forever."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.addCleanup(self.tmp.cleanup)
+        self.manifest = manifest_module.Manifest(self.root / "manifest.json")
+
+    def test_record_redacts_a_local_path_in_a_reason_at_write_time(self):
+        key = "https://github.com/advisories/GHSA-x"
+        # An invented path, never this machine's own. A fixture that pastes the
+        # developer's real checkout path publishes it in every clone of the repo,
+        # which is the very leak this class exists to stop.
+        self.manifest.record(key, "acquire", result="failed",
+                             reason="repository: git clone failed into "
+                                    "'E:\\Build\\Workspace\\refs\\cache\\x.git'")
+        stored = self.manifest.data["urls"][key]["steps"]["acquire"]["reason"]
+        self.assertNotIn("Workspace", stored)
+        self.assertIn("<local-path>", stored)
+        # And nothing the write-time scrub missed survives the audit.
+        self.assertEqual(verify._check_no_local_path_in_state(self.manifest), [])
+
+    def test_a_local_path_that_bypassed_the_scrub_in_the_manifest_is_caught(self):
+        key = "https://example.org/a"
+        # Set the field directly, as if written before the scrub existed.
+        self.manifest.entry(key)["steps"]["acquire"] = {
+            "result": "failed", "reason": "clone into /home/dev/ysonet/cache/x.git failed"}
+        findings = verify._check_no_local_path_in_state(self.manifest)
+        self.assertTrue(any("absolute path in a manifest field" in f.what for f in findings))
+
+    def test_a_local_path_in_the_history_journal_is_caught(self):
+        (self.root / "history.jsonl").write_text(
+            '{"step": "acquire", "url": "https://example.org/a", "result": "failed", '
+            '"reason": "clone into E:\\\\Build\\\\Workspace\\\\x.git failed"}\n',
+            encoding="utf-8", newline="\n")
+        findings = verify._check_no_local_path_in_state(self.manifest)
+        self.assertTrue(any("absolute path in the history journal" in f.what for f in findings))
+
+    def test_a_clean_manifest_and_journal_pass(self):
+        key = "https://example.org/a"
+        self.manifest.record(key, "acquire", result="failed", reason="http 404 on acquisition")
+        (self.root / "history.jsonl").write_text(
+            '{"step": "acquire", "url": "https://example.org/a", "reason": "http 404"}\n',
+            encoding="utf-8", newline="\n")
+        self.assertEqual(verify._check_no_local_path_in_state(self.manifest), [])
+
+    def test_a_url_field_is_never_read_as_a_local_path(self):
+        # A URL legitimately contains path-looking runs; it must not trip the check.
+        self.manifest.entry("k")["steps"]["acquire"] = {
+            "url": "https://example.org/Users/x", "canonical_url": "https://h/mnt/y"}
+        self.assertEqual(verify._check_no_local_path_in_state(self.manifest), [])
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUntranslatedDocumentsAreReported(unittest.TestCase):
+    """Acquiring, classifying and rendering a foreign write-up all succeed on
+    their own, so the result LOOKS finished. Only a reader who cannot read it
+    finds out. The gate asks every time instead of trusting whoever ran it."""
+
+    CHINESE = "反序列化漏洞的利用方式与防御措施分析报告，包含完整的攻击链说明。" * 6
+    ENGLISH = "The gadget chain reaches a sink the framework calls during read. " * 20
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.addCleanup(self.tmp.cleanup)
+        self.store = Store(self.root / "store")
+        self.manifest = manifest_module.Manifest(self.root / "manifest.json")
+
+    def _add(self, url, text, **fields):
+        entry = self.manifest.entry(url)
+        entry["content_sha256"] = self.store.put_text(text)
+        entry.update(fields)
+        return entry
+
+    def test_a_foreign_document_with_no_translation_is_reported(self):
+        self._add("https://example.cn/a", self.CHINESE, slug="cn-post")
+        findings = verify._check_translations(self.manifest, self.store)
+        self.assertTrue(any("untranslated" in item.what for item in findings))
+
+    def test_one_that_has_a_translation_is_not(self):
+        self._add("https://example.cn/a", self.CHINESE, slug="cn-post",
+                  translation_sha256=self.store.put_text("An English rendering."))
+        self.assertEqual(verify._check_translations(self.manifest, self.store), [])
+
+    def test_an_english_document_is_not(self):
+        self._add("https://example.org/a", self.ENGLISH, slug="en-post")
+        self.assertEqual(verify._check_translations(self.manifest, self.store), [])
+
+    def test_a_declared_english_page_that_is_not_english_is_still_reported(self):
+        """Medium serves every post as `lang="en"`. Believing that is how a
+        Vietnamese write-up sat in the archive untranslated."""
+        self._add("https://example.com/a", self.CHINESE, slug="medium-post",
+                  language="en")
+        findings = verify._check_translations(self.manifest, self.store)
+        self.assertTrue(any("untranslated" in item.what for item in findings))
 
 
 class TestOrphansFollowTheLastAcquire(unittest.TestCase):

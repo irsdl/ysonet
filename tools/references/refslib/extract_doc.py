@@ -188,6 +188,13 @@ def pdf_to_markdown(data, title=""):
         # does that usually SHIPS the map: a /ToUnicode CMap per font. Reading
         # the map and applying it is the difference between nonsense and the
         # paper, so try it rather than reporting a failure we can fix.
+        #
+        # ONLY ON FAILURE, deliberately. The map is read per DOCUMENT rather
+        # than per font, so on a document with several subset fonts it applies
+        # one font's table to another's codes: on a thesis that already read
+        # correctly it turned every `n` into `♪` and `W` into `Ω`. It is a
+        # repair for text that is already nonsense, not an improvement to text
+        # that is not.
         remapped = _retry_with_tounicode(data)
         if remapped:
             ok, reason = text_quality(remapped)
@@ -304,8 +311,7 @@ def _pdf_stream_text(content, mapping=None):
         if chunk.endswith(b"TJ"):
             inner = SHOW_ARRAY.match(chunk)
             if inner:
-                pieces.append("".join(_decode_literal(literal, mapping)
-                                      for literal in LITERAL.findall(inner.group(1))))
+                pieces.append(_show_array(inner.group(1), mapping))
         elif chunk.rstrip().endswith((b"Tj", b"'", b'"')):
             literal = LITERAL.search(chunk)
             if literal:
@@ -316,6 +322,37 @@ def _pdf_stream_text(content, mapping=None):
     text = "".join(pieces)
     text = re.sub(r"[ \t]{2,}", " ", text)
     return re.sub(r"\n{3,}", "\n\n", text)
+
+
+# A TJ array interleaves strings with horizontal ADJUSTMENTS, in thousandths of
+# an em, applied as a negative shift. Plenty of typesetters - TeX above all -
+# never emit a space character at all and draw every word gap with one of these:
+# a 566,247-character doctoral thesis extracted with 951 spaces in it, so
+# `Code-ReuseAttacksinManagedProgramming`. Dropping the numbers loses the word
+# boundaries of the whole document.
+TJ_TOKEN = re.compile(rb"(\((?:\\.|[^\\()])*\))|(-?\d+(?:\.\d+)?)")
+
+# How wide a gap has to be before it is a word break rather than kerning. A
+# letter pair is nudged by a few thousandths; an inter-word space in a 10pt font
+# is around 250. Measured across this archive's PDFs, 140 separates the two
+# without inventing spaces inside words.
+SPACE_KERN = 140.0
+
+
+def _show_array(body, mapping=None):
+    """One TJ array's text, with the kerning-drawn word gaps restored."""
+    out = []
+    for literal, number in TJ_TOKEN.findall(body):
+        if literal:
+            out.append(_decode_literal(literal, mapping))
+            continue
+        try:
+            shift = float(number)
+        except ValueError:
+            continue
+        if -shift >= SPACE_KERN:
+            out.append(" ")
+    return "".join(out)
 
 
 def _decode_literal(literal, mapping=None):

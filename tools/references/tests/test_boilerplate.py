@@ -17,10 +17,10 @@ ARTICLE = ("# Exploiting the parser\n\n"
 class TestTheRealTails(unittest.TestCase):
     """The exact endings found in the corpus."""
 
-    def test_the_mdsec_footer_goes(self):
+    def test_the_consultancy_footer_goes(self):
         text, removed = boilerplate.trim(
-            ARTICLE + "\n\n## Ready to engage\nwith MDSec?\n\n"
-            "[ Get in touch ](https://www.mdsec.co.uk/contact)\n\n Copyright 2026 MDSec\n")
+            ARTICLE + "\n\n## Ready to engage\nwith us?\n\n"
+            "[ Get in touch ](https://example.com/contact)\n\n Copyright 2026 Example Consulting\n")
         self.assertNotIn("Get in touch", text)
         self.assertNotIn("Copyright 2026", text)
         self.assertIn("gadget chain", text)

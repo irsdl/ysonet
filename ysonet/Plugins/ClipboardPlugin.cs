@@ -98,6 +98,11 @@ namespace ysonet.Plugins
         // A public plugin: it is listed everywhere, with or without --display-private.
         public bool IsPrivate() { return false; }
 
+        public List<string> RuntimeVersions()
+        {
+            return new List<string> { RuntimeVersion.Unspecified };
+        }
+
 
         public OptionSet Options()
         {
@@ -114,14 +119,14 @@ namespace ysonet.Plugins
                 new PluginMode {
                     Name = "WinForms (BinaryFormatter under a WinForms format)",
                     Description = "TextFormattingRunProperties under a WinForms clipboard format.",
-                    Options = new string[] { "command", "format", "test", "minify", "usesimpletype" },
+                    Options = new string[] { "command", "rawcmd", "format", "test", "minify", "usesimpletype" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "mode", "winforms" } },
                 },
                 new PluginMode {
                     Name = "WPF XAML (ObjectDataProvider under the Xaml format)",
                     Description = "ObjectDataProvider XAML under the WPF 'Xaml' clipboard format.",
-                    Options = new string[] { "command", "xamlvariant", "test", "minify", "usesimpletype" },
+                    Options = new string[] { "command", "rawcmd", "xamlvariant", "test", "minify", "usesimpletype" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "mode", "wpfxaml" } },
                 },

@@ -28,6 +28,8 @@ import json
 import os
 import tempfile
 
+from . import paths
+
 SCHEMA = 2
 
 
@@ -78,7 +80,12 @@ class Manifest(object):
         """
         entry = self.entry(key)
         row = {"utc": utc_now()}
-        row.update(fields)
+        # A path baked into a free-text field (a git error in 'reason', for
+        # instance) must not reach these tracked files. Path-typed fields already
+        # go through paths.rel(); this scrubs the message channel. See the module
+        # docstring's no-absolute-path rule.
+        row.update({name: paths.redact_text(value) if isinstance(value, str) else value
+                    for name, value in fields.items()})
         entry["steps"][step] = row
         self._pending.append(dict(row, url=key, step=step))
         return row

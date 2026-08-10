@@ -40,31 +40,115 @@ import unicodedata
 # for the entries that never got one.
 NON_LATIN_SHARE = 0.08
 
+# At SEGMENT scale the question is presence rather than share, so this is an
+# absolute count. Two letters, because one stray character is usually a symbol
+# the extractor picked up rather than something anybody wrote to be read.
+MIN_FOREIGN_LETTERS = 2
+
+# "NOT LATIN" IS NOT THE SAME AS "ANOTHER LANGUAGE". Asking only whether a
+# character is outside the Latin script sent three documents for translation on
+# the strength of a Greek sigma in `σ∈State`, a stray hieroglyph, and a PDF whose
+# text layer had decoded to mojibake. So the presence test names the writing
+# systems that actually mean "somebody wrote this in another language" - and
+# Greek is deliberately absent, because in this corpus it is mathematics.
+TRANSLATABLE_SCRIPT = re.compile(
+    "["
+    "぀-ゟ"      # Hiragana
+    "゠-ヿ"      # Katakana
+    "㐀-䶿"      # CJK unified ideographs, extension A
+    "一-鿿"      # CJK unified ideographs
+    "豈-﫿"      # CJK compatibility ideographs
+    "ᄀ-ᇿ"      # Hangul Jamo
+    "가-힯"      # Hangul syllables
+    "Ѐ-ӿ"      # Cyrillic
+    "֐-׿"      # Hebrew
+    "؀-ۿ"      # Arabic
+    "ऀ-ॿ"      # Devanagari
+    "฀-๿"      # Thai
+    "]")
+
 # Latin-script languages need a different test, because the alphabet is the same.
 # These are the stop words of the languages present in this corpus.
+# SHORT WORDS THAT COLLIDE WITH ENGLISH TECHNICAL PROSE ARE LEFT OUT, because
+# the cost of one is a whole English document queued for translation. Measured
+# against every English document in this archive, `com` fired 226 times across
+# 22 of them - this corpus is full of COM, the Component Object Model - and
+# `des`, `con`, `del`, `las`, `los`, `sur`, `les` and `est` fired on English
+# prose and place names too ("Las Vegas" is in half the conference decks). A
+# longer stop word carries the language on its own and none of these do.
 FOREIGN_WORDS = re.compile(
     r"\b(?:und|oder|nicht|eine|einen|werden|wird|durch|"          # German
-    r"une|des|les|pour|avec|dans|cette|nous|est|sur|"             # French
-    r"que|para|com|uma|não|são|"                                  # Portuguese
-    r"del|los|las|una|para|con|como|"                             # Spanish
+    r"une|pour|avec|dans|cette|nous|"                             # French
+    r"que|para|uma|não|são|"                                      # Portuguese
+    r"una|como|"                                                  # Spanish
     r"che|della|nella|questo|sono|"                               # Italian
     r"và|của|trong|được|khi|"                                     # Vietnamese
-    r"nie|jest|nad|nych)\b", re.IGNORECASE)
-FOREIGN_WORD_SHARE = 0.04
+    r"nie|jest|nych)\b", re.IGNORECASE)
+# CALIBRATED, not guessed. Across every Latin-script document in this archive
+# the genuinely foreign ones scored 0.026 and up while the English ones - terse
+# decks and code-heavy reference pages included - reached at most 0.0065. The
+# threshold sits in that gap. It was 0.04 and had to come down: exposing English
+# link text as translatable prose diluted a Vietnamese write-up to 0.026, and it
+# silently reported itself as English.
+FOREIGN_WORD_SHARE = 0.02
 
-ENGLISH = ("en", "en-us", "en-gb")
+# Below this many prose words the stop-word test is noise, and the answer is
+# "cannot tell" rather than "English".
+MIN_WORDS_TO_MEASURE = 50
 
+# THE POSITIVE TEST, for a segment too short for the one above. Enumerating
+# every foreign language's stop words is a losing game - this corpus holds ten
+# languages and the list never fired on most of them - but English function
+# words are ONE CLOSED SET and every language fails it the same way. Measured
+# across the archive, foreign prose scores under 0.08 and English prose over
+# 0.14, so the threshold sits between and anything nearer falls through to the
+# document's own verdict rather than guessing.
+ENGLISH_WORDS = re.compile(
+    r"\b(?:the|and|of|to|in|is|it|that|for|with|this|are|was|be|on|as|by|"
+    r"from|or|an|not|we|can|you|which|but|has|have|will|would|when|if|"
+    r"there|then|they|our|its|all|been|were|more|than|into|about|after|"
+    r"how|what|why|use|used|using|first|also|only|other|some|any|do|does)\b",
+    re.IGNORECASE)
+ENGLISH_WORD_SHARE = 0.15
+MIN_WORDS_FOR_SHORT_TEST = 6
+
+ENGLISH_TEXT = "english"
+FOREIGN_TEXT = "foreign"
+UNKNOWN = "unknown"
+
+# ONLY CODE IS PROTECTED. Everything a human wrote to be read is prose, even
+# when it sits inside punctuation: a link's TEXT, a table's CELLS and an image's
+# alt text are all sentences somebody wrote, and masking the whole construct
+# left 2,064 Chinese characters untranslated in documents that reported
+# themselves fully translated.
+#
+# `\w` IS UNICODE-AWARE IN PYTHON, which is what let the identifier and CVE
+# rules swallow prose: `\bMS[-\d\w]{4,}\b` matched a CVE id and then kept
+# eating the Chinese sentence after it. Every rule here that means "an ASCII
+# code token" has to say so.
+#
 # Order matters: the longest construct first, so a fenced block is protected
 # whole rather than shredded by the inline rules that live inside it.
+CODE_WORD = r"[A-Za-z0-9_]"
 PROTECTED = (
     ("placeholder", re.compile(r"\{\{PH_\d+\}\}")),
     ("fence", re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)),
-    ("table", re.compile(r"^\|.*\|\s*$", re.MULTILINE)),
     ("inline-code", re.compile(r"`[^`\n]+`")),
-    ("link", re.compile(r"!?\[[^\]]*\]\([^)]*\)")),
-    ("url", re.compile(r"https?://\S+|www\.[\w.-]+\.\w+\S*")),
-    ("identifier", re.compile(r"\b(?:[A-Za-z_][\w]*\.){1,}[A-Za-z_][\w]*(?:\(\))?")),
-    ("cve", re.compile(r"\b(?:CVE|GHSA|ZDI|MS)[-\d\w]{4,}\b", re.IGNORECASE)),
+    # The URL only. `[text](url)` keeps its text in the prose, so the sentence a
+    # reader actually sees gets translated and the target never changes. The
+    # optional `"Title"` tail is masked with it: 82 targets in this archive carry
+    # one, and without it the pattern misses the whole construct and hands the
+    # PATH to a translator, which is the one thing this rule exists to prevent.
+    ("link-target", re.compile(r"(?<=\])\([^)\s]*(?:\s+\"[^\"]*\")?\)")),
+    ("url", re.compile(r"https?://\S+|www\.[A-Za-z0-9.-]+\.[A-Za-z0-9]+\S*")),
+    ("identifier", re.compile(r"\b(?:[A-Za-z_]%s*\.){1,}[A-Za-z_]%s*(?:\(\))?"
+                              % (CODE_WORD, CODE_WORD))),
+    # Hyphens belong INSIDE the identifier, or `CVE-2021-42321` is masked as
+    # `{{PH_1}}-42321` and half a CVE id is handed to a translator. Microsoft
+    # bulletins are spelled out separately because they carry no hyphen after
+    # the prefix, and matching a bare `MS` plus letters would swallow `MSDN`.
+    ("cve", re.compile(r"\b(?:CVE|GHSA|ZDI)-[0-9A-Za-z_][0-9A-Za-z_-]*\b"
+                       r"|\bMS[0-9]{2}-[0-9]{3}\b", re.IGNORECASE)),
     ("hash", re.compile(r"\b[0-9a-f]{16,}\b|\b[A-Za-z0-9+/]{40,}={0,2}\b")),
 )
 
@@ -105,12 +189,23 @@ CODE_PUNCTUATION = ("{", "}", ";")
 class Prepared(object):
     """One document, masked and split, ready to be shown to a translator."""
 
-    def __init__(self, chunks, placeholders, language, comments=None):
-        self.chunks = chunks              # [[(id, text), ...], ...]
+    def __init__(self, chunks, placeholders, language, comments=None,
+                 original=None, skipped=0, metadata=None):
+        self.chunks = chunks              # [[(id, text), ...], ...] FOREIGN only
         self.placeholders = placeholders  # {"{{PH_3}}": "original text"}
         self.language = language
         # {segment id: [placeholder token, original comment text]}
         self.comments = comments or {}
+        # {segment id: masked text} for EVERY segment, translated or not. `apply`
+        # rebuilds the document from this, so a segment that was already English
+        # comes back byte-identical instead of being dropped.
+        self.original = original or {}
+        self.skipped = skipped            # segments left alone as already English
+        # {segment id: field name} for the record's own title and publisher.
+        # They are prose a researcher reads, not identifiers, so they are
+        # translated too - and they are NOT part of the document body, so they
+        # come back out separately instead of being joined into it.
+        self.metadata = metadata or {}
 
     @property
     def segments(self):
@@ -151,32 +246,57 @@ def comments_in(code):
 def looks_english(text, declared=""):
     """Whether this document is already in English.
 
-    The declared language wins when there is one: it came from the page's own
-    `lang` attribute or its metadata, which is better evidence than counting
-    characters.
+    A DECLARED `en` IS NOT EVIDENCE. It comes from the page's `lang` attribute,
+    and a blogging platform sets that once for the whole site: a Vietnamese
+    write-up on Medium is served as `lang="en"` and sat in the archive
+    untranslated because the declaration was allowed to win. So the declaration
+    is trusted in ONE direction only - a page that says it is German is German -
+    and a claim of English has to survive the measurement.
     """
-    if declared:
-        # Any English tag: en, en-US, en-GB, en-SG. Listing them exhaustively
-        # missed `en-sg` and reported a Singapore write-up as needing
-        # translation.
-        return declared.lower().split("-")[0] == "en"
-    # MEASURED ON THE MASKED TEXT, never the raw document. Counting words in the
-    # raw text counts them inside URLs and identifiers: `.com` fired the
-    # Portuguese rule 67 times on an English page, and "Las Vegas" fired the
-    # Spanish one 120 times on an English deck.
+    spoken = (declared or "").lower().split("-")[0]
+    if spoken and spoken != "en":
+        return False
+    measured = _measure(text)
+    if measured != UNKNOWN:
+        return measured == ENGLISH_TEXT
+    # Too little prose to measure. Now the declaration is the best thing left,
+    # and no declaration means leave it alone rather than translate blindly.
+    return True
+
+
+def _measure(text):
+    """`english` / `foreign` / `unknown`, from the text itself.
+
+    MEASURED ON THE MASKED TEXT, never the raw document. Counting words in the
+    raw text counts them inside URLs and identifiers: `.com` fired the
+    Portuguese rule 67 times on an English page, and "Las Vegas" fired the
+    Spanish one 120 times on an English deck.
+
+    A DOCUMENT IS JUDGED FOREIGN ONLY ON POSITIVE EVIDENCE OF ANOTHER LANGUAGE:
+    a non-Latin script, or that language's own stop words. "Few English function
+    words" is NOT that evidence, however tempting - measured across this archive
+    a conference deck scored 0.012 and a Microsoft design document 0.052, the
+    same range as a Vietnamese write-up, because slides, code listings and
+    reference pages are made of fragments rather than sentences. Using it flagged
+    four plainly English documents for translation.
+    """
     body, _held = protect(text or "")
     if not body.strip():
-        return True
+        return UNKNOWN
     letters = [char for char in body if char.isalpha()]
     if not letters:
-        return True
-    foreign = sum(1 for char in letters if not _is_latin(char))
-    if foreign / len(letters) >= NON_LATIN_SHARE:
-        return False
+        return UNKNOWN
+    # Counted over the SCRIPTS that mean another language, for the same reason
+    # the segment test is: a page of mathematics is not Greek, and a PDF whose
+    # text layer decoded to symbols is damaged rather than foreign.
+    if len(TRANSLATABLE_SCRIPT.findall(body)) / len(letters) >= NON_LATIN_SHARE:
+        return FOREIGN_TEXT
     words = re.findall(r"[A-Za-z]{2,}", body)
-    if len(words) < 50:
-        return True
-    return len(FOREIGN_WORDS.findall(body)) / len(words) < FOREIGN_WORD_SHARE
+    if len(words) < MIN_WORDS_TO_MEASURE:
+        return UNKNOWN
+    if len(FOREIGN_WORDS.findall(body)) / len(words) >= FOREIGN_WORD_SHARE:
+        return FOREIGN_TEXT
+    return ENGLISH_TEXT
 
 
 def _is_latin(char):
@@ -186,28 +306,125 @@ def _is_latin(char):
         return False
 
 
-def prepare(text, language=""):
+# The record's own fields that are PROSE and get translated with the body. A
+# title is the first thing a researcher reads and the thing they search for, so
+# leaving it in the source language makes the file useless to them at a glance.
+# Authors are deliberately absent: a name or a handle is an identifier, and
+# translating it produces a credit that matches nothing.
+METADATA_FIELDS = ("title", "publisher")
+
+
+def prepare(text, language="", metadata=None):
     """Mask everything that is not prose, then split what is left into chunks.
 
     The comments inside each masked code block are added as segments of their
     own, so the payload is never shown to a translator and the author's
     explanation of it always is.
+
+    ONLY THE FOREIGN SEGMENTS ARE HANDED OVER. A document is rarely uniformly
+    one language: a Chinese write-up quotes English error messages, an English
+    one carries a stray Chinese paragraph, and most of a repository README is
+    already English around the part that is not. Re-translating a segment that
+    is already English is not free - it is a chance to alter a sentence nobody
+    asked to change - so `apply` puts the untouched ones back verbatim.
     """
     masked, placeholders = protect(text)
-    chunks = _chunk(masked)
-    number = max((identifier for chunk in chunks for identifier, _ in chunk),
-                 default=0)
-    comments, extra = {}, []
+    everything = _segments(masked)
+    number = max((identifier for identifier, _ in everything), default=0)
+
+    comments = {}
     for token, original in placeholders.items():
         if not original.startswith("```"):
             continue
         for body in comments_in(original):
             number += 1
             comments[number] = [token, body]
-            extra.append((number, body))
-    if extra:
-        chunks.append(extra)
-    return Prepared(chunks, placeholders, language, comments)
+            everything.append((number, body))
+
+    # An unmeasurably short segment inherits the document's verdict: in a
+    # Japanese article a two-word heading is Japanese, and in an English one it
+    # is English. Guessing per-segment instead sent every heading to a translator.
+    foreign_document = not looks_english(text, language)
+
+    # The title and publisher, masked into the SAME placeholder map so the two
+    # sets cannot collide. Judged on their own: an English article on a Chinese
+    # site has a Chinese publisher and an English title, and only one of them
+    # needs work.
+    fields = {}
+    for field in METADATA_FIELDS:
+        value = ((metadata or {}).get(field) or "").strip()
+        if not value:
+            continue
+        masked_value, placeholders = protect(value, placeholders)
+        if not _segment_is_foreign(masked_value, False):
+            continue
+        number += 1
+        fields[number] = field
+        everything.append((number, masked_value))
+
+    wanted = [(identifier, body) for identifier, body in everything
+              if identifier in fields or _segment_is_foreign(body, foreign_document)]
+    return Prepared(_group(wanted), placeholders, language, comments,
+                    original=dict(everything),
+                    skipped=len(everything) - len(wanted),
+                    metadata=fields)
+
+
+def has_foreign_prose(text, language="", metadata=None):
+    """Whether any PROSE in this document still needs translating.
+
+    Not the same question as `looks_english`, and conflating them hid work. That
+    one asks what language the document is IN, which is what a short segment
+    inherits when it cannot be measured alone. This one asks whether there is
+    anything left to do - and a repository README written in English around four
+    Chinese paragraphs answers "English" to the first and "yes" to the second.
+
+    The record's own title and publisher count, because an English page on a
+    Chinese site is still a file whose heading a reader cannot read.
+    """
+    return bool(prepare(text, language, metadata).chunks)
+
+
+def _segment_is_foreign(body, default):
+    """Whether one prose segment needs translating.
+
+    PRESENCE, NOT SHARE. A document is classified by what most of it is, but a
+    segment is a unit of WORK: any foreign text in it is text somebody has to
+    translate. Judging a segment by share left the Chinese cells inside a large
+    mostly-English table untranslated, and the Chinese titles in a list of
+    otherwise English links, because each block averaged out as English.
+    """
+    # Another writing system settles it outright, however little of it there is.
+    # Code, URLs and identifiers are already masked, so anything left is prose.
+    if len(TRANSLATABLE_SCRIPT.findall(body)) >= MIN_FOREIGN_LETTERS:
+        return True
+    measured = _measure(body)
+    if measured != UNKNOWN:
+        return measured == FOREIGN_TEXT
+    # An English sentence inside a document judged foreign. Without this the
+    # document's verdict sweeps it up, and a Chinese article's quoted English
+    # error message came back paraphrased.
+    words = re.findall(r"[A-Za-z]{2,}", body)
+    if len(words) >= MIN_WORDS_FOR_SHORT_TEST:
+        if len(ENGLISH_WORDS.findall(body)) / len(words) >= ENGLISH_WORD_SHARE:
+            return False
+    return default
+
+
+def rebuild(translated, original, not_prose):
+    """The translated document, assembled from the FULL segment map.
+
+    Never from what came back. Two things would otherwise silently delete
+    content: a segment that was already English was never handed over, and a
+    translator that drops one would remove that paragraph from the archive.
+
+    `not_prose` holds the segment ids that are not part of the body: comments,
+    which belong inside the code block `apply_comments` has already put them
+    back into, and metadata fields, which belong to the record.
+    """
+    order = sorted(original or translated)
+    return "\n\n".join(translated.get(identifier, original.get(identifier, ""))
+                       for identifier in order if identifier not in not_prose)
 
 
 def apply_comments(placeholders, comments, translated):
@@ -225,9 +442,14 @@ def apply_comments(placeholders, comments, translated):
     return out
 
 
-def protect(text):
-    """(masked text, {placeholder: original}). Nothing but prose survives."""
-    placeholders = {}
+def protect(text, placeholders=None):
+    """(masked text, {placeholder: original}). Nothing but prose survives.
+
+    Pass an existing map to keep masking into it: the title and publisher are
+    masked separately from the body but must share one numbering, or the two
+    sets of placeholders collide and restoring one corrupts the other.
+    """
+    placeholders = {} if placeholders is None else placeholders
     masked = text or ""
     for _label, pattern in PROTECTED:
         def swap(match):
@@ -259,18 +481,44 @@ def missing_placeholders(text, placeholders):
     return sorted(token for token in placeholders if token not in (text or ""))
 
 
-def _chunk(masked):
-    """Numbered prose segments, grouped into chunks a translator can hold."""
-    blocks = [block for block in re.split(r"\n\s*\n", masked)]
-    chunks, current, size, number = [], [], 0, 0
-    for block in blocks:
+def standing_alone(placeholders, original):
+    """The placeholders a translator is actually responsible for returning.
+
+    A PLACEHOLDER CAN BE NESTED INSIDE ANOTHER. Masking runs longest-construct
+    first, so `[`HttpClientChannel`](url)` has its inline code masked and then
+    the whole link masked around it, and the inner token then appears nowhere in
+    the prose - only inside the text the outer one stands for. It comes back
+    automatically when its parent is restored, so demanding it from the
+    translation reported nine intact documents as corrupted.
+
+    Without a segment map (an older working directory) every placeholder is
+    treated as standing alone, which is the cautious answer.
+    """
+    if not original:
+        return dict(placeholders)
+    prose = "\n".join(original.values())
+    return {token: text for token, text in placeholders.items() if token in prose}
+
+
+def _segments(masked):
+    """Every prose segment of the masked document, numbered in reading order."""
+    found, number = [], 0
+    for block in re.split(r"\n\s*\n", masked):
         if not block.strip():
             continue
         number += 1
+        found.append((number, block))
+    return found
+
+
+def _group(segments):
+    """Segments gathered into chunks a translator can hold at once."""
+    chunks, current, size = [], [], 0
+    for identifier, block in segments:
         if size + len(block) > CHUNK_CHARS and current:
             chunks.append(current)
             current, size = [], 0
-        current.append((number, block))
+        current.append((identifier, block))
         size += len(block)
     if current:
         chunks.append(current)

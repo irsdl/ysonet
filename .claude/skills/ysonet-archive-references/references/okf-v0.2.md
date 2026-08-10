@@ -73,7 +73,7 @@ saying nobody has checked it, which is better than a field claiming otherwise.
 | Form | Use |
 |---|---|
 | `<producer>/<version>` | an agent or tool, e.g. `ysonet-refs/1` |
-| `human:<id>` | a person, e.g. `human:irsdl` |
+| `human:<id>` | a person, e.g. `human:maintainer` |
 | `process:<id>` | an automated process |
 
 ## Rules that matter here

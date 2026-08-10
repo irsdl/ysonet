@@ -5,7 +5,7 @@ resource: "https://www.blackhat.com/docs/us-17/thursday/us-17-Munoz-Friday-The-1
 tags: [whitepaper, ysonet-reference]
 generated:
   by: ysonet-refs/1
-  at: "2026-08-04T16:48:58+00:00"
+  at: "2026-08-04T21:49:32+00:00"
 status: stable
 stale_after: 2027-08-04
 sources:
@@ -30,12 +30,14 @@ licence: unknown
 original_url: "https://www.blackhat.com/docs/us-17/thursday/us-17-Munoz-Friday-The-13th-JSON-Attacks-wp.pdf"
 published: ""
 publisher: ""
+publisher_english: ""
 raw_sha256: af2c9bb8424fd4455d651c65baac703fc1fb3c4c2c5b9cbda460bad605fc635e
 retrieved_from: "https://blackhat.com/docs/us-17/thursday/us-17-Munoz-Friday-The-13th-JSON-Attacks-wp.pdf"
 retrieved_kind: stored
-retrieved_utc: "2026-08-04T16:48:58+00:00"
+retrieved_utc: "2026-08-04T21:49:32+00:00"
 slug: friday-13th-json-attacks-whitepaper
 snapshot: ""
+title_english: ""
 ---
 
 # Friday the 13th: JSON Attacks - Whitepaper

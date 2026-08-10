@@ -1,0 +1,5172 @@
+{
+ "last_rehydrate": {
+  "added": 5,
+  "date": "2026-08-02",
+  "rejected": 5,
+  "scope": "since the newest entry listed (July 2026), plus formatter/ICS coverage gaps"
+ },
+ "last_sweep": {
+  "applied": 0,
+  "classes": {
+   "ok": 2
+  },
+  "date": "2026-08-07",
+  "duplicates_removed": 0,
+  "files": [
+   "docs/dotnet-deserialization-research.md"
+  ],
+  "urls": 2
+ },
+ "links": {
+  "https://0xdf.gitlab.io/2021/05/01/htb-sharp.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "HTB: Sharp | 0xdf hacks stuff"
+  },
+  "https://0xdf.gitlab.io/2022/10/01/htb-scrambled.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "HTB: Scrambled | 0xdf hacks stuff"
+  },
+  "https://0xdf.gitlab.io/2022/10/15/htb-perspective.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "HTB: Perspective | 0xdf hacks stuff"
+  },
+  "https://0xdf.gitlab.io/2024/06/08/htb-pov.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "HTB: Pov | 0xdf hacks stuff"
+  },
+  "https://3gstudent.github.io/DotNet%E5%8F%8D%E5%BA%8F%E5%88%97%E5%8C%96-%E7%94%9F%E6%88%90ViewState%E7%9A%84%E7%A8%8B%E5%BA%8F%E5%AE%9E%E7%8E%B0": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "DotNet????????ViewState?????"
+  },
+  "https://3gstudent.github.io/GadgetToJScript%E5%88%A9%E7%94%A8%E5%88%86%E6%9E%90": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GadgetToJScript????"
+  },
+  "https://advisories.gitlab.com/pkg/nuget/umbracoforms/CVE-2025-68924/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200; meta refresh to https://advisories.gitlab.com/nuget/umbracoforms/CVE-2025-68924/ (cached)",
+   "title": "https://advisories.gitlab.com/nuget/umbracoforms/CVE-2025-68924/"
+  },
+  "https://almightysec.com/deserialization-rce/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploiting JSON.NET Deserialization for Remote Code Execution - almightysec"
+  },
+  "https://archive.org/details/youtube-oUAeWhW5b8c": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Friday the 13th: JSON Attacks : Black Hat : Free Download, Borrow, and Streaming : Internet Archive"
+  },
+  "https://attackerkb.com/topics/Dyo4zUm2tv/cve-2025-27218": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2025-27218 | AttackerKB"
+  },
+  "https://attackerkb.com/topics/RY7LpTmyCj/cve-2021-34523": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2021-34523 | AttackerKB"
+  },
+  "https://attackerkb.com/topics/o59vR5d8MG/cve-2025-3935": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2025-3935 | AttackerKB"
+  },
+  "https://beaglesecurity.com/blog/vulnerability/kentico-cms-insecure-deserialization-rce.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Kentico CMS Insecure Deserialization RCE"
+  },
+  "https://bishopfox.com/blog/cve-2019-18935-remote-code-execution-in-telerik-ui": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2019-18935: Remote Code Execution via Insecure? | Bishop Fox"
+  },
+  "https://bishopfox.com/resources/exploiting-insecure-deserialization-in-telerik-ui-derpcon-2020": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".Net Roulette Exploiting Insecure Deserialization in? | Bishop Fox"
+  },
+  "https://blog.awoo.systems/posts/2024-06-04-defcon-quals": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "defcon quals writeup: NPC-UA - dragon posting"
+  },
+  "https://blog.blacklanternsecurity.com/p/aspnet-cryptography-for-pentesters": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ASP.NET Cryptography for Pentesters - by Paul Mueller"
+  },
+  "https://blog.blacklanternsecurity.com/p/introducing-badsecrets": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Introducing Badsecrets - by Paul Mueller"
+  },
+  "https://blog.blacklanternsecurity.com/p/yet-another-telerik-ui-revisit": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Yet Another Telerik UI Revisit - by Paul Mueller"
+  },
+  "https://blog.compass-security.com/2014/09/disabling-viewstates-mac-why-you-deserve-having-now-a-broken-asp-net-web-application/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Disabling Viewstate?s MAC: why you deserve having now a broken ASP.NET web application ? Compass Security Blog"
+  },
+  "https://blog.devsecurity.eu/en/blog/dnspy-deserialization-vulnerability": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Jaroslav Loba?evski - Vulnerable deserialization in dnSpy and Resource.NET"
+  },
+  "https://blog.orange.tw/posts/2021-08-proxylogon-a-new-attack-surface-on-ms-exchange-part-1/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "A New Attack Surface on MS Exchange Part 1 - ProxyLogon! | Orange Tsai"
+  },
+  "https://blog.scrt.ch/2016/05/12/net-serialiception/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".NET serialiception ? SCRT Team Blog"
+  },
+  "https://blog.securelayer7.net/cve-2026-44963-veeam-backup-authenticated-rce-binaryformatter-bypass/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2026-44963: Veeam Backup Authenticated RCE Explained"
+  },
+  "https://blog.stratumsecurity.com/2023/01/23/remote-code-execution-through-deserializtion/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE from 2018 Strikes Again"
+  },
+  "https://blog.viettelcybersecurity.com/sharepoint-toolshell/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://blog.viettelcybersecurity.com/sharepoint_properties_deser/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://blog.wanghw.cn/security/dotnet-viewstate-no-file-godzilla-memshell.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".Net ViewState??????????????? ? Whwlsfb's Tech Blog"
+  },
+  "https://book.jorianwoltjer.com/languages/c": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "C# | Practical CTF"
+  },
+  "https://cert.360.cn/warning/detail?id=e689288863456481733e01b093c986b6": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200; certificate NOT verified (cached)",
+   "title": "DotNetNuke????????(CVE?2017?9822)???? - 360CERT"
+  },
+  "https://certvde.com/en/advisories/VDE-2026-051": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "iba: Deserialization vulnerability in ibaPDA and ibaDatCoordinator"
+  },
+  "https://cheatsheetseries.owasp.org/cheatsheets/Deserialization_Cheat_Sheet.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Deserialization - OWASP Cheat Sheet Series"
+  },
+  "https://chudypb.github.io/exchange-powershell.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Half Measures and Full Compromise: Exploiting Microsoft Exchange PowerShell Remoting | Piotr Bazyd?o (chudy)"
+  },
+  "https://claroty.com/team82/research/exploiting-a-classic-deserialization-vulnerability-in-siemens-simatic-energy-manager": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploiting a Classic Deserialization Vulnerability in Siemens SIMATIC Energy Manager | Claroty"
+  },
+  "https://cloud.google.com/blog/topics/threat-intelligence/hunting-deserialization-exploits/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Now You Serial, Now You Don?t ? Systematically Hunting for Deserialization Exploits | Google Cloud Blog"
+  },
+  "https://cloud.google.com/blog/topics/threat-intelligence/knowledgedeliver-viewstate-deserialization-vulnerability": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploitation of KnowledgeDeliver via ViewState Deserialization Vulnerability | Google Cloud Blog"
+  },
+  "https://cloud.google.com/blog/topics/threat-intelligence/viewstate-deserialization-zero-day-vulnerability": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ViewState Deserialization Zero-Day Vulnerability in Sitecore Products (CVE-2025-53690) | Google Cloud Blog"
+  },
+  "https://code-white.com/blog/2019-02-telerik-revisited/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CODE WHITE | Red Teaming & Attack Surface Management"
+  },
+  "https://code-white.com/blog/2022-01-dotnet-remoting-revisited/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CODE WHITE | Red Teaming & Attack Surface Management"
+  },
+  "https://code-white.com/blog/2022-06-bypassing-dotnet-serialization-binders/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CODE WHITE | Red Teaming & Attack Surface Management"
+  },
+  "https://code-white.com/blog/exploiting-asp.net-templateparser-part-2/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CODE WHITE | Red Teaming & Attack Surface Management"
+  },
+  "https://code-white.com/blog/leaking-objrefs-to-exploit-http-dotnet-remoting/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CODE WHITE | Red Teaming & Attack Surface Management"
+  },
+  "https://code-white.com/blog/teaching-the-old-net-remoting-new-exploitation-tricks/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CODE WHITE | Red Teaming & Attack Surface Management"
+  },
+  "https://codeql.github.com/codeql-query-help/csharp/cs-unsafe-deserialization-untrusted-input/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Deserialization of untrusted data ? CodeQL query help documentation"
+  },
+  "https://codewhitesec.blogspot.com/2022/01/dotnet-remoting-revisited.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CODE WHITE | Blog: .NET Remoting Revisited"
+  },
+  "https://codewhitesec.blogspot.com/2022/06/bypassing-dotnet-serialization-binders.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CODE WHITE | Blog: Bypassing .NET Serialization Binders"
+  },
+  "https://community.opentext.com/t5/Security-Research-Blog/New-NET-deserialization-gadget-for-compact-payload-When-size/ba-p/1763282": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://community.progress.com/s/article/resolving-security-vulnerability-cve-2017-9248": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Progress Customer Community"
+  },
+  "https://ctftime.org/writeup/16802": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CTFtime.org / HITCON CTF 2019 Quals / Buggy .NET / Writeup"
+  },
+  "https://cyku.tw/ctf-hitcon-2018-why-so-serials/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "HITCON 2018: Why so Serials? Write-up"
+  },
+  "https://cyku.tw/play-with-dotnet-viewstate-exploit-and-create-fileless-webshell/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "?? ASP.NET VIEWSTATE ???????????????"
+  },
+  "https://dbugs.ptsecurity.com/vulnerability/PT-2022-19168": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2022-28684 ? Deserialization of Untrusted Data in Devexpress Safebinaryformatter+1 | dbugs"
+  },
+  "https://devblogs.microsoft.com/dotnet/binaryformatter-removed-from-dotnet-9/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "BinaryFormatter removed from .NET 9 - .NET Blog"
+  },
+  "https://devblogs.microsoft.com/dotnet/farewell-enableviewstatemac/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Farewell, EnableViewStateMac! - .NET Blog"
+  },
+  "https://devblogs.microsoft.com/powershell/how-objects-are-sent-to-and-from-remote-sessions/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "How objects are sent to and from remote sessions - PowerShell Team"
+  },
+  "https://devhub.checkmarx.com/cve-details/cve-2022-23535/": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Deserialization of Untrusted Data in LiteDB - CVE-2022-23535 - DevHub",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://devme4f.github.io/posts/2023/dotnetnuke_cve-2017-9822/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "T?m hi?u CVE-2017-9822 - DotNetNuke Cookie Deserialization RCE | devme4f's blog"
+  },
+  "https://docs.metasploit.com/api/Msf/Util/DotNetDeserialization.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Module: Msf::Util::DotNetDeserialization ? Documentation by YARD 0.9.37"
+  },
+  "https://docs.metasploit.com/docs/development/developing-modules/libraries/deserialization/dot-net-deserialization.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Dot Net Deserialization | Metasploit Documentation Penetration Testing Software, Pen Testing Security"
+  },
+  "https://docs.ravendb.net/7.1/client-api/security/deserialization-security/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Security: Deserialization | RavenDB Documentation"
+  },
+  "https://dotnet9.com/2022/05/Net-advanced-code-audit-detailed-explanation-of-deserialization-gadget-Xaml": {
+   "class": "ok-redirect",
+   "decision": "keep",
+   "decision_date": "2026-08-02",
+   "decision_reason": "Site adds a /zh-CN/ locale prefix; the original URL is the locale-neutral address of the same article.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "redirect keeps 1.00 of the slug (cached)",
+   "redirects_to": "https://dotnet9.com/zh-CN/2022/05/Net-advanced-code-audit-detailed-explanation-of-deserialization-gadget-Xaml",
+   "title": ".NET??????-???? Gadget???XAML"
+  },
+  "https://dreadlocked.github.io/2019/10/25/kentico-cms-rce/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Analysis and explotation of 2019-10068, a Remote Command Execution in Kentico CMS <= 12.04"
+  },
+  "https://example.com": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Example Domain",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "first_seen": "2026-08-02"
+  },
+  "https://exp10it.io/posts/asp-net-viewstate-deserialization/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ASP.NET ViewState ???? | X1r0z Blog"
+  },
+  "https://exp10it.io/posts/dotnet-insecure-serialization/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "dotnet Insecure Serialization | X1r0z Blog"
+  },
+  "https://exp10it.io/posts/dotnet-new-deserialization-gadgets/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "dotnet New Deserialization Gadgets | X1r0z Blog"
+  },
+  "https://forum.defcon.org/node/245716": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "\"Second Breakfast: Implicit and Mutation-Based Serialization Vulnerabilities in .NET\" Jonathan Birch - DEF CON Forums",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "error",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "transport failure: ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host; certificate NOT verified"
+   },
+   "last_checked": "2026-08-02",
+   "note": "ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host; certificate NOT verified"
+  },
+  "https://gist.github.com/pwntester/f3693395000331d93de99f1ae560eb7a": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "YSoSerial.NET references ? GitHub"
+  },
+  "https://github.com/0xACB/viewgen": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - 0xacb/viewgen: Viewgen is a ViewState tool capable of generating both signed and encrypted payloads with leaked"
+  },
+  "https://github.com/Dor-Tumarkin/ActivitySurrogateSelector-.NET-3.5-Exploit-Generator": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - Dor-Tumarkin/ActivitySurrogateSelector-.NET-3.5-Exploit-Generator: Simple tool to create deserialization attack"
+  },
+  "https://github.com/Dor-Tumarkin/MSMQ-BinaryMessageFormatter-Exploit-for-.NET-3.5": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - Dor-Tumarkin/MSMQ-BinaryMessageFormatter-Exploit-for-.NET-3.5: This exploit was demonstrated in the talk \"(DE)S"
+  },
+  "https://github.com/Dor-Tumarkin/MSMQ-BinaryMessageFormatter-Exploit-for-.NET-4.5": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - Dor-Tumarkin/MSMQ-BinaryMessageFormatter-Exploit-for-.NET-4.5: This exploit was demonstrated in the talk \"(DE)S"
+  },
+  "https://github.com/FDlucifer/Proxy-Attackchain": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - FDlucifer/Proxy-Attackchain: Proxylogon & Proxyshell & Proxyoracle & Proxytoken & All exchange server history v"
+  },
+  "https://github.com/Illuminopi/RCEvil.NET": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - Illuminopi/RCEvil.NET ? GitHub"
+  },
+  "https://github.com/Immersive-Labs-Sec/SharePoint-CVE-2025-53770-POC": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - Immersive-Labs-Sec/SharePoint-CVE-2025-53770-POC ? GitHub"
+  },
+  "https://github.com/Ivan1ee/NET-Deserialize": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - Ivan1ee/NET-Deserialize: ???20+.Net??????????? ? GitHub"
+  },
+  "https://github.com/KTH-LangSec/SerialDetector": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - KTH-LangSec/SerialDetector: A proof-of-concept tool for detection and exploitation Object Injection Vulnerabili"
+  },
+  "https://github.com/NotSoSecure/Blacklist3r": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - NotSoSecure/Blacklist3r: project-blacklist3r ? GitHub"
+  },
+  "https://github.com/Orckestra/C1-CMS-Foundation/security/advisories/GHSA-gfhp-jgp6-838j": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Deserialization of untrusted data allows for arbitrary code execution. ? Advisory ? Orckestra/C1-CMS-Foundation ? GitHub"
+  },
+  "https://github.com/PortSwigger/dotnet-beautifier": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - PortSwigger/dotnet-beautifier: A BurpSuite extension for beautifying .NET message parameters and hiding some of"
+  },
+  "https://github.com/PortSwigger/viewstate-editor": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - PortSwigger/viewstate-editor: Burp extension to add a view state tab to the message editor ? GitHub"
+  },
+  "https://github.com/SohelParashar/.Net-Deserialization-Cheat-Sheet": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - SohelParashar/.Net-Deserialization-Cheat-Sheet ? GitHub"
+  },
+  "https://github.com/Voulnet/desharialize": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - Voulnet/desharialize ? GitHub"
+  },
+  "https://github.com/Y4er/dotnet-deserialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - Y4er/dotnet-deserialization: dotnet ???????? ? GitHub"
+  },
+  "https://github.com/Y4er/dotnet-deserialization/blob/main/.NET%20Remoting.md": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "dotnet-deserialization/.NET Remoting.md at main ? Y4er/dotnet-deserialization ? GitHub"
+  },
+  "https://github.com/Y4er/dotnet-deserialization/blob/main/BinaryFormatter.md": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "dotnet-deserialization/BinaryFormatter.md at main ? Y4er/dotnet-deserialization ? GitHub"
+  },
+  "https://github.com/Y4er/dotnet-deserialization/blob/main/Json.Net.md": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "dotnet-deserialization/Json.Net.md at main ? Y4er/dotnet-deserialization ? GitHub"
+  },
+  "https://github.com/Y4er/dotnet-deserialization/blob/main/ViewState.md": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "dotnet-deserialization/ViewState.md at main ? Y4er/dotnet-deserialization ? GitHub"
+  },
+  "https://github.com/advisories/GHSA-6r7c-6w96-8pvw": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Remote Code Execution in AjaxNetProfessional ? CVE-2021-23758 ? GitHub Advisory Database ? GitHub"
+  },
+  "https://github.com/advisories/GHSA-7j9m-j397-g4wx": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "MongoDB .NET/C# Driver vulnerable to Deserialization of Untrusted Data ? CVE-2022-48282 ? GitHub Advisory Database ? Git"
+  },
+  "https://github.com/advisories/GHSA-7q36-4xx7-xcxf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Untrusted data can lead to DoS attack due to hash collisions and stack overflow in MessagePack ? CVE-2020-5234 ? GitHub"
+  },
+  "https://github.com/advisories/GHSA-qhmf-xw27-6rqr": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "MessagePack-CSharp: Typeless deserialization type restrictions do not recurse into arrays or generic arguments ? CVE-202"
+  },
+  "https://github.com/advisories/GHSA-qjrp-xr9r-wmrg": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ScreenConnect versions 25.2.3 and earlier versions may be... ? CVE-2025-3935 ? GitHub Advisory Database ? GitHub"
+  },
+  "https://github.com/advisories/GHSA-rpch-cqj9-h65r": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "High severity vulnerability that affects YamlDotNet and YamlDotNet.Signed ? CVE-2018-1000210 ? GitHub Advisory Database"
+  },
+  "https://github.com/alienkeric/VisualStudio-RCE-EvilSln": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - alienkeric/VisualStudio-RCE-EvilSln: A New Exploitation Technique for Visual Studio Projects ? GitHub"
+  },
+  "https://github.com/arale61/VulnJsonWebApi": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - arale61/VulnJsonWebApi: Example of a json (de)serialization vulnerability and attack for dotnet based web api w"
+  },
+  "https://github.com/asynkron/Wire/security/advisories/GHSA-hpw7-3vq3-mmv6": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Do not use Wire - Insecure deserialization ? Advisory ? asynkron/Wire ? GitHub"
+  },
+  "https://github.com/bao7uo/RAU_crypto": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - bao7uo/RAU_crypto: Telerik UI for ASP.NET AJAX File upload and .NET deserialisation exploit (CVE-2017-11317, CV"
+  },
+  "https://github.com/bao7uo/dp_crypto": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - bao7uo/dp_crypto: Base64-based encryption oracle exploit for CVE-2017-9248 (Telerik UI for ASP.NET AJAX dialog"
+  },
+  "https://github.com/blacklanternsecurity/badsecrets": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - blacklanternsecurity/badsecrets: A library for detecting known secrets across many web frameworks ? GitHub"
+  },
+  "https://github.com/codewhitesec/ExploitRemotingService": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - codewhitesec/ExploitRemotingService: A tool to exploit .NET Remoting Services ? GitHub"
+  },
+  "https://github.com/codewhitesec/HttpRemotingObjRefLeak": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - codewhitesec/HttpRemotingObjRefLeak: Additional resources for leaking and exploiting ObjRefs via HTTP .NET Remo"
+  },
+  "https://github.com/codewhitesec/NewRemotingTricks": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - codewhitesec/NewRemotingTricks: New exploitation tricks for hardened .NET Remoting servers ? GitHub"
+  },
+  "https://github.com/codewhitesec/RogueRemotingServer": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - codewhitesec/RogueRemotingServer ? GitHub"
+  },
+  "https://github.com/danielgerlag/workflow-core/issues/1280": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "[Question]?Security Risk in TypeNameHandling.All in JsonSerializerSettings ? Issue #1280 ? danielgerlag/workflow-core ?"
+  },
+  "https://github.com/debasishm89/dotNetFuzz": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - debasishm89/dotNetFuzz: A quick and dirty .NET \"Deserialize_*\" fuzzer based on James Forshaw's (@tiraniddo) Dot"
+  },
+  "https://github.com/defensahacker/viewstate-decoder": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - defensahacker/viewstate-decoder: Small tool to decode ASP.NET __VIEWSTATE variable when doing webpentests ? Git"
+  },
+  "https://github.com/dotnet/announcements/issues/293": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "BinaryFormatter is being removed in .NET 9 ? Issue #293 ? dotnet/announcements ? GitHub"
+  },
+  "https://github.com/dotnet/announcements/issues/317": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "BinaryFormatter removal from .NET 9 is complete ? Issue #317 ? dotnet/announcements ? GitHub"
+  },
+  "https://github.com/dotnet/designs/blob/main/accepted/2020/better-obsoletion/binaryformatter-obsoletion.md": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "designs/accepted/2020/better-obsoletion/binaryformatter-obsoletion.md at main ? dotnet/designs ? GitHub"
+  },
+  "https://github.com/dotnet/docs/blob/main/docs/standard/serialization/system-text-json/polymorphism.md": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "docs/docs/standard/serialization/system-text-json/polymorphism.md at main ? dotnet/docs ? GitHub"
+  },
+  "https://github.com/dotnet/runtime/blob/main/src/libraries/System.Text.Json/docs/ThreatModel.md": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "runtime/src/libraries/System.Text.Json/docs/ThreatModel.md at main ? dotnet/runtime ? GitHub"
+  },
+  "https://github.com/dotnet/runtime/issues/63747": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Developers can use System.Text.Json to serialize type hierarchies securely ? Issue #63747 ? dotnet/runtime ? GitHub"
+  },
+  "https://github.com/frohoff/ysoserial": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - frohoff/ysoserial: A proof-of-concept tool for generating payloads that exploit unsafe Java object deserializat"
+  },
+  "https://github.com/gh-ost00/CVE-2024-4358": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - gh-ost00/CVE-2024-4358: Telerik Report Server deserialization and authentication bypass exploit chain for CVE-2"
+  },
+  "https://github.com/hackthebox/uni-ctf-2023": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - hackthebox/uni-ctf-2023: Official writeups for University CTF 2023: Brains & Bytes ? GitHub"
+  },
+  "https://github.com/irsdl/crapsecrets": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - irsdl/crapsecrets: A library for detecting known secrets across many web frameworks ? GitHub"
+  },
+  "https://github.com/isclayton/viewstalker": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - isclayton/viewstalker: A tool for identifying and exploiting vulnerable Viewstate implementations in ASP.NET ?"
+  },
+  "https://github.com/johniwasz/rce-serialization-dotnet": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - johniwasz/rce-serialization-dotnet: Examples of JSON and binary and serialization vulnerabilities in .NET ? Git"
+  },
+  "https://github.com/mandiant/Vulnerability-Disclosures/blob/master/2026/MNDT-2026-0009.md": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Vulnerability-Disclosures/2026/MNDT-2026-0009.md at master ? mandiant/Vulnerability-Disclosures ? GitHub"
+  },
+  "https://github.com/mandiant/heyserial": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - mandiant/heyserial: Programmatically create hunting rules for deserialization exploitation with multiple keywor"
+  },
+  "https://github.com/mdsecactivebreach/SharpShooter": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - mdsecactivebreach/SharpShooter: Payload Generation Framework ? GitHub"
+  },
+  "https://github.com/med0x2e/GadgetToJScript": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - med0x2e/GadgetToJScript: A tool for generating .NET serialized gadgets that can trigger .NET assembly load/exec"
+  },
+  "https://github.com/mgholam/fastJSON": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - mgholam/fastJSON: Smallest, fastest polymorphic JSON serializer ? GitHub"
+  },
+  "https://github.com/microsoft/mstic/blob/master/RapidReleaseTI/MachineKeyScan.ps1": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "mstic/RapidReleaseTI/MachineKeyScan.ps1 at master ? microsoft/mstic ? GitHub"
+  },
+  "https://github.com/murataydemir/CVE-2017-9822": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - murataydemir/CVE-2017-9822: [CVE-2017-9822] DotNetNuke Cookie Deserialization Remote Code Execution (RCE) ? Git"
+  },
+  "https://github.com/nccgroup/VulnerableDotNetHTTPRemoting/tree/master/ysoserial.net-v2": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "VulnerableDotNetHTTPRemoting/ysoserial.net-v2 at master ? nccgroup/VulnerableDotNetHTTPRemoting ? GitHub"
+  },
+  "https://github.com/nccgroup/freddy": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - nccgroup/freddy: Automatically identify deserialisation issues in Java and .NET applications by using active an"
+  },
+  "https://github.com/nettitude/Aladdin": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - nettitude/Aladdin ? GitHub"
+  },
+  "https://github.com/nines-nine/GadgetExplorer": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - nines-nine/GadgetExplorer: GadgetExplorer is a .NET command-line tool for finding potential deserialization gad"
+  },
+  "https://github.com/noperator/CVE-2019-18935": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - noperator/CVE-2019-18935: RCE exploit for a .NET JSON deserialization vulnerability in Telerik UI for ASP.NET A"
+  },
+  "https://github.com/omerlh/insecure-deserialisation-net-poc": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - omerlh/insecure-deserialisation-net-poc: A small webserver vulnerable to insecure deserialization ? GitHub"
+  },
+  "https://github.com/orangetw/My-CTF-Web-Challenges": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - orangetw/My-CTF-Web-Challenges: Collection of CTF Web challenges I made ? GitHub"
+  },
+  "https://github.com/pwntester/ViewStatePayloadGenerator": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - pwntester/ViewStatePayloadGenerator: ViewState Payload Generator ? GitHub"
+  },
+  "https://github.com/pwntester/dotnet-deserialization-scanner": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - pwntester/dotnet-deserialization-scanner: .NET Deserialization Passive Scanner ? GitHub"
+  },
+  "https://github.com/pwntester/ysoserial.net": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - pwntester/ysoserial.net: Deserialization payload generator for a variety of .NET formatters ? GitHub"
+  },
+  "https://github.com/raise-isayan/ViewStateDecoder": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - raise-isayan/ViewStateDecoder: Burpsuite extension. Supports ASP.NET ViewStateDecoder ? GitHub"
+  },
+  "https://github.com/revoverflow/ysoserial": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - revoverflow/ysoserial: ysoserial fork for mono support ? GitHub"
+  },
+  "https://github.com/security-code-scan/security-code-scan": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - security-code-scan/security-code-scan: Vulnerability Patterns Detector for C# and VB.NET ? GitHub"
+  },
+  "https://github.com/sinsinology/CVE-2022-26503": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - sinsinology/CVE-2022-26503 ? GitHub"
+  },
+  "https://github.com/synacktiv/DCOMIllusionist": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - synacktiv/DCOMIllusionist: DCOM in memory and fileless lateral movement techniques through .Net deserilization"
+  },
+  "https://github.com/thezdi/presentations/blob/main/2023_Hexacon/whitepaper-net-deser.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "presentations/2023_Hexacon/whitepaper-net-deser.pdf at main ? thezdi/presentations ? GitHub"
+  },
+  "https://github.com/tyranid/DotNetToJScript": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - tyranid/DotNetToJScript: A tool to create a JScript file which loads a .NET v2 assembly from memory. ? GitHub"
+  },
+  "https://github.com/tyranid/ExploitDotNetDCOM": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - tyranid/ExploitDotNetDCOM: A tool to exploit .NET DCOM for EoP and RCE. Is fixed in latest versions of the .NET"
+  },
+  "https://github.com/tyranid/ExploitRemotingService": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - tyranid/ExploitRemotingService: A tool to exploit .NET Remoting Services ? GitHub"
+  },
+  "https://github.com/watchtowrlabs/Citrix-Virtual-Apps-XEN-Exploit": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - watchtowrlabs/Citrix-Virtual-Apps-XEN-Exploit: Citrix Virtual Apps and Desktops (XEN) Unauthenticated RCE ? Git"
+  },
+  "https://github.com/yuvadm/viewstate": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - yuvadm/viewstate: ASP.NET View State Decoder ? GitHub"
+  },
+  "https://github.com/zyanfx/SafeDeserializationHelpers": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GitHub - zyanfx/SafeDeserializationHelpers: :japanese_ogre: Fixes known BinaryFormatter deserialization vulnerabilities"
+  },
+  "https://gmo-cybersecurity.com/blog/net-remoting-english/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploiting .NET Remoting with TypeFilterLevel Low and no MarshalByRef interfaces (????) | ????????? | ????????????????GM"
+  },
+  "https://gosecure.github.io/presentations/2018-03-18-confoo_mtl/Security_boot_camp_for_.NET_developers_Confoo_v2.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://gosecure.github.io/presentations/2019-04-29_atlseccon/History_of_Deserialization_v2.2.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://hackmd.io/@meowhecker/ryd4Jz17A": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "LAB - Deserialization - HackMD"
+  },
+  "https://hackmd.io/@michellenovenda/By4lXzywgl": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploiting ViewState Using ysoserial.net - HackMD"
+  },
+  "https://hackmd.io/@onsra03/SJ8Ke4ahC": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".NET JavaScriptSerializer Deserialization Vulnerability - HackMD"
+  },
+  "https://hacktricks.wiki/en/pentesting-web/deserialization/basic-.net-deserialization-objectdataprovider-gadgets-expandedwrapper-and-json.net.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Basic .Net deserialization (ObjectDataProvider gadget, ExpandedWrapper, and Json.Net) - HackTricks"
+  },
+  "https://hacktricks.wiki/en/pentesting-web/deserialization/exploiting-__viewstate-parameter.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploiting __VIEWSTATE without knowing the secrets - HackTricks"
+  },
+  "https://hadrian.io/blog/cve-2025-53690-critical-vulnerability-in-sitecore-leads-to-remote-code-execution": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2025-53690: Vulnerability in Sitecore leads to RCE"
+  },
+  "https://hnd3884.github.io/posts/cve-2022-22005-microsoft-sharepoint-RCE/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2022-22005 Microsoft SharePoint RCE | HoangND"
+  },
+  "https://i.blackhat.com/BH-EU-25/eu-25-Bazydlo-SOAPwn-wp.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://i.blackhat.com/BH-EU-25/eu-25-Bazydlo-SOAPwn.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://i.blackhat.com/BH-USA-26/Presentations/BHUS26-Mirosh-Transformers-Dark-Side-Slides.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-07",
+   "http_status": 200,
+   "last_checked": "2026-08-07",
+   "note": "http 200"
+  },
+  "https://i.blackhat.com/BH-USA-26/Presentations/BHUS26-Mirosh-Transformers-Dark-Side-WP.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-07",
+   "http_status": 200,
+   "last_checked": "2026-08-07",
+   "note": "http 200"
+  },
+  "https://i.blackhat.com/USA-19/Wednesday/us-19-Munoz-SSO-Wars-The-Token-Menace-wp.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://i.blackhat.com/USA21/Wednesday-Handouts/us-21-ProxyLogon-Is-Just-The-Tip-Of-The-Iceberg-A-New-Attack-Surface-On-Microsoft-Exchange-Server.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://illuminopi.com/assets/files/BSidesIowa_RCEvil.net_20190420.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://iltosec.com/blog/post/net-deserialization-leading-to-remote-code-execution-cve-2019-18211/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".NET Deserialization Leading to Remote Code Execution (CVE-2019-18211) ? iltosec"
+  },
+  "https://isc.sans.edu/diary/32174": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Stealing Machine Keys for fun and profit (or riding the SharePoint wave)"
+  },
+  "https://johniwasz.github.io/rce-serialization-dotnet/serialization/NET8JSON.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".NET 8 Json.NET Serialization Vulnerability | rce-serialization-dotnet"
+  },
+  "https://johniwasz.github.io/rce-serialization-dotnet/serialization/serialization.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Serialization Vulnerabilities | rce-serialization-dotnet"
+  },
+  "https://jorianwoltjer.com/blog/p/ctf/htb-university-ctf-2023/nexus-void": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Nexus Void | Jorian Woltjer"
+  },
+  "https://kth.diva-portal.org/smash/record.jsf?pid=diva2%3A1905323&dswid=-4319": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Making sure you're not a bot!"
+  },
+  "https://kudelskisecurity.com/research/gladinet-centrestack-and-gladinet-triofox---critical-rce": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Gladinet CentreStack and Gladinet Triofox ? Critical RCE - Kudelski Security Research Center"
+  },
+  "https://kudelskisecurity.com/research/persistent-exploitation-of-asp-net-components-fuels-remote-code-execution-attacks": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Persistent Exploitation of ASP.NET Components Fuels Remote Code Execution Attacks - Kudelski Security Research Center"
+  },
+  "https://labs.watchtowr.com/buy-a-help-desk-bundle-a-remote-access-solution-solarwinds-web-help-desk-pre-auth-rce-chain-s/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Buy A Help Desk, Bundle A Remote Access Solution? (SolarWinds Web Help Desk Pre-Auth RCE Chain(s))"
+  },
+  "https://labs.watchtowr.com/by-executive-order-we-are-banning-blacklists-domain-level-rce-in-veeam-backup-replication-cve-2025-23120/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "By Executive Order, We Are Banning Blacklists - Domain-Level RCE in Veeam Backup & Replication (CVE-2025-23120)"
+  },
+  "https://labs.watchtowr.com/bypassing-authentication-like-its-the-90s-pre-auth-rce-chain-s-in-kentico-xperience-cms/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Bypassing Authentication Like It?s The ?90s - Pre-Auth RCE Chain(s) in Kentico Xperience CMS"
+  },
+  "https://labs.watchtowr.com/cache-me-if-you-can-sitecore-experience-platform-cache-poisoning-to-rce/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Cache Me If You Can (Sitecore Experience Platform Cache Poisoning to RCE)"
+  },
+  "https://labs.watchtowr.com/more-than-dos-progress-telerik-ui-for-asp-net-ajax-unsafe-reflection-cve-2025-3600/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "More Than DoS (Progress Telerik UI for ASP.NET AJAX Unsafe Reflection CVE-2025-3600)"
+  },
+  "https://labs.watchtowr.com/soapwn-pwning-net-framework-applications-through-http-client-proxies-and-wsdl/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "SOAPwn: Pwning .NET Framework Applications Through HTTP Client Proxies And WSDL"
+  },
+  "https://labs.watchtowr.com/veeam-backup-response-rce-with-auth-but-mostly-without-auth-cve-2024-40711-2/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Veeam Backup & Response - RCE With Auth, But Mostly Without Auth (CVE-2024-40711)"
+  },
+  "https://labs.watchtowr.com/visionaries-at-citrix-have-democratised-remote-network-access-citrix-virtual-apps-and-desktops-cve-unknown/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Visionaries Have Democratised Remote Network Access - Citrix Virtual Apps and Desktops (CVE-2024-8068 and CVE-2024-8069)"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.runinstallerattribute": {
+   "class": "ok-redirect",
+   "decision": "keep",
+   "decision_date": "2026-08-02",
+   "decision_reason": "Cosmetic MS Learn ?view= redirect to the same API page.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "redirect keeps 1.00 of the slug (cached)",
+   "redirects_to": "https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.runinstallerattribute?view=net-10.0",
+   "title": "RunInstallerAttribute Class (System.ComponentModel) | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/api/system.configuration.install.assemblyinstaller": {
+   "class": "ok-redirect",
+   "decision": "keep",
+   "decision_date": "2026-08-02",
+   "decision_reason": "Same page; MS Learn only appended its default ?view= selector. Adopting it would pin the entry to today's framework view for no gain.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "redirect keeps 1.00 of the slug (cached)",
+   "redirects_to": "https://learn.microsoft.com/en-us/dotnet/api/system.configuration.install.assemblyinstaller?view=netframework-4.8.1",
+   "title": "AssemblyInstaller Class (System.Configuration.Install) | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.gchandle.free": {
+   "class": "ok-redirect",
+   "decision": "keep",
+   "decision_date": "2026-08-02",
+   "decision_reason": "Cosmetic MS Learn ?view= redirect to the same API page.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "redirect keeps 1.00 of the slug (cached)",
+   "redirects_to": "https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.gchandle.free?view=net-10.0",
+   "title": "GCHandle.Free Method (System.Runtime.InteropServices) | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/api/system.runtime.remoting.channels.binaryserverformattersink.typefilterlevel?view=netframework-4.8": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "BinaryServerFormatterSink.TypeFilterLevel Property (System.Runtime.Remoting.Channels) | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/api/system.runtime.remoting.channels.binaryserverformattersink?view=netframework-4.8": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "BinaryServerFormatterSink Class (System.Runtime.Remoting.Channels) | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/api/system.web.ui.objectstateformatter.deserialize?view=netframework-4.8.1": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ObjectStateFormatter.Deserialize Method (System.Web.UI) | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/api/system.windows.markup.xamlreader.parse": {
+   "class": "ok-redirect",
+   "decision": "keep",
+   "decision_date": "2026-08-02",
+   "decision_reason": "Cosmetic MS Learn ?view= redirect to the same API page.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "redirect keeps 1.00 of the slug (cached)",
+   "redirects_to": "https://learn.microsoft.com/en-us/dotnet/api/system.windows.markup.xamlreader.parse?view=windowsdesktop-10.0",
+   "title": "XamlReader.Parse Method (System.Windows.Markup) | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/core/compatibility/serialization/5.0/binaryformatter-serialization-obsolete": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Breaking change: BinaryFormatter serialization methods are obsolete and prohibited in ASP.NET apps - .NET | Microsoft Le"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/core/compatibility/serialization/7.0/binaryformatter-apis-produce-errors": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Breaking change: BinaryFormatter serialization APIs produce compiler errors - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/core/extensions/work-with-resx-files-programmatically": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Working with .resx Files Programmatically - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/framework/configure-apps/file-schema/runtime/loadfromremotesources-element": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "<loadFromRemoteSources> Element - .NET Framework | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/framework/data/adonet/dataset-datatable-dataview/security-guidance": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "DataSet and DataTable security guidance - ADO.NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/framework/migration-guide/runtime/4.5.x": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Runtime changes for migration to .NET Framework 4.5.x - .NET Framework | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/framework/wcf/feature-details/data-contract-serializer": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Data Contract Serializer - WCF | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/framework/wcf/feature-details/security-considerations-for-data": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Security Considerations for Data - WCF | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/framework/wcf/feature-details/serialization-and-deserialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Serialization and Deserialization - WCF | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2300": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2300: Do not use insecure deserializer BinaryFormatter (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2301": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2301: Do not call BinaryFormatter.Deserialize without first setting BinaryFormatter.Binder (code analysis) - .NET | Mi"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2302": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2302: Ensure BinaryFormatter.Binder is set before calling BinaryFormatter.Deserialize (code analysis) - .NET | Microso"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2321": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2321: Do not deserialize with JavaScriptSerializer using a SimpleTypeResolver (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2322": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2322: Ensure JavaScriptSerializer is not initialized with SimpleTypeResolver before deserializing (code analysis) - .N"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2326": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2326: Do not use TypeNameHandling values other than None (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2327": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2327: Do not use insecure JsonSerializerSettings (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2328": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2328: Ensure that JsonSerializerSettings are secure (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2329": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2329: Do not deserialize with JsonSerializer using an insecure configuration (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2330": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2330: Ensure that JsonSerializer has a secure configuration when deserializing (code analysis) - .NET | Microsoft Lear"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2350": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2350: Ensure DataTable.ReadXml()'s input is trusted (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2351": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2351: Ensure DataSet.ReadXml()'s input is trusted (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2352": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2352: Unsafe DataSet or DataTable in serializable type can be vulnerable to remote code execution attacks (code analys"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2355": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2355: Unsafe DataSet or DataTable in deserialized object graph (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2356": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA2356: Unsafe DataSet or DataTable type in web deserialized object graph (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca3010": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA3010: Review code for XAML injection vulnerabilities (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca3075": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA3075: Insecure DTD Processing (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca5360": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA5360: Do not call dangerous methods in deserialization (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca5369": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CA5369: Use XmlReader for Deserialize (code analysis) - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/fundamentals/syslib-diagnostics/syslib0011": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "SYSLIB0011 warning - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/standard/serialization/binaryformatter-migration-guide/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "BinaryFormatter migration guide - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/standard/serialization/binaryformatter-migration-guide/compatibility-package": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "BinaryFormatter migration guide: Compatibility Package - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/dotnet/standard/serialization/binaryformatter-security-guide": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Deserialization risks in use of BinaryFormatter and related types - .NET | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-psrp/602ee78e-9a19-45ad-90fa-bb132b7cecec": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "[MS-PSRP]: PowerShell Remoting Protocol | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-wpo/6196e693-41ae-47a3-871d-ee9bfc6d82a0": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "[MS-WPO]: IManagedObject Interface Protocol | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/convertfrom-clixml": {
+   "class": "ok-redirect",
+   "decision": "keep",
+   "decision_date": "2026-08-02",
+   "decision_reason": "Cosmetic MS Learn ?view=powershell-7.6 redirect to the same cmdlet reference.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "redirect keeps 1.00 of the slug (cached)",
+   "redirects_to": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/convertfrom-clixml?view=powershell-7.6",
+   "title": "ConvertFrom-CliXml (Microsoft.PowerShell.Utility) - PowerShell | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/import-clixml": {
+   "class": "ok-redirect",
+   "decision": "keep",
+   "decision_date": "2026-08-02",
+   "decision_reason": "Cosmetic MS Learn ?view=powershell-7.6 redirect to the same cmdlet reference.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "redirect keeps 1.00 of the slug (cached)",
+   "redirects_to": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/import-clixml?view=powershell-7.6",
+   "title": "Import-Clixml (Microsoft.PowerShell.Utility) - PowerShell | Microsoft Learn"
+  },
+  "https://learn.microsoft.com/en-us/powershell/scripting/security/remoting/wsman-remoting-in-powershell": {
+   "class": "ok-redirect",
+   "decision": "keep",
+   "decision_date": "2026-08-02",
+   "decision_reason": "Cosmetic MS Learn ?view=powershell-7.6 redirect to the same page.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "redirect keeps 1.00 of the slug (cached)",
+   "redirects_to": "https://learn.microsoft.com/en-us/powershell/scripting/security/remoting/wsman-remoting-in-powershell?view=powershell-7.6",
+   "title": "Using WS-Management (WSMan) Remoting in PowerShell - PowerShell | Microsoft Learn"
+  },
+  "https://lowleveldesign.wordpress.com/2014/11/11/decrypting-asp-net-identity-cookies/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Decrypting ASP.NET Identity cookies ? Debug notes by Sebastian Solnica"
+  },
+  "https://media.blackhat.com/bh-us-12/Briefings/Forshaw/BH_US_12_Forshaw_Are_You_My_Type_Slides.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://media.blackhat.com/bh-us-12/Briefings/Forshaw/BH_US_12_Forshaw_Are_You_My_Type_WP.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://media.defcon.org/DEF%20CON%2025/DEF%20CON%2025%20presentations/DEF%20CON%2025%20-%20Alvaro-Munoz-and-Oleksandr-Mirosh-JSON-Attacks-UPDATED.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200; certificate NOT verified (cached)"
+  },
+  "https://media.defcon.org/DEF%20CON%2031/DEF%20CON%2031%20presentations/Jonathan%20Birch%20-%20Second%20Breakfast%20Implicit%20and%20Mutation-Based%20Serialization%20Vulnerabilities%20in%20.NET-whitepaper.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200; certificate NOT verified (cached)"
+  },
+  "https://media.defcon.org/DEF%20CON%2031/DEF%20CON%2031%20presentations/Jonathan%20Birch%20-%20Second%20Breakfast%20Implicit%20and%20Mutation-Based%20Serialization%20Vulnerabilities%20in%20.NET.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200; certificate NOT verified (cached)"
+  },
+  "https://medium.com/@NourBassiouny/ascwg-2025-ctf-finals-neon-maze-challenge-writeup-7cf426672a58": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "ASCWG 2025 CTF Finals ? Neon Maze Challenge Writeup | by Nour El Dien Bassiouny | Medium",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://medium.com/@Whyte_/remote-code-execution-rce-via-telerik-dialog-handler-exploit-f6fa026d16c1": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Medium",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://medium.com/@alii76tt/net-deserialization-leading-to-remote-code-execution-in-composite-c1-cms-cve-2019-18211-f6874c45ce30": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": ".NET Deserialization Leading to Remote Code Execution in Composite C1 CMS ? CVE-2019?18211 | by Ali ?ltizar | Medium",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://medium.com/@frycos/searching-for-deserialization-protection-bypasses-in-microsoft-exchange-cve-2022-21969-bfa38f63a62d": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Searching for Deserialization Protection Bypasses in Microsoft Exchange (CVE-2022?21969) | by frycos | Medium",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://medium.com/@frycos/yet-another-net-deserialization-35f6ce048df7": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Yet Another .NET deserialization. This is my second post on white-box? | by frycos | Medium",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://medium.com/@qazbnm456/umbraco-lfi-exploitation-d32803661fa3": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Umbraco LFI Exploitation since 2015. A LFI vulnerability in Umbraco? | by Boik Su | Aug, 2020 | Medium | Medium",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://medium.com/@tvvzvpb186/ivanti-epm-rce-via-net-remoting-deserialization-cve-2024-29847-a74c94c38fe5": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Ivanti EPM RCE via .NET Remoting Deserialization (CVE-2024?29847) | by AerieWhole123 | Medium",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://mijailovic.net/2023/02/20/stack-overflow-exception/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "How safe are .NET serialization libraries against StackOverflowException"
+  },
+  "https://milestonesys.my.site.com/developer/s/article/XProtect-NET-security-vulnerability": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Developer Forum"
+  },
+  "https://modzero.com/en/blog/deserialization-attacks-in-dotnet-games/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Deserialization Attacks in .Net Games / modzero"
+  },
+  "https://mogwailabs.de/en/blog/2022/01/vulnerability-spotlight-rce-in-ajax.net-professional/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Vulnerability Spotlight: RCE in Ajax.NET Professional | MOGWAI LABS"
+  },
+  "https://mohamed-fakroud.gitbook.io/red-teamings-dojo/abusing-idispatch-for-trapped-com-object-access-and-injecting-into-ppl-processes": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Abusing IDispatch for Trapped COM Object Access & Injecting into PPL Processes | Red Teaming's Dojo"
+  },
+  "https://muffsec.com/blog/finding-a-new-datacontractserializer-rce-gadget-chain/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Finding a New DataContractSerializer RCE Gadget Chain ? muffSec"
+  },
+  "https://notsosecure.com/exploiting-viewstate-deserialization-using-blacklist3r-and-ysoserial-net": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploiting ViewState Deserialization using Blacklist3r and YSoSerial.Net | NotSoSecure"
+  },
+  "https://nsec.io/session/2019-deserialization-rce-for-modern-web-applications.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Deserialization: RCE for modern web applications ? NorthSec"
+  },
+  "https://nvd.nist.gov/vuln/detail/CVE-2026-50522": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "NVD - CVE-2026-50522"
+  },
+  "https://owasp.org/www-community/vulnerabilities/Insecure_Deserialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Insecure Deserialization | OWASP Foundation"
+  },
+  "https://pentest-tools.com/blog/exploit-dotnetnuke-cookie-deserialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "How to exploit the DotNetNuke Cookie Deserialization | Pentest-Tools.com Blog"
+  },
+  "https://people.kth.se/~musard/research/pubs/ndss21.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200; certificate NOT verified (cached)"
+  },
+  "https://peterjson.medium.com/some-notes-about-microsoft-exchange-deserialization-rce-cve-2021-42321-110d04e8852": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Medium"
+  },
+  "https://pkg.go.dev/github.com/projectdiscovery/dsl/deserialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "deserialization package - github.com/projectdiscovery/dsl/deserialization - Go Packages"
+  },
+  "https://portswigger.net/blog/viewstate-snooping": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ViewState snooping | Blog - PortSwigger"
+  },
+  "https://portswigger.net/kb/issues/00400600_asp-net-viewstate-without-mac-enabled": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ASP.NET ViewState without MAC enabled - PortSwigger"
+  },
+  "https://portswigger.net/web-security/deserialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Insecure deserialization | Web Security Academy"
+  },
+  "https://portswigger.net/web-security/deserialization/exploiting": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploiting insecure deserialization vulnerabilities | Web Security Academy"
+  },
+  "https://practical365.com/powershell-serialization-payload-signing-in-exchange-server/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "PowerShell Serialization Payload Signing in Exchange Server | Practical365"
+  },
+  "https://projectzero.google/2017/04/exploiting-net-managed-dcom.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploiting .NET Managed DCOM - Project Zero"
+  },
+  "https://protobuf-net.github.io/protobuf-net/3_0.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "v3.0 | protobuf-net"
+  },
+  "https://research.eye.security/sharepoint-under-siege/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "SharePoint Under Siege: ToolShell Exploit (CVE-2025-49706 & CVE-2025-49704) - Eye Research"
+  },
+  "https://research.eye.security/wsus-deserialization-exploit-in-the-wild-cve-2025-59287/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "WSUS Deserialization Exploit in the Wild (CVE?2025?59287) - Eye Research"
+  },
+  "https://rivers.chaitin.cn/blog/cq9ka0h0lnechd245pu0": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://russtone.io/2023/05/30/programming-with-xaml/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Programming with XAML: Assemly.Load for .NET deserialization"
+  },
+  "https://sec.vnpt.vn/2021/11/some-notes-of-microsoft-exchange-deserialization-rce-cve-2021-42321": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Some notes of Microsoft Exchange Deserialization RCE (CVE-2021?42321)"
+  },
+  "https://security.snyk.io/vuln/SNYK-DOTNET-SERVICESTACKTEXT-10500472": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Deserialization of Untrusted Data in servicestack.text | CVE-2025-6445 | Snyk"
+  },
+  "https://security.snyk.io/vuln/SNYK-DOTNET-SERVICESTACKTEXT-10500474": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "External Control of File Name or Path in servicestack.text | CVE-2025-6444 | Snyk"
+  },
+  "https://security.snyk.io/vuln/SNYK-DOTNET-YAMLDOTNET-60255": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Arbitrary Code Execution in yamldotnet | CVE-2018-1000210 | Snyk"
+  },
+  "https://securitylab.github.com/advisories/GHSL-2022-001_Orckestra_C1_CMS/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GHSL-2022-001: Deserialization vulnerability in Orckestra C1 CMS - CVE-2022-24789 | GitHub Security Lab"
+  },
+  "https://securitylab.github.com/research/exchange-rce-CVE-2020-0688/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2020-0688 Losing the keys to your kingdom | GitHub Security Lab"
+  },
+  "https://siebene.github.io/2023/03/27/Learning-Exploit-of-NET-Remoting/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Siebene@ Blog"
+  },
+  "https://slcyber.io/blog/sitecore-unsafe-deserialization-again-cve-2025-27218/": {
+   "browser": {
+    "date": "2026-08-02",
+    "final": "https://slcyber.io/research-center/sitecore-unsafe-deserialisation-again-cve-2025-27218/",
+    "http_status": 200,
+    "title": "Sitecore CVE-2025-27218: Unsafe Deserialization Vulnerability",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://snowscan.io/htb-writeup-json/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "JSON - Hack The Box - snowscan.io"
+  },
+  "https://soroush.me/blog/asp-net-resource-files-resx-and-deserialization-issues": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ASP.NET resource files (.RESX) and deserialization issues"
+  },
+  "https://soroush.me/blog/exploiting-deserialisation-in-asp-net-via-viewstate": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploiting Deserialisation in ASP.NET via ViewState"
+  },
+  "https://soroush.me/blog/file-upload-attack-using-xamlx-files": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "File Upload Attack using XAMLX Files"
+  },
+  "https://soroush.me/blog/finding-and-exploiting-net-remoting-over-http-using-deserialisation": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Finding and Exploiting .NET Remoting over HTTP using Deserialisation"
+  },
+  "https://soroush.me/blog/more-research-on-net-deserialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "More research on .NET deserialization"
+  },
+  "https://soroush.me/blog/story-of-two-published-rces-in-sharepoint-workflows": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Story of my two (but actually three) RCEs in SharePoint in 2018"
+  },
+  "https://soroush.me/blog/uploading-web-config-for-fun-and-profit-2": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Uploading web.config for Fun and Profit 2"
+  },
+  "https://soroush.me/downloadable/aspnet_resource_files_resx_deserialization_issues.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://soroush.me/downloadable/bypassing_workflows_protection_mechanisms_remote_code_execution_on_sharepoint.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://soroush.me/downloadable/use_of_deserialisation_in_dotnet_framework_methods_and_classes.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://soroush.me/downloadable/workflows_rce_upon_compiling_xoml_using_deserialization.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://speakerdeck.com/pwntester/attacking-net-serialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Attacking .NET Serialization - Speaker Deck"
+  },
+  "https://speakerdeck.com/pwntester/dot-net-serialization-detecting-and-defending-vulnerable-endpoints": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".NET Serialization: Detecting and defending vulnerable endpoints - Speaker Deck"
+  },
+  "https://srcincite.io/blog/2018/08/31/you-cant-contain-me-analyzing-and-exploiting-an-elevation-of-privilege-in-docker-for-windows.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "You can't contain me! :: Analyzing and Exploiting an Elevation of Privilege Vulnerability in Docker for Windows"
+  },
+  "https://srcincite.io/blog/2020/07/20/sharepoint-and-pwn-remote-code-execution-against-sharepoint-server-abusing-dataset.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "SharePoint and Pwn :: Remote Code Execution Against SharePoint Server Abusing DataSet"
+  },
+  "https://srcincite.io/pocs/cve-2020-16952.py.txt": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://ssd-disclosure.com/ssd-advisory-microsoft-sharepoint-server-wizardconnecttodatastep4-deserialization-of-untrusted-data-rce/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "SSD Advisory ? Microsoft SharePoint Server WizardConnectToDataStep4 Deserialization Of Untrusted Data RCE - SSD Secure D"
+  },
+  "https://starlabs.sg/blog/2023/04-microsoft-exchange-powershell-remoting-deserialization-leading-to-rce-cve-2023-21707/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Microsoft Exchange Powershell Remoting Deserialization leading to RCE (CVE-2023-21707) | STAR Labs"
+  },
+  "https://success.trendmicro.com/en-US/solution/KA-0019926": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CRITICAL SECURITY BULLETIN: Trend Micro Apex Central (June 2025)"
+  },
+  "https://summoning.team/blog/progress-whatsup-gold-rce-cve-2024-4885/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "WhatsUp Gold Pre-Auth RCE GetFileWithoutZip Primitive"
+  },
+  "https://summoning.team/blog/progress-whatsup-gold-writedatafile-cve-2024-4883-rce/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "WhatsUp Gold Pre-Auth RCE WriteDataFile Primitive"
+  },
+  "https://support.microsoft.com/en-us/servicing/office/update/2026/5002882": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Description of the security update for SharePoint Server Subscription Edition: July 14, 2026 (KB5002882) | Microsoft Sup"
+  },
+  "https://swapneildash.medium.com/deep-dive-into-net-viewstate-deserialization-and-its-exploitation-54bf5b788817": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Medium"
+  },
+  "https://swisskyrepo.github.io/PayloadsAllTheThings/API%20Key%20Leaks/IIS-Machine-Keys/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "IIS Machine Keys - Payloads All The Things"
+  },
+  "https://swisskyrepo.github.io/PayloadsAllTheThings/Insecure%20Deserialization/DotNET/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".NET Deserialization - Payloads All The Things"
+  },
+  "https://systemweakness.com/exploiting-json-serialization-in-net-core-694c111faa15": {
+   "class": "ok-redirect",
+   "decision": "keep",
+   "decision_date": "2026-08-02",
+   "decision_reason": "Medium only appended a ?gi= tracking parameter; the original URL is the clean address of the same article.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "redirect keeps 1.00 of the slug (cached)",
+   "redirects_to": "https://systemweakness.com/exploiting-json-serialization-in-net-core-694c111faa15?gi=557f63ff1a77",
+   "title": "Medium"
+  },
+  "https://testbnull.medium.com/microsoft-exchange-from-deserialization-to-post-auth-rce-cve-2021-28482-e713001d915f": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Medium"
+  },
+  "https://testbnull.medium.com/microsoft-exchange-powershell-remoting-deserialization-lead-to-rce-cve-2023-21707-4d0e6d282f02": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Medium"
+  },
+  "https://testbnull.medium.com/note-nhanh-v%E1%BB%81-binaryformatter-binder-v%C3%A0-cve-2022-23277-6510d469604c": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Medium"
+  },
+  "https://testbnull.medium.com/some-notes-of-microsoft-exchange-deserialization-rce-cve-2021-42321-f6750243cdcd": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Medium"
+  },
+  "https://thehackernews.com/2025/03/cisa-flags-two-six-year-old-sitecore.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CISA Warns of Sitecore RCE Flaws; Active Exploits Hit Next.js and DrayTek Devices"
+  },
+  "https://thehackernews.com/2025/04/cisa-warns-of-centrestacks-hard-coded.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CISA Warns of CentreStack's Hard-Coded MachineKey Vulnerability Enabling RCE Attacks"
+  },
+  "https://thehackernews.com/2025/10/from-lfi-to-rce-active-exploitation.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "From LFI to RCE: Active Exploitation Detected in Gladinet and TrioFox Vulnerability"
+  },
+  "https://thehackernews.com/2025/12/net-soapwn-flaw-opens-door-for-file.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".NET SOAPwn Flaw Opens Door for File Writes and Remote Code Execution via Rogue WSDL"
+  },
+  "https://thehackernews.com/2026/05/microsoft-patches-sharepoint-rce-flaw.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Microsoft Patches SharePoint RCE Flaw CVE-2026-45659 Across Server Versions"
+  },
+  "https://thehackernews.com/2026/07/cisa-adds-exploited-sharepoint-rce-zero.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CISA Adds Exploited SharePoint RCE Zero-Day CVE-2026-58644 to KEV"
+  },
+  "https://trustedsec.com/blog/spec-tac-ula-deserialization-deploying-specula-with-net": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "TrustedSec | Spec-tac-ula Deserialization: Deploying Specula with .NET"
+  },
+  "https://undercodetesting.com/unauthenticated-rce-vulnerability-in-mojoportal-cms-cve-from-directory-traversal-to-code-execution/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Unauthenticated RCE Vulnerability In MojoPortal CMS (CVE-): From Directory Traversal To Code Execution - Undercode Testi"
+  },
+  "https://unit42.paloaltonetworks.com/initial-access-broker-exploits-leaked-machine-keys/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GoldMelody?s Hidden Chords: Initial Access Broker In-Memory IIS Modules Revealed"
+  },
+  "https://unit42.paloaltonetworks.com/microsoft-sharepoint-cve-2025-49704-cve-2025-49706-cve-2025-53770/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Active Exploitation of Microsoft SharePoint Vulnerabilities"
+  },
+  "https://unit42.paloaltonetworks.com/proxynotshell-cve-2022-41040-cve-2022-41082/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ProxyNotShell Threat Brief - CVE-2022-41040 and CVE-2022-4108"
+  },
+  "https://versprite.com/resources/vs-labs/exploitation-of-remote-services/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Windows Exploit | Exploitation of Remote WCF Vulnerabilities"
+  },
+  "https://viblo.asia/p/insecure-serialization-and-new-gadgets-in-net-framework-p1-3RlL53kB4bB": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Insecure Serialization and new Gadgets in .NET framework (P1)"
+  },
+  "https://viblo.asia/p/insecure-serialization-and-new-gadgets-in-net-framework-p2-r1QLxBo24Aw": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Insecure Serialization and new Gadgets in .NET framework (P2)"
+  },
+  "https://viettelsecurity.com/microsoft-sharepoint-breach-linked-to-vulnerability-discovered-by-viettel-cyber-security-customer-alert-latest-research-and-recommendations/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://web.archive.org/web/20190920114132/https://labs.mwrinfosecurity.com/advisories/milestone-xprotect-net-deserialization-vulnerability/": {
+   "class": "archived",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "already a snapshot",
+   "unchecked": {
+    "date": "2026-08-02",
+    "reason": "skipped: already an archive snapshot, nothing to verify"
+   }
+  },
+  "https://web.archive.org/web/20220619183339/https://starlabs.sg/blog/2022/05/new-wine-in-old-bottle-microsoft-sharepoint-post-auth-deserialization-rce-cve-2022-29108/": {
+   "class": "archived",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "already a snapshot",
+   "unchecked": {
+    "date": "2026-08-02",
+    "reason": "skipped: already an archive snapshot, nothing to verify"
+   }
+  },
+  "https://web.archive.org/web/20220809200800/https://labs.withsecure.com/blog/autocad-designing-a-kill-chain/": {
+   "class": "archived",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "already a snapshot",
+   "unchecked": {
+    "date": "2026-08-02",
+    "reason": "skipped: already an archive snapshot, nothing to verify"
+   }
+  },
+  "https://web.archive.org/web/20230817214112/https://xz.aliyun.com/t/9598": {
+   "class": "archived",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "already a snapshot",
+   "unchecked": {
+    "date": "2026-08-02",
+    "reason": "skipped: already an archive snapshot, nothing to verify"
+   }
+  },
+  "https://web.archive.org/web/20240113211930/https://xz.aliyun.com/t/3019": {
+   "class": "archived",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "already a snapshot",
+   "unchecked": {
+    "date": "2026-08-02",
+    "reason": "skipped: already an archive snapshot, nothing to verify"
+   }
+  },
+  "https://web.archive.org/web/20240618062749/https://xz.aliyun.com/t/13002": {
+   "class": "archived",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "already a snapshot",
+   "unchecked": {
+    "date": "2026-08-02",
+    "reason": "skipped: already an archive snapshot, nothing to verify"
+   }
+  },
+  "https://web.archive.org/web/20241010111936/https://learn.microsoft.com/en-us/dotnet/fundamentals/runtime-libraries/system-xml-xmlreader-create": {
+   "class": "archived",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "already a snapshot",
+   "unchecked": {
+    "date": "2026-08-02",
+    "reason": "skipped: already an archive snapshot, nothing to verify"
+   }
+  },
+  "https://web.archive.org/web/20251117215145/https://portswigger.net/daily-swig/open-source-tool-serialdetector-speeds-up-discovery-of-net-deserialization-bugs": {
+   "class": "archived",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "already a snapshot",
+   "unchecked": {
+    "date": "2026-08-02",
+    "reason": "skipped: already an archive snapshot, nothing to verify"
+   }
+  },
+  "https://web.archive.org/web/20260227084925/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf": {
+   "class": "archived",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "already a snapshot",
+   "unchecked": {
+    "date": "2026-08-02",
+    "reason": "skipped: already an archive snapshot, nothing to verify"
+   }
+  },
+  "https://www.0xlanks.me/blog/cve-2025-28367-advisory/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Advisory: mojoPortal CMS - Unauthenticated Remote Code Execution via Directory Traversal & ViewState Deserialization (CV"
+  },
+  "https://www.3ds.com/trust-center/security/security-advisories/cve-2025-5086": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2025-5086 | Dassault Syst?mes"
+  },
+  "https://www.alphabot.com/security/blog/2017/net/How-to-configure-Json.NET-to-create-a-vulnerable-web-API.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "How to configure Json.NET to create a vulnerable web API - Alphabot Security"
+  },
+  "https://www.anquanke.com/post/id/221630": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".Net ????? ViewState ??-??KER - ??????"
+  },
+  "https://www.anquanke.com/subject/id/173339": {
+   "class": "ok-redirect",
+   "decision": "keep",
+   "decision_date": "2026-08-02",
+   "decision_reason": "Anquanke changed its URL scheme to subject.html?id=; same subject id on the same host, so the original still lands a reader on the series.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "redirect keeps 1.00 of the slug (cached)",
+   "redirects_to": "https://www.anquanke.com/subject.html?id=173339",
+   "title": "??KER - ??????"
+  },
+  "https://www.assetnote.io/resources/research/advisory-sitecore-rce-via-insecure-deserialization-cve-2021-42237": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Advisory: Sitecore RCE via Insecure Deserialization - CVE-2021-42237"
+  },
+  "https://www.assetnote.io/resources/research/leveraging-an-order-of-operations-bug-to-achieve-rce-in-sitecore-8-x---10-x": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Leveraging An Order of Operations Bug to Achieve RCE in Sitecore 8.x - 10.x"
+  },
+  "https://www.assetnote.io/resources/research/moveit-transfer-rce-part-two-cve-2023-34362": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "MOVEIt Transfer RCE Part Two (CVE-2023-34362)"
+  },
+  "https://www.assetnote.io/resources/research/rce-in-progress-ws-ftp-ad-hoc-via-iis-http-modules-cve-2023-40044": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "RCE in Progress WS_FTP Ad Hoc via IIS HTTP Modules (CVE-2023-40044)"
+  },
+  "https://www.assetnote.io/resources/research/sitecore-experience-platform-pre-auth-rce-cve-2021-42237": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Sitecore Experience Platform Pre-Auth RCE - CVE-2021-42237"
+  },
+  "https://www.blackhat.com/docs/us-17/thursday/us-17-Munoz-Friday-The-13th-JSON-Attacks-wp.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.blackhat.com/docs/us-17/thursday/us-17-Munoz-Friday-The-13th-Json-Attacks.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.bleepingcomputer.com/news/security/centrestack-rce-exploited-as-zero-day-to-breach-file-sharing-servers/": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "CentreStack RCE exploited as zero-day to breach file sharing servers",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://www.bleepingcomputer.com/news/security/knowledgedeliver-flaw-exploited-as-a-zero-day-to-install-web-shells/": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "KnowledgeDeliver flaw exploited as a zero-day to install web shells",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://www.broadcom.com/support/security-center/protection-bulletin/cve-2024-38094-microsoft-sharepoint-deserialization-vulnerability-exploited-in-the-wild": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2024-38094 - Microsoft SharePoint Deserialization vulnerability exploited in the wild"
+  },
+  "https://www.cisa.gov/news-events/ics-advisories/icsa-22-298-07": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Delta Electronics InfraSuite Device Master (Update A) | CISA"
+  },
+  "https://www.cisa.gov/news-events/ics-advisories/icsa-23-290-01": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Schneider Electric EcoStruxure Power Monitoring Expert and Power Operation Products | CISA"
+  },
+  "https://www.cisa.gov/news-events/ics-advisories/icsa-25-224-03": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Schneider Electric EcoStruxure (Update B) | CISA"
+  },
+  "https://www.claranet.com/us/blog/2018-11-18-project-blacklist3r": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Project Blacklist3r | Claranet Cyber Security"
+  },
+  "https://www.claranet.com/us/blog/2023-04-17-path-traversal-remote-code-execution": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Path Traversal to Remote Code Execution | Claranet Cyber Security"
+  },
+  "https://www.claroty.com/team82/research/critical-vulnerabilities-found-in-rockwell-factorytalk-assetcentre": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Critical Vulnerabilities Found in Rockwell FactoryTalk AssetCentre | Claroty"
+  },
+  "https://www.cnblogs.com/nice0e3/category/2025550.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".NET?? - ???? - nice_0e3 - ???"
+  },
+  "https://www.cnblogs.com/nice0e3/p/16945401.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "TextFormattingRunProperties ??? - nice_0e3 - ???"
+  },
+  "https://www.cnblogs.com/zpchcbd/p/17395442.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "XamlReader?Parse??????? - zpchcbd - ???"
+  },
+  "https://www.crowdstrike.com/en-us/blog/owassrf-exploit-analysis-and-recommendations/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "OWASSRF: CrowdStrike Identifies New Exploit Method for Exchange Bypassing ProxyNotShell Mitigations"
+  },
+  "https://www.csoonline.com/article/4203872/jetbrains-says-a-crafted-http-request-could-break-teamcity.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "JetBrains says a crafted HTTP request could break TeamCity | CSO Online"
+  },
+  "https://www.darkreading.com/cloud-security/citrix-recording-manager-zero-day-bug-unauthenticated-rce": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Citrix Zero-Day Bug Allows Unauthenticated RCE",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://www.darkreading.com/vulnerabilities-threats/reseachers-release-details-of-new-rce-exploit-chain-for-sharepoint": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Researchers Release Details of New RCE Exploit Chain for SharePoint",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://www.exploit-db.com/exploits/41903": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Microsoft Windows - ManagementObject Arbitrary .NET Serialization Remote Code Execution - Windows remote Exploit"
+  },
+  "https://www.exploit-db.com/exploits/44429": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CyberArk Password Vault Web Access < 9.9.5 / < 9.10 / 10.1 - Remote Code Execution - JSON webapps Exploit"
+  },
+  "https://www.exploit-db.com/exploits/49216": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "SmarterMail Build 6985 - Remote Code Execution - Windows remote Exploit"
+  },
+  "https://www.eye.security/blog/eye-security-uncovers-actively-exploited-zero-day-in-microsoft-sharepoint-cve-2025-53770": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Eye Security Uncovers Actively Exploited Zero-Day in Microsoft SharePoint (CVE-2025-53770)"
+  },
+  "https://www.greynoise.io/blog/greynoise-analysis-of-a-quartet-of-exchange-remote-code-execution-vulnerabilities-cve-2023-21529-cve-2023-21706-cve-2023-21707-cve-2023-21710": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "GreyNoise Analysis Of A Quartet of Exchange Remote Code Execution Vulnerabilities: CVE-2023-21529; CVE-2023-21706; CVE-2"
+  },
+  "https://www.hacktron.ai/blog/dassault-delmia-apriso-rce/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Hacktron finds pre-auth RCE in Dassault Delmia Apriso | Hacktron AI"
+  },
+  "https://www.helpnetsecurity.com/2026/07/28/teamcity-rce-cve-2026-63077-fixed/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "JetBrains fixes critical unauthenticated RCE in TeamCity On-Premises (CVE-2026-63077) - Help Net Security"
+  },
+  "https://www.herodevs.com/vulnerability-directory/cve-2024-48924": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "EOL Fix Available | CVE-2024-48924 | .NET"
+  },
+  "https://www.huntress.com/blog/active-exploitation-gladinet-centrestack-triofox-insecure-cryptography-vulnerability": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Gladinet CentreStack/Triofox: Cryptography Vulnerability | Huntress"
+  },
+  "https://www.huntress.com/blog/gladinet-centrestack-triofox-local-file-inclusion-flaw": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Active Exploitation of Gladinet CentreStack and Triofox | Huntress"
+  },
+  "https://www.ibm.com/think/x-force/fileless-lateral-movement-trapped-com-objects": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Fileless lateral movement with trapped COM objects | IBM"
+  },
+  "https://www.invicti.com/web-application-vulnerabilities/asp-net-viewstate-weak-validation-key": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ASP.NET ViewState Weak Validation Key - Web Application Vulnerabilities | Invicti"
+  },
+  "https://www.invicti.com/web-application-vulnerabilities/net-json-net-deserialization-rce": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".NET JSON.NET Deserialization RCE - Web Application Vulnerabilities | Invicti"
+  },
+  "https://www.ionix.io/threat-center/cve-2026-13181/": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "CVE-2026-13181 ? Remote Code Execution via Unsafe Type Resolution ? Progress Telerik UI for ASP.N... - IONIX",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2026-13181 ? Remote Code Execution via Unsafe Type Resolution ? Progress Telerik UI for ASP.N... - IONIX"
+  },
+  "https://www.kb.cert.org/vuls/id/706695": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "VU#706695 - Checkbox Survey insecurely deserializes ASP.NET View State data"
+  },
+  "https://www.keysight.com/blogs/en/tech/nwvs/2022/03/10/cve-2020-17144-microsoft-exchange-server-ews-insecure-deserialization": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "CVE-2020-17144 : Microsoft Exchange Server EWS Insecure Deserialization",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Access Denied"
+  },
+  "https://www.levelblue.com/blogs/spiderlabs-blog/unauthenticated-remote-code-execution-in-kentico-cms/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Unauthenticated Remote Code Execution In Kentico CMS"
+  },
+  "https://www.lrqa.com/en/cyber-labs/introducing-aladdin/": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Introducing Aladdin",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://www.mdsec.co.uk/2017/09/exploiting-cve-2017-8759-soap-wsdl-parser-code-injection/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Exploiting CVE-2017-8759: SOAP WSDL Parser Code Injection - MDSec"
+  },
+  "https://www.mdsec.co.uk/2020/02/cve-2020-0618-rce-in-sql-server-reporting-services-ssrs/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2020-0618: RCE in SQL Server Reporting Services (SSRS) - MDSec"
+  },
+  "https://www.mdsec.co.uk/2020/04/introducing-ysoserial-net-april-2020-improvements/": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "Introducing YSoSerial.Net April 2020 Improvements - MDSec",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Introducing YSoSerial.Net April 2020 Improvements - MDSec"
+  },
+  "https://www.mdsec.co.uk/2020/05/analysis-of-cve-2020-0605-code-execution-using-xps-files-in-net/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Analysis of CVE-2020-0605 ? Code Execution using XPS Files in .NET - MDSec"
+  },
+  "https://www.mdsec.co.uk/2020/09/i-like-to-move-it-windows-lateral-movement-part-2-dcom/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "I Like to Move It: Windows Lateral Movement Part 2 - DCOM - MDSec"
+  },
+  "https://www.mdsec.co.uk/2021/09/nsa-meeting-proposal-for-proxyshell/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "NSA Meeting Proposal for ProxyShell - MDSec"
+  },
+  "https://www.mdsec.co.uk/2022/03/abc-code-execution-for-veeam/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ABC-Code Execution for Veeam - MDSec"
+  },
+  "https://www.microsoft.com/en-us/security/blog/2022/09/30/analyzing-attacks-using-the-exchange-vulnerabilities-cve-2022-41040-and-cve-2022-41082/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Analyzing attacks using the Exchange vulnerabilities CVE-2022-41040 and CVE-2022-41082 | Microsoft Security Blog"
+  },
+  "https://www.microsoft.com/en-us/security/blog/2025/02/06/code-injection-attacks-using-publicly-disclosed-asp-net-machine-keys/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Code injection attacks using publicly disclosed ASP.NET machine keys | Microsoft Security Blog"
+  },
+  "https://www.microsoft.com/en-us/security/blog/2025/07/22/disrupting-active-exploitation-of-on-premises-sharepoint-vulnerabilities/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Disrupting active exploitation of on-premises SharePoint vulnerabilities | Microsoft Security Blog"
+  },
+  "https://www.miggo.io/vulnerability-database/cve/CVE-2022-23535": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2022-23535: LiteDB JSON Object Injection RCE | Miggo"
+  },
+  "https://www.miggo.io/vulnerability-database/cve/CVE-2022-48282": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2022-48282: MongoDB .NET Driver Deser RCE | Miggo"
+  },
+  "https://www.modzero.com/modlog/archives/2020/06/16/mz-20-03_-_new_security_advisory_regarding_vulnerabilities_in__net/index.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200; meta refresh to https://modzero.com/en/blog/dotnet-security-advisory/ (cached)",
+   "title": "https://modzero.com/en/blog/dotnet-security-advisory/"
+  },
+  "https://www.nccgroup.com/research/freddy-an-extension-for-automatically-identifying-deserialisation-issues-in-java-and-net-applications/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Freddy: An extension for automatically identifying deserialisation issues in Java and .NET applications | NCC Group"
+  },
+  "https://www.nccgroup.com/research/technical-advisory-multiple-vulnerabilities-in-smartermail/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Technical Advisory: Multiple Vulnerabilities in SmarterMail | NCC Group"
+  },
+  "https://www.ndss-symposium.org/ndss-paper/serialdetector-principled-and-practical-exploration-of-object-injection-vulnerabilities-for-the-web/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "SerialDetector: Principled and Practical Exploration of Object Injection Vulnerabilities for the Web - NDSS Symposium"
+  },
+  "https://www.netspi.com/blog/technical-blog/red-teaming/re-animating-activitysurrogateselector/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Re-Animating ActivitySurrogateSelector - NetSPI"
+  },
+  "https://www.netwrix.com/en/resources/blog/generating-deserialization-payloads-for-messagepack-cs-typeless-mode/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "MessagePack Typeless mode deserialization exploits explained"
+  },
+  "https://www.newtonsoft.com/json/help/html/t_newtonsoft_json_typenamehandling.htm": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "TypeNameHandling Enumeration"
+  },
+  "https://www.rapid7.com/blog/post/2021/08/12/proxyshell-more-widespread-exploitation-of-microsoft-exchange-servers/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ProxyShell: More Widespread Exploitation of Microsoft Exchange Servers | Rapid7 Blog"
+  },
+  "https://www.rapid7.com/blog/post/2022/12/21/cve-2022-41080-cve-2022-41082-rapid7-observed-exploitation-of-owassrf-in-exchange-for-rce/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2022-41080, CVE-2022-41082: Rapid7 Observed Exploitation of `OWASSRF` in Exchange for RCE | Rapid7 Blog"
+  },
+  "https://www.rapid7.com/blog/post/2023/06/01/rapid7-observed-exploitation-of-critical-moveit-transfer-vulnerability/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Observed Exploitation of MOVEit Transfer Vulnerability CVE-2023-34362 | Rapid7 Blog"
+  },
+  "https://www.rapid7.com/blog/post/2024/10/30/investigating-a-sharepoint-compromise-ir-tales-from-the-field/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Investigating a SharePoint Compromise: IR Tales from the Field | Rapid7 Blog"
+  },
+  "https://www.rapid7.com/blog/post/etr-zero-day-exploitation-of-microsoft-sharepoint-servers-cve-2025-53770/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero-day exploitation in the wild of Microsoft SharePoint servers via CVE-2025-53770"
+  },
+  "https://www.rapid7.com/blog/post/ra-cve-2021-42237-analysis/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Rapid7 Analysis: CVE-2021-42237"
+  },
+  "https://www.rapid7.com/blog/post/ra-cve-2023-27532-analysis/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Rapid7 Analysis: CVE-2023-27532"
+  },
+  "https://www.rapid7.com/blog/post/ra-cve-2023-40044-analysis/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Rapid7 Analysis: CVE-2023-40044"
+  },
+  "https://www.rapid7.com/blog/post/ve-cve-2026-55040-microsoft-sharepoint-jwt-token-authentication-bypass-fixed/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2026-55040: Microsoft SharePoint JWT Token Authentication Bypass (FIXED)"
+  },
+  "https://www.rapid7.com/db/vulnerabilities/cve-2018-9843/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2018-9843: Deserialization of Untrusted Data | Rapid7 Vulnerability Database"
+  },
+  "https://www.rapid7.com/db/vulnerabilities/cve-2021-25274/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2021-25274: Deserialization of Untrusted Data | Rapid7 Vulnerability Database"
+  },
+  "https://www.rapid7.com/db/vulnerabilities/cve-2024-5016/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2024-5016: Deserialization of Untrusted Data | Rapid7 Vulnerability Database"
+  },
+  "https://www.redteam-pentesting.de/de/advisories/rt-sa-2017-014/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CyberArk Password Vault Web Access Remote Code Execution - RedTeam Pentesting"
+  },
+  "https://www.resecurity.com/blog/article/from-web-request-to-domain-compromise-understanding-the-july-2026-sharepoint-attacks": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Resecurity | From Web Request to Domain Compromise: Understanding the July 2026 SharePoint Attacks"
+  },
+  "https://www.se.com/ph/en/download/document/SEVD-2026-069-06/": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "SEVD-2026-069-06 Deserialization of Untrusted Data vulnerability on Multiple Products | Schneider Electric",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Access Denied"
+  },
+  "https://www.secpod.com/learn/security-research/solarwinds-fixed-critical-rce-cve-2024-28991-in-access-rights-manager-patch-now": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "SolarWinds Fixed Critical RCE (CVE-2024-28991) in Access Rights Manage | SecPod"
+  },
+  "https://www.securityweek.com/solarwinds-patches-high-severity-flaws-in-access-rights-manager/": {
+   "browser": {
+    "date": "2026-08-02",
+    "http_status": 200,
+    "title": "SolarWinds Patches High-Severity Flaws in Access Rights Manager - SecurityWeek",
+    "verdict": "alive"
+   },
+   "browser_verified_on": "2026-08-02",
+   "class": "blocked",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "http_status": 403,
+   "http_unreadable": {
+    "date": "2026-08-02",
+    "reason": "not verifiable over plain HTTP: http 403 (needs a human) (bot wall or refusal; try browser_fetch.py)"
+   },
+   "last_checked": "2026-08-02",
+   "note": "http 403 (needs a human)",
+   "title": "Just a moment..."
+  },
+  "https://www.slideshare.net/DorTumarkin/deserial-killers-bsides-las-vegas-appsec-il-2018-113212745": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Client Challenge"
+  },
+  "https://www.slideshare.net/slideshow/dangerous-contents-securing-net-deserialization/83686352": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Client Challenge"
+  },
+  "https://www.slideshare.net/slideshow/net-deserialization-attacks/264388492": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Client Challenge"
+  },
+  "https://www.sonicwall.com/blog/critical-viewstate-deserialization-zero-day-in-sitecore-cve-2025-53690-": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.sonicwall.com/blog/exploited-in-the-wild-delmia-apriso-insecure-deserialization-cve-2025-5086-": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.synacktiv.com/ressources/advisories/Sitecore_CSRF_deserialize_RCE.pdf": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/asyncupload-insecure-direct-object-reference": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Web Forms Insecure Direct Object Reference in RadAsyncUpload - Telerik UI for ASP.NET AJAX"
+  },
+  "https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/asyncupload-unrestricted-file-upload": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Web Forms Unrestricted File Upload in RadAsyncUpload - Telerik UI for ASP.NET AJAX"
+  },
+  "https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/common-allows-javascriptserializer-deserialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Web Forms Allows JavaScriptSerializer Deserialization - Telerik UI for ASP.NET AJAX"
+  },
+  "https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/common-cryptographic-weakness": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Web Forms Cryptographic Weakness - Telerik UI for ASP.NET AJAX"
+  },
+  "https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/kb-security-critical-rce-chain-bulletin-july-2026": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Web Forms Critical Security Bulletin - Multiple Vulnerabilities Chained to Remote Code Execution (July 2026) - T"
+  },
+  "https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/kb-security-deserialization-of-untrusted-data-cve-2026-6023": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Web Forms Deserialization of Untrusted Data Vulnerability (CVE-2026-6023) - Telerik UI for ASP.NET AJAX"
+  },
+  "https://www.telerik.com/products/aspnet-ajax/documentation/knowledge-base/kb-security-unsafe-reflection-cve-2025-3600": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Web Forms Unsafe Reflection Vulnerability (3600) - Telerik UI for ASP.NET AJAX"
+  },
+  "https://www.telerik.com/products/reporting/documentation/knowledge-base/deserialization-vulnerability-cve-2024-1801-cve-2024-1856": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Reporting Insecure Deserialization Vulnerability - Telerik Reporting"
+  },
+  "https://www.telerik.com/products/reporting/documentation/knowledge-base/deserialization-vulnerability-cve-2024-4200": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Reporting Unsafe Deserialization Vulnerability - Telerik Reporting"
+  },
+  "https://www.telerik.com/products/reporting/documentation/knowledge-base/unsafe-reflection-cve-2024-6096": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Reporting Object Injection Vulnerability - Telerik Reporting"
+  },
+  "https://www.telerik.com/report-server/documentation/knowledge-base/deserialization-vulnerability-cve-2024-1800": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Report Server Insecure Deserialization Vulnerability - Telerik Report Server"
+  },
+  "https://www.telerik.com/report-server/documentation/knowledge-base/deserialization-vulnerability-cve-2024-6327": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Telerik Report Server Insecure Deserialization Vulnerability - Telerik Report Server"
+  },
+  "https://www.tenable.com/blog/cve-2023-29357-cve-2023-24955-exploit-chain-released-for-microsoft-sharepoint-server": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2023-29357, CVE-2023-24955: Exploit Chain Released for Microsoft SharePoint Server Vulnerabilities - Blog | Tenable?"
+  },
+  "https://www.tenable.com/cve/CVE-2019-9874": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "CVE-2019-9874 | Tenable?"
+  },
+  "https://www.thezdi.com/blog/2019/9/18/cve-2019-1257-code-execution-on-microsoft-sharepoint-through-bdc-deserialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? CVE-2019-1257: Code Execution on Microsoft SharePoint Through BDC Deserialization"
+  },
+  "https://www.thezdi.com/blog/2020/2/24/cve-2020-0688-remote-code-execution-on-microsoft-exchange-server-through-fixed-cryptographic-keys": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? CVE-2020-0688: Remote Code Execution on Microsoft Exchange Server Through Fixed Cryptographic Keys"
+  },
+  "https://www.thezdi.com/blog/2020/4/28/cve-2020-0932-remote-code-execution-on-microsoft-sharepoint-using-typeconverters": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? CVE-2020-0932: Remote Code Execution on Microsoft SharePoint Using TypeConverters"
+  },
+  "https://www.thezdi.com/blog/2021/8/17/from-pwn2own-2021-a-new-attack-surface-on-microsoft-exchange-proxyshell": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? From Pwn2Own 2021: A New Attack Surface on Microsoft Exchange - ProxyShell!"
+  },
+  "https://www.thezdi.com/blog/2023/2/27/cve-2022-38108-rce-in-solarwinds-network-performance-monitor": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? CVE-2022-38108: RCE in SolarWinds Network Performance Monitor"
+  },
+  "https://www.thezdi.com/blog/2023/9/21/finding-deserialization-bugs-in-the-solarwind-platform": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? Finding Deserialization Bugs in the SolarWinds Platform"
+  },
+  "https://www.thezdi.com/blog/2024/9/11/exploiting-exchange-powershell-after-proxynotshell-part-2-approvedapplicationcollection": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? Exploiting Exchange PowerShell After ProxyNotShell: Part 2 - ApprovedApplicationCollection"
+  },
+  "https://www.thezdi.com/blog/2024/9/18/exploiting-exchange-powershell-after-proxynotshell-part-3-dll-loading-chain-for-rce": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? Exploiting Exchange PowerShell After ProxyNotShell: Part 3 ? DLL Loading Chain for RCE"
+  },
+  "https://www.thezdi.com/blog/2024/9/4/exploiting-exchange-powershell-after-proxynotshell-part-1-multivaluedproperty": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? Exploiting Exchange PowerShell After ProxyNotShell: Part 1 - MultiValuedProperty"
+  },
+  "https://www.tiraniddo.dev/2014/11/stupid-is-as-stupid-does-when-it-comes.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Tyranid's Lair: Stupid is as Stupid Does When It Comes to .NET Remoting"
+  },
+  "https://www.tiraniddo.dev/2017/07/dg-on-windows-10-s-executing-arbitrary.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Tyranid's Lair: DG on Windows 10 S: Executing Arbitrary Code"
+  },
+  "https://www.tiraniddo.dev/2019/10/bypassing-low-type-filter-in-net.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Tyranid's Lair: Bypassing Low Type Filter in .NET Remoting"
+  },
+  "https://www.tiraniddo.dev/2020/05/old-net-vulnerability-5-security.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Tyranid's Lair: Old .NET Vulnerability #5: Security Transparent Compiled Expressions (CVE-2013-0073)"
+  },
+  "https://www.truesec.com/hub/blog/attacking-powershell-clixml-deserialization": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Attacking PowerShell CLIXML Deserialization - Truesec"
+  },
+  "https://www.truesec.com/hub/blog/how-to-break-out-of-hyper-v-and-compromise-your-admins": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "How to Break Out of Hyper-V and Compromise your Admins - Truesec"
+  },
+  "https://www.veeam.com/kb4288": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "KB4288: CVE-2022-26500 | CVE-2022-26501"
+  },
+  "https://www.veeam.com/kb4289": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "KB4289: CVE-2022-26503"
+  },
+  "https://www.veeam.com/kb4424": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "KB4424: CVE-2023-27532"
+  },
+  "https://www.vulncheck.com/blog/making-dotnet-gadgets": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Making Serialization Gadgets by Hand - .NET | Blog | VulnCheck"
+  },
+  "https://www.yahooinc.com/paranoids/paranoids-vulnerability-research-ivanti-issues-security-alert": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Paranoids Vulnerability Research: Ivanti Issues Security Alert | Paranoids | Yahoo Inc."
+  },
+  "https://www.youtube.com/watch?v=--6PiuvBGAU": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=8cMmNSThVAM": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=AxNO2iA2fAg": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=NqHsaVhlxAQ": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=Xfbu-pQ1tIc": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=ZBfBYoK_Wr0": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=ZcOZNAmKR0c&feature=youtu.be": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=_CJmUh0_uOM": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=eDfGpu3iE4Q": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=oxlD8VWWHE8": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=qDoBlLwREYk": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=tFYi5Nftc4A": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.youtube.com/watch?v=v0fraChyonQ": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)"
+  },
+  "https://www.zcgonvh.com/post/weaponizing_CVE-2020-0688_and_about_dotnet_deserialize_vulnerability.html": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "?????-CVE-2020-0688?????.net?????????"
+  },
+  "https://www.zerodayinitiative.com/advisories/ZDI-20-261/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ZDI-20-261 - TrendAI? Zero Day Initiative? (ZDI)"
+  },
+  "https://www.zerodayinitiative.com/advisories/ZDI-21-1304/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ZDI-21-1304 - TrendAI? Zero Day Initiative? (ZDI)"
+  },
+  "https://www.zerodayinitiative.com/advisories/ZDI-23-1754/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ZDI-23-1754 - TrendAI? Zero Day Initiative? (ZDI)"
+  },
+  "https://www.zerodayinitiative.com/advisories/ZDI-24-403/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ZDI-24-403 - TrendAI? Zero Day Initiative? (ZDI)"
+  },
+  "https://www.zerodayinitiative.com/advisories/ZDI-25-416/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ZDI-25-416 - TrendAI? Zero Day Initiative? (ZDI)"
+  },
+  "https://www.zerodayinitiative.com/advisories/ZDI-26-412/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md",
+    "docs/references.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "ZDI-26-412 - TrendAI? Zero Day Initiative? (ZDI)"
+  },
+  "https://www.zerodayinitiative.com/blog/2018/8/14/voicemail-vandalism-getting-remote-code-execution-on-microsoft-exchange-server": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? Voicemail Vandalism: Getting Remote Code Execution on Microsoft Exchange Server"
+  },
+  "https://www.zerodayinitiative.com/blog/2019/10/23/cve-2019-1306-are-you-my-index": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? CVE-2019-1306: Are you my Index?"
+  },
+  "https://www.zerodayinitiative.com/blog/2019/3/13/cve-2019-0604-details-of-a-microsoft-sharepoint-rce-vulnerability": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? CVE-2019-0604: Details of a Microsoft SharePoint RCE Vulnerability"
+  },
+  "https://www.zerodayinitiative.com/blog/2020/2/24/cve-2020-0688-remote-code-execution-on-microsoft-exchange-server-through-fixed-cryptographic-keys": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? CVE-2020-0688: Remote Code Execution on Microsoft Exchange Server Through Fixed Cryptographic Keys"
+  },
+  "https://www.zerodayinitiative.com/blog/2020/4/28/cve-2020-0932-remote-code-execution-on-microsoft-sharepoint-using-typeconverters": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? CVE-2020-0932: Remote Code Execution on Microsoft SharePoint Using TypeConverters"
+  },
+  "https://www.zerodayinitiative.com/blog/2021/3/17/cve-2021-27076-a-replay-style-deserialization-attack-against-sharepoint": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? CVE-2021-27076: A Replay-Style Deserialization Attack Against SharePoint"
+  },
+  "https://www.zerodayinitiative.com/blog/2021/6/1/cve-2021-31181-microsoft-sharepoint-webpart-interpretation-conflict-remote-code-execution-vulnerability": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? CVE-2021-31181: Microsoft SharePoint WebPart Interpretation Conflict Remote Code Execution Vulnera"
+  },
+  "https://www.zerodayinitiative.com/blog/2022/11/14/control-your-types-or-get-pwned-remote-code-execution-in-exchange-powershell-backend": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? Control Your Types or Get Pwned: Remote Code Execution in Exchange PowerShell Backend"
+  },
+  "https://www.zerodayinitiative.com/blog/2023/9/21/finding-deserialization-bugs-in-the-solarwind-platform": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? Finding Deserialization Bugs in the SolarWinds Platform"
+  },
+  "https://www.zerodayinitiative.com/blog/2024/12/11/solarwinds-access-rights-manager-one-vulnerability-to-lpe-them-all": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? SolarWinds Access Rights Manager: One Vulnerability to LPE Them All"
+  },
+  "https://www.zerodayinitiative.com/blog/2024/9/25/exploiting-exchange-powershell-after-proxynotshell-part-4-no-argument-constructor": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zero Day Initiative ? Exploiting Exchange PowerShell After ProxyNotShell: Part 4 ? No Argument Constructor"
+  },
+  "https://zac-tee.medium.com/deriving-actual-machine-keys-with-isolateapps-modifier-2d38d2681619": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Medium"
+  },
+  "https://zenn.dev/litharge/articles/16862a6d6884b8": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Microsoft???BinaryFormatter???????"
+  },
+  "https://zeroed.tech/blog/decrypting-viewstate-messages/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zeroed Tech"
+  },
+  "https://zeroed.tech/blog/viewstate-the-unpatchable-iis-forever-day-being-actively-exploited/": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Zeroed Tech"
+  },
+  "https://zeropath.com/blog/microsoft-sharepoint-cve-2025-30382-deserialization-rce": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Microsoft SharePoint's CVE-2025-30382: Unpacking the Deserialization RCE Risk - ZeroPath Blog | ZeroPath"
+  },
+  "https://zeropath.com/blog/veeam-cve-2025-48983-rce-summary": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": "Veeam Backup & Replication CVE-2025-48983: Brief Summary of Critical Remote Code Execution Vulnerability - ZeroPath Blog"
+  },
+  "https://znlive.com/xmlserializer-deserialization-vulnerability": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-08-02",
+   "last_checked": "2026-08-02",
+   "note": "http 200 (cached)",
+   "title": ".NET Advanced Code Auditing XmlSerializer Deserialization Vulnerability ? Coding Life"
+  }
+ },
+ "schema": 1,
+ "updated": "2026-08-07"
+}

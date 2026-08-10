@@ -62,7 +62,7 @@ def read(markup, url=""):
 
 
 def licence_for(url):
-    host = (urlsplit(url or "").hostname or "").lower()
+    host = (urlsplit(_source_url(url)).hostname or "").lower()
     if host.startswith("www."):
         host = host[4:]
     return KNOWN_LICENCES.get(host, "unknown")
@@ -170,8 +170,17 @@ def _html_lang(markup):
 
 
 def _host(url):
-    host = (urlsplit(url or "").hostname or "").lower()
+    host = (urlsplit(_source_url(url)).hostname or "").lower()
     return host[4:] if host.startswith("www.") else host
+
+
+def _source_url(url):
+    """The URL a page is really OF: a Wayback replay's host is the archive, not
+    the publisher, so a snapshot of a page with no declared site name was filed
+    under `web.archive.org`. Unwrap the capture before reading host-derived
+    fields (publisher fallback, licence)."""
+    from . import wayback
+    return wayback.original_url(url)
 
 
 def _plain(text):

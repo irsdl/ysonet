@@ -19,6 +19,8 @@ namespace ysonet.Interactive
         public string BridgedFormatter;  // gadgets only
         public CommandInputType CommandInput; // gadgets only; what -c means
         public List<GadgetVariant> Variants;  // gadgets only; empty if none
+        public GadgetFacetSet Facets;         // gadgets only; variant may override it
+        public bool SupportsLegacyFx;          // gadgets only; controls the shared field
         public List<OptionField> OptionFields;
         public List<PluginMode> Modes;        // plugins that declare interactive modes; else null
 
@@ -52,6 +54,8 @@ namespace ysonet.Interactive
             view.BridgedFormatter = g.SupportedBridgedFormatter();
             view.CommandInput = g.CommandInput();
             view.Variants = g.Variants();
+            view.Facets = g.Facets();
+            view.SupportsLegacyFx = g.SupportsLegacyFx();
             view.OptionFields = OptionField.FromOptionSet(g.Options());
             return view;
         }
@@ -71,6 +75,7 @@ namespace ysonet.Interactive
             view.Labels = new List<string>();
             view.BridgedFormatter = "";
             view.Variants = new List<GadgetVariant>();
+            view.Facets = null;
             view.OptionFields = OptionField.FromOptionSet(p.Options());
             view.Modes = (p is IPluginModes) ? ((IPluginModes)p).InteractiveModes() : null;
             return view;

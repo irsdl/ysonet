@@ -14,9 +14,9 @@ CONFIG = {"media_policy": {"store_binaries": False,
                            "binary_kinds": ["whitepaper", "slides", "video", "image"]}}
 
 PAGE = ("<html><head><title>Getting Shell</title>"
-        '<meta property="og:site_name" content="NCC Group">'
+        '<meta property="og:site_name" content="Example Labs">'
         '<meta property="article:published_time" content="2019-08-23T10:00:00Z">'
-        '<meta name="author" content="Soroush Dalili"></head><body>'
+        '<meta name="author" content="Jane Researcher"></head><body>'
         "<nav>menu</nav><main><h1>Getting Shell</h1><p>" + ("prose " * 200) + "</p>"
         "<pre><code>ysonet.exe -g ObjectDataProvider</code></pre></main>"
         "<footer>copyright</footer></body></html>")
@@ -196,10 +196,10 @@ class TestMetadata(unittest.TestCase):
                  "cited_by": ["docs/list.md:1"], "health": {"status": "ok"}}
         record = acquire.acquire("k", entry, self.store, FakeFetcher(), CONFIG).record
         self.assertEqual(record["title"], "Getting Shell")
-        self.assertEqual(record["publisher"], "NCC Group")
+        self.assertEqual(record["publisher"], "Example Labs")
         self.assertEqual(record["published"], "2019-08-23")
-        self.assertIn("Soroush Dalili", record["authors"])
-        self.assertTrue(record["slug"].startswith("2019-ncc-group-"))
+        self.assertIn("Jane Researcher", record["authors"])
+        self.assertTrue(record["slug"].startswith("2019-example-labs-"))
 
     def test_a_stored_document_records_both_hashes(self):
         entry = {"spellings": ["https://example.org/post"], "kind": "article",

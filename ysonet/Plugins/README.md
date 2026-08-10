@@ -23,7 +23,7 @@ again so the final source state ends with a green FULL suite.
 
 # `IsPrivate()`
 
-`IPlugin` requires one more member, and every plugin must answer it:
+Every plugin must answer the visibility member explicitly:
 
 ```csharp
 // A public plugin: it is listed everywhere, with or without --display-private.
@@ -40,6 +40,18 @@ it is named with `-p`, with no flag, and its errors are the same as any other pl
 The member is required rather than optional on purpose: the answer is visible in every
 plugin file, and the compiler makes a new plugin state it. The rule lives in
 `Helpers/Core/PrivateModulePolicy.cs`; `GadgetTags.Private` is the gadget twin.
+
+# `RuntimeVersions()`
+
+Every plugin returns a non-empty `List<string>` of `RuntimeVersion` tokens for the
+complete plugin envelope and its consumer—not merely the gadget nested inside it. Return
+`RuntimeVersion.Unspecified` until a test observes the plugin's real effect on a concrete
+target runtime. Do not mix `unspecified` with concrete versions, and do not turn two
+measured endpoints into a range unless every intervening version is evidenced.
+
+The LEGACY tier records plugin sources separately from their readers and earns the CLR-v2
+tokens. Current-runtime execution rows call `RuntimeBuild.RecordPluginFired`. The version
+evidence audit treats gadget and plugin claims the same way.
 
 # Security review notice
 

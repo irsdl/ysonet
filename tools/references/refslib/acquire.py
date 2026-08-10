@@ -19,7 +19,7 @@ Video was already excluded on separate grounds: the useful part is metadata,
 description and captions, none of which is the media file.
 """
 
-from . import boilerplate, extract_html, github, grade as grade_module
+from . import boilerplate, dates, extract_html, github, grade as grade_module
 from . import htmltext, kinds, meta
 from . import sanitise, slugs
 
@@ -216,6 +216,9 @@ def acquire(key, entry, store, fetcher, config, taken_slugs=(), refetch=False,
     body = sanitise.sanitise_text(trimmed)
     facts = meta.read(markup, final_url)
     title = facts["title"] or _title_from(chosen.markdown) or url
+    # A date the page did not DECLARE is often still in the article, the byline
+    # or the URL. Only fills when metadata gave none, so a declared date wins.
+    published = facts["published"] or dates.recover_published(body.text, url)
 
     # A challenge page can answer a health probe as a document and serve a wall
     # when the content is fetched. One was archived as though it were the paper.
@@ -235,11 +238,11 @@ def acquire(key, entry, store, fetcher, config, taken_slugs=(), refetch=False,
         # an entry's OWN slug as taken made every --force run append the next
         # number, so five files became "...-2" and would have become "-3".
         "slug": slugs.pinned(entry.get("slug")) or slugs.build(
-            title, facts["publisher"], slugs.year_of(facts["published"]), taken=taken_slugs),
+            title, facts["publisher"], dates.slug_year(published, title), taken=taken_slugs),
         "title": title,
         "authors": facts["authors"],
         "publisher": facts["publisher"],
-        "published": facts["published"],
+        "published": published,
         "licence": facts["licence"],
         "language": (facts["language"] or "").split("_")[0][:5],
         "kind": kind,
@@ -338,14 +341,15 @@ def _github(key, url, entry, kind, store, fetcher, taken_slugs):
     raw_sha = store.put_text(body)
     content_sha = store.put_text(cleaned.text)
     title = facts["title"] or entry.get("cited_title") or url
+    published = facts["published"] or dates.recover_published(cleaned.text, url)
     return Acquired(key, "stored", {
         "slug": slugs.pinned(entry.get("slug")) or slugs.build(
-            title, facts["publisher"], slugs.year_of(facts["published"]),
+            title, facts["publisher"], dates.slug_year(published, title),
             taken=taken_slugs),
         "title": title,
         "authors": facts["authors"],
         "publisher": facts["publisher"],
-        "published": facts["published"],
+        "published": published,
         "licence": meta.licence_for(url),
         "kind": kind,
         "original_url": url,
@@ -505,10 +509,11 @@ def _document(key, url, entry, kind, store, fetcher, taken_slugs, refetch, ladde
         return Acquired(key, "failed", reason=verdict.reason, raw_sha256=raw_sha,
                         decision=verdict.as_dict())
     content_sha = store.put_text(cleaned.text)
+    published = published or dates.recover_published(cleaned.text, url)
 
     return Acquired(key, "stored", {
         "slug": slugs.pinned(entry.get("slug")) or slugs.build(title, publisher,
-                                                 slugs.year_of(published), taken=taken_slugs),
+                                                 dates.slug_year(published, title), taken=taken_slugs),
         "title": title,
         "authors": authors,
         "publisher": publisher,
@@ -559,18 +564,19 @@ def _html_document(key, url, entry, kind, raw, raw_sha, retrieved_kind, final_ur
     content_sha = store.put_text(body.text)
     facts = meta.read(markup, final_url)
     title = facts["title"] or slugs.readable_title(entry.get("cited_title"), url) or url
+    published = facts["published"] or dates.recover_published(body.text, url)
     verdict = decide(body.text, url)
     if verdict.outcome == "skip":
         return Acquired(key, "failed", reason=verdict.reason, raw_sha256=raw_sha,
                         decision=verdict.as_dict())
     return Acquired(key, "stored", {
         "slug": slugs.pinned(entry.get("slug")) or slugs.build(title, facts["publisher"],
-                                                 slugs.year_of(facts["published"]),
+                                                 dates.slug_year(published, title),
                                                  taken=taken_slugs),
         "title": title,
         "authors": facts["authors"],
         "publisher": facts["publisher"],
-        "published": facts["published"],
+        "published": published,
         "licence": facts["licence"],
         "language": (facts["language"] or "").split("_")[0][:5],
         "kind": kind,

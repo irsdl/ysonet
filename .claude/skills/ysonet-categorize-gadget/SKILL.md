@@ -173,6 +173,37 @@ lands. Tokens live in `RuntimeVersion`: `net-fx-2.0` through `net-fx-4.8.1`,
 - Never fill this axis in to make a gadget look better documented. `unspecified`
   is the honest and expected value for most of the catalog.
 
+#### The FLOOR is measured too, not assumed
+
+The ceiling rule above has a mirror. Most of the catalog declares a 4.0 floor
+because 2.0 - 3.5 is a different CLR nobody had run these on, not because anyone
+measured a refusal. The LEGACY test tier (`ysonet.Tests.exe --legacy`) measures
+it: it deserializes the real payload on CLR 2 in lanes for 2.0, 3.0 and 3.5.
+
+- Cheap static check first, and it is free: a NORMAL run prints
+  `LEGACY floor candidates`, the gadgets whose generated payload names NO 4.x
+  assembly version. The most common CLR-2 blocker is an assembly VERSION string
+  in our own payload rather than an absent type, so that list is the filter.
+- Then add a row to `LegacyClrRows` in `ysonet.Tests/Tiers/LegacyClrTier.cs` (a private
+  module uses the `RunPrivateLegacyRows` hook into the same engine) and run the
+  tier.
+- A gadget earns a low token only when ALL FOUR hold: the child reported
+  `Environment.Version` `2.0.50727` (asserted, not assumed - the `.exe.config`
+  pin is not proof); the row's real EFFECT was observed, never "no exception";
+  no assembly from a newer framework was recorded as loaded; and the lane's
+  reference set matches the token being claimed.
+- A `net-fx-2.0` claim means 2.0 at the servicing level the run header prints.
+  Installing 3.5 SP1 service-packs the 2.0 files in place, and a 2.0-only box is
+  not installable on modern Windows, so a 2.0-RTM answer is out of reach here.
+- Record both bounds, or say explicitly that the floor was not measured. A
+  measured NEGATIVE is a result worth keeping: put the classified reason in
+  `AdditionalInfo()` (for example "below 4.0 only BinaryFormatter and
+  LosFormatter work, because the SOAP / NetDataContract / DataContract readers
+  bind the payload's `Version=4.0.0.0` verbatim"), never in a facet value.
+- The version-evidence check is symmetric, so a floor observation is REPORTED
+  (`couldLower`) rather than failing the run. Do not read a green run as
+  "nothing to declare"; read the advisory lines.
+
 ## 4. Apply requested changes
 
 When the user asks for edits:

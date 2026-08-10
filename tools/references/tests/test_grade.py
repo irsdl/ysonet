@@ -99,7 +99,7 @@ class TestMaintainerOverride(unittest.TestCase):
     def test_a_maintainer_skip_wins_over_a_document_that_looks_fine(self):
         decision = grade.classify(ARTICLE, url="https://example.org/post",
                                   override={"outcome": "skip", "class": "derivative",
-                                            "reason": "restates the NCC post"})
+                                            "reason": "restates the vendor post"})
         self.assertEqual(decision.outcome, "skip")
         self.assertIsNone(decision.folder)
         self.assertEqual(decision.rule, "maintainer")

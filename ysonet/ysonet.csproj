@@ -218,8 +218,11 @@
     <Compile Include="Generators\DataTableGenerator.cs" />
     <Compile Include="Generators\DataTableTypeSpoofGenerator.cs" />
     <Compile Include="Generators\DataViewManagerXxeGenerator.cs" />
+    <Compile Include="Generators\XmlDocumentXxeGenerator.cs" />
+    <Compile Include="Generators\XmlDocumentSurrogateXxeGenerator.cs" />
     <Compile Include="Generators\DynamicUpdateMapExtensionGenerator.cs" />
     <Compile Include="Generators\FileSystemInfoGenerator.cs" />
+    <Compile Include="Generators\FileSystemProxyCurrentDirectoryGenerator.cs" />
     <Compile Include="Generators\GetterSecurityExceptionGenerator.cs" />
     <Compile Include="Generators\GetterSettingsPropertyValueGenerator.cs" />
     <Compile Include="Generators\HostedPayloads\XamlAssemblyLoadFromFileGenerator.cs" />
@@ -237,6 +240,7 @@
     <Compile Include="Generators\HostedPayloads\ActivitySurrogateDisableTypeCheckGenerator.cs" />
     <Compile Include="Generators\ActivitySurrogateSelectorFromFileGenerator.cs" />
     <Compile Include="Generators\ActivitySurrogateSelectorGenerator.cs" />
+    <Compile Include="Generators\AssemblyCatalogLoadGenerator.cs" />
     <Compile Include="Generators\AssemblyInstallerLoadGenerator.cs" />
     <Compile Include="Generators\Base\IGenerator.cs" />
     <Compile Include="Generators\Base\GenericGenerator.cs" />
@@ -247,7 +251,9 @@
     <Compile Include="Generators\Patched\PSObjectGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateFileOperationsGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateGenerator.cs" />
+    <Compile Include="Generators\TypeConfuseDelegateLegacyWorkflowGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateMonoGenerator.cs" />
+    <Compile Include="Generators\TypeConfuseDelegateNet40WorkflowGenerator.cs" />
     <Compile Include="Generators\WbemClassObjectUnmarshalGenerator.cs" />
     <Compile Include="Generators\WSManPluginInstanceGenerator.cs" />
     <Compile Include="Generators\WindowsClaimsIdentityGenerator.cs" />
@@ -284,6 +290,7 @@
     <Compile Include="Helpers\Cli\HelpText.cs" />
     <Compile Include="Helpers\Cli\UpdateChecker.cs" />
     <Compile Include="Helpers\Core\DosPolicy.cs" />
+    <Compile Include="Helpers\Core\Clr2SelfTest.cs" />
     <Compile Include="Helpers\Core\IsolatedSelfTest.cs" />
     <Compile Include="Helpers\Core\LegacyXmlDefaults.cs" />
     <Compile Include="Helpers\Core\PayloadRunner.cs" />
@@ -324,6 +331,9 @@
     <Compile Include="Helpers\ModifiedVulnerableBinaryFormatters\binaryutilclasses.cs" />
     <Compile Include="Helpers\SharpSerializer\SharpSerializerTypeSwap.cs" />
     <Compile Include="Helpers\Serialization\FormatterType.cs" />
+    <Compile Include="Helpers\Serialization\LegacyFrameworkIdentities.cs" />
+    <Compile Include="Helpers\Serialization\LegacyFrameworkIdentities.Nrbf.cs" />
+    <Compile Include="Helpers\Serialization\LegacyFrameworkIdentities.ObjectState.cs" />
     <Compile Include="Helpers\Serialization\MinifiedTextGuard.cs" />
     <Compile Include="Helpers\Serialization\PayloadReader.cs" />
     <Compile Include="Helpers\Serialization\SerializersHelper.cs" />
@@ -522,6 +532,73 @@
                       Overwrite="true" WriteOnlyWhenDifferent="true" />
     <ItemGroup>
       <Compile Include="$(YsonetVersionGeneratedFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Build the deliberately isolated CLR2 self-test victim from tracked, readable source.
+    It is not a project in this solution: every product project remains on 4.7.2, while
+    this one-shot executable is compiled by the installed CLR2 toolchain and shipped beside
+    ysonet.exe. Debug builds warn when .NET 3.5 is absent (the feature cannot run there
+    anyway); Release builds fail so a published archive can never silently omit the host.
+  -->
+  <PropertyGroup>
+    <Clr2SelfTestSource>$(MSBuildProjectDirectory)\..\tools\clr2-self-test\Clr2SelfTestHost.cs</Clr2SelfTestSource>
+    <Clr2SelfTestConfig>$(MSBuildProjectDirectory)\..\tools\clr2-self-test\ysonet.Clr2TestHost.exe.config</Clr2SelfTestConfig>
+    <Clr2FrameworkDir>$(SystemRoot)\Microsoft.NET\Framework\v2.0.50727</Clr2FrameworkDir>
+    <Clr2Compiler Condition="Exists('$(SystemRoot)\Microsoft.NET\Framework\v3.5\csc.exe')">$(SystemRoot)\Microsoft.NET\Framework\v3.5\csc.exe</Clr2Compiler>
+    <Clr2Compiler Condition="'$(Clr2Compiler)' == '' and Exists('$(Clr2FrameworkDir)\csc.exe')">$(Clr2FrameworkDir)\csc.exe</Clr2Compiler>
+    <Clr2SelfTestExe>$(TargetDir)ysonet.Clr2TestHost.exe</Clr2SelfTestExe>
+    <Clr2SelfTestOutputConfig>$(Clr2SelfTestExe).config</Clr2SelfTestOutputConfig>
+  </PropertyGroup>
+  <Target Name="BuildClr2SelfTestHost" AfterTargets="Build"
+          Inputs="$(Clr2SelfTestSource);$(Clr2SelfTestConfig)"
+          Outputs="$(Clr2SelfTestExe);$(Clr2SelfTestOutputConfig)">
+    <Error Condition="!Exists('$(Clr2SelfTestSource)')" Text="CLR2 self-test source not found: $(Clr2SelfTestSource)" />
+    <Error Condition="!Exists('$(Clr2SelfTestConfig)')" Text="CLR2 self-test runtime config not found: $(Clr2SelfTestConfig)" />
+    <Warning Condition="'$(Clr2Compiler)' == '' and '$(Configuration)' != 'Release'"
+             Text="CLR2 self-test host was not built because .NET Framework 3.5 / CLR2 is not installed. --testclr2 will be unavailable." />
+    <Error Condition="'$(Clr2Compiler)' == '' and '$(Configuration)' == 'Release'"
+           Text="A Release must ship ysonet.Clr2TestHost.exe. Install .NET Framework 3.5 / CLR2 on the build machine." />
+    <Exec Condition="'$(Clr2Compiler)' != ''"
+          Command="&quot;$(Clr2Compiler)&quot; /nologo /noconfig /nostdlib+ /target:exe /platform:anycpu /optimize+ /warn:4 /out:&quot;$(Clr2SelfTestExe)&quot; /r:&quot;$(Clr2FrameworkDir)\mscorlib.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.Web.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.Runtime.Remoting.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.Runtime.Serialization.Formatters.Soap.dll&quot; &quot;$(Clr2SelfTestSource)&quot;" />
+    <Copy Condition="'$(Clr2Compiler)' != ''" SourceFiles="$(Clr2SelfTestConfig)"
+          DestinationFiles="$(Clr2SelfTestOutputConfig)" OverwriteReadOnlyFiles="true" />
+    <ItemGroup Condition="'$(Clr2Compiler)' != ''">
+      <FileWrites Include="$(Clr2SelfTestExe);$(Clr2SelfTestOutputConfig)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Build the general CLR4 test victim from tracked, readable source. Like the CLR2 host it
+    is not a solution project: it is a one-shot deserialization host, compiled here by the
+    installed .NET Framework 4.x compiler and shipped beside ysonet.exe. It runs on whatever
+    4.x is installed (it does NOT require the exact 4.0 shape the net40 host proves), so an
+    operator can fire a payload locally and confirm it works on CLR4. The 4.x compiler is
+    always present on a machine that can build this product, so a missing compiler is an
+    error in every configuration rather than a Debug-only warning.
+  -->
+  <PropertyGroup>
+    <Clr4TestHostSource>$(MSBuildProjectDirectory)\..\tools\clr4-test-host\Clr4TestHost.cs</Clr4TestHostSource>
+    <Clr4TestHostConfig>$(MSBuildProjectDirectory)\..\tools\clr4-test-host\ysonet.Clr4TestHost.exe.config</Clr4TestHostConfig>
+    <Clr4FrameworkDir>$(SystemRoot)\Microsoft.NET\Framework\v4.0.30319</Clr4FrameworkDir>
+    <Clr4Compiler Condition="Exists('$(Clr4FrameworkDir)\csc.exe')">$(Clr4FrameworkDir)\csc.exe</Clr4Compiler>
+    <Clr4TestHostExe>$(TargetDir)ysonet.Clr4TestHost.exe</Clr4TestHostExe>
+    <Clr4TestHostOutputConfig>$(Clr4TestHostExe).config</Clr4TestHostOutputConfig>
+  </PropertyGroup>
+  <Target Name="BuildClr4TestHost" AfterTargets="Build"
+          Inputs="$(Clr4TestHostSource);$(Clr4TestHostConfig)"
+          Outputs="$(Clr4TestHostExe);$(Clr4TestHostOutputConfig)">
+    <Error Condition="!Exists('$(Clr4TestHostSource)')" Text="CLR4 test host source not found: $(Clr4TestHostSource)" />
+    <Error Condition="!Exists('$(Clr4TestHostConfig)')" Text="CLR4 test host runtime config not found: $(Clr4TestHostConfig)" />
+    <Error Condition="'$(Clr4Compiler)' == ''"
+           Text="The .NET Framework 4.x compiler ($(Clr4FrameworkDir)\csc.exe) was not found; ysonet.Clr4TestHost.exe cannot be built." />
+    <Exec Condition="'$(Clr4Compiler)' != ''"
+          Command="&quot;$(Clr4Compiler)&quot; /nologo /noconfig /nostdlib+ /target:exe /platform:anycpu /optimize+ /warn:4 /out:&quot;$(Clr4TestHostExe)&quot; /r:&quot;$(Clr4FrameworkDir)\mscorlib.dll&quot; /r:&quot;$(Clr4FrameworkDir)\System.dll&quot; /r:&quot;$(Clr4FrameworkDir)\System.Web.dll&quot; /r:&quot;$(Clr4FrameworkDir)\System.Runtime.Remoting.dll&quot; /r:&quot;$(Clr4FrameworkDir)\System.Runtime.Serialization.Formatters.Soap.dll&quot; &quot;$(Clr4TestHostSource)&quot;" />
+    <Copy Condition="'$(Clr4Compiler)' != ''" SourceFiles="$(Clr4TestHostConfig)"
+          DestinationFiles="$(Clr4TestHostOutputConfig)" OverwriteReadOnlyFiles="true" />
+    <ItemGroup Condition="'$(Clr4Compiler)' != ''">
+      <FileWrites Include="$(Clr4TestHostExe);$(Clr4TestHostOutputConfig)" />
     </ItemGroup>
   </Target>
 

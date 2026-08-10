@@ -42,12 +42,22 @@ namespace ysonet.Generators
      *   hardened -> null                   -> DtdParserProxy_PushExternalSubset returns false
      *
      * and EnableLegacyXmlSettings() is true when the deserializing APPLICATION targets below
-     * .NET Framework 4.5.2, or when the machine opted back in through the
-     * EnableLegacyXmlSettings switch. Every modern 4.x runtime still fires this against such
-     * an app, and no runtime fires it under the hardened default. THAT is what the declared
-     * version span 4.0 - 4.5.1 means: the framework the TARGET APP was built against, not the
-     * one installed where it runs, and not this tool's own. The machine-switch route is not a
-     * version and stays in AdditionalInfo().
+     * .NET Framework 4.5.2, when the machine opted back in through the EnableLegacyXmlSettings
+     * switch, or when the application declares NO target framework moniker at all. Every modern
+     * 4.x runtime still fires this against such an app, and no runtime fires it under the
+     * hardened default. THAT is what the declared version span 4.0 - 4.5.1 means: the framework
+     * the TARGET APP was built against, not the one installed where it runs, and not this
+     * tool's own. The other two routes are not versions and stay in AdditionalInfo().
+     *
+     * THE ABSENT-MONIKER ROUTE, spelled out because it is the one people miss. Under the
+     * covers BinaryCompatibility reads AppDomain.CurrentDomain.GetTargetFrameworkName(); a null
+     * or unparseable result becomes TargetFrameworkId.Unspecified, and AddQuirksForFramework
+     * sets NO quirks for it - so legacy XML is ON. An ASP.NET application runs in a NON-default
+     * AppDomain, so the entry-assembly TargetFrameworkAttribute fallback never applies, and its
+     * moniker comes from <httpRuntime targetFramework="...">, which
+     * HttpRuntimeSection.GetTargetFrameworkName() returns as NULL when the attribute is absent.
+     * So an ASP.NET app with no targetFramework attribute is legacy on a fully patched 4.8.1
+     * machine.
      *
      * TWO VARIANTS, AND THEY ARE NOT THE SAME EFFECT.
      *
@@ -166,7 +176,7 @@ namespace ysonet.Generators
         // mechanics live in the header comment and the option help.
         public override string AdditionalInfo()
         {
-            return "Sets the DataSet XmlSchema member so the target's legacy XmlTextReader resolves an external entity. Variant 1 fetches your URL; variant 2 reads a target file back to you. Only fires when the target app uses pre-4.5.2 XML resolver defaults.";
+            return "Sets the DataSet XmlSchema member so the target's legacy XmlTextReader resolves an external entity. Variant 1 fetches your URL; variant 2 reads a target file back to you. Fires when the target app uses pre-4.5.2 XML resolver defaults, when the machine turned the EnableLegacyXmlSettings switch back on, or when the app declares NO target framework moniker at all - an ASP.NET app with no <httpRuntime targetFramework> is legacy even on a fully patched 4.8.1 machine.";
         }
 
         public override List<string> Labels()

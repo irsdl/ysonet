@@ -216,9 +216,18 @@ namespace ysonet.Generators
             throw new ArgumentException(Name() + " cannot deliver this URI with " + formatter
                 + (minified ? " and --minify" : "") + ": the payload no longer carries \"" + uri
                 + "\" exactly, so the target would open a different location."
+                // The minified branch may NOT lead with "drop --minify". The value travels in an
+                // XML ATTRIBUTE, and attribute-value normalization turns a tab, carriage return
+                // or line feed into a space on every parser - with or without a minifier - so an
+                // operator who dropped the flag would be refused again by this same sentence.
+                // Say what dropping it really recovers, and give a value that works either way.
                 + (minified
-                    ? " Drop --minify, or use a value with no repeated spaces and no \"; \" sequence."
-                    : " Use a value with no carriage return and no leading or trailing whitespace."));
+                    ? " Use a value with no tab, carriage return or line feed and no leading or"
+                        + " trailing whitespace; dropping --minify additionally recovers a"
+                        + " repeated space and a \"; \" sequence, and nothing else."
+                    : " Use a value with no tab, carriage return or line feed and no leading or"
+                        + " trailing whitespace: the value travels in an XML attribute, and no"
+                        + " parser can carry one there."));
         }
     }
 }

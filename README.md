@@ -45,7 +45,8 @@ The full documentation lives in [docs/](docs/README.md):
 - [Getting Started](docs/getting-started.md) - install, build from source, and the interactive wizard.
 - [Usage and Examples](docs/usage-and-examples.md) - command-line options and worked examples.
 - [Gadgets and Plugins](docs/gadgets-and-plugins.md) - the full gadget and plugin catalog.
-- [References](docs/references.md) - background reading, talks, related tools, and uses in the wild.
+- [References](docs/references.md) - the background reading, talks, and sources this project draws on.
+- [.NET Deserialization Research](docs/dotnet-deserialization-research.md) - the wider reading list: tools, uses in the wild, and CTF write-ups.
 - [Credits](docs/credits.md) - who built the tool and found the gadgets and plugins.
 
 ## Quick start (interactive mode)
@@ -94,7 +95,7 @@ This software is a personal project and not related to any companies, including 
 
 ## Building and testing
 
-- Build from source: `nuget restore ysonet.sln` then `msbuild ysonet.sln -p:Configuration=Release` (or `Debug`). Full steps in [Getting Started](docs/getting-started.md#build-from-source).
+- Build from source: `nuget restore ysonet.sln` then `msbuild ysonet.sln -p:Configuration=Release` (or `Debug`). Release builds require the Windows .NET Framework 3.5 optional feature to build the shipped CLR2 local-test host. Full steps in [Getting Started](docs/getting-started.md#build-from-source).
 - Tests: a Debug build runs the fast test suite automatically (a failed test fails the build). To run the exhaustive FULL suite (every gadget x formatter x variant, payload firing into test-owned sinks, bridged chains, and the plugin matrix), set `YSONET_FULL_TESTS=1` and build Debug, or run `ysonet\bin\Debug\ysonet.Tests.exe --full`. See [Getting Started -> Testing](docs/getting-started.md#testing).
 - Extending the project (new gadgets, plugins, serializers, or test cases): start with the code map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ("How to add things" and the `ysonet.Tests` section) and [CONTRIBUTING.md](CONTRIBUTING.md). Never weaken a test to make it pass - see the "Test integrity policy" in [CONTRIBUTING.md](CONTRIBUTING.md).
 

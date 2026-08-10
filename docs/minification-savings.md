@@ -54,15 +54,16 @@ functional. It does not change which command runs. Depending on the format it:
 
 ## Gadgets
 
-Every gadget and every formatter it supports, minify off vs on. Rows marked `n/a`
-are a variant plus formatter pair the gadget cannot produce (see the note below the table).
+Every gadget and every formatter in this snapshot, minify off vs on. A `not measured`
+row means support was added after the numeric snapshot; use the live tool for its current
+size.
 
 | Gadget | Formatter | Without `--minify` | With `--minify` | Saved | Saved % |
 |---|---|--:|--:|--:|--:|
 | ActivitySurrogateDisableTypeCheck | BinaryFormatter | 5,152 | 4,008 | 1,144 | 22.2% |
 |  | LosFormatter | 5,160 | 4,016 | 1,144 | 22.2% |
 |  | NetDataContractSerializer | 5,936 | 5,097 | 839 | 14.1% |
-|  | SoapFormatter | n/a | n/a | n/a | n/a |
+|  | SoapFormatter | not measured | not measured | - | - |
 | ActivitySurrogateSelector | BinaryFormatter | 15,200 | 12,312 | 2,888 | 19% |
 |  | LosFormatter | 15,208 | 12,316 | 2,892 | 19% |
 |  | SoapFormatter | 15,719 | 12,786 | 2,933 | 18.7% |
@@ -176,6 +177,7 @@ are a variant plus formatter pair the gadget cannot produce (see the note below 
 | TypeConfuseDelegate | BinaryFormatter | 2,992 | 2,124 | 868 | 29% |
 |  | LosFormatter | 3,000 | 2,132 | 868 | 28.9% |
 |  | NetDataContractSerializer | 4,024 | 3,709 | 315 | 7.8% |
+|  | SoapFormatter | not measured | not measured | - | - |
 | TypeConfuseDelegateMono | BinaryFormatter | 2,632 | 1,944 | 688 | 26.1% |
 |  | LosFormatter | 2,640 | 1,948 | 692 | 26.2% |
 |  | NetDataContractSerializer | 3,262 | 3,020 | 242 | 7.4% |
@@ -201,13 +203,13 @@ are a variant plus formatter pair the gadget cannot produce (see the note below 
 | XamlAssemblyLoadFromFile | BinaryFormatter | 8,056 | 6,484 | 1,572 | 19.5% |
 |  | LosFormatter | 8,068 | 6,484 | 1,584 | 19.6% |
 |  | NetDataContractSerializer | 8,461 | 6,954 | 1,507 | 17.8% |
-|  | SoapFormatter | n/a | n/a | n/a | n/a |
+|  | SoapFormatter | not measured | not measured | - | - |
 | XamlImageInfo | Json.NET | 547 | 509 | 38 | 6.9% |
 
-The two `n/a` rows (ActivitySurrogateDisableTypeCheck and XamlAssemblyLoadFromFile
-with SoapFormatter) are not a minify limitation: the default variant of each is a
-TypeConfuseDelegate wrapper built on a generic `SortedSet`, which SoapFormatter
-cannot serialize, so that one variant plus formatter pair is never produced.
+The three `not measured` SOAP rows use the direct CLR4 TCD document path added after
+this numeric snapshot. For the two hosted gadgets, TCD rootcontainer 1 and 3 are
+supported and rootcontainer 2 is explicitly refused; normal TCD likewise supports
+variants 1 and 3 and refuses variant 2.
 
 ## Where minification does little
 

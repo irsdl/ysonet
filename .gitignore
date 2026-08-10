@@ -288,5 +288,17 @@ TestResults/
 temp/
 local/
 
-# Stray build-generated resource blobs at repo root (not source)
+# Stray decompiler spillage at repo root (not source). A decompiler or resource
+# dump run with the repo as its working/output directory drops an assembly's
+# embedded resources here. Run decompilers from a scratch directory instead.
 /*.resources
+/*.nlp
+
+# A file literally named NUL, created by a cmd-style "2>NUL" redirect run from
+# PowerShell or bash, where NUL is a plain file name and not the null device.
+# Use 2>$null (PowerShell) or 2>/dev/null (bash).
+/NUL
+
+# Python bytecode from the agent tooling under .claude/skills
+__pycache__/
+*.pyc

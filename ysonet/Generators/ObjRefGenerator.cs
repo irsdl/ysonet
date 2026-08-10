@@ -35,8 +35,10 @@ namespace ysonet.Generators
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.Network)
                 .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
-                // remoting carrier; fired on 4.8.1
-                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
+                // Remoting carrier, and the whole chain predates CLR 4: fired on 4.8.1, and
+                // the LEGACY test tier fired it on CLR 2 in all three lanes (2.0, 3.0, 3.5)
+                // on every formatter it advertises.
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx20, RuntimeVersion.NetFx481));
         }
 
         public override string Finders()

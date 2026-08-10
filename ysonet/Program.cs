@@ -26,6 +26,7 @@ namespace ysonet
         static bool cmdstdin = false;
         static string plugin_name = "";
         static bool test = false;
+        static bool testClr2 = false;
         static bool minify = false;
         static bool useSimpleType = false;
         static bool show_help = false;
@@ -39,6 +40,7 @@ namespace ysonet
         static bool runMyTest = false;
         static bool checkUpdate = false;
         static bool dosAcknowledged = false;
+        static bool legacyFx = false;
         static string listCategory = "";
 
         // Repeatable --category=axis=value discovery filter. Collected raw here and
@@ -58,11 +60,13 @@ namespace ysonet
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after first space is an argument).", v => rawcmd =  v != null },
                 {"s|stdin", "The command to be executed will be read from standard input (the first line, up to 2,050 bytes). A non-empty -c wins.", v => cmdstdin = v != null },
                 {"bgc|bridgedgadgetchains=", "Chain of bridged gadgets separated by comma (,). Each gadget will be used to complete the next bridge gadget. The last one will be used in the requested gadget. This will be ignored when using the searchformatter argument.", v => bridged_gadget_chain = v },
-                {"t|test", "Whether to run payload locally. Default: false" , v => test =  v != null },
+                {"t|test", "Test locally. With --legacyfx, use the separately shipped .NET Framework 3.5 / CLR2 process; otherwise use ysonet's current CLR4 process. Default: false", v => test = v != null },
+                {"testclr2", "Test locally in the separately shipped .NET Framework 3.5 / CLR2 process. Supports BinaryFormatter, LosFormatter, and SoapFormatter. Default: false", v => testClr2 = v != null },
                 {"outputpath=", "The output file path. It will be ignored if empty.", v => outputpath = v },
                 {"minify", "Whether to minify the payloads where applicable. Default: false", v => minify =  v != null },
                 {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple (always `true` with `--minify` for binary formatters). Default: true", v => useSimpleType =  v != null },
-                {"raf|runallformatters", "Try every listed non denial-of-service gadget whose formatter name contains the given text. Requires -f plus -c or -s, and cannot be combined with -g or -p. Uses each formatter's default output format, ignores -o and -t, prints payloads with their length, and reports per-payload failures plus a summary on stderr. Default: false", v => isSearchFormatterAndRunMode =  v != null },
+                {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. The shared transform rewrites framework assembly versions; gadgets that carry source may also use the CLR-v2 compiler, and a gadget may author a type's older assembly identity when it moved between CLR generations. The graph and your input are untouched. It is not proof that every gadget works there. Default: false", v => legacyFx = v != null },
+                {"raf|runallformatters", "Try every listed non denial-of-service gadget whose formatter name contains the given text. Requires -f plus -c or -s, and cannot be combined with -g or -p. Uses each formatter's default output format, ignores -o, -t, and --testclr2, prints payloads with their length, and reports per-payload failures plus a summary on stderr. Default: false", v => isSearchFormatterAndRunMode =  v != null },
                 {"sf|searchformatter=", "Search in all formatters to show relevant gadgets and their formatters (other parameters will be ignored).", v => searchFormatter =  v},
                 {"list=", "Print a machine-readable list (one item per line) and exit. Categories: gadgets|plugins|formatters|options|outputs. Add -g <gadget> to list that gadget's formatters/options, or -p <plugin> to list that plugin's options. Useful for shell tab-completion scripts.", v => listCategory = v },
                 {"category=", "Find gadgets by category (repeatable): --category=axis=value where axis is kind|formatter|input|requirement|version. Repeat for OR within an axis and AND across axes. A version is an exact runtime build (4.8.1, 5.0, mono) and only lists gadgets recorded as working there. Alone it prints matching gadgets and their categories; with '--list gadgets' it prints matching names only. Example: --category=kind=code-execution --category=formatter=Json.NET", v => rawCategoryValues.Add(v) },
@@ -113,15 +117,24 @@ namespace ysonet
             {
                 List<string> commandArgsExtra = options.Parse(args);
 
+                if (test && testClr2)
+                    throw new OptionException(
+                        "--test and --testclr2 select different runtimes and cannot be combined",
+                        "testclr2");
+
                 inputArgs.Cmd = cmd;
                 inputArgs.IsRawCmd = rawcmd;
-                inputArgs.Test = test;
+                inputArgs.Test = test || testClr2;
+                inputArgs.TestClr2 = testClr2 || (test && legacyFx);
                 inputArgs.Minify = minify;
                 inputArgs.UseSimpleType = useSimpleType;
                 inputArgs.IsDebugMode = isDebugMode;
                 // Global execution context, kept out of ExtraArguments on purpose so
                 // no gadget's own option parsing ever sees the acknowledgement.
                 inputArgs.DosAcknowledged = dosAcknowledged;
+                // Generation context, like Minify: it changes what the payload SAYS, so it
+                // must never reach a gadget's own option parsing through ExtraArguments.
+                inputArgs.LegacyFx = legacyFx;
                 inputArgs.ExtraArguments = commandArgsExtra;
             }
             catch (OptionException e)
@@ -184,6 +197,7 @@ namespace ysonet
             if (isSearchFormatterAndRunMode)
             {
                 inputArgs.Test = false;
+                inputArgs.TestClr2 = false;
             }
 
             // Populate list of available gadgets using GadgetRegistry

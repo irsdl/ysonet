@@ -12,7 +12,7 @@ it is never linked into and never grows the release binary.
 ## When to use this vs the headless tests
 
 - For everyday checks, the in-repo test suite already verifies the interactive
-  rendering headlessly: see `ysonet.Tests/VirtualTerminal.cs` and the
+  rendering headlessly: see `ysonet.Tests/Fixtures/VirtualTerminal.cs` and the
   "Columns render in a virtual terminal" test. That runs in the normal
   `msbuild` test flow and needs no real console.
 - Use this ConPTY harness when you want **real-console fidelity** - the actual OS

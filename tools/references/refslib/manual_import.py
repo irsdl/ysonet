@@ -35,7 +35,7 @@ CONVERTER_NOISE = (
     r"\[\d+\]", r"\(\d+\)", r"_files$",
 )
 
-READABLE_SUFFIXES = (".md", ".markdown", ".txt", ".html", ".htm")
+READABLE_SUFFIXES = (".md", ".markdown", ".txt", ".html", ".htm", ".pdf")
 
 # Below this the filename is not evidence of anything.
 MATCH_FLOOR = 0.34
@@ -94,6 +94,9 @@ class Group(object):
         # name describes its SIBLING, so the name is evidence about the wrong
         # document and only the content may be believed.
         self.name_is_borrowed = name_is_borrowed
+        # The URL a maintainer stated in a `<file>.url` sidecar. Not evidence to
+        # be weighed - an instruction, which outranks every score here.
+        self.stated_url = ""
 
     @property
     def usable(self):
@@ -103,6 +106,7 @@ class Group(object):
 def scan(directory):
     """Read and convert every importable file, grouped by apparent source."""
     groups = {}
+    stated = declared_urls(directory)
     for name in sorted(os.listdir(str(directory))):
         path = os.path.join(str(directory), name)
         if not os.path.isfile(path) or not name.lower().endswith(READABLE_SUFFIXES):
@@ -112,9 +116,43 @@ def scan(directory):
             continue
         ok, reason = _quality(markdown)
         key = group_key(name)
-        groups.setdefault(key, Group(key)).candidates.append(
-            Candidate(path, markdown, ok, reason))
+        group = groups.setdefault(key, Group(key))
+        group.candidates.append(Candidate(path, markdown, ok, reason))
+        if name in stated:
+            group.stated_url = stated[name]
     return split_unlike(merge_similar(groups))
+
+
+# A maintainer's own statement of what a file is, which no heuristic may
+# outrank. Written as `<file>.url`, one URL inside, beside the document.
+URL_SIDECAR = ".url"
+
+
+def declared_urls(directory):
+    """{file name: url} from the `<file>.url` sidecars in an import directory.
+
+    THE FILE NAME IS NOT ALWAYS ENOUGH, and the failure is not the matcher's
+    fault. A KTH thesis was saved as `thesis-Mikhail-2024.pdf` while its
+    reference had recorded the title `Making sure you're not a bot!` - the page
+    was a bot wall when it was probed - so there was no word in common to score.
+    Filename evidence cannot bridge that; a maintainer saying which URL the file
+    is can, and it must beat every heuristic here rather than compete with them.
+    """
+    stated = {}
+    for name in sorted(os.listdir(str(directory))):
+        if not name.lower().endswith(URL_SIDECAR):
+            continue
+        path = os.path.join(str(directory), name)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                url = handle.read().strip().splitlines()[0].strip() if handle else ""
+        except (OSError, IndexError, UnicodeDecodeError):
+            continue
+        if url:
+            stated[name[:-len(URL_SIDECAR)]] = url
+    return stated
 
 
 def split_unlike(groups):
@@ -272,6 +310,19 @@ def match(groups, references):
     """
     scored = []
     for group in groups.values():
+        # A STATED URL IS NOT EVIDENCE, IT IS AN INSTRUCTION. When a maintainer
+        # has written `<file>.url` beside the document, no filename score gets a
+        # say: the thesis whose reference had recorded the title "Making sure
+        # you're not a bot!" shares no word with `thesis-Mikhail-2024.pdf`, and
+        # no amount of tuning would ever have matched them.
+        if group.stated_url:
+            wanted = group.stated_url.strip().rstrip("/")
+            for key, entry in references:
+                spellings = [key] + list(entry.get("spellings") or [])
+                if any(spelling.strip().rstrip("/") == wanted for spelling in spellings):
+                    scored.append((10.0, group, key, entry))
+                    break
+            continue
         # A split-off document's file name names its sibling, so believing it
         # would file this document under the other one's citation.
         group_tokens = set() if group.name_is_borrowed else tokens(group.key)
@@ -448,6 +499,17 @@ def _to_markdown(path):
         data = handle.read()
     if path.lower().endswith((".md", ".markdown", ".txt")):
         return htmltext.decode(data, "text/plain")
+    # A PDF IS THE COMMONEST THING TO OBTAIN BY HAND, because a paper behind a
+    # portal is exactly what a fetch cannot get: a KTH thesis was saved next to
+    # the import directory and silently ignored, since only HTML and text were
+    # ever read here. The same converter the fetch path uses does the work, so a
+    # hand-obtained paper and a fetched one produce the same document.
+    if path.lower().endswith(".pdf"):
+        from refslib import extract_doc
+        try:
+            return extract_doc.pdf_to_markdown(data)
+        except extract_doc.Unconvertible:
+            return ""
     markup = htmltext.decode(data, "text/html")
     cleaned = sanitise.sanitise_html(markup)
     candidates = extract_html.candidates(cleaned.text)

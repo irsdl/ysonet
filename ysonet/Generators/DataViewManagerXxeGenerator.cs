@@ -16,6 +16,13 @@ namespace ysonet.Generators
     /// version span ends at 4.5.1, and why -t on this tool (which targets 4.7.2) can never
     /// fetch anything.
     ///
+    /// An app that declares NO target framework moniker is the third route, and it is not a
+    /// version at all, so it stays in AdditionalInfo(): BinaryCompatibility turns a null or
+    /// unparseable moniker into TargetFrameworkId.Unspecified and applies no quirks, which
+    /// leaves legacy XML ON. It matters most for ASP.NET, which runs in a non-default AppDomain
+    /// (so the entry-assembly attribute fallback never applies) and takes its moniker from
+    /// &lt;httpRuntime targetFramework="..."&gt; - absent means null means legacy, on 4.8.1.
+    ///
     /// The effect is a network request made by the target (SSRF / callback). It is NOT file
     /// disclosure: the setter reads elements and attributes only, never entity text, and it
     /// returns nothing to the sender.
@@ -73,7 +80,7 @@ namespace ysonet.Generators
 
         public override string AdditionalInfo()
         {
-            return "Sets DataViewSettingCollectionString so the target's legacy XmlTextReader fetches an external DTD. Only fires when the target app uses pre-4.5.2 XML resolver defaults.";
+            return "Sets DataViewSettingCollectionString so the target's legacy XmlTextReader fetches an external DTD. Fires when the target app uses pre-4.5.2 XML resolver defaults, when the machine turned the EnableLegacyXmlSettings switch back on, or when the app declares NO target framework moniker at all - an ASP.NET app with no <httpRuntime targetFramework> is legacy even on a fully patched 4.8.1 machine.";
         }
 
         public override List<string> Labels()

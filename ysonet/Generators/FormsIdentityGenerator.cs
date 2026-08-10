@@ -146,41 +146,14 @@ namespace ysonet.Generators
 
                 if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (inputArgs.Test)
-                    {
-                        try
-                        {
-                            ms.Position = 0;
-                            System.Runtime.Serialization.Formatters.Binary.BinaryFormatter bf = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-                            bf.Deserialize(ms);
-                        }
-                        catch (Exception err)
-                        {
-                            Debugging.ShowErrors(inputArgs, err);
-                        }
-                    }
-                    return ms.ToArray();
+                    return FinishHandWrittenPayload(ms.ToArray(), formatter, inputArgs, null, true);
                 }
                 else
                 {
                     // it is LosFormatter
                     byte[] lfSerializedObj = SimpleMinifiedObjectLosFormatter.BFStreamToLosFormatterStream(ms.ToArray());
 
-                    MemoryStream ms2 = new MemoryStream(lfSerializedObj);
-                    ms2.Position = 0;
-                    if (inputArgs.Test)
-                    {
-                        try
-                        {
-                            System.Web.UI.LosFormatter lf = new System.Web.UI.LosFormatter();
-                            lf.Deserialize(ms2);
-                        }
-                        catch (Exception err)
-                        {
-                            Debugging.ShowErrors(inputArgs, err);
-                        }
-                    }
-                    return lfSerializedObj;
+                    return FinishHandWrittenPayload(lfSerializedObj, formatter, inputArgs, null, true);
                 }
             }
             else if (formatter.ToLower().Equals("soapformatter"))
@@ -201,18 +174,7 @@ namespace ysonet.Generators
                     payload = XmlMinifier.Minify(payload, null, null, FormatterType.SoapFormatter);
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.SoapFormatter_deserialize(payload);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("datacontractserializer"))
             {
@@ -239,18 +201,7 @@ namespace ysonet.Generators
                     }
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.DataContractSerializer_deserialize(payload, null, "root", "type");
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("netdatacontractserializer"))
             {
@@ -274,18 +225,7 @@ namespace ysonet.Generators
                     }
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.NetDataContractSerializer_deserialize(payload);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("datacontractjsonserializer"))
             {
@@ -297,6 +237,11 @@ namespace ysonet.Generators
                 {
                     payload = inputArgs.UseSimpleType ? JsonMinifier.Minify(payload, new string[] { "System.Web" }, null) : JsonMinifier.Minify(payload, null, null);
                 }
+                // The shared generation boundary. This branch keeps its own self-test because a DataContractJsonSerializer
+                // document names no root type, so the reader has to be given one by name; the boundary is called
+                // directly and the self-test below still reads the exact bytes the operator gets.
+                payload = (string)FinalizeGeneratedPayload(payload, formatter, inputArgs);
+
                 if (inputArgs.Test)
                 {
                     try

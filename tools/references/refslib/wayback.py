@@ -35,6 +35,15 @@ LIMIT = 60
 # magnitude, not a few percent.
 MEANINGFULLY_BIGGER = 1.5
 
+# Below this much visible text a capture is a shell or an interstitial, whatever
+# it says. Deliberately low: the point is to skip an obvious CAPTCHA and move to
+# the next date, not to second-guess the extractor that runs afterwards.
+WALL_TEXT_FLOOR = 300
+
+# How many captures to try before giving up. A URL can have a decade of daily
+# crawls, and every attempt is a fetch.
+TRIES = 5
+
 
 class Snapshot(object):
     def __init__(self, timestamp, length, original):
@@ -52,25 +61,41 @@ class Snapshot(object):
                 "replay_url": self.replay_url}
 
 
+class LookupFailed(Exception):
+    """The index could not be ASKED. Never the same as "it knows nothing".
+
+    Wayback rate-limits, and swallowing a 429 into an empty list reports "no
+    capture of this URL exists" - a statement about the source - when the truth
+    is that we failed to ask. That reads as a dead reference and gets one
+    dropped.
+    """
+
+
 def snapshots(url, fetcher, limit=LIMIT):
     """Every successful capture the CDX index knows about, largest first.
 
     `collapse=digest` drops re-captures of identical bytes, which is most of
     what a frequently crawled URL has.
+
+    An empty list means the index HAS no capture. A lookup that failed raises.
     """
     query = ("%s?url=%s&output=json&fl=timestamp,original,length,statuscode"
              "&filter=statuscode:200&collapse=digest&limit=%d"
              % (CDX, _quote(url), limit))
     try:
         response = fetcher.get(query, max_bytes=2 * 1024 * 1024)
-    except Exception:
-        return []
-    if not (200 <= response.status < 300) or not response.body:
+    except Exception as error:
+        raise LookupFailed("the CDX index could not be reached: %s" % error)
+    if not (200 <= response.status < 300):
+        raise LookupFailed("the CDX index answered HTTP %s%s" % (
+            response.status,
+            " (rate limited, try again later)" if response.status == 429 else ""))
+    if not response.body:
         return []
     try:
         rows = json.loads(response.body.decode("utf-8", "replace"))
     except ValueError:
-        return []
+        raise LookupFailed("the CDX index returned something that is not JSON")
     found = []
     for row in rows[1:]:                      # row 0 is the column header
         if len(row) < 3:
@@ -96,24 +121,74 @@ def largest(url, fetcher, skip_timestamp=""):
     result is actually better is settled by fetching it and comparing like with
     like.
     """
-    for candidate in snapshots(url, fetcher):
-        if candidate.timestamp == skip_timestamp:
-            continue
+    for candidate in ranked(url, fetcher, skip_timestamp):
         return candidate
     return None
 
 
+def ranked(url, fetcher, skip_timestamp="", limit=LIMIT):
+    """Captures worth TRYING IN TURN, best first.
+
+    ONE CAPTURE IS NOT AN ANSWER. A citation can be pinned to a capture that is
+    a bot wall rather than the page - `xz.aliyun.com/t/3019` was cited as its
+    2024 replay, which is a slider CAPTCHA that extracts to 99 characters, while
+    the 2019 and 2022 captures of the same URL carry the article. So the caller
+    walks this list and stops at the first capture that survives its own checks,
+    instead of giving up on the first one that fails.
+
+    Largest first, because a wall is usually a fraction of the size of the
+    document it replaced. Ties break OLDEST first: a site gets its anti-scraper
+    later than it gets its content, so among captures that look equally
+    promising the older one is likelier to predate the wall.
+    """
+    for candidate in snapshots(url, fetcher, limit):
+        if skip_timestamp and candidate.timestamp == skip_timestamp:
+            continue
+        yield candidate
+
+
+def unusable(body, kind=""):
+    """Why this capture is not the document, or "" if it might be.
+
+    Cheap and text-only, because it runs between fetches: the real judgement is
+    still extraction and classification later. It exists so a walk over the
+    candidates does not stop on a capture that is visibly a CAPTCHA.
+    """
+    if not body:
+        return "empty"
+    if kind in ("whitepaper", "slides", "video", "image"):
+        return ""                                   # not HTML; nothing to read
+    from refslib import grade, htmltext
+    head = body[:4096].lstrip()
+    if head[:5] == b"%PDF-":
+        return ""
+    title, text, _noscript = htmltext.read(body.decode("utf-8", "replace"))
+    visible = ((title or "") + " " + (text or "")).lower()
+    for marker in grade.WALL_MARKERS:
+        if marker in visible:
+            return "a wall (%r) rather than the page" % marker
+    if len(text or "") < WALL_TEXT_FLOOR:
+        return "only %d characters of visible text" % len(text or "")
+    return ""
+
+
 def original_url(url):
-    """The URL a Wayback replay is a capture OF, or the URL itself."""
+    """The URL a Wayback replay is a capture OF, or the URL itself.
+
+    A capture is sometimes wrapped twice (`.../web/T1/https://web.archive.org
+    /web/T2/https://real`), so unwrap until nothing is left to peel: one pass
+    would still return a web.archive.org URL and hand its host to whoever asked.
+    """
     marker = "/web/"
-    if "web.archive.org" not in url or marker not in url:
-        return url
-    tail = url.split(marker, 1)[1]
-    # `<timestamp>[modifier]/<original url>`
-    parts = tail.split("/", 1)
-    if len(parts) < 2:
-        return url
-    return parts[1]
+    url = str(url or "")
+    while "web.archive.org" in url and marker in url:
+        tail = url.split(marker, 1)[1]
+        # `<timestamp>[modifier]/<original url>`
+        parts = tail.split("/", 1)
+        if len(parts) < 2:
+            break
+        url = parts[1]
+    return url
 
 
 def _quote(url):

@@ -44,9 +44,11 @@ $script:YsonetOptions = @(
     @{ Names = @('-s', '--stdin');                        Kind = 'none'      }
     @{ Names = @('--bgc', '--bridgedgadgetchains');       Kind = 'gadget'    }
     @{ Names = @('-t', '--test');                         Kind = 'none'      }
+    @{ Names = @('--testclr2');                           Kind = 'none'      }
     @{ Names = @('--outputpath');                         Kind = 'file'      }
     @{ Names = @('--minify');                             Kind = 'none'      }
     @{ Names = @('--ust', '--usesimpletype');             Kind = 'none'      }
+    @{ Names = @('--legacyfx');                           Kind = 'none'      }
     @{ Names = @('--raf', '--runallformatters');          Kind = 'none'      }
     @{ Names = @('--sf', '--searchformatter');            Kind = 'formatter' }
     @{ Names = @('--list');                               Kind = 'listcat'   }

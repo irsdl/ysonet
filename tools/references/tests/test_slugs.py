@@ -32,10 +32,10 @@ class TestGenericLinkText(unittest.TestCase):
         self.assertIn("Second Breakfast", title)
 
     def test_a_url_that_says_nothing_either_falls_back_to_the_host(self):
-        """`https://soroush.me/blog` gave the title "Blog" and so a file called
+        """A bare `https://<host>/blog` gave the title "Blog" and so a file called
         `blog.md`, which names no source at all."""
-        self.assertEqual(slugs.build(slugs.readable_title("Blog", "https://soroush.me/blog")),
-                         "soroush-me-blog")
+        self.assertEqual(slugs.build(slugs.readable_title("Blog", "https://janeresearcher.dev/blog")),
+                         "janeresearcher-dev-blog")
 
     def test_a_slug_that_is_only_a_format_word_is_rebuilt_not_kept(self):
         self.assertEqual(slugs.pinned("whitepaper"), "")
@@ -62,8 +62,8 @@ class TestTruncation(unittest.TestCase):
         self.assertNotEqual(slugs.build(stem + " whitepaper"), slugs.build(stem + " slides"))
 
     def test_a_short_title_is_untouched(self):
-        self.assertEqual(slugs.build("JSON Attacks", "NCC", "2017"),
-                         "2017-ncc-json-attacks")
+        self.assertEqual(slugs.build("JSON Attacks", "Acme", "2017"),
+                         "2017-acme-json-attacks")
 
 
 if __name__ == "__main__":

@@ -40,6 +40,7 @@ from refslib import harvest as harvest_module          # noqa: E402
 from refslib import inventory as inventory_module      # noqa: E402
 from refslib import ledger as ledger_module            # noqa: E402
 from refslib import paths                             # noqa: E402
+from refslib import slugs as slugs_module              # noqa: E402
 from refslib.exclusions import Classifier             # noqa: E402
 
 
@@ -316,6 +317,21 @@ def command_acquire(args):
             record["retrieved_utc"] = manifest_utc()
             record.setdefault("why", entry.get("why") or "")
             record.setdefault("summary", entry.get("summary") or "")
+            # A TITLE READ OFF A WALL IS NOT A TITLE. The probe records what the
+            # page called itself, and when the page was a bot check that is what
+            # gets archived: a KTH doctoral thesis was filed as "Making sure
+            # you're not a bot!" - heading, frontmatter and file name alike. A
+            # maintainer can state the real one, and the slug is rebuilt from it
+            # rather than kept, because a file named after a wall is the part a
+            # reader sees first. The old file becomes an orphan, which `verify`
+            # reports and `acquire --prune-files` removes.
+            corrected = (judged or {}).get("title") or ""
+            if corrected and corrected != record.get("title"):
+                record["title"] = corrected
+                record["slug"] = slugs_module.build(
+                    corrected, record.get("publisher") or "",
+                    slugs_module.year_of(record.get("published") or ""),
+                    taken=taken)
             taken.add(record["slug"])
             entry.update({field: record[field] for field in
                           ("slug", "title", "kind", "depth", "depth_reason")})
@@ -351,6 +367,11 @@ def command_acquire(args):
             # produced by a reader and cannot be recomputed from the bytes.
             if entry.get("translation_sha256") and store.has(entry["translation_sha256"]):
                 record["translation"] = store.get_text(entry["translation_sha256"])
+            # Same reason for the translated title and publisher: a reader wrote
+            # them, so a re-render carries them forward rather than losing them.
+            for field in ("title_english", "publisher_english"):
+                if entry.get(field):
+                    record[field] = entry[field]
             try:
                 text = render_module.render(record, content, record["depth"])
             except render_module.MissingAttribution as error:
@@ -450,103 +471,244 @@ def command_translate(args):
         sha = entry.get("content_sha256")
         return store.get_text(sha) if sha and store.has(sha) else ""
 
-    foreign = []
+    foreign, done, unreadable = [], [], []
     for key, entry in manifest.data["urls"].items():
         if args.only and args.only.lower() not in key.lower():
             continue
         text = content_of(entry)
         if not text:
+            # THE STORE COULD NOT SUPPLY IT. Counted and reported rather than
+            # skipped: running without `YSONET_REFS_STORE` silently measured a
+            # third of the archive and reported a clean-looking answer.
+            if entry.get("content_sha256"):
+                unreadable.append(entry.get("slug") or key)
             continue
-        if translate_module.looks_english(text, entry.get("language") or ""):
+        if not translate_module.has_foreign_prose(
+                text, entry.get("language") or "",
+                {field: entry.get(field) or ""
+                 for field in translate_module.METADATA_FIELDS}):
+            continue
+        if entry.get("translation_sha256") and not args.redo:
+            done.append((key, entry, text))
             continue
         foreign.append((key, entry, text))
 
     if not args.prepare and not args.apply:
-        print("%d archived document(s) are not in English.\n" % len(foreign))
-        print("The archive is read in English, and a third of a technique is lost")
+        print("%d archived document(s) still need translating." % len(foreign))
+        if done:
+            print("%d already have one (pass --redo to do them again)." % len(done))
+        print("\nThe archive is read in English, and a third of a technique is lost")
         print("when the write-up is in a language the reader cannot follow.\n")
         for key, entry, text in foreign:
             print("  %-56s %7d chars  %s"
                   % ((entry.get("slug") or key)[:56], len(text),
                      entry.get("language") or "language not declared"))
+        if unreadable:
+            print("\n%d document(s) could not be read from the store, so their"
+                  % len(unreadable))
+            print("language is UNKNOWN rather than English. Check YSONET_REFS_STORE.")
+            for slug in unreadable[:10]:
+                print("  %s" % slug)
         print("\n  refs.py translate --prepare --only <substring> --into <dir>")
         return 0
 
-    if len(foreign) != 1:
-        print("Name exactly one document with --only (matched %d)." % len(foreign))
+    if not foreign:
+        print("Nothing matched %r." % args.only)
         return 2
-    key, entry, text = foreign[0]
-    work = Path(args.into or (paths.tool_dir() / "cache" / "translate"
-                              / (entry.get("slug") or "reference")))
+
+    def work_dir(entry):
+        return Path(args.into or (paths.tool_dir() / "cache" / "translate"
+                                  / (entry.get("slug") or "reference")))
 
     if args.prepare:
-        prepared = translate_module.prepare(text, entry.get("language") or "")
-        work.mkdir(parents=True, exist_ok=True)
-        (work / "placeholders.json").write_text(
-            json.dumps({"placeholders": prepared.placeholders,
-                        "comments": prepared.comments}, indent=1, ensure_ascii=False),
-            encoding="utf-8", newline="\n")
-        for number, chunk in enumerate(prepared.chunks, start=1):
-            body = "\n\n".join("[%d] %s" % (identifier, segment)
-                               for identifier, segment in chunk)
-            (work / ("chunk-%02d.txt" % number)).write_text(body, encoding="utf-8",
-                                                            newline="\n")
-        print("%d segment(s) in %d chunk(s), %d protected construct(s), written to:\n  %s\n"
-              % (prepared.segments, len(prepared.chunks), len(prepared.placeholders), work))
-        if prepared.comments:
-            print("%d of those segments are COMMENTS lifted out of code blocks."
-                  % len(prepared.comments))
-            print("Translate them like any other prose. The code around them is never")
-            print("shown to you and never changes, but the author's explanation of it")
-            print("should read in English like the rest of the document.\n")
+        # PREPARING IS A BATCH STEP. Masking is deterministic and offline, so
+        # doing the whole backlog at once is what lets the translation itself be
+        # spread across readers. `--apply` still takes one document, because
+        # that one writes to the manifest.
+        if args.into and len(foreign) != 1:
+            print("--into names one directory, so name one document with --only "
+                  "(matched %d)." % len(foreign))
+            return 2
+        # A DIRECTORY FOR A DOCUMENT THAT NO LONGER NEEDS WORK IS A TRAP. It
+        # keeps chunk files from an earlier, wider preparation, and whoever
+        # translates next works through a directory listing rather than this
+        # report. Only for an unscoped run: with `--only` the rest of the cache
+        # is deliberately untouched.
+        wanted = {entry.get("slug") or "reference" for _key, entry, _text in foreign}
+        if not args.only and not args.into:
+            cache = paths.tool_dir() / "cache" / "translate"
+            for stale_dir in sorted(cache.glob("*")) if cache.exists() else []:
+                if not stale_dir.is_dir() or stale_dir.name in wanted:
+                    continue
+                left = list(stale_dir.glob("chunk-*.txt"))
+                for stale in left:
+                    stale.unlink()
+                if left:
+                    print("  cleared %-54s no longer needs translating"
+                          % stale_dir.name[:54])
+
+        total_chunks = total_reused = 0
+        for _key, entry, text in foreign:
+            work = work_dir(entry)
+            prepared = translate_module.prepare(
+                text, entry.get("language") or "",
+                metadata={field: entry.get(field) or ""
+                          for field in translate_module.METADATA_FIELDS})
+            work.mkdir(parents=True, exist_ok=True)
+            (work / "placeholders.json").write_text(
+                json.dumps({"placeholders": prepared.placeholders,
+                            "comments": prepared.comments,
+                            "metadata": prepared.metadata,
+                            "original": prepared.original}, indent=1, ensure_ascii=False),
+                encoding="utf-8", newline="\n")
+            # EVERY chunk file goes, including the `.en.txt` translations:
+            # segment numbering is derived from the masking, so a translation
+            # made against a previous preparation would be applied to different
+            # segments, which is silent corruption rather than lost work.
+            #
+            # But a chunk whose text comes back BYTE-IDENTICAL is the same work,
+            # and re-translating it is both wasted effort and a fresh chance to
+            # word a sentence differently. So keep those, keyed by content: a
+            # rule change that only adds a segment at the end then costs one
+            # chunk rather than a whole corpus.
+            done = {}
+            for previous in sorted(work.glob("chunk-*.txt")):
+                if previous.name.endswith(".en.txt"):
+                    continue
+                english = previous.with_suffix(".en.txt")
+                if english.exists():
+                    done[previous.read_text(encoding="utf-8")] = english.read_text(
+                        encoding="utf-8")
+            for stale in work.glob("chunk-*.txt"):
+                stale.unlink()
+            reused = 0
+            for number, chunk in enumerate(prepared.chunks, start=1):
+                body = "\n\n".join("[%d] %s" % (identifier, segment)
+                                   for identifier, segment in chunk)
+                (work / ("chunk-%02d.txt" % number)).write_text(
+                    body, encoding="utf-8", newline="\n")
+                if body in done:
+                    (work / ("chunk-%02d.en.txt" % number)).write_text(
+                        done[body], encoding="utf-8", newline="\n")
+                    reused += 1
+            total_chunks += len(prepared.chunks)
+            total_reused += reused
+            print("  %-56s %2d chunk(s) %4d segment(s) %4d already English%s"
+                  % ((entry.get("slug") or "reference")[:56], len(prepared.chunks),
+                     prepared.segments, prepared.skipped,
+                     "  %d unchanged, translation kept" % reused if reused else ""))
+        if not total_chunks:
+            print("\nNothing to translate: every segment is already English.")
+            return 0
+        print("\n%d chunk(s) across %d document(s), written under:\n  %s\n"
+              % (total_chunks, len(foreign),
+                 paths.rel(paths.tool_dir() / "cache" / "translate")))
+        if total_reused:
+            print("%d of those came back unchanged and kept the translation they"
+                  % total_reused)
+            print("already had, so only %d still need one.\n"
+                  % (total_chunks - total_reused))
+        print("A segment that was ALREADY ENGLISH is not in a chunk. It is put back")
+        print("verbatim, so do not supply one.\n")
+        print("Some segments are COMMENTS lifted out of code blocks. Translate them")
+        print("like any other prose: the code around them is never shown and never")
+        print("changes, but the author's explanation of it should read in English.\n")
         print("EVERY {{PH_n}} MUST COME BACK BYTE-IDENTICAL. They stand for code,")
         print("payloads, URLs, type names, CVE ids and hashes: changing one silently")
         print("corrupts the research this file exists to preserve.\n")
         print("Translate each chunk into English, keeping the [n] markers, and save")
-        print("the result beside it as chunk-NN.en.txt. Then:")
-        print("  refs.py translate --apply --only %s" % (args.only or "<substring>"))
+        print("the result beside it as chunk-NN.en.txt. Then, per document:")
+        print("  refs.py translate --apply --only <substring>")
         return 0
 
-    # --apply
-    translated = sorted(work.glob("chunk-*.en.txt"))
-    if not translated:
-        print("No chunk-NN.en.txt in %s. Nothing to apply." % work)
-        return 1
-    saved = json.loads((work / "placeholders.json").read_text(encoding="utf-8"))
-    placeholders = saved.get("placeholders", saved)
-    comments = {int(key): value for key, value in (saved.get("comments") or {}).items()}
+    # --apply. ONE REFUSAL NEVER STOPS THE OTHERS: a batch where one translator
+    # dropped a placeholder should store the other thirty-four and name the one
+    # to redo, not leave the whole backlog unapplied.
+    if args.into and len(foreign) != 1:
+        print("--into names one directory, so name one document with --only "
+              "(matched %d)." % len(foreign))
+        return 2
+    stored = refused = waiting = 0
+    for key, entry, _text in foreign:
+        work = work_dir(entry)
+        slug = entry.get("slug") or key
+        translated = sorted(work.glob("chunk-*.en.txt"))
+        if not translated:
+            waiting += 1
+            continue
+        saved = json.loads((work / "placeholders.json").read_text(encoding="utf-8"))
+        placeholders = saved.get("placeholders", saved)
+        comments = {int(number): value
+                    for number, value in (saved.get("comments") or {}).items()}
+        fields = {int(number): value
+                  for number, value in (saved.get("metadata") or {}).items()}
+        original = {int(number): value
+                    for number, value in (saved.get("original") or {}).items()}
 
-    raw = "\n\n".join(path.read_text(encoding="utf-8").strip() for path in translated)
-    # Segments keep their [n] marker, which is what lets a translated COMMENT be
-    # matched back to the code block it was lifted out of. Prose segments simply
-    # lose theirs and are joined back in order.
-    numbered = {int(match.group(1)): match.group(2).strip()
-                for match in re.finditer(r"^\[(\d+)\]\s*(.*?)(?=\n\[\d+\]|\Z)",
-                                         raw, re.MULTILINE | re.DOTALL)}
-    placeholders = translate_module.apply_comments(placeholders, comments, numbered)
-    body = "\n\n".join(text for identifier, text in sorted(numbered.items())
-                       if identifier not in comments)
+        raw = "\n\n".join(path.read_text(encoding="utf-8").strip()
+                          for path in translated)
+        # Segments keep their [n] marker, which is what lets a translated COMMENT
+        # be matched back to the code block it was lifted out of. Prose segments
+        # simply lose theirs and are joined back in order.
+        numbered = {int(match.group(1)): match.group(2).strip()
+                    for match in re.finditer(r"^\[(\d+)\]\s*(.*?)(?=\n\[\d+\]|\Z)",
+                                             raw, re.MULTILINE | re.DOTALL)}
+        held = translate_module.apply_comments(placeholders, comments, numbered)
+        not_prose = set(comments) | set(fields)
+        body = translate_module.rebuild(numbered, original, not_prose)
 
-    lost = translate_module.missing_placeholders(body, placeholders)
-    if lost and not args.force:
-        print("REFUSED: %d placeholder(s) did not come back, e.g. %s."
-              % (len(lost), ", ".join(lost[:5])))
-        print("Each one stands for code or a payload, so applying this would")
-        print("corrupt the document. Fix the translation, or pass --force if you")
-        print("are certain those constructs genuinely belong nowhere.")
-        return 1
+        # CHECKED AGAINST THE TEXT IT ACTUALLY LANDS IN. A placeholder living
+        # only in the title is not missing from the body, it was never in it:
+        # demanding it there refused three intact documents over `ASP.NET` in a
+        # heading. So the body is checked against the body's own segments, and
+        # each metadata field against its own translated value.
+        prose = {number: value for number, value in original.items()
+                 if number not in not_prose}
+        lost = translate_module.missing_placeholders(
+            body, translate_module.standing_alone(held, prose))
+        for identifier, field in sorted(fields.items()):
+            rendered = numbered.get(identifier)
+            if rendered is None:
+                continue
+            lost += translate_module.missing_placeholders(
+                rendered, translate_module.standing_alone(
+                    held, {identifier: original.get(identifier, "")}))
+        if lost and not args.force:
+            refused += 1
+            print("  REFUSED %-48s %d placeholder(s) did not come back, e.g. %s"
+                  % (slug[:48], len(lost), ", ".join(lost[:3])))
+            continue
 
-    english = translate_module.restore(body, placeholders)
-    digest = store.put_text(english)
-    entry["translation_sha256"] = digest
-    manifest.record(key, "translate", result="stored", sha256=digest,
-                    chars=len(english), segments=len(translated),
-                    lost_placeholders=len(lost))
+        english = translate_module.restore(body, held)
+        digest = store.put_text(english)
+        entry["translation_sha256"] = digest
+        # The record's own prose fields. Stored BESIDE the originals, never over
+        # them: the source's title is how a reader finds the page again, so the
+        # citation keeps it while the heading a researcher reads is English.
+        for identifier, field in sorted(fields.items()):
+            rendered = numbered.get(identifier)
+            if not rendered:
+                continue
+            entry[field + "_english"] = translate_module.restore(rendered, held)
+        manifest.record(key, "translate", result="stored", sha256=digest,
+                        chars=len(english), segments=len(translated),
+                        lost_placeholders=len(lost))
+        stored += 1
+        print("  stored  %-48s %7d chars from %d chunk(s)%s"
+              % (slug[:48], len(english), len(translated),
+                 "  FORCED past %d lost placeholder(s)" % len(lost) if lost else ""))
     manifest.save()
-    print("Stored an English translation of %d characters." % len(english))
-    print("The ORIGINAL is untouched: the rendered file carries both, because a")
-    print("reader has to be able to check the translator.")
-    print("Run 'refs.py acquire --force --only %s' to re-render." % (args.only or ""))
+
+    print("\n%d stored, %d refused, %d still waiting for a translation."
+          % (stored, refused, waiting))
+    if refused:
+        print("\nEach lost placeholder stands for code or a payload, so applying")
+        print("would corrupt the document. Fix those translations and run again.")
+    if stored:
+        print("\nThe ORIGINAL is untouched: the rendered file carries both, because")
+        print("a reader has to be able to check the translator.")
+        print("Run 'refs.py acquire --force' to re-render.")
+    return 1 if refused else 0
     return 0
 
 
@@ -582,27 +744,53 @@ def command_wayback(args):
         original = wayback_module.original_url(url)
         current = len(store.get(entry["raw_sha256"])) if (
             entry.get("raw_sha256") and store.has(entry["raw_sha256"])) else 0
-        candidate = wayback_module.largest(
-            original, fetcher,
-            # --force also reconsiders the capture already recorded, which is
-            # what you want after the bytes it produced were lost or replaced.
-            skip_timestamp=("" if args.force
-                            else (entry.get("health") or {}).get("snapshot") or ""))
-        if not candidate:
-            print("  none       %-58s (have %d bytes)" % (original[:58], current))
+        # WALK THE CAPTURES, DO NOT BET ON ONE. A citation can be pinned to a
+        # capture that is a bot wall rather than the page: this URL was cited as
+        # its 2024 replay, a slider CAPTCHA extracting to 99 characters, while
+        # the 2019 and 2022 captures carry the article. Stopping at the first
+        # candidate turned "the archive has no readable copy" into a fact.
+        chosen = body = None
+        tried = 0
+        try:
+            candidates = list(wayback_module.ranked(
+                original, fetcher,
+                # --force also reconsiders the capture already recorded, which
+                # is what you want after its bytes were lost or replaced.
+                skip_timestamp=("" if args.force
+                                else (entry.get("health") or {}).get("snapshot") or "")))
+        except wayback_module.LookupFailed as error:
+            # NOT "there is no capture". Reported apart from it, because the
+            # difference is a fact about the source versus a fact about us.
+            print("  ASK FAILED %-58s %s" % (original[:58], error))
+            manifest.record(key, "wayback", result="lookup-failed", reason=str(error))
             continue
+        for candidate in candidates:
+            tried += 1
+            response = fetcher.get(candidate.replay_url, max_bytes=16 * 1024 * 1024)
+            if not (200 <= response.status < 300) or not response.body:
+                print("    skip %s  http %s" % (candidate.timestamp, response.status))
+            # Like with like: the FETCHED capture against the bytes already
+            # held. The index length cannot answer this - it is a compressed
+            # size - so it is only ever used to order the candidates.
+            elif len(response.body) <= current:
+                print("    skip %s  %d bytes, no bigger than the %d held"
+                      % (candidate.timestamp, len(response.body), current))
+            else:
+                why = wayback_module.unusable(response.body, entry.get("kind") or "")
+                if why:
+                    print("    skip %s  %s" % (candidate.timestamp, why))
+                else:
+                    chosen, body = candidate, response.body
+                    break
+            if tried >= args.tries:
+                break
+        if not chosen:
+            print("  none       %-58s (have %d bytes, %d capture(s) tried)"
+                  % (original[:58], current, tried))
+            continue
+        candidate, body_bytes = chosen, body
 
-        response = fetcher.get(candidate.replay_url, max_bytes=16 * 1024 * 1024)
-        if not (200 <= response.status < 300) or not response.body:
-            print("  http %-6s %s" % (response.status, candidate.replay_url[:70]))
-            continue
-        # Like with like: the FETCHED capture against the bytes already held.
-        # The index length cannot answer this, because it is a compressed size.
-        if len(response.body) <= current:
-            print("  smaller    %-58s %7d vs %7d held"
-                  % (original[:58], len(response.body), current))
-            continue
-        digest = store.put(response.body)
+        digest = store.put(body_bytes)
         entry["raw_sha256"] = digest
         # A CAPTURE SUPERSEDES A RENDER. Acquisition prefers a stored browser
         # DOM, because that is what got past a wall - but here the wall is what
@@ -611,11 +799,11 @@ def command_wayback(args):
         entry.pop("browser_dom_sha256", None)
         entry.setdefault("health", {})["snapshot"] = candidate.timestamp
         manifest.record(key, "wayback", result="stored", snapshot=candidate.timestamp,
-                        bytes=len(response.body), was=current,
+                        bytes=len(body_bytes), was=current, tried=tried,
                         replay_url=candidate.replay_url)
         improved += 1
-        print("  captured   %-58s %7d -> %7d bytes (%s)"
-              % (original[:58], current, len(response.body), candidate.timestamp))
+        print("  captured   %-58s %7d -> %7d bytes (%s, %d tried)"
+              % (original[:58], current, len(body_bytes), candidate.timestamp, tried))
 
     manifest.save()
     print("\n%d reference(s) now hold a better capture." % improved)
@@ -999,7 +1187,13 @@ def command_import(args):
         text, used = manual_import.join(usable)
         cleaned = manual_import.sanitise.sanitise_text(text)
         url = (entry.get("spellings") or [key])[0]
-        verdict = grade_module.classify(cleaned.text, url=url)
+        # THE MAINTAINER'S JUDGEMENT REACHES THIS PATH TOO. `classify` has
+        # always honoured an override, but the import call never passed one, so
+        # a decision recorded for a hand-obtained page was silently ignored and
+        # a rule re-graded it on every run. An import is exactly where the
+        # judgement matters: these are the pages no automated route could read.
+        verdict = grade_module.classify(cleaned.text, url=url,
+                                        override=paths.decisions().get(key))
         if verdict.outcome == "skip":
             rejected += 1
             print("  REJECTED   %-58s %s" % (group.key[:58], verdict.reason[:60]))
@@ -1015,6 +1209,16 @@ def command_import(args):
         # produced a file called `whitepaper.md`, and the deck cited beside it
         # became `slides.md`. Those are rebuilt, and the rename is printed.
         was = entry.get("slug") or ""
+        # THE SAME CORRECTION THE FETCH PATH HONOURS. An import is exactly where
+        # it is needed: a reference gets hand-obtained BECAUSE the fetch met a
+        # wall, and the wall is what supplied the recorded title. A KTH doctoral
+        # thesis was filed as "Making sure you're not a bot!". Releasing the
+        # pinned slug renames the file after the document.
+        renamed_from = was
+        corrected = (paths.decisions().get(key) or {}).get("title") or ""
+        if corrected and corrected != entry.get("title"):
+            entry["title"] = corrected
+            was = ""
         record = {
             "slug": slugs.pinned(was),
             "title": slugs.readable_title(
@@ -1047,8 +1251,8 @@ def command_import(args):
                                          slugs.year_of(record["published"]), taken=taken)
             entry["slug"] = record["slug"]
             entry["title"] = record["title"]
-            if was:
-                print("  renamed    %s -> %s" % (was, record["slug"]))
+            if renamed_from and renamed_from != record["slug"]:
+                print("  renamed    %s -> %s" % (renamed_from, record["slug"]))
         entry["content_sha256"] = content_sha
 
         text_out = render_module.render(record, cleaned.text, "full")
@@ -1300,6 +1504,8 @@ def build_parser():
                                   help="read chunk-NN.en.txt back and store the result")
     translate_parser.add_argument("--into", default="",
                                   help="the working directory (default: the tool cache)")
+    translate_parser.add_argument("--redo", action="store_true",
+                                  help="include documents that already have a translation")
     translate_parser.add_argument("--force", action="store_true",
                                   help="apply even when placeholders were lost")
     translate_parser.set_defaults(handler=command_translate)
@@ -1310,6 +1516,8 @@ def build_parser():
                                 help="only rows whose URL contains this substring")
     wayback_parser.add_argument("--force", action="store_true",
                                 help="consider every reference, not only the failed ones")
+    wayback_parser.add_argument("--tries", type=int, default=5,
+                                help="captures to try per reference before giving up")
     wayback_parser.add_argument("--gap", type=float, default=1.0)
     wayback_parser.add_argument("--timeout", type=float, default=40.0)
     wayback_parser.set_defaults(handler=command_wayback)

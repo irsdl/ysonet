@@ -12,9 +12,19 @@ Two rules shape this module.
 
 import json
 import os
+import re
 from pathlib import Path
 
 TOOL_DIR = Path(__file__).resolve().parent.parent
+
+# A run of text that begins with a local filesystem anchor (a Windows drive, or a
+# POSIX home/mount root) and continues over path characters. The lookbehind is the
+# same one verify.py relies on: without it the "s:/" inside "https://..." would
+# anchor a match. The run stops at whitespace or a quote, so a quoted path inside a
+# message (a git clone target, for example) is captured without swallowing the rest
+# of the sentence.
+_LOCAL_PATH_RUN = re.compile(
+    r"(?<![A-Za-z])(?:[A-Za-z]:[\\/]|/(?:home|Users|mnt|root)/)[^\s'\"<>|]*")
 
 # Config files are hand-edited policy. `manifest.json` is generated state and
 # lives with the archive, not here, so human decisions and generated churn never
@@ -106,3 +116,24 @@ def rel(path, root=None):
         return Path(path).resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
         return Path(path).name
+
+
+def redact_text(text):
+    """Blank absolute local paths embedded in free text.
+
+    A path FIELD reaches tracked output through rel(). This is the other channel:
+    a path baked into a tool or OS message (a git clone target that lands in a
+    manifest 'reason', say) that would otherwise be stored verbatim. Only the
+    directory part is removed; the trailing name is kept because it is derived from
+    the URL or the content, not from the local layout, and dropping it would make
+    the message useless. A value with no local path comes back unchanged.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+
+    def _swap(match):
+        run = match.group(0).rstrip("\\/")
+        name = re.split(r"[\\/]", run)[-1] if run else ""
+        return "<local-path>/" + name if name else "<local-path>"
+
+    return _LOCAL_PATH_RUN.sub(_swap, text)

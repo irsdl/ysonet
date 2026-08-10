@@ -81,7 +81,8 @@ namespace ysonet.Interactive
         // Handles to the built-in gadget fields, so Generate can read them without
         // scanning by label.
         private EditableField _formatter, _command, _rawcmd, _outputFormat, _outputPath;
-        private EditableField _minify, _useSimpleType, _test, _debugMode, _bridged, _dosAck;
+        private EditableField _minify, _useSimpleType, _legacyFx, _test,
+            _debugMode, _bridged, _dosAck;
 
         // The command's effective input type at the last refresh. When it changes
         // (e.g. switching to a variant that reads a file instead of a command) the
@@ -391,6 +392,11 @@ namespace ysonet.Interactive
 
         private void EditField(EditableField f)
         {
+            // A fixed generation context is still shown so the operator can see it, but it
+            // is not a choice. The value and its reason are already visible in the row/help.
+            if (f.Locked)
+                return;
+
             // The edit prompt/menu is its own screen; clear so it does not draw under
             // the settings form it was launched from (EditForm clears again on return).
             ConsoleCursor.ClearScreen();
@@ -518,7 +524,7 @@ namespace ysonet.Interactive
         // it does not get re-applied to this or another module. Actions are ignored.
         private void ResetFieldToDefault(EditableField f)
         {
-            if (f == null || f.IsAction)
+            if (f == null || f.IsAction || f.Locked)
                 return;
             if (Remembered(f))
                 _session.OptionMemory.Remove(f.Label);
@@ -586,7 +592,7 @@ namespace ysonet.Interactive
 
         private static bool Remembered(EditableField f)
         {
-            if (f == null || f.IsAction)
+            if (f == null || f.IsAction || f.Locked)
                 return false;
             foreach (string n in _noMemoryLabels)
                 if (string.Equals(f.Label, n, StringComparison.OrdinalIgnoreCase))
@@ -883,7 +889,16 @@ namespace ysonet.Interactive
             {
                 _minify = Flag("minify", "Minify the payload where applicable.");
                 _useSimpleType = Flag("usesimpletype", "Use simple type when minifying.");
-                _test = Flag("test", "Locally run the payload to self-test it.");
+                // A GLOBAL generation toggle, like minify: it changes what every layer of the
+                // payload SAYS, so it is a field here rather than one gadget's option. Exact
+                // runtime graphs can opt out; do not create a hidden value that memory or the
+                // equivalent-command path could accidentally carry forward.
+                _legacyFx = _view.SupportsLegacyFx
+                    ? Flag("legacyfx",
+                        "Name the .NET Framework 2.0/3.0/3.5 assembly versions instead of the 4.x ones.")
+                    : null;
+                _test = Flag("test locally",
+                    "Deserialize locally. CLR2-only/legacyfx payloads use the separately shipped CLR2 process.");
                 _debugMode = Flag("debugmode", "Print debug output during generation.");
                 _bridged = new EditableField
                 {
@@ -908,6 +923,8 @@ namespace ysonet.Interactive
                 _dosAck.Hidden = true;
                 list.Add(_minify);
                 list.Add(_useSimpleType);
+                if (_legacyFx != null)
+                    list.Add(_legacyFx);
                 list.Add(_test);
                 list.Add(_debugMode);
                 list.Add(_bridged);
@@ -1102,14 +1119,74 @@ namespace ysonet.Interactive
                 f.Hidden = current != null && !current.UsesOption(f.Label);
             }
 
-            // The shared "test" toggle is not a gadget option, but a variant can refuse
-            // -t (WithoutSelfTest). Hide it there, so a refusing DEFAULT variant does not
-            // dead-end Generate with the gadget's -t refusal. The value is kept, so
-            // switching back to a variant that accepts -t restores it; CollectGadget also
-            // drops it for a refusing variant, so a stale on-value cannot leak into the
-            // emitted command.
+            // "test locally" describes the outcome; the selected generation and the gadget's
+            // measured runtime range decide the victim process. A CLR2-only gadget, or an
+            // explicit legacyfx generation, routes to the shipped CLR2 host. Everything else
+            // uses ysonet's current CLR4 process. A refusing variant hides the field.
+            bool refuses = current != null && current.RefusesSelfTest;
+            GadgetFacetSet facets = current != null && current.FacetOverride != null
+                ? current.FacetOverride : _view.Facets;
+            bool clr2Only = !SupportsClr4SelfTest(facets) && SupportsClr2SelfTest(facets);
+            if (_legacyFx != null)
+            {
+                _legacyFx.Locked = clr2Only;
+                if (clr2Only)
+                {
+                    _legacyFx.Value = "true";
+                    _legacyFx.SetExplicitEmpty(false);
+                    _legacyFx.Help = "Always on: this gadget supports only .NET Framework "
+                        + "2.0/3.0/3.5 (CLR2), not CLR4 or later.";
+                }
+                else
+                {
+                    _legacyFx.Help = "Name the .NET Framework 2.0/3.0/3.5 assembly "
+                        + "versions instead of the 4.x ones.";
+                }
+            }
             if (_test != null)
-                _test.Hidden = current != null && current.RefusesSelfTest;
+            {
+                bool clr2 = RoutesSelfTestToClr2(facets);
+                _test.Hidden = refuses || (clr2
+                    ? !Clr2SelfTest.SupportsFormatter(_formatter == null ? "" : _formatter.Value)
+                    : !SupportsClr4SelfTest(facets));
+                _test.Help = clr2
+                    ? "Deserialize locally in the separately shipped .NET Framework 3.5 / CLR2 process (--testclr2)."
+                    : "Deserialize locally in ysonet's current CLR4 process (--test).";
+            }
+        }
+
+        private bool RoutesSelfTestToClr2(GadgetFacetSet facets)
+        {
+            return (_legacyFx != null && _legacyFx.IsOn)
+                || (!SupportsClr4SelfTest(facets) && SupportsClr2SelfTest(facets));
+        }
+
+        private static bool SupportsClr2SelfTest(GadgetFacetSet facets)
+        {
+            if (facets == null || facets.Versions == null)
+                return false;
+            foreach (string version in facets.Versions)
+                if (string.Equals(version, RuntimeVersion.NetFx20, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(version, RuntimeVersion.NetFx30, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(version, RuntimeVersion.NetFx35, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
+        }
+
+        private static bool SupportsClr4SelfTest(GadgetFacetSet facets)
+        {
+            if (facets == null || facets.Versions == null || facets.Versions.Count == 0)
+                return true;
+            foreach (string version in facets.Versions)
+            {
+                if (string.Equals(version, RuntimeVersion.Unspecified, StringComparison.OrdinalIgnoreCase))
+                    return true;
+                int index = RuntimeVersion.IndexOf(version);
+                if (index >= RuntimeVersion.IndexOf(RuntimeVersion.NetFx40)
+                    && index <= RuntimeVersion.IndexOf(RuntimeVersion.NetFx481))
+                    return true;
+            }
+            return false;
         }
 
         // The GadgetVariant the variant option currently points at, or null when the
@@ -1146,9 +1223,12 @@ namespace ysonet.Interactive
             return false;
         }
 
-        // The same question for a plugin that lets the user pick an inner gadget
-        // (ViewState, Resx, SharePoint). Plugins with a fixed inner gadget have no
-        // gadget option, so this is false for them.
+        // The same question for a plugin that lets the user pick an inner gadget.
+        // Asked through the option rather than a plugin name list, so a plugin that
+        // gains -g is covered without touching this: Altserialization,
+        // ApplicationTrust and TransactionManagerReenlist joined ViewState, Resx and
+        // SharePoint that way. A plugin with a fixed inner gadget has no gadget
+        // option, so this is false for it.
         private bool PluginSelectionInvolvesDos()
         {
             if (_isGadget || _view == null)
@@ -1220,9 +1300,9 @@ namespace ysonet.Interactive
         // even though the gadget lists it across all variants. We validate this at
         // generate - the maintainer's chosen UX - next to the missing-command check,
         // so a bad pair blocks with a precise message instead of a deep framework
-        // exception (e.g. SoapFormatter cannot serialize the generic type in the
-        // TypeConfuseDelegate WRAPPER variant - not one of TypeConfuseDelegate's own
-        // container variants, which opt out of nothing).
+        // exception (e.g. a wrapper variant whose object-returning TypeConfuseDelegate
+        // graph cannot use the stock SoapFormatter writer, or TypeConfuseDelegate's own
+        // deeper SortedDictionary SOAP shape).
         private string MissingVariantFormatterProblem()
         {
             if (!_isGadget || _formatter == null || _view == null)
@@ -1256,7 +1336,7 @@ namespace ysonet.Interactive
             switch (t)
             {
                 case CommandInputType.Url: return "http://attacker:9999/";
-                case CommandInputType.CsSourceFile: return "ExploitClass.cs;System.Windows.Forms.dll";
+                case CommandInputType.CsSourceFile: return "ExploitClass.cs;System.dll";
                 case CommandInputType.DllPath: return "\\\\attacker\\share\\payload.dll";
                 case CommandInputType.UncPath: return "\\\\attacker\\share\\payload.dll";
                 case CommandInputType.HostName: return "attacker.example.com";
@@ -1418,7 +1498,7 @@ namespace ysonet.Interactive
         private class GadgetInputs
         {
             public string Command, Formatter, OutputFormat, OutputPath, Bgc;
-            public bool RawCmd, Minify, Ust, Test, Debug, DosAck;
+            public bool RawCmd, Minify, Ust, LegacyFx, Test, TestClr2, Debug, DosAck;
             public List<string> Extra;
             public CommandInputType Eff;
         }
@@ -1438,7 +1518,13 @@ namespace ysonet.Interactive
             GadgetVariant currentVariant = CurrentVariant();
             bool variantRefusesSelfTest = currentVariant != null && currentVariant.RefusesSelfTest;
             g.Minify = _minify.IsOn; g.Ust = _useSimpleType.IsOn;
-            g.Test = _test.IsOn && !variantRefusesSelfTest; g.Debug = _debugMode.IsOn;
+            g.LegacyFx = _legacyFx != null && _legacyFx.IsOn;
+            GadgetFacetSet facets = currentVariant != null && currentVariant.FacetOverride != null
+                ? currentVariant.FacetOverride : _view.Facets;
+            bool wantsTest = _test.IsOn && !_test.Hidden && !variantRefusesSelfTest;
+            g.TestClr2 = wantsTest && RoutesSelfTestToClr2(facets);
+            g.Test = wantsTest && !g.TestClr2;
+            g.Debug = _debugMode.IsOn;
             // Only a bridge gadget emits --bgc; when the field is hidden (non-bridge
             // gadget) never pass a chain, even if one was carried over in memory.
             g.Bgc = (_bridged != null && !_bridged.Hidden) ? _bridged.Value : "";
@@ -1464,7 +1550,7 @@ namespace ysonet.Interactive
             return CommandEcho.Build(CommandEcho.GadgetTokens(
                 _view.Name, g.Formatter, g.Command, g.RawCmd, false,
                 g.OutputFormat, g.OutputPath, g.Bgc, g.Minify, g.Ust, g.Test, g.Debug,
-                g.DosAck, g.Extra));
+                g.DosAck, g.LegacyFx, g.TestClr2, g.Extra));
         }
 
         private byte[] GenerateGadgetBytes(out string commandLine, out string outputPath)
@@ -1478,11 +1564,13 @@ namespace ysonet.Interactive
             InputArgs inputArgs = new InputArgs();
             inputArgs.Cmd = g.Command;
             inputArgs.IsRawCmd = g.RawCmd;
-            inputArgs.Test = g.Test;
+            inputArgs.Test = g.Test || g.TestClr2;
+            inputArgs.TestClr2 = g.TestClr2;
             inputArgs.Minify = g.Minify;
             inputArgs.UseSimpleType = g.Ust;
             inputArgs.IsDebugMode = g.Debug;
             inputArgs.DosAcknowledged = g.DosAck;
+            inputArgs.LegacyFx = g.LegacyFx;
             inputArgs.ExtraArguments = g.Extra;
 
             GenerationRequest req = new GenerationRequest();

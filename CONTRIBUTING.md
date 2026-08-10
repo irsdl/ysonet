@@ -21,6 +21,12 @@ The projects target .NET Framework 4.7.2. Build with Visual Studio's MSBuild:
 - `nuget restore ysonet.sln`
 - `msbuild ysonet.sln -p:Configuration=Debug`
 
+The product also ships a small one-shot CLR2 self-test victim built from
+`tools/clr2-self-test/`. A Debug build uses the installed .NET Framework 3.5 compiler when
+available and otherwise warns; a Release build requires that Windows optional feature so
+the release cannot silently omit `ysonet.Clr2TestHost.exe` and its runtime config. Never
+commit the generated executable.
+
 The Debug build runs a self-contained test runner as a post-build step. A failed test fails the build. The runner also stands alone at `ysonet\bin\Debug\ysonet.Tests.exe`.
 
 When implementing a gadget or plugin, do not start with a repository-wide suite. First

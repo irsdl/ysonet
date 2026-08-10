@@ -44,7 +44,7 @@ namespace ysonet.Interactive
         {
             return GadgetTokens(gadgetName, formatterName, command, isRawCmd, useStdin,
                 outputFormat, outputPath, bridgedChain, minify, useSimpleType, test,
-                debugMode, false, extraGadgetTokens);
+                debugMode, false, false, extraGadgetTokens);
         }
 
         // The same list plus the denial-of-service acknowledgement. It is a GLOBAL
@@ -66,6 +66,60 @@ namespace ysonet.Interactive
             bool dosAcknowledged,
             IList<string> extraGadgetTokens)
         {
+            return GadgetTokens(gadgetName, formatterName, command, isRawCmd, useStdin,
+                outputFormat, outputPath, bridgedChain, minify, useSimpleType, test,
+                debugMode, dosAcknowledged, false, extraGadgetTokens);
+        }
+
+        // The full list. --legacyfx joins --minify as GENERATION CONTEXT: a global flag
+        // that changes what the payload says, emitted once here and never inside the
+        // gadget's own extra tokens.
+        public static List<string> GadgetTokens(
+            string gadgetName,
+            string formatterName,
+            string command,
+            bool isRawCmd,
+            bool useStdin,
+            string outputFormat,
+            string outputPath,
+            string bridgedChain,
+            bool minify,
+            bool useSimpleType,
+            bool test,
+            bool debugMode,
+            bool dosAcknowledged,
+            bool legacyFx,
+            IList<string> extraGadgetTokens)
+        {
+            return GadgetTokens(gadgetName, formatterName, command, isRawCmd, useStdin,
+                outputFormat, outputPath, bridgedChain, minify, useSimpleType, test,
+                debugMode, dosAcknowledged, legacyFx, false, extraGadgetTokens);
+        }
+
+        // The explicit legacy-runtime self-test is separate from --test: the two deserialize
+        // the same finished bytes in different processes and must never be emitted together.
+        public static List<string> GadgetTokens(
+            string gadgetName,
+            string formatterName,
+            string command,
+            bool isRawCmd,
+            bool useStdin,
+            string outputFormat,
+            string outputPath,
+            string bridgedChain,
+            bool minify,
+            bool useSimpleType,
+            bool test,
+            bool debugMode,
+            bool dosAcknowledged,
+            bool legacyFx,
+            bool testClr2,
+            IList<string> extraGadgetTokens)
+        {
+            if (test && testClr2)
+                throw new System.ArgumentException(
+                    "The equivalent command cannot select both --test and --testclr2.");
+
             var t = new List<string>();
             t.Add("-g");
             t.Add(gadgetName);
@@ -104,8 +158,12 @@ namespace ysonet.Interactive
                 t.Add("--minify");
             if (useSimpleType)
                 t.Add("--usesimpletype");
+            if (legacyFx)
+                t.Add("--legacyfx");
             if (test)
                 t.Add("--test");
+            if (testClr2)
+                t.Add("--testclr2");
             if (debugMode)
                 t.Add("--debugmode");
             if (dosAcknowledged)

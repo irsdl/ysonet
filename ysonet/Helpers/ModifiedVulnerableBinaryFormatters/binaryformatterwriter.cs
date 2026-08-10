@@ -639,7 +639,17 @@ namespace ysonet.Helpers.ModifiedVulnerableBinaryFormatters
 
         internal void WriteMemberString(NameInfo memberNameInfo, NameInfo typeNameInfo, String value)
         {
-            if (!memberNameInfo.NIFullName.Contains("Signature"))
+            // DelegateSerializationHolder.DelegateEntry stores its delegate type and its
+            // assembly in TWO separate fields named "type" and "assembly". A type string
+            // that resolves after dropping an inner assembly on THIS runtime is not
+            // necessarily valid when paired with that external assembly on the target. The
+            // CLR-4 writer sees Func<> and String in mscorlib and used to reduce
+            //   Func<String, String, ...>
+            // to unqualified String arguments; a CLR-2 holder pairs Func<> with System.Core
+            // 3.5 and then looks for System.String in System.Core. Preserve this contextual
+            // value exactly. Signatures already follow the same rule for a different reason.
+            if (!memberNameInfo.NIFullName.Contains("Signature")
+                && !memberNameInfo.NIFullName.Equals("type", StringComparison.Ordinal))
                 value = TypeNameMinifier.AssemblyOrTypeNameMinifier(value);
 
             InternalWriteItemNull();

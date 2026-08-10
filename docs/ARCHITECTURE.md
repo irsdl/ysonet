@@ -5,7 +5,7 @@
 > structure. Written for contributors and AI agents alike.
 >
 > This document can lag the code between updates; the source is always authoritative.
-> Last reviewed for v2026.7.9.
+> Last reviewed for v2026.8.1.
 
 ---
 
@@ -52,11 +52,32 @@ Note: the project name in code is `ysonet` (RootNamespace `ysonet`, all code in
 `namespace ysonet.*`). Target framework is **.NET Framework 4.7.2**. A
 future fork may target .NET 2, so avoid gratuitous new-language-feature use.
 
+The shipped `ysonet.Clr2TestHost.exe` is intentionally not a sixth solution project. Its
+C# 2-compatible source and runtime config live under `tools/clr2-self-test/`, and the
+`ysonet.csproj` post-build target compiles it with the installed .NET Framework 3.5
+toolchain. Keeping the small victim separate lets the product stay on 4.7.2 while an
+explicit local test can deserialize on CLR 2.0.50727.
+
+`ysonet.Clr4TestHost.exe` is the CLR 4 counterpart, source under `tools/clr4-test-host/`
+and built the same way with the installed 4.x compiler. It runs on whatever 4.x is
+installed (it does not require the exact 4.0 shape the net40 host proves), so an operator
+can fire a `BinaryFormatter`, `SoapFormatter` or `LosFormatter` payload locally and confirm
+it works on CLR 4. An unencrypted `__VIEWSTATE` is a `LosFormatter` string, so it reads one
+directly; an encrypted or MAC-protected `__VIEWSTATE` needs the target machine keys and is
+out of scope for this host. Both hosts share a small CLI: `--help`, `--probe`, and
+`--deserialize FORMATTER FILE [--input auto|raw|base64]` (case-insensitive formatter names,
+`-` for stdin, and `auto` detecting base64 vs raw).
+
 ### Build / CI
 - Build: `nuget restore ysonet.sln` then `msbuild ysonet.sln -p:Configuration=Release`.
-  Output: `ysonet\bin\Release\ysonet.exe`.
+  Output: `ysonet\bin\Release\ysonet.exe`, `ysonet.Clr2TestHost.exe`,
+  `ysonet.Clr4TestHost.exe`, and their configs. Release requires the Windows .NET
+  Framework 3.5 feature for the CLR2 host; Debug warns and omits that host when the
+  toolchain is unavailable. The CLR4 host builds with the always-present 4.x compiler.
 - CI: `.github/workflows/build.yml` (restore + msbuild Release on `windows-latest`,
-  uploads `release/` artifact). Release: `tag-build-release.yml` tags and publishes when the `VERSION` file changes on master.
+  installs/probes the CLR2 host and uploads `release/`). Release:
+  `tag-build-release.yml` repeats the host probe, tags, and publishes when `VERSION`
+  changes on master.
 - Platforms configured: AnyCPU / x86 / x64, Debug + Release.
 
 ### NuGet dependencies (`ysonet/packages.config`) - the serializer libraries
@@ -123,11 +144,11 @@ ysonet/
     Patched/PSObjectGenerator.cs #   the one gadget needing a recompiled vulnerable DLL
     HostedPayloads/              #   payload bodies with no sink of their own (see below)
     Private/                     #   OPTIONAL, git-ignored: a contributor's unpublished gadgets
-    <39 gadget files>
+    <54 gadget files>
   Plugins/                       # PLUGINS (IPlugin classes) - section 6
     base/IPlugin.cs
     Private/                     #   OPTIONAL, git-ignored: a contributor's unpublished plugins
-    <13 plugin files>
+    <14 plugin files>
   Helpers/                       # Support code, grouped by subject - section 7
     ClipboardHelper.cs, Debugging.cs      # root singletons (clipboard access, debug error print)
     Assemblies/                           # AssemblyResolver (was Utilities), LocalCodeCompiler
@@ -157,7 +178,9 @@ parsing. All state is in static fields; parsed into an `InputArgs` object.
 `-g|--gadget`, `-f|--formatter`, `-c|--command`, `--rawcmd` (no `cmd /c` prefix),
 `-s|--stdin` (read command from stdin), `--bgc|--bridgedgadgetchains` (comma-separated
 bridge chain), `-t|--test` (locally deserialize the payload to self-verify),
-`--outputpath`, `--minify`, `--ust|--usesimpletype`, `--raf|--runallformatters`,
+`--testclr2` (explicitly use the shipped CLR2 victim), `--outputpath`, `--minify`,
+`--ust|--usesimpletype`, `--legacyfx` (name the CLR-v2
+generation's assembly versions, see below), `--raf|--runallformatters`,
 `--sf|--searchformatter`, `--list` (machine-readable listing, see below),
 `--category` (repeatable gadget discovery filter, see below),
 `--debugmode`, `--i-understand-dos` (acknowledge a denial-of-service gadget, see
@@ -178,14 +201,91 @@ never produced by accident:
 - the gadget is left out of both bulk paths (`--raf` and the interactive
   run-all), which print how many were skipped and how to run one deliberately;
 - the same rule applies to a gadget named in a `--bgc` chain, and to a plugin's
-  user-selected inner gadget (ViewState, Resx, SharePoint each accept the same
-  flag).
+  user-selected inner gadget (ViewState, Resx, SharePoint, Altserialization,
+  ApplicationTrust and TransactionManagerReenlist each accept the same flag).
 
 The rule, the texts, and the shared bulk partition live in one place,
 `Helpers/Core/DosPolicy.cs`. The gate is applied by `PayloadRunner` (which also
 returns the warning on `RunResult.Warnings`) and, as a last-line backstop, by
 `GenericGenerator.GenerateWithInit`. This is the ONE facet value that affects
 generation; the comments in `IGenerator.cs` and `GenericGenerator.cs` say so.
+
+`--legacyfx` asks every payload LAYER to name the .NET Framework 2.0/3.0/3.5 (CLR v2)
+assembly versions instead of the 4.x ones. It is GENERATION CONTEXT like `--minify`: a
+property on `InputArgs` that `DeepCopy` carries, never an entry in a gadget's
+`ExtraArguments`. The rule and the verified assembly map live in
+`Helpers/Serialization/LegacyFrameworkIdentities.cs` (with `.Nrbf.cs` and
+`.ObjectState.cs` for the two binary wire formats).
+
+The option is global but support is per gadget. `IGenerator.SupportsLegacyFx()` defaults
+to true for compatibility; an exact graph that cannot exist on CLR2 overrides it to false.
+`GenericGenerator` then refuses a scripted flag at the shared generation boundary, while
+`ModuleEditor` omits the field and therefore cannot emit it in the equivalent CLI command.
+The ordinary CLR4.5+ TCD, its file-operation form, the exact .NET 4.0 Workflow TCD and the
+Mono TCD opt out. The CLR2 Workflow TCD retains the setting and fixes it on.
+
+Five plugins also expose `--legacyfx` as their own option (ViewState, Resx,
+Altserialization, ApplicationTrust, TransactionManagerReenlist). A plugin parses its own
+argv, so the global flag never reached the `InputArgs` a plugin builds; each of these now
+sets the property on the args it hands to the gadget. That is deliberately the only layer
+it reaches: a plugin's own envelope is plain text that never crosses a generation boundary,
+so the transform cannot see it. The LEGACY plugin rows measure the complete envelope rather
+than treating that limitation as a prediction; ResX's 4.0 resheaders are accepted by the
+CLR-v2 reader as descriptive metadata.
+
+- **The shared transform changes only the `Version=` field.** The assembly name, culture,
+  public key token, every type name, the graph shape and the operator's input are preserved
+  by that transform. The token is identical across generations, so the version is normally
+  the only field that has to move. The map is measured from the reference assemblies (a
+  test re-checks it against the machine it runs on), which is what catches
+  `Microsoft.VisualBasic` being 8.0.0.0 on CLR 2 and 10.0.0.0 on .NET 4 rather than
+  following the framework number.
+- **A gadget can have an additional, explicit CLR-generation edge.** The
+  ActivitySurrogateSelector family carries a compiled assembly, so under `--legacyfx` it
+  compiles readable C# source with the v3.5 provider instead of trying to rewrite opaque IL.
+  It also authors `Func<>` delegate-holder entries against System.Core 3.5, because CLR 4
+  puts that type in mscorlib and a version-only transform cannot express a change of assembly
+  simple name. Caller-supplied DLL bytes remain untouched. These exceptions live in the
+  gadget/compiler source and are covered by CLR-2 effect tests, not hidden in the shared map.
+- **It is a transform, never a compatibility claim.** It cannot make a CLR-4-only
+  carrier, formatter or bundled serializer run on CLR 2, and a rewritten payload is not
+  evidence that a gadget works there. Only an observed effect on a CLR-2 child is (the
+  `--legacy` test tier).
+- **It never resolves, loads or constructs anything the payload names.** No formatter
+  deserializer, no `Type.GetType`, no `Assembly.Load`, no `FormatterServices`, and
+  neither existing BinaryFormatter parser (both of those run the real `ObjectReader`).
+  A test proves it by counting the resolve events a real `Type.GetType` on the same name
+  produces and requiring zero from the rewriter.
+- **Per format:** a non-instantiating [MS-NRBF] record walker for BinaryFormatter
+  (library names, class and member type names, and string member values, with the 7-bit
+  length prefixes recomputed and trailing bytes preserved); an ObjectStateFormatter
+  walker for LosFormatter that handles both the token-50 wrapper around a
+  BinaryFormatter blob and a native token-40 record; a structure-aware lexical rewrite
+  for the XML formats (both the plain and the percent-encoded SOAP spelling, and the
+  space-collapsed form both minifiers produce); string literals only for the JSON ones,
+  delimited by EITHER quote character, because several hand written templates here write
+  their JSON with single quotes and a double-quote-only scanner walks past every identity
+  in those payloads while reporting success. `DataContractJsonSerializer` names no root
+  type, so it is an expected no-op.
+- **It refuses rather than emitting a partly transformed payload:** when the operator's
+  own `-c` carries a framework identity (indistinguishable from a payload one in the
+  finished bytes), when a recognised assembly has no CLR v2 build at all, and when a
+  record's boundaries are unknown.
+
+`LegacyFrameworkIdentities.AsGenerated(text, inputArgs)` is what a gadget's own FIDELITY
+GUARD compares against. A carrier that re-reads its emitted payload to prove a value survived
+serialization must ask for the spelling the FINISHED payload will carry, not the literal it
+wrote, or the boundary's legitimate rewrite makes the guard refuse a correct payload and blame
+the gadget or the minifier for it. With the option off it is the identity function.
+
+`GenericGenerator.FinalizeGeneratedPayload` is the one boundary that applies it, called
+from `Serialize()` and `FinishHandWrittenPayload()` after format-specific minification
+and BEFORE the self-test, so `-t` reads the exact bytes the operator gets and each inner
+or bridged layer rewrites its own format before the next one wraps it. A gadget branch
+that shrinks its payload itself passes `alreadyMinified: true` rather than returning its
+own bytes. A NORMAL-tier row sweeps every gadget x CLR-v2-capable formatter and fails
+when a finished payload still carries an identity the transform would move, which is how
+a branch that bypasses the boundary is caught.
 
 `--prv|--display-private` widens what the tool LISTS. A contributor may keep
 unpublished gadgets and plugins in the git-ignored `Generators\Private\` and
@@ -355,6 +455,19 @@ calls `Environment.Exit`; it returns a `RunResult`:
 
 - `GenerateGadget(GenerationRequest)` - the bridged-chain loop, returning `RunResult.Fail`
   instead of print+exit.
+- `GenerateSelectedGadget(generator, formatter, args)` - the generation half for a gadget
+  the USER chose inside a plugin. It applies the same denial-of-service gate as the CLI and
+  returns the warning with the payload instead of printing it. Options are forwarded here
+  on purpose (unlike `GenerateInner`), because the user chose this gadget.
+- `GeneratePluginGadget(gadgetName, formatter, args)` - the whole `-g` path for a plugin:
+  resolve the name through `GadgetRegistry`, apply the denial-of-service gate, check the
+  formatter, then call `GenerateSelectedGadget`. Every plugin that takes `-g` goes through
+  it, so the name rules, the gate order and the error text are one implementation. It
+  replaced a block that ViewState and Resx each carried a copy of, both of which built a
+  type name by hand for `Activator.CreateInstance` and so could not resolve a gadget
+  outside `ysonet.Generators`. The gate deliberately runs BEFORE the formatter check, so an
+  operator who forgot the acknowledgement is told that rather than being sent after an
+  unrelated incompatibility.
 - `RunPlugin(name, argv)` - validate, instantiate, `plugin.Run(argv)`, wrap the result.
 - `Encode(raw, outputFormat, out len)` - the pure encoder half of `ProcessOutput`
   (raw -> base64/hex/urlencode). `ProcessOutput` now calls this and keeps only the writing
@@ -507,7 +620,7 @@ executable and never changes how source is written. Payloads are unaffected by i
   nothing here reads, writes, or dereferences it. `GenericGenerator` defaults to
   `ShellCommand`; gadgets that expect a file/DLL/URL or ignore the command override it
   (ActivitySurrogate* = Ignored, *FromFile/XamlAssemblyLoadFromFile = CsSourceFile,
-  BaseActivationFactory/GetterCompilerResults/AssemblyInstallerLoad = DllPath
+  BaseActivationFactory/GetterCompilerResults/AssemblyInstallerLoad/AssemblyCatalogLoad = DllPath
   (AssemblyInstallerLoad variant 2 = UncPath), ObjRef = Url, XamlImageInfo =
   FilePath). The interactive wizard uses it to label prompts and group gadgets in the
   run-all-formatters sweep. Also defines two constant classes:
@@ -574,7 +687,7 @@ executable and never changes how source is written. Payloads are unaffected by i
     Help and the search collapse a span back to a readable range (`.NET Framework
     4.8 - 4.8.1`) via `GadgetFacetReader.VersionSummary`; `RuntimeVersion.Resolve`
     accepts what users type (`4.8.1`, `.NET 4.8`, `net5.0`). The declarations are
-    earned, not asserted: `ysonet.Tests/RuntimeBuild.cs` reads the documented
+    earned, not asserted: `ysonet.Tests/Runner/RuntimeBuild.cs` reads the documented
     `NDP\v4\Full` Release value, and every fire helper in the FULL execution
     matrix records the gadget along with the target version that decided the
     outcome. That is the running build by default; for a row that fires into a
@@ -585,6 +698,15 @@ executable and never changes how source is written. Payloads are unaffected by i
     that version; the compatibility workflow must establish an older working
     target version before a new runtime-gated gadget is complete. A payload that
     fires on a target version its own metadata excludes fails the run.
+    The classification is SYMMETRIC (`Tests.ClassifyVersionEvidence`): an
+    observation newer than everything declared in the same family is
+    `couldExtend` and one older than everything declared is `couldLower`. Both
+    are REPORTED, so a contributor never gets a red build for new evidence; only
+    an observation the declaration positively excludes - a hole inside the
+    declared span, or another runtime family - is a contradiction and fails. The
+    lower half is what the LEGACY tier (section 8.3b) produces: it fires payloads
+    on CLR 2 and records `net-fx-2.0` / `net-fx-3.0` / `net-fx-3.5`, so a floor
+    is measured rather than assumed.
 - **`Generators/Base/GenericGenerator.cs`** (abstract) implements everything except three
   abstract members each gadget must provide: `Generate(formatter, inputArgs)`, `Finders()`,
   `SupportedFormatters()`. Defaults:
@@ -605,8 +727,10 @@ executable and never changes how source is written. Payloads are unaffected by i
     caller that really does want to steer the inner gadget (TextFormattingRunProperties'
     `xamlurl` hand-off, which swaps the inner gadget for ResourceDictionary, and SharePoint's
     DataSet calls) still can. A plugin
-    that generates the gadget the USER named with `-g` (ViewState, SharePoint, Resx) keeps
-    calling `GenerateWithNoTest`, because there the forwarded options are the point.
+    that generates the gadget the USER named with `-g` goes through
+    `PayloadRunner.GeneratePluginGadget` instead, because there the forwarded options are
+    the point. Six plugins do: ViewState, SharePoint, Resx, Altserialization,
+    ApplicationTrust and TransactionManagerReenlist.
     Guarded by the `EveryVariantGeneratesFromTheVariantFlagAlone` test.
   - **`Serialize(payloadObj, formatter, inputArgs)`** handles the four "real" .NET
     formatters natively: **BinaryFormatter, SoapFormatter, NetDataContractSerializer,
@@ -634,9 +758,11 @@ executable and never changes how source is written. Payloads are unaffected by i
     `IsMessagePackLz4`** (case-insensitive name tests), **`UnsupportedFormatter`** (one
     message naming the gadget).
   - Used by `PictureBox`, `InfiniteProgressPage`, `FileLogTraceListener`,
-    `DataViewManagerXxe` and `DataSetXxe`. Nothing in it names a gadget: templates, type
-    names and surrogates stay in each gadget's file (`Generators/README.md`).
-  - The two XXE gadgets do NOT use the shared `RawInputOption` help, and that is
+    `FileSystemProxyCurrentDirectory`, `DataViewManagerXxe`, `DataSetXxe`, `XmlDocumentXxe`
+    and `XmlDocumentSurrogateXxe`.
+    Nothing in it names a gadget: templates, type names and surrogates stay in each gadget's
+    file (`Generators/README.md`).
+  - The four XXE gadgets do NOT use the shared `RawInputOption` help, and that is
     deliberate: its wording says formatter-layer escaping is disabled, while their
     `--rawinput` only skips the check on the URL. The finished XML is always escaped for the
     outer document either way, so each declares its own option text saying exactly that.
@@ -645,12 +771,11 @@ executable and never changes how source is written. Payloads are unaffected by i
     `.Without(...)` in `Variants()`); a gadget calls this at the top of `Generate()` to reject
     a variant+formatter pair the chosen variant cannot produce, with one clear message instead
     of a deep framework exception. `SupportedFormatters()` stays the gadget-wide union; a
-    variant only narrows it. Used by `ActivitySurrogateDisableTypeCheck` and
-    `XamlAssemblyLoadFromFile` (variant 1 is TypeConfuseDelegate, a generic container that
-    SoapFormatter cannot serialize - true for all three `--container` roots).
-    `TypeConfuseDelegate` calls it too, even though none of
-    its container variants opts out today, so a later opt-out cannot be declared without
-    being enforced. On the CLI/sweep paths `PayloadRunner` wraps the throw
+    variant only narrows it. The current TypeConfuseDelegate example is variant 2: its
+    deeper SortedDictionary SOAP document is not implemented, while variants 1 and 3 use
+    the direct SOAP authoring path. The two HostedPayloads gadgets call the guard as well;
+    their SOAP rootcontainer 2 refusal is option-specific and is enforced separately before
+    the expensive compile path. On the CLI/sweep paths `PayloadRunner` wraps the throw
     into a clean `RunResult.Fail`; the interactive editor validates the same rule up front.
   - **`GadgetVariant.WithoutOptions(...)`** is the same idea for OPTIONS: a variant lists
     the gadget options it does not use, by canonical long name. The interactive editor
@@ -660,6 +785,14 @@ executable and never changes how source is written. Payloads are unaffected by i
     scripted command breaks. Only the two `HostedPayloads` gadgets declare anything today
     (variant 2 does not use `rootcontainer`); a gadget that declares nothing keeps every
     option visible.
+  - **CLR2 local self-test.** `-t --legacyfx`, and `-t` on a CLR2-only gadget, route the
+    finished BinaryFormatter/LosFormatter/SoapFormatter bytes through
+    `Helpers/Core/Clr2SelfTest.cs` to the separately shipped
+    `ysonet.Clr2TestHost.exe`. The one-shot host has no listener, pins itself to CLR 2,
+    verifies `Environment.Version` before opening the temp payload, deserializes once,
+    reports, and exits. `--testclr2` selects the same route explicitly. This is distinct
+    from the test suite's generated legacy child: the shipped executable is product
+    functionality and is included in Release archives.
   - **`SelfTestNeedsChildProcess(formatter, inputArgs)`** routes `-t` through a child
     ysonet process for a payload that terminates the runtime when it fires. The TCD XAML
     wrapper is the known case: it reaches `XamlReader.Parse` from inside a deserialization
@@ -702,13 +835,14 @@ to receive. Most bridges consume **BinaryFormatter**; **`DataSetOldBehaviour`** 
 `NetDataContractSerializer.ReadObject`. Every gadget tagged `Bridged` declares a real
 `SupportedBridgedFormatter()`, so all of them can be a `--bgc` consumer.
 
-### Full gadget table (50 gadgets)
+### Full gadget table (57 gadgets)
 | Name | Formatters | Labels | Bridge? (accepts) | Extra options | Purpose |
 |---|---|---|---|---|---|
-| **ActivitySurrogateSelector** | BinaryFormatter, SoapFormatter, LosFormatter | Independent | No | `var` (1/2) | Reads `e.dll` beside exe; ActivitySurrogateSelector + LINQ enumerator chain to load+instantiate ExploitClass. Ignores `-c`. |
-| **ActivitySurrogateSelectorFromFile** | +NetDataContractSerializer | (inherits) | No | `var` | Subclass; `-c` = `.cs` file (opt `;asm.dll`) compiled via LocalCodeCompiler; disables 4.8+ type-check at gen time. |
-| **ActivitySurrogateDisableTypeCheck** (HostedPayloads/) | BF(2), Soap, NDCS(2), Los(2) | Hosted | No | `var` (1 TCD, 2 TFRP), `rootcontainer` (1 SortedSet, 2 SortedDictionary, 3 TreeSet; variant 1 only) | XAML that reflectively sets `disableActivitySurrogateSelectorTypeCheck` to re-enable ActivitySurrogateSelector on .NET 4.8+. |
-| **AssemblyInstallerLoad** | Json.NET(2), Xaml(2), FastJson(2), JavaScriptSerializer(2), YamlDotNet<5(2), SharpSerializerBinary(2), SharpSerializerXml(2), MessagePackTypeless(+Lz4)(2) | GetterChain, Independent | No | `var` (1 local path, 2 UNC path), `getter` (1 PropertyGrid, 2 ComboBox, 3 ListBox, 4 CheckedListBox) | Bring your own DLL. `System.Configuration.Install.AssemblyInstaller.Path` setter calls `Assembly.LoadFrom(value)`, and the `HelpText` getter then calls `InitializeFromAssembly()`, which builds every public, non-abstract `Installer` subclass in that assembly marked `[RunInstaller(true)]` with `Activator.CreateInstance` - so the operator's own installer CONSTRUCTOR runs on the target. ysonet never produces the DLL; against an assembly with no such class the payload is only an assembly load. The getter is reached with the WinForms getter-call carriers, and the private `initialized` flag limits construction to ONCE per deserialized instance even on ComboBox, which reads `HelpText` several times. `-c` is a `.dll` or managed `.exe` PATH (a bare program name is refused): variant 1 a path the target already has, variant 2 a UNC path it fetches over SMB - each variant refuses the other's input. UNC delivery is configuration dependent: .NET only loads an assembly from a share it classifies as Local Intranet, and an Internet-zone share (a bare IP is one) needs `loadFromRemoteSources=true` on the target. Formatter list is structural: Json.NET and Xaml can add to a read-only `Items` collection so they drive all four carriers, everything else needs a settable property and so only builds `PropertyGrid.SelectedObjects`; the field-based and contract-inferring formatters cannot carry a WinForms carrier at all. `-t` is ACCEPTED: in ysonet `-t` is a self-exploit, so it deserializes here and loads the operator's own DLL and runs its installer constructors on the operator's machine - the same self-run `-t` on ObjectDataProvider performs, so only `-t` a DLL you trust. The path is verified after serialization and refused if a minifier rewrote it (the YAML minifier collapses repeated spaces; the XML one collapses `"; "`). Unlike `XamlAssemblyLoadFromFile`, which takes C# source, compiles it and embeds the assembly (and needs WPF), this one takes an EXISTING assembly path and can use SMB delivery. |
+| **ActivitySurrogateSelector** | BinaryFormatter (3), SoapFormatter (3), LosFormatter (3) | Independent | No | `var` (1/2 AxHost.State, 3 DataSet) | ActivitySurrogateSelector + LINQ enumerator chain to load+instantiate ExploitClass. Ignores `-c`; normally reads `e.dll`, while `--legacyfx` compiles the bundled source with the v3.5 provider and authors `Func<>` against System.Core 3.5. Variants 1 and 3 are measured on .NET 3.5; the older variant 2 remains 4.x-only. |
+| **ActivitySurrogateSelectorFromFile** | (inherits) | (inherits) | No | `var` | Subclass; `-c` = `.cs;ref1.dll,ref2.dll`, compiled via LocalCodeCompiler. `--legacyfx` uses the v3.5 provider; a supplied DLL remains untouched. Disables the 4.8+ type-check at generation time. |
+| **ActivitySurrogateDisableTypeCheck** (HostedPayloads/) | BF(2), Soap(2), NDCS(2), Los(2) | Hosted | No | `var` (1 TCD, 2 TFRP), `rootcontainer` (1 SortedSet, 2 SortedDictionary, 3 TreeSet; variant 1 only) | XAML that reflectively sets `disableActivitySurrogateSelectorTypeCheck` to re-enable ActivitySurrogateSelector on .NET 4.8+. For the TCD wrapper, SOAP directly authors roots 1 and 3 and explicitly refuses the deeper root 2; the target sees the native CLR4 TCD root, not a surrogate carrier. |
+| **AssemblyCatalogLoad** | Xaml | Independent | No | `rawinput` | One string becomes a loaded assembly, from a PUBLIC CONSTRUCTOR. `System.ComponentModel.Composition.Hosting.AssemblyCatalog(string codeBase)` (MEF, in the .NET Framework GAC since 4.0, so no application reference is needed) calls `AssemblyName.GetAssemblyName(codeBase)`, which OPENS the path, and then `Assembly.Load` on the name it read - and `GetAssemblyName` fills in `AssemblyName.CodeBase`, so when probing has no such identity the loader falls back to the operator's path. Two effects from one `-c`, and the first one happens even when the second fails: a UNC value starts an SMB session (which sends authentication material, and needs nothing on the share), and a reachable assembly is loaded into the target's default load context. THE LOAD RUNS NOTHING, measured: an emitted module initializer does NOT fire on a bare `Assembly.Load`, and `InitializeAssemblyCatalog` only stores the assembly rather than calling `GetTypes`. Execution needs one more step that belongs to the target - it touches the catalog (the `InnerCatalog` getter builds a `TypeCatalog` and honours the assembly's own `[CatalogReflectionContext]`), it resolves a type from the loaded assembly by name, or the assembly is mixed mode and its native `DllMain` runs at load - which is why `AdditionalInfo()` says "loads" and not "runs". XAML IS THE ONLY POSSIBLE FORMATTER, and unusually the reason is not which serializer can NAME the member: there IS no member. Both public properties (`Assembly`, `Parts`) are getter-only, so the constructor parameter is the one way in, and there is no parameterless constructor to reach it from - which removes FastJson, JavaScriptSerializer, YamlDotNet, both SharpSerializer modes and both MessagePack Typeless flavours at once. Json.NET is the one member-assigning serializer that can bind constructor arguments, but `DefaultContractResolver.GetParameterizedConstructor` does that only for a type with EXACTLY ONE public constructor and this one has eight. BF/Soap/Los/FsPickler reject the type because it is not `[Serializable]`; it carries no `[DataContract]` either, and because it implements `IEnumerable` the DataContract family writes a collection contract (`ArrayOfComposablePartDefinition`, with nowhere to name an argument) while `XmlSerializer` refuses it by name. `x:Arguments` is the only capability that passes a constructor argument, so Xaml wins alone. Two document details are load bearing: `x:Arguments` must be an ELEMENT and come first (the object does not exist until its arguments are read), and the argument carries `xml:space="preserve"`, without which a XAML reader normalizes the value (measured: `"  C:\a  b  \x.dll  "` arrives as `"C:\a b \x.dll"`). The gadget re-reads its own emitted document and refuses when either half is gone - the missing-attribute case is the dangerous one, because the text would still be exact and only the target would see a different path. Because the value travels in element TEXT rather than an attribute, the measured minify losses differ from `ResourceDictionary`'s: a tab, a repeated interior space and a `"; "` sequence all SURVIVE here, and only leading and trailing whitespace is trimmed; a carriage return is lost with or without `--minify`, to XML's own line-ending normalization. `-c` is taken as typed - no extension, path shape or UNC rule - and `-t` is ACCEPTED, which loads the operator's own assembly into the ysonet process (it cannot be unloaded), the same self-exploit `-t` on `AssemblyInstallerLoad` performs and strictly less than it, since that one also runs the assembly's installer constructors. Unlike `AssemblyInstallerLoad`, which needs `System.Configuration.Install` plus a WinForms getter-call carrier and reaches nine formatters, this one names a single type and its whole payload is one element - useful against a target that reaches XAML but blocks the usual carriers - at the cost of stopping at the load. |
+| **AssemblyInstallerLoad** | Json.NET(2), Xaml(2), FastJson(2), JavaScriptSerializer(2), YamlDotNet<5(2), SharpSerializerBinary(2), SharpSerializerXml(2), MessagePackTypeless(+Lz4)(2) | GetterChain, Independent | No | `var` (1 local path, 2 UNC path), `getter` (1 PropertyGrid, 2 ComboBox, 3 ListBox, 4 CheckedListBox, 5 BindingSource) | Bring your own DLL. `System.Configuration.Install.AssemblyInstaller.Path` setter calls `Assembly.LoadFrom(value)`, and the `HelpText` getter then calls `InitializeFromAssembly()`, which builds every public, non-abstract `Installer` subclass in that assembly marked `[RunInstaller(true)]` with `Activator.CreateInstance` - so the operator's own installer CONSTRUCTOR runs on the target. ysonet never produces the DLL; against an assembly with no such class the payload is only an assembly load. The getter is reached with the WinForms getter-call carriers, and the private `initialized` flag limits construction to ONCE per deserialized instance even on ComboBox, which reads `HelpText` several times. `-c` is a `.dll` or managed `.exe` PATH (a bare program name is refused): variant 1 a path the target already has, variant 2 a UNC path it fetches over SMB - each variant refuses the other's input. UNC delivery is configuration dependent: .NET only loads an assembly from a share it classifies as Local Intranet, and an Internet-zone share (a bare IP is one) needs `loadFromRemoteSources=true` on the target. Formatter list is structural, and the FIVE carriers split along two OPPOSITE lines. Carriers 2-4 need a formatter that can add to a read-only `Items` collection, which is Json.NET and Xaml only; everything else needs a settable property. Carrier 5 (`BindingSource`) is the settable-property one: `DataMember` names the property and `DataSource` supplies the object, and whichever setter lands second calls `ResetList` -> `ListBindingHelper.GetList(dataSource, dataMember)` -> `PropertyDescriptor.GetValue`. It works with Xaml, FastJson, JavaScriptSerializer and both SharpSerializer flavours and is REFUSED on Json.NET, YamlDotNet and both MessagePack flavours, because `BindingSource` implements `IList` and those four populate it with `Add` instead of calling the setters (Json.NET: "the type requires a JSON array"; giving it the array shape does not help, since an array contract only ever calls `Add`). So Xaml is the only formatter that can build all five, and for FastJson, JavaScriptSerializer and the two SharpSerializer flavours carrier 5 is the first alternative to `PropertyGrid`. It is also the only carrier that is not a WinForms CONTROL - `BindingSource` is a `Component` with no window - which is what makes it suit a headless target. The field-based and contract-inferring formatters cannot carry any of them. `-t` is ACCEPTED: in ysonet `-t` is a self-exploit, so it deserializes here and loads the operator's own DLL and runs its installer constructors on the operator's machine - the same self-run `-t` on ObjectDataProvider performs, so only `-t` a DLL you trust. The path is verified after serialization and refused if a minifier rewrote it (the YAML minifier collapses repeated spaces; the XML one collapses `"; "`). Unlike `XamlAssemblyLoadFromFile`, which takes C# source, compiles it and embeds the assembly (and needs WPF), this one takes an EXISTING assembly path and can use SMB delivery. |
 | **AxHostState** | BF, Soap, Los, NDCS | Bridged | Yes (BF) | - | Wraps a BF payload in `AxHost.State`. |
 | **BaseActivationFactory** | Json.NET | Independent, .NET5/6/7, needs WPF | No | - | `WinRT.BaseActivationFactory` -> `LoadLibraryExW`; `-c` = DLL path. |
 | **ClaimsIdentity** | BF, Soap, DCS, DataContractJsonSerializer, NDCS, Los | Bridged, OnDeserialized | Yes (BF) | - | `ClaimsIdentity.m_serializedClaims` -> BF on OnDeserialized. DCS/NDCS/DataContractJson import it as a data contract (same member). |
@@ -718,18 +852,19 @@ to receive. Most bridges consume **BinaryFormatter**; **`DataSetOldBehaviour`** 
 | **DataSetOldBehaviour** | BF(2), Los(2) | Bridged | Yes (**Los**) | `spoofedAssembly`, `var` | Legacy DataSet XML path (XmlSchema+DiffGram) -> ExpandedWrapper -> LosFormatter. Variant 2 = SharePoint ToolShell. |
 | **DataSetOldBehaviourFromFile** | BF(2), Los(2) | (none) | No (compiles file) | `spoofedAssembly`, `var`, `compressed` | Same but embeds a runtime-compiled assembly loaded via XAML. `--compressed` gzip-compresses the assembly and the payload decompresses it at deserialization via a `GZipStream` chain (same technique as XamlAssemblyLoadFromFile; ~90-95% smaller for a real assembly). Reuses `XamlAssemblyLoadFromFileGenerator.Gzip`. `internal` class. |
 | **DataSetXxe** | BF(2), Soap(2), Los(2), Json.NET(2), FsPickler(2) | Independent | No | `var` (1 external DTD fetch, 2 OOB file read), `rawinput` (variant 1), `file` + `dtd-out` (variant 2) | The ISerializable-CONSTRUCTOR counterpart of `DataViewManagerXxe`, same XML gate and the opposite carrier shape. `System.Data.DataSet` is `[Serializable]` + `ISerializable`; its deserialization constructor defaults `RemotingFormat` to `Xml` and hands the `XmlSchema` member to `ReadXmlSchema(new XmlTextReader(new StringReader(text)), denyResolving: true)`. `denyResolving` only nulls the XSD schema-SET resolver, and the DOCTYPE is parsed while the reader moves to the first content node, so the external entity resolves BEFORE any schema logic - a later "not a schema" throw is after the request left. The payload writes `XmlDiffGram` as a null string so the member layout is complete and the second sink in `DeserializeDataSetData` is never invoked; `DataSet.RemotingFormat` is deliberately absent. `var 1` (default) declares one external parameter entity at the `-c` URL and references it: one outbound request, network/SSRF only, nothing comes back. `var 2` earns file-system AND information-disclosure: `-c` is the BASE location of a host the operator controls, `--file` names what to read on the target, and `--dtd-out` is where ysonet writes the companion `dataset-oob.dtd` the operator must publish at `<base>/dataset-oob.dtd`. Variant 2 validates NONE of the three: `-c` skips the `DtdSystemLiteral` http/https check (a UNC share, another scheme, even a query string is the operator's call) and `--file` goes into the hosted DTD exactly as typed, because what resolves as a system identifier is the TARGET parser's decision and refusing a form here would only block the research. Only a `"` genuinely breaks the DTD by ending the quoted identifier; `%` and `&` are literal in a SystemLiteral, so percent-encoding a space works - the old check banned `%` while its own message advised percent-encoding. That hosted DTD reads `%file;`, builds `%exfil;` whose system id embeds the content, and references it, so the target sends the file back in the query string of `<base>/collect`. The whole nesting lives in the EXTERNAL DTD because an internal subset cannot reference a parameter entity inside a markup declaration. Measured limits of what comes back: spaces, line breaks, `<`, `>` and `"` all arrive percent-encoded and decode cleanly, and 4 KB came back intact, but `&`, `%`, `'` or `#` anywhere in the file BREAKS the chain and produces no second request at all - which is exactly the short-ini-yes/`web.config`-no asymmetry the published research reported. `--dtd-out` is the catalog's first companion-file side effect: `FileMode.Create`, UTF-8 with no BOM. It is taken at face value - an existing file is replaced (reported on stderr) and a missing folder is created - so generating twice to the same path works. The guarantee that survives is the ORDER: the DTD is written only after the payload is built, so a missing option or an unsupported formatter leaves whatever is at that path untouched, and only a file this call created is removed when the write itself fails. Variant 1 REFUSES `--file`/`--dtd-out` rather than ignoring them, and variant 2 does not use `--rawinput`. Formatter set is exactly "can drive an ISerializable CONSTRUCTOR", measured by feeding a real XSD through each and requiring the resulting DataSet to carry the table it declares: an inert marshal with `SetType` covers BF/Soap/Los, and Json.NET and FsPickler are hand written documents (Json.NET needs `XmlDiffGram` PRESENT or the constructor throws "Member 'XmlDiffGram' was not found"). The whole DataContract family is out for a second, independent reason and fails SILENTLY: `DataSet` also implements `IXmlSerializable`, which the DataContract stack resolves FIRST, so NDCS and DCS return a real but EMPTY DataSet with no exception and no fetch (DataContractJsonSerializer throws). `-t` is allowed, like the other network gadgets; nothing in `-c` or `--file` is opened or contacted while building. |
-| **DataTable** | BF(2), Soap, Los(2) | (none) | No | `var` (1 TFRP, 2 TCD) | Same-graph `System.Data.DataTable` root carrier: the inner gadget rides an `object` column and deserializes in the SAME outer graph, so there is no nested formatter and no new binder boundary (this is what separates it from the DataSet gadget). Variant 1 (default) is the compatible TFRP inner (needs Microsoft.PowerShell.Editor + WPF; BF/Soap/Los). Variant 2 is a built-in TypeConfuseDelegate inner (no WPF/Microsoft.PowerShell.Editor); being a generic SortedSet it drops Soap, so BF/Los only. BF/Los `--minify` shrinks the inner XAML only (the minifying binary formatter cannot serialize a live DataTable); Soap minifies its XML. |
+| **DataTable** | BF(2), Soap(2), Los(2) | (none) | No | `var` (1 TFRP, 2 TCD) | Same-graph `System.Data.DataTable` root carrier: the inner gadget rides an `object` column and deserializes in the SAME outer graph, so there is no nested formatter and no new binder boundary (this is what separates it from the DataSet gadget). Variant 1 (default) is the compatible TFRP inner (needs Microsoft.PowerShell.Editor + WPF; BF/Soap/Los). Variant 2 is a built-in TypeConfuseDelegate inner (no WPF/Microsoft.PowerShell.Editor); on SOAP the table and its native CLR4 SortedSet/ComparisonComparer inner are authored together through generation-only aliases, so all three formatters carry both variants. BF/Los `--minify` shrinks the inner XAML only (the minifying binary formatter cannot serialize a live DataTable); Soap minifies its XML. |
 | **DataTableTypeSpoof** | BF(2), Soap, Los(2) | (none) | No | `var` (1 TFRP, 2 TCD), `target-type`, `target-assembly` | The same carrier as **DataTable**, written under the name of a real DataTable SUBCLASS, for a target that rejects `System.Data.DataTable` by NAME (a blocklist, a naive binder, a WAF signature). A subclass inherits the protected `DataTable(SerializationInfo, StreamingContext)` constructor, which is what rebuilds the rows, so nothing else about the chain changes. This is NOT the `DataSetTypeSpoof` trick: that appends `, x=]` to a real type name and relies on how a binder parses it, while this names a type that really exists. Same idea watchTowr used for CVE-2025-23120 (Veeam), where the application's own DataSet subclasses walked through a deny list of the base name. The marshal delegates `GetObjectData` to the live table's own public virtual method and then replaces `FullTypeName`/`AssemblyName`; the member set IS DataTable's binary remoting schema, so hand-copying it would be a reimplementation that drifts from the framework. Two reviewed in-box profiles ship as values, both `[Serializable] internal sealed` classes in `System.Data.Entity.Design` (part of the full .NET Framework, not the Client Profile) whose serialization constructors call base FIRST and add no check: `...SsdlGenerator.TableDetailsCollection` (default) and `...SsdlGenerator.RelationshipDetailsCollection`. `internal` is not a blocker - BinaryFormatter resolves types with `Assembly.GetType` and finds serialization constructors with `NonPublic` binding. `--target-type` and `--target-assembly` write any name verbatim (only an empty value is refused), for a subclass from the target's own assemblies; a typed DataSet generates one per table, so most applications that use DataSets have several. Variants, formatters and minify behaviour are DataTable's exactly, including the BF/Los minify limit (measured here too: the minifying binary formatter throws on this graph as well). |
 | **DataViewManagerXxe** | Xaml, JavaScriptSerializer, FastJson, SharpSerializerXml, SharpSerializerBinary | Independent | No | - | `System.Data.DataViewManager.DataViewSettingCollectionString` parses its value with a legacy `XmlTextReader`, which resolves an external DTD when the target app uses the pre-4.5.2 XML resolver defaults. `-c` = external DTD URL (http/https). Network/SSRF only: the setter never returns entity text, so this is not file disclosure. The short formatter list is structural - `DataViewManager` implements `IList`, so contract-inferring serializers (Json.NET, YamlDotNet, DCS/NDCS, XmlSerializer, DataContractJson, MessagePack typeless) build a COLLECTION contract and never call the setter, while the field-based formatters never call a setter at all and the type is not `[Serializable]`. |
 | **DynamicUpdateMapExtension** | Xaml | Bridged (NDCS inner), SecondOrderDeserialization | Yes (**NetDataContractSerializer**) | - | Turns any XAML sink into a full `NetDataContractSerializer` sink. `System.Activities.XamlIntegration.DynamicUpdateMapExtension` is a public `MarkupExtension` with a public parameterless constructor and `[ContentProperty("XmlContent")]`; that property's lazy getter builds an internal `NetDataContractXmlSerializable<DynamicUpdateMap>`, whose `IXmlSerializable.ReadXml` runs `new NetDataContractSerializer { AssemblyFormat = Simple }.ReadObject(reader)` on the XML it is handed - no binder, no `DataContractResolver`, no known types. Reachable wherever attacker XAML is parsed with the default schema context: `XamlServices.Load`, `ActivityXamlServices.Load` (`.xamlx` workflow files), `WorkflowDesigner.Load(fileName)`, `System.Windows.Markup.XamlReader.Load`. THE INNER DOCUMENT MUST SIT INSIDE `<x:XData>`: System.Xaml's scanner treats markup as literal XML only for the XAML language's `XData` element (`XamlScanner.IsXDataElement`), then `XamlObjectWriter.Logic_ApplyPropertyValue` sees an `XData` value on a member whose type is `IXmlSerializable` and calls `ClrObjectRuntime.SetXmlInstance`, which READS the property and calls `ReadXml` on the result. Nesting the NDCS document directly under the property element instead makes the parser try to resolve its root as a XAML type ("Cannot create unknown type") and never reaches the sink. A read-only property is therefore fine, which is unusual: nothing is ever assigned. The `(DynamicUpdateMap)` cast happens AFTER `ReadObject` returns, so the inner chain has already run when the `InvalidCastException` is raised - a failed load is the normal outcome. Bridge consumer: `-bgc <any NDCS gadget>` supplies the inner document, and with no chain it emits `TypeConfuseDelegate` through `GenerateInner`. Xaml is the only formatter and every exclusion is structural: the sink is a XAML-parser feature no other serializer implements, `XmlContent` has no setter and its declared type is an interface with no members, the type is not `[Serializable]` (out: BF/Soap/Los/FsPickler), and a data contract is built from read-write members (out: NDCS/DCS/DataContractJson/XmlSerializer). Non-XAML delivery is done by CHAINING instead: this gadget's output is a Xaml document, so it can be the inner payload of any consumer whose bridged formatter is Xaml. WHERE IT DOES NOT LAND, measured: `RestrictiveXamlXmlReader` (the CVE-2020-0605/0606 mitigation used by the WPF clipboard and XPS sinks) drops it silently - no exception, nothing built, no effect. Its five named types read like a blocklist, but `IsRestrictedType` is an ALLOWLIST that keeps only a `DependencyObject` subclass in the `System.Windows[.*]` namespace, a primitive, or a registry/`SerializationConfig`-allowed type, and skips every other subtree. That is a property of that one reader, not of the default schema context this gadget targets. |
 | **FileLogTraceListener** | Json.NET, FastJson, JavaScriptSerializer, YamlDotNet<5, MessagePackTypeless(+Lz4), SharpSerializerXml, DataContractJsonSerializer, Xaml | Independent | No | `rawinput` | `Microsoft.VisualBasic.Logging.FileLogTraceListener.CustomLocation` creates the supplied directory. With elevated privileges this may cause denial of service. `-c` = directory path. |
 | **FileSystemInfo** | BF(2), Soap(2), Los(2), NDCS(2), DCS(2), DataContractJsonSerializer(2), Json.NET(2) | Independent | No | `var` (1 DirectoryInfo, 2 FileInfo), `rawinput` | Outbound UNC/SMB callback through path normalization. `System.IO.FileSystemInfo` (mscorlib) is `[Serializable]` + `ISerializable`, and its serialization constructor is the whole gadget: `FullPath = Path.GetFullPathInternal(info.GetString("FullPath"))`, then `OriginalPath = info.GetString("OriginalPath")`. `GetFullPathInternal` normalizes with short-name expansion ON (`LongPathHelper.Normalize(..., expandShortPaths: true)` on 4.6.2+ path handling, `Path.LegacyNormalizePath` under `UseLegacyPathHandling`), which reaches `TryExpandShortFileName` -> `kernel32!GetLongPathNameW`. On a UNC path that call is the outbound SMB request. The type is abstract, so `var 1` (default) names `DirectoryInfo` and `var 2` names `FileInfo`; both concrete constructors run the base one FIRST, so the callback happens before either permission check (`Directory.CheckPermissions` / `FileIOPermission.QuickDemand`), and the only difference is that `FileInfo` adds a Read demand that matters outside full trust. WHEN IT CALLS OUT: mscorlib expands only when a path COMPONENT contains `~` and is at most 12 characters, and the LAST component counts too - so `\\host\share\aaaaaa~1\x` and `\\host\share\aaaaaa~1` both fire, while `\\host\share\file` and a `~` component longer than 12 do not. NOTHING about the path is refused: what a target's path handling accepts is the thing this gadget is used to find out, so a non-triggering shape still builds and `--debugmode` says why it will not call out. WHAT IS CLAIMED: an outbound callback ATTEMPT (name resolved, SMB request opened). NOT a completed SMB session, NOT NTLM authentication, NOT captured credentials and NOT a relay. Formatter set is exactly "can drive an ISerializable CONSTRUCTOR": an inert marshal with `SetType` covers BF/Soap/Los/NDCS (no separate DataContract shape, because the target IS `ISerializable`), and DCS, DataContractJsonSerializer and Json.NET are hand written documents. Every property/field-by-name serializer is excluded structurally (`FullPath` is a protected field only that constructor assigns from input). DataContractJsonSerializer DOES work here, unlike on `WbemClassObjectUnmarshal`, because both members are plain strings rather than a `byte[]`. FsPickler is the one exclusion the structural rule does not explain: it drives ISerializable constructors elsewhere (`DataSetXxe`) but rejects this TYPE outright during pickler resolution - `NonSerializableTypeException: Type 'System.IO.DirectoryInfo' is not serializable` - because `FileSystemInfo` derives from `MarshalByRefObject`, where `DataSet` derives from `MarshalByValueComponent`. Effect coverage is two-tiered: the FULL tier aims the payload at a real LOCAL directory through its 8.3 short name and requires the deserialized object to report the LONG name back (that is `GetLongPathNameW` proven to have run, per formatter and variant, with no traffic off the machine; a volume with 8.3 creation disabled is a named skip), and the opt-in OOB tier aims it at a run-unique name and observes the DNS lookup, with a control payload that is generated but never deserialized and must stay silent - which is what proves `-c` is not touched at build time. The path IS the payload, so the gadget serializes, VERIFIES the emitted document still carries it exactly, and REFUSES rather than shipping one the XML minifier rewrote (`--rawinput` hands both the escaping and that check to the operator). `-t` is ALLOWED, like the other network gadgets: it deserializes here, so THIS machine makes the callback, which is what `-t` is for. The option help says so, including that Windows sends authentication material when it opens an SMB session. |
+| **FileSystemProxyCurrentDirectory** | Json.NET, NDCS, DCS, DataContractJsonSerializer, MessagePackTypeless(+Lz4) | Independent | No | `rawinput` | `Microsoft.VisualBasic.MyServices.FileSystemProxy.CurrentDirectory` is a one-line setter whose body is `FileSystem.CurrentDirectory = value`, i.e. `Directory.SetCurrentDirectory(value)`. One assigned string moves the TARGET PROCESS's working directory, for every thread, for the rest of its life. `-c` = a directory path on the target. NOT code execution and it does not claim to be: the value is what the target does AFTERWARDS with a relative path (a bare-name `LoadLibrary` or a relative `Assembly.LoadFrom` resolves against the working directory; a relative read returns attacker content; a relative write lands where the attacker chose). It is the in-box equivalent of the xunit `PreserveWorkingFolder` gadget in `ThirdPartyGadgets`, with no third-party assembly needed. THE CARRIER CHOICE IS FORCED: three in-box members reach this sink and the other two - `System.Environment.CurrentDirectory` and `Microsoft.VisualBasic.FileIO.FileSystem.CurrentDirectory` - are STATIC, which no serializer here names. Formatter list rests on ONE shape: the type is public, its only constructor is `internal`, and it has no parameterized constructor at all. Json.NET therefore builds it in its DEFAULT configuration, because its rule is "use the non-public default constructor when there is no parameterized creator" - the 2023 Hexacon assessment expected this to need `ConstructorHandling.AllowNonPublicDefaultConstructor`, and measured here it does not. The DataContract family never calls a constructor for a plain POCO, so NDCS/DCS/DataContractJsonSerializer work, and both MessagePack Typeless flavours construct the shape too. Out, measured: JavaScriptSerializer, FastJson, YamlDotNet, Xaml and both SharpSerializer flavours all demand a PUBLIC parameterless constructor; XmlSerializer fails for a second, independent reason (the read-only `ReadOnlyCollection<DriveInfo> Drives` property makes it demand an `Add(DriveInfo)` the type does not have - a member the payload never mentions costing a formatter); BF/Soap/Los/FsPickler need `[Serializable]`, which the type is not. `Microsoft.VisualBasic.Devices.ServerComputer` was tried as an outer carrier (public parameterless ctor, read-only `FileSystemProxy` property) and adds nothing: every formatter that cannot construct the proxy also cannot populate a read-only member. The directory is verified after serialization and REFUSED if a minifier rewrote it - measured: the XML minifier's XSLT pass trims a trailing space out of the DataContractSerializer text node. `-t` is ACCEPTED and really moves THIS process, then puts it back, because ysonet keeps running and a relative `--outputpath` would otherwise be written into the directory the operator just named; `--debugmode` prints the before and after. |
 | **FormsIdentity** | BF, Soap, DCS, DataContractJsonSerializer, NDCS, Los | Bridged, OnDeserialized | Yes (BF) | - | `System.Web.Security.FormsIdentity` (System.Web; derives ClaimsIdentity) carries the inherited `ClaimsIdentity+m_serializedClaims` field -> BF on OnDeserialized. BF/Los/Soap use the System.Web assembly record and prefixed field name; DCS/NDCS/DataContractJson import ClaimsIdentity as a base data contract (`m_serializedClaims`). `_Ticket` is required and set null. |
 | **GenericIdentity** | BF, Soap, DCS, DataContractJsonSerializer, NDCS, Los | Bridged, OnDeserialized | Yes (BF) | - | `System.Security.Principal.GenericIdentity` (derives ClaimsIdentity) carries the inherited `ClaimsIdentity+m_serializedClaims` field -> BF on OnDeserialized. DCS/NDCS/DataContractJson import ClaimsIdentity as a base data contract (`m_serializedClaims`; `m_name`/`m_type` required, null). |
 | **GenericPrincipal** | BF(2), Soap(2), DCS, DataContractJsonSerializer, NDCS, Los(2) | Bridged, OnDeserialized, SecondOrder | Yes (BF) | `var` (1/2) | JSON->BF (BF/Los) or hand-built SOAP GenericPrincipal/ClaimsIdentity graph -> BF sink. SOAP needs all four members (m_identity, m_roles required). DCS/NDCS/DataContractJson import ClaimsPrincipal as a base data contract (`m_serializedClaimsIdentities`; `m_identity`/`m_roles` required, null). |
 | **GetterCompilerResults** | Json.NET(4) | GetterChain, Independent | No | `var` (1-4) | `CompilerResults.get_CompiledAssembly` -> DLL load, via WinForms getter gadget. Declares the documented modern-.NET span `net-5.0 - net-7.0` (remote DLL load, WPF enabled). The .NET Framework half (local DLL load when `System.CodeDom` is present) is an assembly-availability question with no recorded build, so it stays off the version axis and lives in the requirement axis plus `AdditionalInfo()`. |
 | **GetterSecurityException** | Json.NET(4) | Bridged, GetterChain | Yes (BF) | `var` (1-4) | `SecurityException.get_Method` -> BF, via getter gadget. |
-| **GetterSettingsPropertyValue** | Json.NET(4), Xaml(4), MessagePackTypeless(+Lz4) | Bridged, GetterChain | Yes (BF) | `var` (MessagePack only var1) | `SettingsPropertyValue.get_PropertyValue` -> BF; also XAML + MessagePack encodings. Default XAML emits the BF blob as a per-byte `<Byte>` array; `--minify` instead passes it as one base64 `SerializedValue` string with `SettingsProperty SerializeAs="Binary"` (SettingsPropertyValue then does `Convert.FromBase64String` + BF itself), ~90% smaller (35 KB -> ~3 KB). |
+| **GetterSettingsPropertyValue** | Json.NET(4), Xaml(5), MessagePackTypeless(+Lz4) | Bridged, GetterChain | Yes (BF) | `var` (MessagePack only var1, BindingSource var5 Xaml only) | `SettingsPropertyValue.get_PropertyValue` -> BF; also XAML + MessagePack encodings. Default XAML emits the BF blob as a per-byte `<Byte>` array; `--minify` instead passes it as one base64 `SerializedValue` string with `SettingsProperty SerializeAs="Binary"` (SettingsPropertyValue then does `Convert.FromBase64String` + BF itself), ~90% smaller (35 KB -> ~3 KB). Variants 1-4 are the WinForms CONTROL carriers; variant 5 is `BindingSource`, a `Component` with no window, reached through `DataMember`/`DataSource` instead of a list control's `DisplayMember` - so it is the one variant that builds no control on the target. It is Xaml only and REFUSED elsewhere rather than falling back to variant 1: `BindingSource` implements `IList`, so Json.NET and both MessagePack flavours populate it with `Add` and never call the two setters. |
 | **InfiniteProgressPage** | Json.NET, FastJson, JavaScriptSerializer, YamlDotNet<5, SharpSerializerXml, Xaml | Independent | No | `rawinput` | `Microsoft.ApplicationId.Framework.InfiniteProgressPage.AnimatedPictureFile` loads a URL for SSRF or NTLM authentication. Needs `Microsoft.ApplicationId.Framework`; `-c` = URL. |
 | **ObjRef** | BF, Soap, Los | Independent | No | - | `ObjRef` -> RemotingProxy callback to attacker remoting server (URL in `-c`). |
 | **ObjectDataProvider** | Xaml(2), Json.NET, FastJson, JavaScriptSerializer, XmlSerializer(2), DataContractSerializer(2), YamlDotNet<5, FsPickler, SharpSerializerBinary/Xml, MessagePackTypeless(+Lz4) | Independent | No | `var` (1 plain, 2 ResourceDictionary wrapper) | Canonical WPF `ObjectDataProvider` -> `Process.Start` across many text serializers. Workhorse leaf gadget. **Two variants retired, and their numbers are not reused.** Variant 3 was the `ResourceDictionary Source=<url>` payload (a different effect: it fetches) and is now the separate **ResourceDictionary** gadget, whose URI is an ordinary `-c`; `--xamlurl` left with it. Variant 4 was the `WorkflowDesigner` wrapper (a different requirement: `System.Activities.Presentation`, which these facets do not declare) and is now the separate **WorkflowDesigner** gadget, which carries the same document to seven more formatters. Both old numbers are now REFUSED with a message naming the replacement gadget, on every formatter, rather than falling through to variant 1 - a scripted `--var 4` would otherwise ship a completely different payload with nothing to notice. |
@@ -744,17 +879,22 @@ to receive. Most bridges consume **BinaryFormatter**; **`DataSetOldBehaviour`** 
 | **TempFileCollection** | BF, Soap, Los, NDCS, DCS | Independent | No | `extrafile` (repeatable) | Deferred file DELETION on the target, with no process start and no nested formatter. `System.CodeDom.Compiler.TempFileCollection` (System.dll, `[Serializable]`) keeps its cleanup list in a private `Hashtable` of path -> `keepFile`; `~TempFileCollection()` -> `Dispose(false)` and `IDisposable.Dispose()` both reach `Delete()` -> `File.Delete(path)` for every entry whose flag is not `true`. `-c` is the first target path and `--extrafile` (repeatable) adds more; paths that differ only by case are collapsed, and no path is opened, resolved or canonicalized here. `keepFiles` is emitted as a fixed `false` and is deliberately NOT an option: it is only the default the real object applies when IT adds a file and never overrides an existing entry. TIMING IS THE TARGET'S, not the payload's (Dispose is deterministic, the finalizer needs unreachability plus a collection) and the framework swallows every delete error, so nothing reports back. Generation never builds a live instance: an ISerializable marshal with `SetType` carries it for BF/Soap/Los, so a plain generation is finalizer-free. `-t` is different and is ACCEPTED: in ysonet `-t` is a self-exploit, so it deserializes here, creates the real TempFileCollection, and its finalizer DELETES the paths in `-c` on the operator's own machine - genuinely destructive, so the help warns to `-t` only paths you can lose (the guard below runs on a `Test=false` probe FIRST, so a `--minify`-rewritten path is refused before `-t` can delete the wrong file). NDCS and DCS need a different shape, because they write an ISerializable object's members in NO namespace while this target is a plain `[Serializable]` class whose contract expects them in its own namespace, alphabetically: both use a `[DataContract]` shape that already declares the target's contract name, namespace and member names (NDCS then has only its root `z:Type`/`z:Assembly` retargeted; DCS carries no type info at all and travels in the usual `<root type="...">` envelope). Every payload is verified after serialization and REFUSED if any path was rewritten - by the XML minifier or, with no minification at all, by the DataContractSerializer helper's XML writer, which emits a carriage return raw. BF/Los produce no XML and are the fallback the refusal points at. |
 | **TextFormattingRunProperties** | BF, Soap, NDCS, Los, DCS, Json.NET | (none) | No | `xamlurl`, `hasRootDCS` | Shortest common gadget: `TFRP.ForegroundBrush` XAML -> ObjectDataProvider -> Process.Start. Static `TextFormattingRunPropertiesGadget()` reused everywhere. `--xamlurl` swaps the carried document for the **ResourceDictionary** gadget's, so the target fetches and loads that URL instead of running a command; the SharePoint plugin's `--useurl` mode rides the same path. |
 | **ToolboxItemContainer** | BF, Los, Soap | Bridged | Yes (BF) | - | `ToolboxItemContainer`/`ToolboxItemSerializer` BF-deserialize embedded Stream. |
-| **TypeConfuseDelegate** | BF(3), NDCS(3), Los(3) | Independent | No | `var` (1 SortedSet, 2 SortedDictionary, 3 TreeSet) | Forshaw ComparisonComparer delegate confusion -> Process.Start. `var` picks the serialized ROOT CONTAINER carrying the same splice: 1 (default) `SortedSet<string>`; 2 `SortedDictionary<string,string>`, whose serialized `TreeSet<KeyValuePair<string,string>>` backing set forwards key comparisons through `KeyValuePairComparer`; 3 the internal `TreeSet<string>` built by reflection. Variants 2 and 3 exist only to evade a binder/blocklist matching the exact `SortedSet` wire name (not an allowlist, and not an inheritance-aware rule - TreeSet derives from SortedSet), and they refuse an input whose executable and argument strings compare equal because both roots reject a duplicate key (variant 1 accepts it, but its SortedSet then holds one element and does not fire). The command path RELIES on the sorted container's ordering rule rather than enforcing it: `Process.Start` only receives the executable in parameter 1 while the executable sorts above the argument string. The default `cmd /c <command>` wrapping is safe by construction (`/` sorts below `c`), but `--rawcmd` removes it and a pair like `notepad.exe` / `zzz.txt` comes out swapped. That case is currently NOTED (`NoteIfArgumentsWillBeSwapped` -> `Debugging.ShowNote`, stderr, `--debugmode` only, so an embedding tool that captures merged streams is unaffected) rather than refused. Hand-built JSON->BF minified path is variant 1 only; the static `TypeConfuseDelegateGadget()` stays SortedSet. All three roots come from one shared builder (`BuildConfusedContainer`), which `GetXamlGadget(xaml[, container])` reuses with `XamlReader.Parse` in slot 1 instead of `Process.Start` - that overload is what the `rootcontainer` option of the two HostedPayloads gadgets drives, and its two elements (the XAML and `""`) can never collide, so it needs no distinct-key guard. The builder also takes the BENIGN `Comparison<string>` that fills invocation-list slot 0 and sorts the container while it is being filled, which is what fixes the sink's argument order on the wire: the command and XAML paths pass the original culture-sensitive `String.Compare`, while `TypeConfuseDelegateFileOperations` passes `String.CompareOrdinal` so its generation-time ordering guard and the serialized order are the same comparison. All variants need .NET Framework 4.5+ (`Comparer<T>.Create`). |
-| **TypeConfuseDelegateFileOperations** | BF(5), NDCS(5), Los(5) | Independent | No | `var` (1 write, 2 copy, 3 move, 4 dirmove, 5 empty), `rootcontainer` (1 SortedSet, 2 SortedDictionary, 3 TreeSet) | The same Forshaw delegate confusion with a two-string file method in invocation-list slot 1 instead of `Process.Start`, so a deserialize touches the file system without starting a process. `var` picks the operation and what `-c` means: 1 (default) `File.WriteAllText(targetPath, text)` from `-c "targetPath;localContentFile"` (the local file is read HERE at generation time and its decoded text is embedded); 2 `File.Copy`, 3 `File.Move`, 4 `Directory.Move`, all from `-c "sourcePath;destinationPath"`; 5 `File.WriteAllText(targetPath, "")` from `-c "targetPath"`, which creates or truncates. Only the FIRST `;` splits the value. ORDERING is the hard rule: the sorted container hands its LARGER element to the sink first, so `String.CompareOrdinal(firstArgument, secondArgument)` must be positive and generation is refused otherwise, never repaired by swapping or rewriting the input. That is also why this gadget fills its container with `String.CompareOrdinal` while the command and XAML paths keep the culture-sensitive `String.Compare`: the generation-time guard and the serialized order must be the same comparison. Variant 5 uses an empty `WriteAllText` rather than `File.Create`, which would return an undisposable open `FileStream`. Target-side preconditions: write/empty do not create the parent directory; copy and both moves do not overwrite an existing destination; dirmove needs the same volume. Both strings are user data the target uses literally, and the XML minifier is not text preserving (`XmlXSLTMinifier` trims text nodes, the `XmlDocument` round trip drops a CR, a dirty-match pass collapses `"; "`), so a `--minify` NetDataContractSerializer payload is VERIFIED after serialization and refused when either string was rewritten - rather than delivering a silently different file. BinaryFormatter and LosFormatter carry the strings verbatim and minify the same input fine. Same `.NET Framework 4.5+` floor and same three roots as TypeConfuseDelegate (all generic, so no Soap). |
-| **TypeConfuseDelegateMono** | BF, NDCS, Los | Independent | No | - | Mono variant using `delegates` field. |
+| **TypeConfuseDelegate** | BF(3), NDCS(3), Soap(2), Los(3) | Independent | No | `var` (1 SortedSet, 2 SortedDictionary, 3 TreeSet) | Forshaw ComparisonComparer delegate confusion -> Process.Start. `var` picks the serialized ROOT CONTAINER carrying the same splice: 1 (default) `SortedSet<string>`; 2 `SortedDictionary<string,string>`, whose serialized `TreeSet<KeyValuePair<string,string>>` backing set forwards key comparisons through `KeyValuePairComparer`; 3 the internal `TreeSet<string>` built by reflection. Variants 2 and 3 exist only to evade a binder/blocklist matching the exact `SortedSet` wire name (not an allowlist, and not an inheritance-aware rule - TreeSet derives from SortedSet), and they refuse an input whose executable and argument strings compare equal because both roots reject a duplicate key (variant 1 accepts it, but its SortedSet then holds one element and does not fire). The command path RELIES on the sorted container's ordering rule rather than enforcing it: `Process.Start` only receives the executable in parameter 1 while the executable sorts above the argument string. The default `cmd /c <command>` wrapping is safe by construction (`/` sorts below `c`), but `--rawcmd` removes it and a pair like `notepad.exe` / `zzz.txt` comes out swapped. That case is currently NOTED (`NoteIfArgumentsWillBeSwapped` -> `Debugging.ShowNote`, stderr, `--debugmode` only, so an embedding tool that captures merged streams is unaffected) rather than refused. SOAP is a DIRECT CLR4 document for variants 1 and 3: non-generic generation-only aliases let the stock writer author the data, then structural XML-name replacement exposes the real `SortedSet<string>` or `TreeSet<string>` root and nested `ComparisonComparer<string>` to the target. The aliases do not survive, and there is no Workflow surrogate, outer carrier, or nested BinaryFormatter stream. Variant 2 opts out because its deeper `TreeSet<KeyValuePair<...>>`/`KeyValuePairComparer` SOAP shape has not been implemented and measured. Hand-built JSON->BF minified path is variant 1 only; the static `TypeConfuseDelegateGadget()` stays SortedSet. All three roots come from one shared builder (`BuildConfusedContainer`), which `GetXamlGadget(xaml[, container])` reuses with `XamlReader.Parse` in slot 1 instead of `Process.Start`; SOAP callers use the parallel `SerializeSoapXamlGadget` entry point for roots 1 and 3. Its two elements (the XAML and `""`) can never collide, so it needs no distinct-key guard. The builder also takes the BENIGN `Comparison<string>` that fills invocation-list slot 0 and sorts the container while it is being filled, which is what fixes the sink's argument order on the wire: the command and XAML paths pass the original culture-sensitive `String.Compare`, while `TypeConfuseDelegateFileOperations` passes `String.CompareOrdinal` so its generation-time ordering guard and the serialized order are the same comparison. All variants need .NET Framework 4.5+ because .NET 4.0 has neither `Comparer<T>.Create` nor the serializable `ComparisonComparer<T>` returned by it. |
+| **TypeConfuseDelegateFileOperations** | BF(5), NDCS(5), Soap(5), Los(5) | Independent | No | `var` (1 write, 2 copy, 3 move, 4 dirmove, 5 empty), `rootcontainer` (1 SortedSet, 2 SortedDictionary, 3 TreeSet) | The same Forshaw delegate confusion with a two-string file method in invocation-list slot 1 instead of `Process.Start`, so a deserialize touches the file system without starting a process. `var` picks the operation and what `-c` means: 1 (default) `File.WriteAllText(targetPath, text)` from `-c "targetPath;localContentFile"` (the local file is read HERE at generation time and its decoded text is embedded); 2 `File.Copy`, 3 `File.Move`, 4 `Directory.Move`, all from `-c "sourcePath;destinationPath"`; 5 `File.WriteAllText(targetPath, "")` from `-c "targetPath"`, which creates or truncates. Only the FIRST `;` splits the value. ORDERING is the hard rule: the sorted container hands its LARGER element to the sink first, so `String.CompareOrdinal(firstArgument, secondArgument)` must be positive and generation is refused otherwise, never repaired by swapping or rewriting the input. That is also why this gadget fills its container with `String.CompareOrdinal` while the command and XAML paths keep the culture-sensitive `String.Compare`: the generation-time guard and the serialized order must be the same comparison. Variant 5 uses an empty `WriteAllText` rather than `File.Create`, which would return an undisposable open `FileStream`. Target-side preconditions: write/empty do not create the parent directory; copy and both moves do not overwrite an existing destination; dirmove needs the same volume. Both strings are user data the target uses literally, and the XML minifier is not text preserving (`XmlXSLTMinifier` trims text nodes, the `XmlDocument` round trip drops a CR, a dirty-match pass collapses `"; "`), so an XML payload is VERIFIED after serialization and refused when either string was rewritten - rather than delivering a silently different file. The `(5)` formatter annotation counts operation variants, not root choices: SOAP carries all five operations through rootcontainer 1 (SortedSet) and 3 (TreeSet), while rootcontainer 2 remains an explicit refusal; BinaryFormatter, NetDataContractSerializer and LosFormatter carry all five operations through all three roots. Same `.NET Framework 4.5+` floor as normal TypeConfuseDelegate. |
+| **TypeConfuseDelegateLegacyWorkflow** | BF, Soap, Los | Independent | No | - | CLR-v2-specific Forshaw delegate confusion -> `Process.Start`. It reconstructs CLR 2's non-serializable `Array.FunctorComparer<string>` through Workflow's `ObjectSerializedRef`, places it before an internal `TreeSet<string>` in a `List<object>` so fixups finish first, and lets `TreeSet.OnDeserialization` call the comparer. Readable generation-only proxies author the real `DelegateSerializationHolder` contract: `Comparison<string>` in mscorlib 2.0 followed logically by `Func<string,string,Process>` in System.Core 3.5. SoapFormatter's stock writer rejects closed generic objects even when a surrogate supplies their data, so this generator lets it write non-generic aliases and then replaces those aliases with the genuine CLR-v2 `List<object>` and `TreeSet<string>` SOAP identities. The target therefore sees the direct TCD graph: Workflow is confined to the internal comparer, with no outer `AxHost.State`/DataSet carrier and no nested BinaryFormatter stream. The gadget forces `--legacyfx` on a COPY of `InputArgs`, so spelling the flag explicitly is redundant and caller state is untouched. Its exact floor and ceiling are measured: raw and minified BinaryFormatter, SoapFormatter and LosFormatter execute on .NET Framework 3.5 / CLR 2.0.50727; NetDataContractSerializer's CLR-2 reader rejects the graph because required `memberDatas` is missing, and .NET Framework 4.8.1 rejects the CLR-2 reconstruction from `ObjectSerializedRef.GetRealObject` with `ArgumentException` before the sink (direct CLR4 reads report unequal `members`/`data` lengths or `context`; `-t` automatically uses the shipped CLR2 host). The target needs System.Core 3.5 and System.Workflow.ComponentModel. Equal executable/argument strings are refused because TreeSet would collapse them; a reversed `--rawcmd` sort is noted only under `--debugmode`, as in the normal TCD gadget. |
+| **TypeConfuseDelegateMono** | BF, NDCS, Los | Independent | No | - | Mono variant using `delegates` field. It does not expose `--legacyfx`, which targets .NET Framework CLR2 rather than Mono. |
 | **WbemClassObjectUnmarshal** | BF(2), Soap(2), Los(2), NDCS(2), DCS(2), Json.NET(2), FsPickler(2) | Independent | No | `var` (1 host OBJREF, 2 prepared blob), `rootcarrier` (1 bare internal type, 2 ManagementBaseObject wrapper) | Outbound DCOM/RPC callback through native COM unmarshalling. `System.Management.IWbemClassObjectFreeThreaded` (System.Management.dll) is internal, sealed, `[Serializable]` and `ISerializable`; its serialization constructor reads ONE member, `flatWbemClassObject` (`byte[]`), and hands it straight to `DeserializeFromBlob` -> `CreateStreamOnHGlobal` -> `CoUnmarshalInterface(stream, IID_IWbemClassObject)`. So the whole payload is one byte[] holding a COM OBJREF. `var 1` (default) builds an `OBJREF_STANDARD` ([MS-DCOM] 2.2.18) here from `-c "<host>"`: its `DUALSTRINGARRAY` names the host and its OXID is one the target cannot know, so the target must RESOLVE THE HOST NAME and CONNECT to it to resolve the OXID. Measured: loopback returns `0x80070776 OR_INVALID_OXID`, which is a COMPLETED RPC round trip, an unroutable address returns `0x800706BA` after a timeout, and a host name produces recorded A/AAAA lookups. THE PORT IS NOT SELECTABLE - OXID resolution ignores the endpoint in a string binding and always uses RPC 135 - so `host:135` and `host[135]` are REFUSED rather than silently stripped; an IPv6 literal is still accepted. The resolver call is unauthenticated, so this proves a connection, NOT NTLM coercion. THE TWO VARIANTS ARE NOT TWO EFFECTS: both hand a byte[] to `CoUnmarshalInterface` and differ only in who writes the bytes. `var 2` ships a prepared OBJREF read from a local file (readable, non-empty, <= 1 MiB) byte for byte - an escape hatch for a blob `var 1` cannot express (an `OBJREF_CUSTOM`, say), NOT an escalation of `var 1` and NOT a code-execution variant. ysonet never parses it, so its effect is whatever those bytes mean; it therefore declares `other` rather than inheriting the network claim, and no test ever deserializes one. Effect coverage is two-tiered on purpose: the FULL tier points `var 1` at loopback and asserts `OR_INVALID_OXID` (a completed RPC round trip, per formatter, no traffic off the machine), while the opt-in OOB tier points it at a run-unique name and observes the DNS lookup, with a control payload that is generated but never deserialized and must stay silent - which is what proves `-c` is not resolved at build time. Capturing a real blob does NOT give you `var 1`: marshalling a live `IWbemClassObject` produces an `OBJREF_CUSTOM` that carries the WMI object by value and names no host, which is why the OBJREF is built from scratch. Formatter set is exactly "can drive an ISerializable CONSTRUCTOR": an inert marshal with `SetType` covers BF/Soap/Los/NDCS (no separate DataContract shape needed, unlike TempFileCollection, because this target IS `ISerializable`), and DCS, Json.NET and FsPickler are hand written documents. Every property/field-based serializer is excluded structurally - `DeserializeFromBlob` runs only from that constructor, so setting members by name can never fire it - and DataContractJsonSerializer cannot express a `byte[]` for an ISerializable member. `-t` is ALLOWED for `var 1` and REFUSED for `var 2`, and the dividing line is whose bytes are in the blob. `var 1` ships an OBJREF this generator built, so the only local effect is the callback to the host the operator just typed - which is exactly what `-t` does on the other network gadgets (`DataViewManagerXxe` fetches its DTD, `PictureBox` and `InfiniteProgressPage` load their URL), so refusing it would be the odd one out. `var 2` ships the OPERATOR'S unparsed bytes into a native COM unmarshaller, which can crash the process, so it keeps the refusal - the same line `AssemblyInstallerLoad` draws, whose `-t` would load and run the supplied DLL. The rule this catalog follows is "refuse `-t` when it would damage or compromise the OPERATOR'S machine", not "refuse whenever it calls out". `--rootcarrier` is a second, ORTHOGONAL axis: it picks the type at the serialized ROOT and changes nothing else - not the blob, not the input, not the effect. Carrier 1 (default) is the bare internal type and is byte-identical to passing no option at all. Carrier 2 wraps it in the PUBLIC `System.Management.ManagementBaseObject`, whose own serialization constructor does `info.GetValue("wbemObject", typeof(IWbemClassObjectFreeThreaded)) as IWbemClassObjectFreeThreaded` and so reaches the SAME constructor one level down. What that buys is exactly one thing: a PUBLIC root type. The default root is internal, so no target application can name it in its own code, and a plain `DataContractSerializer` consumer - which carries no type information and takes its root type from its own source - can only ever be reached with a public one; it also puts a different first type name on the wire for a rule keyed on `IWbemClassObjectFreeThreaded`, the same motive `TypeConfuseDelegate`'s `--rootcontainer` ships for. It is NOT a `SerializationBinder` bypass: a binder is consulted for every type in the stream, nested ones included, so a binder that blocks the inner type still blocks carrier 2. It adds no formatter either, because the sink is still an ISerializable constructor at both levels - it can only LOSE some, and MEASURED (each carrier 2 document read back and required to reach `CoUnmarshalInterface`) it loses two of seven: BF, Soap, Los, NDCS and Json.NET all return `0x80070776 OR_INVALID_OXID` exactly like carrier 1, `DataContractSerializer` fails with `XmlException: 'Element' is an invalid XmlNodeType` because the nested member has nowhere to name an internal type without a known type or a `DataContractResolver`, and FsPickler refuses `ManagementBaseObject` during pickler RESOLUTION (`NonSerializableTypeException`) because it derives from `Component` and therefore from `MarshalByRefObject`. Those two cells are refused by name rather than emitted as a document that deserializes into nothing. `ManagementObject` and `ManagementClass` derive from the wrapper and would also fire, but they are deliberately NOT shipped: the base's `ISerializable.GetObjectData` overwrites `info.FullTypeName` with `ManagementBaseObject` unconditionally, so the framework itself never puts a subclass name on the wire. The carrier is an OPTION and not a variant, so the variant axis keeps meaning one thing (who writes the bytes), the `(2)` formatter annotation is unchanged, and the facets are untouched. |
 | **WindowsClaimsIdentity** | BF(4), Json.NET(3), DCS(3), NDCS(4), Soap(3), Los(4) | Bridged, **NotInGAC** | Yes (BF) | `var` (1-4) | `Microsoft.IdentityModel.Claims.WindowsClaimsIdentity` derives from `WindowsIdentity`, so it reaches TWO independent nested-BF sinks. Variants 1-3 are the mscorlib `ClaimsIdentity.Deserialize` keys, numbered to match the `WindowsIdentity` gadget exactly: 1 `.actor` (default), 2 `.bootstrapContext`, 3 `.claims`, on every formatter. Variant 4 is the WIF type's OWN `_actor` member, a separate sink in `Microsoft.IdentityModel`, and it exists only on BF/Los/NDCS (its `IntPtr m_userToken` has no shape in the three self-describing documents), which it declares with `Without(...)`. Needs non-GAC Microsoft.IdentityModel. |
 | **WindowsIdentity** | BF(3), Json.NET(3), DCS(3), NDCS(3), Soap(3), Los(3) | Bridged | Yes (BF) | `var` (1-3) | `WindowsIdentity`->ClaimsIdentity.Deserialize -> BF during ISerializable callback. The variant picks the key: 1 `.actor` (default), 2 `.bootstrapContext`, 3 `.claims`. |
 | **WindowsPrincipal** | BF, Json.NET, DCS, DataContractJsonSerializer, NDCS, Soap, Los | Bridged | Yes (BF) | - | Double hop: `WindowsPrincipal.m_identity`->`WindowsIdentity.Actor.BootstrapContext` (bridged BF, else default TFRP) -> BF. |
 | **WorkflowDesigner** | Json.NET, Xaml, FastJson, JavaScriptSerializer, SharpSerializerXml, SharpSerializerBinary, MessagePackTypeless(+Lz4) | Bridged (Xaml inner) | Yes (**Xaml**) | - | `System.Activities.Presentation.WorkflowDesigner.PropertyInspectorFontAndColorData` is a public string property with a SETTER AND NO GETTER, and the setter runs `XamlReader.Load` on its value, then casts the result to `Hashtable`. So one member assignment gives the target a full WPF markup parse over text the payload controls. `XmlResolver` is null, so this is NOT an XXE carrier; the effect is XAML object construction, which is why the gadget is a bridge consumer whose inner payload is a **Xaml** gadget (`-bgc ObjectDataProvider`, and any other Xaml gadget works). Without a chain it emits an in-file default: a `Hashtable` root holding an `ObjectDataProvider` that calls `Process.Start` with `-c`. The root is a `Hashtable` rather than the `ResourceDictionary` the ObjectDataProvider gadget uses internally, because that is the one root the setter's cast accepts, so the setter finishes cleanly instead of throwing after the payload has already run. THE FORMATTER LIST IS DECIDED BY THE MISSING GETTER, not by the usual "does this serializer set members by name" question: a serializer that builds its member list from a read-AND-write contract never sees the member, names the type correctly, constructs it, and assigns nothing. In: Xaml, Json.NET (`JsonProperty.Writable`), JavaScriptSerializer (`GetProperty` + `GetSetMethod`), FastJson, both SharpSerializer modes (`PropertyDeserializer` looks the name up at assignment time) and both MessagePack Typeless flavours (`EmittableMember` keeps a setter-only member). Out: YamlDotNet, whose deserializer inspects types through a readable-properties inspector that filters on `CanRead` - measured, and it throws rather than failing silently; BF/Soap/Los/FsPickler, because the type is not `[Serializable]`; the whole DataContract family and XmlSerializer, because a POCO contract is built from read-write members. The target's constructor builds WPF objects and creates a `System.Windows.Application` when the process has none, so it needs an STA THREAD - declared through the shared `SelfTestNeedsStaThread` hook, which is also why the test suite fires this gadget in a child process rather than in the runner. Replaces ObjectDataProvider variant 4, which reached only the Xaml formatter. |
 | **WSManPluginInstance** | Json.NET, Xaml, FastJson, JavaScriptSerializer, YamlDotNet<5, SharpSerializerXml, SharpSerializerBinary, MessagePackTypeless(+Lz4), DCS, DataContractJsonSerializer, NDCS, XmlSerializer | Independent | No | `assembly` (assembly display name; default is Windows PowerShell's 3.0.0.0 GAC identity) | **Denial of service.** The only gadget declaring `kind=denial-of-service`, so it needs `--i-understand-dos` and is out of every bulk run and test sweep (section 4). It takes no `-c` at all: the whole payload is a type name. `System.Management.Automation.Remoting.WSManPluginManagedEntryInstanceWrapper` is public, sealed and has an implicit public parameterless constructor. Its private `GCHandle initDelegateHandle` is allocated by exactly one method, `GetEntryDelegate`, which only WSMan calls when it really is hosting a plugin; `Dispose(bool)` calls `initDelegateHandle.Free()` with no try/catch and the finalizer calls `Dispose(false)`. So an instance a DESERIALIZER built still holds the default, unallocated handle, `Free()` throws `InvalidOperationException("Handle is not initialized.")` on the finalizer thread, and an exception there terminates the process. THE EFFECT IS ASYNCHRONOUS - it waits for a collection - so it must never be described as terminating the target on deserialize. WIDEST FORMATTER LIST IN THE CATALOG, and the reason is the payload's shape rather than anything clever: "construct this type and set nothing" is the one thing almost every serializer can express, so the usual ISerializable-constructor vs property-setter split does not apply. Four formats are out, each for a measured reason: BF/Soap/Los are IMPOSSIBLE because they all read through mscorlib's `ObjectReader`, whose `CheckSerializable` rejects a type with no `[Serializable]` attribute before it creates anything, and FsPickler is impossible for its own reason - it refuses the TYPE during pickler resolution (`NonSerializableTypeException`), visible only in the INNERMOST exception. DataContractJsonSerializer is the weakest entry and is listed as such: that format writes no type name, so the payload is literally `{}` and the CONSUMER's declared root type decides what is built. THE GATE IS A LIBRARY, NOT A RUNTIME VERSION, which is why the version axis is deliberately `unspecified`: an unhandled finalizer exception terminates the process on every version this tool targets, and what decides whether the payload lands is whether the target resolves Windows PowerShell's `System.Management.Automation` (3.0.0.0 from PowerShell 3.0 through Windows PowerShell 5.1; PowerShell 7 is a different identity and is not claimed). `--assembly` overrides that identity and is written exactly as typed - only an empty value is refused - while the TYPE name never changes, because a free type name would make this a generic type-instantiation tool rather than one known finalizer. `-t` is ISOLATED, not refused: `SelfTestNeedsChildProcess` routes it to `Helpers/Core/IsolatedSelfTest`, which writes the payload to a temp file, re-runs `ysonet.exe` in child mode, forces a collection there and reports that the child died. Every advertised formatter was proven that way (13 formatters x minify = 26 cells, each ending in the target's own `InvalidOperationException`); no automated tier deserializes it in any process. |
-| **XamlAssemblyLoadFromFile** (HostedPayloads/) | BF(2), Soap, NDCS(2), Los(2) | Hosted | No (compiles file) | `var` (1 TCD, 2 TFRP), `rootcontainer` (1 SortedSet, 2 SortedDictionary, 3 TreeSet; variant 1 only) | Compiles `-c` `.cs`, gzip+base64 embeds in XAML that decompresses+Assembly.Load+instantiates. |
+| **XamlAssemblyLoadFromFile** (HostedPayloads/) | BF(2), Soap(2), NDCS(2), Los(2) | Hosted | No (compiles file) | `var` (1 TCD, 2 TFRP), `rootcontainer` (1 SortedSet, 2 SortedDictionary, 3 TreeSet; variant 1 only) | Compiles `-c` `.cs`, gzip+base64 embeds in XAML that decompresses+Assembly.Load+instantiates. For the TCD wrapper, SOAP directly authors roots 1 and 3 and explicitly refuses the deeper root 2. |
 | **XamlImageInfo** | Json.NET(2) | var1 in GAC / var2 not | No | `var` (1 GAC, 2 non-GAC) | `ManifestImages+XamlImageInfo` ctor -> `XamlReader.Load(Stream)`. Var2 needs Microsoft.Web.Deployment.dll. |
+| **XmlDocumentSurrogateXxe** | BF(2), Soap(2), Los(2), NDCS(2), DCS(2), DataContractJsonSerializer(2), FsPickler(2) | Independent | No | `var` (1 external DTD fetch, 2 OOB file read), `rawinput` (variant 1), `file` + `dtd-out` (variant 2) | The `IObjectReference` route to the same `XmlDocument.InnerXml` sink `XmlDocumentXxe` sets directly, which is why it reaches the opposite formatter family. `System.Workflow.ComponentModel.Serialization.XmlDocumentSurrogate+XmlDocumentReference` is a PRIVATE NESTED class that is `[Serializable]` and **not** `ISerializable`, with one private `string innerXml` field; a formatter restores that field directly and `ObjectManager` then calls `GetRealObject`, which does `new XmlDocument()` and `xmlDocument.InnerXml = innerXml`. THE SURROGATE SELECTOR DOES NOT HAVE TO BE REGISTERED on the target - only the type name has to resolve, and `Assembly.GetType` sees a private nested type. Same gate as the two other XXE gadgets, for the same reason: `GetRealObject` builds a FRESH `XmlDocument` and never assigns `XmlResolver`, so `SetupReader`'s `HasSetResolver` is false and the reader keeps the `EnableLegacyXmlSettings()` default - hence 4.0 - 4.5.1, the framework the target APP was built against. It therefore CANNOT lift the gate the way `XmlDocumentXxe` variant 2 does, because the payload never touches the document. Needs `System.Workflow.ComponentModel`, the same assembly the `ActivitySurrogate*` gadgets require, so the requirement facet is `extra-assembly`. Formatter set is exactly "restores a `[Serializable]` type's fields AND performs the `IObjectReference` fixup", and those are two independent conditions: an inert marshal with `SetType` covers BF/Soap/Los, and NDCS, DCS, DataContractJsonSerializer and FsPickler are hand written documents (the NDCS/DCS field element sits in the type's own DATA CONTRACT namespace, not the empty one, because the carrier is not `ISerializable`). FsPickler is the documented third outcome: it really performs the fixup - the `XmlDocument` is built and the parse happens - and then casts the result back to the declared type and throws `InvalidCastException` naming `System.Xml.XmlDocument`. That costs nothing here because the whole effect completes INSIDE `GetRealObject`. The exclusions are the dangerous silent kind and are locked by a test that requires the result NOT to be an `XmlDocument`: Json.NET, JavaScriptSerializer and SharpSerializerXml all build a real `XmlDocumentReference`, deliver `innerXml`, throw nothing, and never run the fixup. Xaml and XmlSerializer refuse the private type outright; FastJson and YamlDotNet die inside their own accessors. TWO VARIANTS, the same split `DataSetXxe` ships and for the same reason: `var 1` (default) declares one external parameter entity at the `-c` URL and references it, which is one outbound request and network/SSRF only; `var 2` earns file-system AND information-disclosure, taking `-c` as the BASE location of a host the operator controls, `--file` as what to read on the target, and `--dtd-out` as where ysonet writes the companion `xmldocsurrogate-oob.dtd` the operator must publish. That DTD is this gadget's OWN copy rather than a call into `DataSetXxe`, because the DTD text IS the payload and a shared builder would make one edit change both (`Generators/README.md`); its companion NAME differs from `DataSetXxe`'s so an operator hosting both chains at once does not have one overwrite the other. Same order guarantee: the DTD is written only after the payload is built, so a failed run leaves an existing file at that path untouched. Variant 1 REFUSES `--file`/`--dtd-out` rather than ignoring them. `-t` is allowed, like the other network gadgets. |
+| **XmlDocumentXxe** | Xaml(2), JavaScriptSerializer(2), FastJson, YamlDotNet<5, SharpSerializerXml(2), SharpSerializerBinary(2), MessagePackTypeless(2)(+Lz4(2)) | Independent | No | `var` (1 legacy default, 2 bring your own resolver), `rawinput` | `System.Xml.XmlDocument.InnerXml`'s setter is `set { LoadXml(value); }`, so assigning one string parses it, and `LoadXml` builds a legacy `XmlTextReader`. Named in "Friday the 13th: JSON Attacks" as `set_InnerXml`. `-c` = external DTD URL (http/https); network/SSRF only, because the setter never returns entity text. THE VARIANTS ARE NOT THE SAME REACH. `var 1` (default) writes `InnerXml` alone, so `SetupReader`'s `HasSetResolver` is false and the reader keeps the `EnableLegacyXmlSettings()` default - it fires only against an app built below 4.5.2 (or a machine with the switch back on), hence the 4.0 - 4.5.1 span it shares with `DataViewManagerXxe` and `DataSetXxe`. `var 2` assigns a real `System.Xml.XmlUrlResolver` to `XmlDocument.XmlResolver` FIRST and `InnerXml` second, which makes `HasSetResolver` true so `SetupReader` installs the payload's own resolver and the switch is never consulted - no version gate at all, declared 4.0 - 4.8.1 and fired in-process on a hardened 4.7.2 build. That form is Netwrix's (see [references](references.md)), along with the target-side limit that MessagePack-CSharp below 2.3.75 calls every setter and `XmlNode.Value` throws before the parse. MEMBER ORDER IS THE VARIANT 2 PAYLOAD - assigning `InnerXml` first would parse before the resolver existed - and the only thing that proves it per formatter is the request arriving on a hardened runner, which is what `FireXmlDocumentXxeOwnResolver` does. A NULL RESOLVER IS NOT "NO RESOLVER": the `XmlResolver` setter sets its `bSetResolver` flag even for null, so a variant 1 payload that merely NAMES the member silently disables the legacy default and fetches nothing while still deserializing into a correct-looking `XmlDocument`; variant 1 therefore uses its own single-property surrogate, and a test asserts the member name appears nowhere in a variant 1 payload. `var 2` loses two formatters and both were measured: FastJson dies with a `NullReferenceException` on every nested-object shape tried, and YamlDotNet's readable-properties inspector cannot see the write-only `XmlResolver` ("Property 'XmlResolver' not found"). Both are refused by name. The gadget-wide list is structural in the other direction: `XmlDocument` is not `[Serializable]` (BF/Soap/Los/FsPickler out) and `XmlNode` implements `IEnumerable`, so Json.NET builds an ARRAY contract and the DataContract family plus XmlSerializer build a collection contract with no `Add` method. Compared with `DataViewManagerXxe`, the same setter FAMILY but a carrier that implements only `IEnumerable` rather than `IList`, which is what wins back YamlDotNet and the MessagePack pair. `-t` is allowed; on variant 1 it normally fetches nothing here (this build targets 4.7.2) and the gadget says so on stderr, while variant 2 really does fetch, because it brings its own resolver. |
+
+| **TypeConfuseDelegateNet40Workflow** | BF, Soap, Los | Independent | No | - | Target-specific Forshaw delegate confusion for exactly .NET Framework 4.0. That runtime has no Comparer<T>.Create/ComparisonComparer<T> but still has Array.FunctorComparer<T> with the private fields comparison, c. The generator reconstructs that non-serializable comparer through Workflow ObjectSerializedRef, placing it before a SortedSet<string> in List<object> so fixups finish before the set rebuild calls it. The two memberDatas values follow the 4.0 field order: the confused Comparison<string> then Comparer<string>.Default; direct SOAP uses null for the unused second field because its stock writer cannot author that closed generic object. SOAP exposes the native List<object> root and nested SortedSet<string>, with no outer carrier or nested BinaryFormatter stream. NDCS is excluded because it cannot reproduce the required memberDatas contract. Later CLR 4 builds removed c, so the graph is deliberately not compatible with 4.5+; -t is refused, `legacyfx` is omitted from interactive mode, and a scripted `--legacyfx` is refused at the common generation boundary. The focused suite locks every raw/minified wire shape, substitutes a harmless capture type to prove the exact two-value contract and delegate order, and proves the installed 4.8.1 reader rejects the graph before the sink. The opt-in NET40 tier then requires all six BF/Soap/Los raw/minified payloads to create exact effect markers on a structurally proved genuine .NET Framework 4.0 victim. |
 
 (Abbrev: BF=BinaryFormatter, Los=LosFormatter, Soap=SoapFormatter, DCS=DataContractSerializer,
 NDCS=NetDataContractSerializer, TCD=TypeConfuseDelegate, TFRP=TextFormattingRunProperties.)
@@ -763,12 +903,18 @@ NDCS=NetDataContractSerializer, TCD=TypeConfuseDelegate, TFRP=TextFormattingRunP
 for the exact per-gadget/per-variant values). By payload kind:
 - **code-execution**: ActivitySurrogateSelector(+FromFile), AssemblyInstallerLoad (both
   variants; variant 2 also declares network, because the target fetches the assembly over
-  SMB), BaseActivationFactory,
+  SMB),
+  AssemblyCatalogLoad (the MEF constructor's `Assembly.Load`, which also declares
+  **network** for the SMB session a UNC value starts and **file-system** for the open that
+  precedes the load; the load itself executes nothing, and `AdditionalInfo()` says so),
+  BaseActivationFactory,
   DataSetOldBehaviourFromFile, DataTable and DataTableTypeSpoof (both variants of each;
   variant 1 needs extra-assembly + wpf, variant 2 is built-in),
   GetterCompilerResults, ObjectDataProvider
   (both variants), PSObject, ResourceSet, TextFormattingRunProperties,
-  TypeConfuseDelegate (all three container variants are built-in code-execution) (+Mono),
+  TypeConfuseDelegate (all three container variants are built-in code-execution),
+  TypeConfuseDelegateNet40Workflow (the built-in .NET Framework 4.0 chain),
+  TypeConfuseDelegateLegacyWorkflow (the built-in CLR-v2 / .NET 3.5 chain) (+Mono),
   WorkflowDesigner (the inner XAML is loaded, so the effect is whatever that document
   declares), DynamicUpdateMapExtension (the inner NDCS document is read, so the effect is
   whatever that document declares; the default one runs a command),
@@ -784,7 +930,12 @@ for the exact per-gadget/per-variant values). By payload kind:
   `NetDataContractSerializer.ReadObject`),
   ResXFileRef (variant 2: `ResourceSet(Stream)` runs a plain BinaryFormatter over the
   file the converter opened), XamlImageInfo (variant 1).
-- **file-system**: FileLogTraceListener (directory creation), TempFileCollection (deferred
+- **file-system**: AssemblyCatalogLoad (`AssemblyName.GetAssemblyName` really OPENS `-c`
+  before anything is loaded, so the read happens whether or not the load succeeds),
+  FileLogTraceListener (directory creation),
+  FileSystemProxyCurrentDirectory (moves the target process's working directory, so every
+  later relative path in it resolves elsewhere; a chaining primitive, not code execution),
+  TempFileCollection (deferred
   file deletion; declares target-path AND unc-path, because `File.Delete` takes either),
   TypeConfuseDelegateFileOperations (all five operations; variant 1 also accepts a
   local-file input, the others are target-path only),
@@ -796,13 +947,28 @@ for the exact per-gadget/per-variant values). By payload kind:
   **nested-deserialization** because the fetched document is then loaded as WPF markup),
   DataViewManagerXxe (external DTD
   fetch through a legacy XML resolver; declares network only, because a fetched DTD proves
-  SSRF and not the information-disclosure the name "XXE" suggests), DataSetXxe (the same
+  SSRF and not the information-disclosure the name "XXE" suggests. All four XXE gadgets share
+  one gate and now say the same three things about it: an app built below 4.5.2, a machine
+  with `EnableLegacyXmlSettings` turned back on, or an app that declares NO target framework
+  moniker at all - which for ASP.NET means no `<httpRuntime targetFramework>`, and leaves it
+  legacy on a fully patched 4.8.1 machine. Only the first is a version, so the other two live
+  in `AdditionalInfo()`), DataSetXxe (the same
   resolver reached through the DataSet ISerializable constructor; variant 1 declares network
   only for the same reason, and variant 2 is the one gadget in the catalogue that also
   declares **information-disclosure**, because its own test recovers a test-owned file's
   content rather than only observing a request),
+  XmlDocumentXxe (the same resolver reached by setting `XmlDocument.InnerXml`; variant 1
+  shares the 4.0 - 4.5.1 target-app span above, while variant 2 ALSO sets
+  `XmlDocument.XmlResolver` and so declares 4.0 - 4.8.1, because bringing its own resolver
+  removes the version gate entirely),
+  XmlDocumentSurrogateXxe (the same setter again, reached through an `IObjectReference`
+  fixup instead, which is why its formatter family is the opposite one; its variant 2 is the
+  catalogue's SECOND **information-disclosure** gadget, on the same companion-DTD mechanism
+  DataSetXxe uses and with its own copy of it),
   AssemblyInstallerLoad (variant 2 only: the SMB fetch of the operator's assembly, on top
   of the code-execution the load leads to),
+  AssemblyCatalogLoad (the same SMB session from a UNC `-c`, but with no variant split,
+  because the local and UNC uses emit identical bytes),
   FileSystemInfo (both variants: the deserialization constructor normalizes the operator's
   path, and expanding an MS-DOS short name in a UNC path is an outbound SMB request; it
   declares network only, because a callback attempt is not file-system access and not the
@@ -856,7 +1022,15 @@ shared check - it reports which required values are no longer present as an exac
 ATTRIBUTE value - and each gadget keeps its own refusal wording.
 `TypeConfuseDelegateFileOperations`, `TempFileCollection` and `AssemblyInstallerLoad` all use
 it; the binary formatters carry string records verbatim, so they are the fallback those
-refusals point at.
+refusals point at. A gadget whose value travels in element TEXT asks for text nodes ONLY
+(the `includeAttributes: false` overload), so a `xmlns` or a fixed `xml:space` the payload
+also carries can never stand in for the delivered value: `AssemblyCatalogLoad` is the worked
+example, and it pairs the check with its own re-read of `xml:space="preserve"`, because
+losing only that attribute would leave the text exact while changing what the target sees.
+Each gadget's refusal ADVICE has to be measured against its OWN document rather than copied
+from a sibling: `ResourceDictionary` delivers its value in an attribute and loses a tab, a
+repeated space and `"; "`, while `AssemblyCatalogLoad` delivers the same kind of value in
+element text and loses none of them - only leading and trailing whitespace.
 
 The XML minifier is not the only one that rewrites operator text: the YAML minifier collapses
 a run of spaces, so `C:\two  spaces\x.dll` comes back naming a different file. That is why
@@ -869,7 +1043,8 @@ single quote as `\'` for the templates that use single-quoted strings; `\'` is n
 and while Json.NET and JavaScriptSerializer read it back as a quote, fastJSON DELETES the
 character, silently turning `C:\John's dir\x.dll` into `C:\Johns dir\x.dll`. Every
 double-quoted template in the catalogue now follows this rule (`AssemblyInstallerLoad`,
-`DataViewManagerXxe`, `PictureBox`, `InfiniteProgressPage`, `FileLogTraceListener`, and
+`DataViewManagerXxe`, `XmlDocumentXxe`, `XmlDocumentSurrogateXxe`, `PictureBox`,
+`InfiniteProgressPage`, `FileLogTraceListener`, `FileSystemProxyCurrentDirectory`, and
 `ObjectDataProvider`'s FastJson and FsPickler branches), and the choice is locked by a test
 per gadget that generates with a value holding an apostrophe. A gadget that takes the command
 through `CommandArgSplitter.SplitCommand` picks the same rule with the command TYPE:
@@ -888,8 +1063,9 @@ place for the first one that does.
   gadgets and plugins.
 - **Runtime C# compilation gadgets**: `ActivitySurrogateSelectorFromFile`,
   `DataSetOldBehaviourFromFile`, `XamlAssemblyLoadFromFile` route `-c` through
-  `LocalCodeCompiler.GetAsmBytes` - so `-c` is attacker C# source (opt `;extra.dll`), not a
-  shell command.
+  `LocalCodeCompiler.GetAsmBytes` - so `-c` is attacker C# source (opt
+  `;extra1.dll,extra2.dll`), not a shell command. ActivitySurrogateSelectorFromFile selects
+  the v3.5 provider under `--legacyfx`; its base gadget does the same for the bundled source.
 - **JSON->BinaryFormatter engine**: several gadgets (ClaimsIdentity, ClaimsPrincipal,
   FormsIdentity, GenericIdentity, GenericPrincipal, DataSetOldBehaviour, ResourceSet,
   minified TypeConfuseDelegate variant 1) build
@@ -923,7 +1099,26 @@ place for the first one that does.
 ### Contract and invocation
 - **`Plugins/base/IPlugin.cs`**: `Name()`, `Description()`, `Credit()`,
   `bool IsPrivate()` (return `false`; see the private-module rule in section 4),
-  `OptionSet Options()`, `object Run(string[] args)`.
+  `List<string> RuntimeVersions()` (effect evidence for the complete plugin envelope and
+  consumer; `unspecified` until measured), `OptionSet Options()`, `object Run(string[] args)`.
+
+  `RuntimeVersions()` follows the same rules as a gadget's version facet, and is audited by
+  the same code: `RuntimeBuild.RecordPluginFired` writes down what a fire observed, and
+  `VersionEvidenceMatchesThisRuntime` compares that against the declaration. Firing above
+  the declared ceiling or below its floor is REPORTED as new evidence, never failed; only an
+  observation the declaration positively excludes fails the run. The floor is earned in the
+  `--legacy` tier exactly as a gadget's is.
+
+  One trap that rule carries: a HOLE inside a declared span is an active EXCLUSION, not an
+  absence of claim. Declaring the measured endpoints `{2.0, 3.0, 3.5, 4.8.1}` looks like the
+  honest option and is not - it fails the suite on any 4.0-4.8 machine that fires the module.
+  Declare the contiguous range; `DeclaredVersionSpansHaveNoHoles` enforces this for every
+  gadget and plugin.
+
+  Five plugins have an earned CLR-v2 floor: ViewState, ApplicationTrust,
+  TransactionManagerReenlist, Altserialization and Resx all execute code on real 2.0.50727
+  children across the 2.0/3.0/3.5 lanes. The others are `unspecified`. Note the value is
+  currently metadata only - no help text, listing or interactive screen reads it.
 - **Discovery**: `PluginRegistry` reflects for `IPlugin` implementers (same pattern as
   GadgetRegistry). New plugin = implement `IPlugin`; auto-registered.
 - **Invocation**: `Program.cs` validates `-p`, instantiates via
@@ -940,16 +1135,16 @@ place for the first one that does.
 | Name | Purpose / Target | Key options | Notes |
 |---|---|---|---|
 | **ActivatorUrl** | Send payload to a remote activated object (.NET Remoting, `typeFilterLevel=Full`). Fires over the network, prints no payload. | `-c`, `-u url`, `-s` (TCP channel security) | Uses `TypeConfuseDelegateGadget`, `System.Runtime.Remoting` TcpChannel. Credit: Harrison Neal. |
-| **Altserialization** | `HttpStaticObjectsCollection.Deserialize` / `SessionStateItemCollection`. | `-M mode`, `-o`, `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Returns `byte[]`. Session=TCD; Http=TFRP with byte-splicing to fix the BinaryReader header. `--minify` on Session also byte-splices, so the minified BF blob is carried (System.Web's own Serialize would ignore minify); default Session serializes the gadget object. Credit: Soroush Dalili. |
-| **ApplicationTrust** | `ApplicationTrust.FromXml` XML payload. | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd`, `--no-comment` | Hex-encoded BF blob (TFRP) in `<ExtraInfo Data=...>`. `--no-comment` drops the optional commented-out `<DefaultGrant>` example. |
+| **Altserialization** | `HttpStaticObjectsCollection.Deserialize` / `SessionStateItemCollection`. | `-M mode`, `-o`, `-c`, `-g gadget`, `-t`, `--minify`, `--ust`, `--rawcmd`, `--legacyfx`, `--i-understand-dos` | Returns `byte[]`. `-g` DEFAULTS per mode to the gadget each has always used (Session=TCD, Http=TFRP) and is not fixed; a user-chosen gadget on the Session mode takes the byte-splice path, because the object path hands a live graph to System.Web and only the default gadget can supply one. Http=TFRP with byte-splicing to fix the BinaryReader header. `--minify` on Session also byte-splices, so the minified BF blob is carried (System.Web's own Serialize would ignore minify); default Session serializes the gadget object. Credit: Soroush Dalili. |
+| **ApplicationTrust** | `ApplicationTrust.FromXml` XML payload. | `-c`, `-g gadget`, `-t`, `--minify`, `--ust`, `--rawcmd`, `--no-comment`, `--legacyfx`, `--i-understand-dos` | Hex-encoded BF blob in `<ExtraInfo Data=...>`; `-g` defaults to TFRP. `--no-comment` drops the optional commented-out `<DefaultGrant>` example. |
 | **Clipboard** | `DataObject.SetData` clipboard injection (paste into e.g. PowerShell ISE). Two delivery modes via `-m/--mode`. | `-m mode` (winforms/wpfxaml), `-F format`, `--xamlvariant` (1/2), `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | STA thread. **winforms** (default): TFRP wrapped in `AxHostStateMarshal`, WinForms `Clipboard.SetDataObject`. **wpfxaml**: ObjectDataProvider XAML (via `ObjectDataProviderGenerator`) placed under the WPF `Xaml` format using **WPF** `System.Windows.Clipboard`/`DataObject` (WinForms SetData would not round-trip to WPF paste); targets InkCanvas/RichTextBox paste; default-restrictive since CVE-2020-0605/0606, fires only in legacy clipboard mode. `-t` runs a faithful restrictive-vs-non-restrictive paste simulation (`SerializersHelper.Xaml_deserialize_restrictive`). Sibling of the **Xps** plugin (paste sink vs file sink of the same mitigation). |
 | **DotNetNuke** | DNN CVE-2017-9822 profile deserialization. | `-m mode` (read/write/run), `-c`, `-u`, `-f`, `--minify`, `--rawcmd` | `ExpandedWrapper`+`FileSystemUtils`/`ObjectStateFormatter`; run_command uses TFRP via **LosFormatter** (no MAC). |
 | **GetterCallGadgets** | Arbitrary getter-call gadgets (Json.NET), .NET Fx & 5/6/7 with WPF. | `-l`, `-i inner`, `-g gadget`, `-m member`, `-t`, `--minify` | Reads inner JSON from file, wraps in a WinForms getter gadget. Credit: Piotr Bazydlo. |
 | **MachineKeySessionSecurityTokenHandler** | `MachineKeySessionSecurityTokenHandler.ReadToken` (exploitable when MachineKey leaked). | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd`, `-vk`, `-ek`, `-va`, `-da` | `<SecurityContextToken>` cookie: BF(TFRP) -> DeflateCookieTransform -> `MachineKeyDataProtector.Protect`. MachineKey material is required by this named handler's own transform, not by every SessionSecurityToken sink (cf. SharePoint CVE-2026-50522, deflate-only). |
-| **Resx** | Generate `.RESX` / compiled `.RESOURCES` (e.g. CVE-2020-0932). | `-M mode`, `-c`, `-g gadget`, `-F unc`, `-of`, `--type`, `--enc`, `-t`, `--minify`, `--ust`, `--rawcmd` | Reflects any `IGenerator`; Soap mode uses ActivitySurrogate gadgets. Static `GetPayload(...)` reused elsewhere. `indirect_resx_file` writes a `System.Resources.ResXFileRef` value that `ResXResourceReader` hands to the same converter the **ResXFileRef** gadget drives: `--type` picks the type the target resolves (default is the `ResXResourceSet` name this mode has always written, byte for byte, so no existing command changes) and `--enc` adds the encoding field for a `System.String` read. Both are `indirect_resx_file`-only. The value follows `ResXFileRef.ToString()`, so a path containing `;` or `"` is quoted - which the old fixed value never did. |
+| **Resx** | Generate `.RESX` / compiled `.RESOURCES` (e.g. CVE-2020-0932). | `-M mode`, `-c`, `-g gadget`, `-F unc`, `-of`, `--type`, `--enc`, `-t`, `--minify`, `--ust`, `--rawcmd`, `--legacyfx`, `--i-understand-dos` | Reflects any `IGenerator`; Soap mode uses ActivitySurrogate gadgets. Static `GetPayload(...)` reused elsewhere. `indirect_resx_file` writes a `System.Resources.ResXFileRef` value that `ResXResourceReader` hands to the same converter the **ResXFileRef** gadget drives: `--type` picks the type the target resolves (default is the `ResXResourceSet` name this mode has always written, byte for byte, so no existing command changes) and `--enc` adds the encoding field for a `System.String` read. Both are `indirect_resx_file`-only. The value follows `ResXFileRef.ToString()`, so a path containing `;` or `"` is quoted - which the old fixed value never did. |
 | **SessionSecurityTokenHandler** | `SessionSecurityTokenHandler.ReadToken` (DPAPI; rarely practical). | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Like MachineKey variant but `ProtectedDataCookieTransform` (DPAPI). DPAPI is required by the default handler's own transform, not by every SessionSecurityToken sink. |
 | **ThirdPartyGadgets** | 3rd-party lib gadgets (Grpc, MongoDB, Xunit, ActiveMQ, AWSSDK, Cosmos, App Insights, NLog, Google Apis). | `-l`, `-i`, `-g`, `-f` (Json.NET), `-r` (strip Version/Culture/PublicKeyToken), `-t`, `--minify` | Mostly string templates; ActiveMQ one uses `TypeConfuseDelegate` BF b64 in a PropertyGrid getter chain. Credit: Piotr Bazydlo. |
-| **TransactionManagerReenlist** | `TransactionManager.Reenlist(Guid, byte[], ...)`. | `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Returns `byte[]` = TFRP BF blob + 5-byte header. |
+| **TransactionManagerReenlist** | `TransactionManager.Reenlist(Guid, byte[], ...)`. | `-c`, `-g gadget`, `-t`, `--minify`, `--ust`, `--rawcmd`, `--legacyfx`, `--i-understand-dos` | Returns `byte[]` = BF blob + 5-byte header; `-g` defaults to TFRP. |
 | **ViewState** | ASP.NET `__VIEWSTATE` forgery with a known MachineKey. | many (see below) | Most intricate plugin. Credit: Soroush Dalili. |
 | **Xps** | Malicious XPS document (CVE-2020-0605). Returns the OPC/ZIP package as `byte[]`; use the global `--outputpath` to save it as an `.xps`. | `-m mode` (fdseq/fdoc/fpage/all), `-c`, `-t`, `--minify`, `--ust`, `--rawcmd` | Builds the package with `System.IO.Packaging`; part names, content types and the `fixedrepresentation` start-part relationship come from ReachFramework's own `XpsS0Markup`. The payload is an ObjectDataProvider `ResourceDictionary` (via `ObjectDataProviderGenerator` variant 2) in the chosen part's `.Resources`. `fdseq` is parsed by `XpsDocument.GetFixedDocumentSequence` (restricted since the January 2020 fix); `fdoc`/`fpage` by `XpsValidatingLoader` (covered by a later 2020 update). Default-restrictive on a patched host: it fires when the target predates the fix or turned `DisableLegacyDangerousXamlDeserializationMode` off. `-t` opens the document on the patched default and then with the legacy switches flipped for that process only (`SerializersHelper.Xps_*`). Sibling of the Clipboard `wpfxaml` mode (file sink vs paste sink of the same mitigation). Credit: Soroush Dalili. |
 | **SharePoint** | Multiple SharePoint CVEs. | `--cve`, `--useurl`, `-g`, `-c`, `--target`, `--formbody`, `--rawcmd`, `--minify`, `--ust`, `--no-comment`, `--var`, `--spver` | One plugin, seven CVE branches (see below). |
@@ -960,6 +1155,31 @@ them into `InputArgs` rather than hardcoding. Plugins that append an explanatory
 comment (SharePoint, ApplicationTrust) also expose `--no-comment` to emit just the payload.
 These flags mirror the global CLI flags of the same name used on the gadget path.
 
+Gadget-selection convention: a plugin that wraps a ysonet gadget exposes `-g` with the
+gadget it has always wrapped as the DEFAULT, so no existing command line changes, plus
+`--i-understand-dos` (the acknowledgement has to reach it through its own argv, never an
+ambient static) and `--legacyfx`. Six plugins now do: ViewState, Resx, SharePoint,
+Altserialization, ApplicationTrust and TransactionManagerReenlist. Two more take a `-g`
+that is NOT this: GetterCallGadgets and ThirdPartyGadgets use it to pick one of the
+plugin's own templates, so no gadget-level policy applies to them.
+
+Two rules that go with it:
+
+- **`--legacyfx` on a plugin reaches the GADGET, not the plugin's own envelope.** It is set
+  on the `InputArgs` the plugin hands to the gadget, so the shared transform runs at that
+  generation boundary. A plugin's own template is plain text that never crosses it. Of the
+  five CLR-v2-measured plugin sources, four envelopes name no framework assembly; `Resx`
+  names `System.Windows.Forms, Version=4.0.0.0` in its resheaders and alias. The CLR-v2
+  reader nevertheless loads its own 2.0 Windows Forms assembly and fires, so those fields
+  are descriptive metadata and remain unchanged.
+- **An option the plugin does not recognise is forwarded to the chosen gadget.** The
+  leftover list from the plugin's own parse becomes `InputArgs.ExtraArguments`, so `--var`
+  typed on a plugin command line reaches the gadget. It used to be parsed into a local that
+  was never read, so such an option was silently dropped and the operator got the default
+  variant. Only leftovers travel: an option the plugin declares was already consumed, so
+  the two cannot collide. A plugin that HARDCODES a steering value still uses
+  `ExtraInternalArguments` instead (Xps, SharePoint).
+
 Two exceptions, so the convention is not read as a guarantee. **ActivatorUrl** takes `-c`
 but has no `--rawcmd`: it passes the string to `TypeConfuseDelegateGadget(string)`, which
 builds a default `InputArgs`, so its command is ALWAYS wrapped as `cmd /c <command>`.
@@ -969,13 +1189,31 @@ run a command verbatim.
 
 ### ViewState plugin (deep)
 Forges a valid `__VIEWSTATE` when validation/decryption keys + algorithms are known (e.g.
-leaked web.config). Options include: `-g gadget` (default `ActivitySurrogateSelector`, any
-LosFormatter-capable gadget), `-c`/`--rawcmd`/`-s`, `--usp`/`--isfileusp` (unsigned
+leaked web.config). Options include: `-g gadget` (default
+`TextFormattingRunProperties`, any LosFormatter-capable gadget), `-c`/`--rawcmd`/`-s`,
+`--usp`/`--isfileusp` (unsigned
 payload), `--path`/`--apppath`/`--pathisclass` (simulate `TemplateSourceDirectory` + type),
 `--vsg` (`__VIEWSTATEGENERATOR` hex), `--islegacy`, `--isencrypted`, `--vsuk`
 (ViewStateUserKey), `--da`/`--dk`/`--va`/`--vk` (algs + keys), `--cv` (validate/decrypt an
 existing ViewState), `--osf` + `--mk` (raw ObjectStateFormatter with MAC key), `--dryrun`,
-`--showraw`, `--minify`, `--ust`, `--isdebug`, `--examples`.
+`--showraw`, `--minify`, `--ust`, `--isdebug`, `--examples`, `--legacyfx`,
+`--i-understand-dos`.
+
+The default gadget is `TextFormattingRunProperties` rather than
+`ActivitySurrogateSelector`. Two reasons, and the second matters more: it produces a far
+smaller ViewState (roughly 900 bytes against 15 KB for the same target), and it RUNS the
+operator's `-c` command. `ActivitySurrogateSelector` declares `CommandInputType.Ignored`
+and always runs its prebuilt `e.dll`, so as the default it silently discarded a `-c` value
+and shipped a payload the operator had not asked for. It remains one `-g` away.
+
+`--legacyfx` here reaches the GADGET; the ViewState envelope and its signature name no
+framework assembly, so nothing else needs rewriting. Pair it with `--islegacy`, which picks
+the matching pre-4.5 signing path. This is the plugin with the most CLR-v2 reach in the
+catalog, because LosFormatter is in all three legacy lanes: with
+`-g ActivitySurrogateSelector --var 3 --legacyfx` the payload names no 4.x assembly at all
+and rides the `DataSet` carrier rather than `AxHost.State` (the `--var 3` reaches the gadget
+through the leftover-argument forwarding described above).
+
 Three signing/encryption code paths: `GenerateViewState_4dot5` (uses
 `System.Web.Security.Cryptography` `Purpose` + `AspNetCryptoServiceProvider` via
 reflection), `GenerateViewStateLegacy_2_to_4` (<= .NET 4.0, `MachineKeySection` +
@@ -983,6 +1221,16 @@ reflection), `GenerateViewStateLegacy_2_to_4` (<= .NET 4.0, `MachineKeySection` 
 `LocalObjectStateFormatter` (raw OSF with MAC key). It mutates the in-memory
 `MachineKeySection` via reflection (`_bReadOnly` toggling) to inject keys, handles
 `,IsolateApps` derivation, and URL-encodes output unless `--showraw`.
+
+The test suite consumes this plugin as ViewState rather than as bare LosFormatter. On CLR4,
+fresh producer processes and a page-state consumer process use explicit Framework45
+`machineKey` configuration, the framework's
+`WebForms.HiddenFieldPageStatePersister.ClientState` purpose, the page directory/type and the
+`ViewStateUserKey`. Raw and minified payloads must reject wrong-key and tampered controls, then
+delete only the test-owned victim when the matching-key payload is accepted. Together with the
+page-aware CLR2 rows, that is the end-to-end evidence behind the plugin's 2.0-4.8.1 runtime
+span. Private test rows can reuse the same authenticated-Base64 control contract, and private
+plugins participate in the common runtime-metadata validation without being named here.
 
 ### SharePoint plugin (deep)
 One plugin, seven CVE branches by `--cve` (`cve-2025-53770` is a first-class mode, the 49704 patch bypass). Options:
@@ -1127,10 +1375,11 @@ filter was applied.
 | **Crypto/MachineKey.cs** (from `MachineKeyHelper.cs`) | ASP.NET MachineKey Protect/Unprotect (encrypt + validation MAC). Adapted from AspNetTicketBridge. | `Protect`, `Unprotect`, `BuffersAreEqual`, `HexToBinary` |
 | **Crypto/Sp800_108.cs** (from `MachineKeyHelper.cs`) | SP800-108 counter-mode key derivation (HMAC-SHA512) used by `MachineKey`. | `DeriveKey`, `DeriveKeyImpl`, `GetKeyDerivationParameters` |
 | **Crypto/MachineKeyDataProtector.cs** (from `MachineKeyHelper.cs`) | IDataProtector-style wrapper that Protect/Unprotects via `MachineKey` for fixed purposes. | ctor, `Protect`, `Unprotect` |
+| **Core/Clr2SelfTest.cs** | Write finished payload bytes to a unique temp file and run the separately shipped, CLR2-pinned one-shot victim. Requires the child to prove CLR 2.0.50727 and its completion marker before reporting the observation. | `SupportsFormatter`, `HostPath`, `Run`, `PrintResult` |
 | **Discovery/GadgetRegistry.cs** (was `GadgetHelper.cs`) | Reflection discovery/instantiation of `IGenerator` gadgets; caches type, name and private-visibility metadata in ONE instantiation per type; fuzzy name matching (with/without `Generator` suffix). Listing methods take `includePrivate` (default false); lookup methods never filter (see "Printed vs resolved" below). | `GetGadgetNames`, `GetGadgetNameClassPairs`, `GetGadgetsSupportingFormatter`, `GetGadgetsContaining`, `VisibilityDiagnostics`; `GadgetExists`, `CreateGadgetInstance`, `NormalizeGadgetName`, `ValidateAndGetExactGadgetName`, `ClearCache` |
 | **Discovery/PluginRegistry.cs** (was `PluginHelper.cs`) | Same for `IPlugin`; also captures Description, Credit and private visibility. | `GetPluginNames`, `GetPluginNameClassPairs`, `GetPluginsContaining`, `GetPluginsWithDescriptions`, `GetPluginsWithCredits`, `VisibilityDiagnostics`; `PluginExists`, `CreatePluginInstance`, `GetPluginInfo` |
-| **Input/InputArgs.cs** | Mutable carrier of parsed command + flags; splits `Cmd` into `CmdFileName`+`CmdArguments`; can read command from a file; Shallow/DeepCopy. | Props: `Cmd`, `CmdFullString`, `CmdFileName`, `CmdArguments`, `CmdFromFile`, `CmdType`, `IsRawCmd`, `Test`, `Minify`, `UseSimpleType`, `IsDebugMode`, `IsSTAThread`, `HasArguments`, `ExtraArguments`, `ExtraInternalArguments` |
-| **Input/DtdSystemLiteral.cs** | Validation for a URL that a payload places inside a QUOTED DTD external identifier (a SystemLiteral). Accepts an absolute http/https URL, trims it, and refuses whitespace, control characters and `"` `<` `>` `\`, which either end the literal or corrupt it; `&`, `%` and `'` are ALLOWED, because a SystemLiteral recognises no entity or parameter-entity references and banning them would break ordinary query strings and percent-encoding. The scheme allowlist is narrow on purpose: an absolute URI is not evidence that the target's resolver supports its scheme. Knows no gadget - the caller passes its own name and example for the refusal text, and keeps its DOCTYPE template, which is the payload. Used by `DataViewManagerXxe` and `DataSetXxe`; both offer `--rawinput`, which routes to `RequireRawValue` instead (present and non-empty, nothing else, not even trimmed). | `ValidateHttpUrl(url, moduleName, example)`, `RequireRawValue(url, moduleName)` |
+| **Input/InputArgs.cs** | Mutable carrier of parsed command + flags; splits `Cmd` into `CmdFileName`+`CmdArguments`; can read command from a file; Shallow/DeepCopy. | Props: `Cmd`, `CmdFullString`, `CmdFileName`, `CmdArguments`, `CmdFromFile`, `CmdType`, `IsRawCmd`, `Test`, `TestClr2`, `LegacyFx`, `Minify`, `UseSimpleType`, `IsDebugMode`, `IsSTAThread`, `HasArguments`, `ExtraArguments`, `ExtraInternalArguments` |
+| **Input/DtdSystemLiteral.cs** | Validation for a URL that a payload places inside a QUOTED DTD external identifier (a SystemLiteral). Accepts an absolute http/https URL, trims it, and refuses whitespace, control characters and `"` `<` `>` `\`, which either end the literal or corrupt it; `&`, `%` and `'` are ALLOWED, because a SystemLiteral recognises no entity or parameter-entity references and banning them would break ordinary query strings and percent-encoding. The scheme allowlist is narrow on purpose: an absolute URI is not evidence that the target's resolver supports its scheme. Knows no gadget - the caller passes its own name and example for the refusal text, and keeps its DOCTYPE template, which is the payload. Used by `DataViewManagerXxe`, `DataSetXxe`, `XmlDocumentXxe` and `XmlDocumentSurrogateXxe`; all offer `--rawinput`, which routes to `RequireRawValue` instead (present and non-empty, nothing else, not even trimmed). | `ValidateHttpUrl(url, moduleName, example)`, `RequireRawValue(url, moduleName)` |
 | **Input/CommandArgSplitter.cs** | Split command into `[fileName, args]` (on first space) and escape per target context. `JSON` escapes for a SINGLE quoted string literal, `JSONDoubleQuoted` for a double quoted one; pick the one matching the template the command lands in. | `SplitCommand`, `XmlStringHTMLEscape`, `XmlStringAttributeEscape`, `JsonStringEscape`, `JsonDoubleQuotedStringEscape`; `enum CommandType {None,XML,JSON,YamlDotNet,XMLinJSON,JSONinXML,JSONDoubleQuoted}` |
 | **MessagePack/MessagePackTypelessTypeSwap.cs** | Gadget-agnostic MessagePack Typeless "bait and switch": serialize the caller's SURROGATE graph while writing the caller's target assembly qualified names, by seeding MessagePack's private static `TypelessFormatter.FullTypeNameCache`. Lets a gadget whose sink is a property setter or a getter chain build a payload without constructing the real target (which would fire the effect inside ysonet). Knows no gadget: the surrogate shapes and the target names stay in the gadget class (see `Generators/README.md`). A name is written only where the member's static type is `object`, so a concretely typed member needs no map entry. MessagePack >= 2.3.75. | `SerializeAs(graph, IDictionary<Type,string>, useLz4)`, `SerializeAs(surrogate, aqn, useLz4)`, `Deserialize` |
 | **Minifiers/XmlMinifier.cs** (was `XmlHelper.cs`) | Minify/normalize XML payloads (Soap, Net/DataContract, XmlSerializer): dedupe namespaces, strip encodingStyle, XSLT whitespace strip, ref-id minification. A discardable regex that deletes the only use of a namespace (for example dropping the ObjectDataProvider default attributes) leaves that `xmlns` orphaned, so after the discards the XSLT namespace pass is re-run to remove it; the re-parse is guarded so a discard that intentionally strips a closing tag (ResourceSet) does not throw. Stays linear on big inline-assembly payloads (tens of thousands of `<s:Byte>` elements): the encodingStyle scan is guarded and NCName-bounded, the XSLT "drop unused namespaces" pass skips the reserved `xml` namespace (which is in scope on every element and never emitted, avoiding an O(n^2) `//*` scan per element), and the `XmlDirtyMatchReplaceMinifier` separator pass is guarded (skipped when the document has no `;`/`,`) and anchored with a negative lookbehind, so a long whitespace-free attribute value (for example the ApplicationTrust hex `Data="..."`) no longer triggers an O(n^2) per-start re-scan. | `Minify` (6 overloads, string & Stream), `XmlXSLTMinifier` |
@@ -1142,7 +1391,7 @@ filter was applied.
 | **Serialization/SerializersHelper.cs** (+ `SerializersHelper.<Fmt>.cs` partials) | Central static library of serialize/deserialize/test methods for EVERY supported serializer (see below). One `partial` file per format; `ShowAll`/`TestAll` stay in the main file. | `ShowAll`, `TestAll`, and `<Serializer>_serialize/_deserialize/_test` families |
 | **Serialization/MinifiedTextGuard.cs** | Shared "did the operator's text survive serialization?" check, for a gadget that delivers a value the target uses LITERALLY (a path to delete, text to write). Reports which required values are no longer present as exact XML text, so the gadget can refuse instead of shipping a rewritten one. Two causes: the XML minifier (deliberately not text preserving) and, with no minification, `DataContractSerializer_serialize`'s `XmlWriter`, whose default `NewLineHandling` writes a carriage return raw. Returns nothing for a non-XML payload, so the binary formatters are always the safe fallback. Each gadget keeps its own refusal wording. Used by `TypeConfuseDelegateFileOperations` and `TempFileCollection`. | `MissingTextValues`, `AsXmlText`, `XmlTextValues` |
 | **Serialization/XmlByteArrayEncoder.cs** (extracted from `XmlHelper`) | Encode a byte array as an XmlSerializer "ArrayOfUnsignedByte" XML fragment (swappable byte tag/header/footer). Used by gadgets embedding a compiled assembly as inline XML. Callers pass the bare `Byte` tag and declare the System namespace as the array element's default, so each element is `<Byte>N</Byte>` instead of `<s:Byte>N</s:Byte>` (saves 4 bytes/element; several KB on an embedded assembly). | `ConvertBytesToArrayOfUnsignedByteXML` |
-| **SharpSerializer/SharpSerializerTypeSwap.cs** | The SharpSerializer BINARY twin of `MessagePackTypelessTypeSwap`: serialize the caller's surrogate, then rewrite the one type-name record to the caller's target name. SizeOptimized mode keeps type names in a cache of 7-bit-length-prefixed UTF-8 strings that everything else refers to BY INDEX, so a longer or shorter name needs no offset fixing. Knows no gadget. Used by `DataViewManagerXxe`. | `SerializeAs(surrogate, targetAqn)` |
+| **SharpSerializer/SharpSerializerTypeSwap.cs** | The SharpSerializer BINARY twin of `MessagePackTypelessTypeSwap`: serialize the caller's surrogate, then rewrite the one type-name record to the caller's target name. SizeOptimized mode keeps type names in a cache of 7-bit-length-prefixed UTF-8 strings that everything else refers to BY INDEX, so a longer or shorter name needs no offset fixing. Knows no gadget. Used by `DataViewManagerXxe` and `XmlDocumentXxe` (whose variant 2 needs the multi-type overload, because SharpSerializer writes the nested resolver under its own name too). | `SerializeAs(surrogate, targetAqn)`, `SerializeAs(surrogateGraph, targetTypeNames)` |
 | **Serialization/FormatterType.cs** | Enum for minify/escape decisions. | `enum FormatterType {None,BinaryFormatter,SoapFormatter,LosFormatter,ObjectStateFormatter,DataContractXML,NetDataContractXML,XMLSerializer,JavascriptSerializer,DataContractJSON}` |
 | **ClipboardHelper.cs** (root) | STA-thread OS clipboard access (thin WinForms wrapper). | `TrySetText` |
 | **Debugging.cs** (root) | Print exception stack traces only when `InputArgs.IsDebugMode`. | `ShowErrors(InputArgs, Exception)` |
@@ -1182,7 +1431,7 @@ compiled on demand, not built into `E.dll`.
 - **ExploitClass.cs**: class `E` (short name = smaller payload). Constructor is the payload
   body; default pops a `MessageBox("Pwned")`, with commented examples (write file, DNS /
   Burp-collaborator callback, `Process.Start`, sleep, web-pentest actions). References
-  `System`, `System.Web`, `System.Windows.Forms`. Usage: `-c "ExploitClass.cs;System.Windows.Forms.dll"`.
+  `System`, `System.Web`, `System.Windows.Forms`. Usage: `-c "ExploitClass.cs;System.dll"`.
 - **GhostWebShell.cs**: class `G` (Soroush Dalili). Base64-decodes an embedded `.aspx`
   webshell and registers a virtual path provider (`SamplePathProvider`) to serve it in
   memory - a webshell drop needing no file write.
@@ -1239,15 +1488,33 @@ internal probe branch (YSONET_DUMPUI, YSONET_XAML_CONTAINER_PROBE)
     -> finished status
 ```
 
+The suite's sources are grouped by ROLE, and the grouping is only about where a reader
+should look: everything is one `partial class Tests` in namespace `ysonet.Tests`, so no
+folder changes a namespace or a type name. `ysonet.Tests/README.md` is the index.
+
+```text
+ysonet.Tests/
+  Tests.cs      the runner and every ordinary row
+  Runner/       how a run configures, isolates, reports and records ITSELF
+  Tiers/        machinery that exists for ONE opt-in tier (OOB, LEGACY)
+  Harness/      machinery ordinary rows share (child processes, listeners, the fire sink)
+  Fixtures/     test-owned types a payload acts on, plus fakes and probes
+  Private/      an optional git-ignored private area, wildcard-compiled in private mode
+```
+
+The project is old-style, so `ysonet.Tests.csproj` lists every source file explicitly.
+A new file needs a `<Compile Include=...>` entry or it is silently not compiled; the
+wildcard applies to `Private\` alone.
+
 | File | Owns |
 |---|---|
-| `TestRunOptions.cs` | `--full`/`--dos`/`--oob`/`--strict-env` plus `--ui-isolation`, `--wer-containment`, `--status-file` and `YSONET_TEST_SINK`. CLI beats environment; an invalid enumerated value or a missing value is the only thing that stops a run before it starts (exit 2). `auto` UI isolation resolves to `none` under a debugger or on CI, `desktop` otherwise. |
-| `TestEnvironment.cs` | The capability model, failure classification, and the environment report (section 8.4). |
-| `LoopbackListener.cs` | The test-owned ephemeral TCP endpoint every callback row is pointed at. It is its own file so the `loopback-tcp` capability probe and the payload rows exercise the same implementation; a probe built on a different socket would measure something the rows do not use. |
-| `WerContainment.cs` | A named job with `JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION`, created, verified by query, assigned and then confirmed by membership. Normal descendants inherit it, which is what suppresses Windows Error Reporting UI for a crashing payload child. `KILL_ON_JOB_CLOSE` is deliberately NOT set: this suppresses crash UI, it does not redefine child lifetime or hide a hang. Every native step goes through `IJobNativeApi` so the refusal paths are testable. |
-| `UiIsolation.cs` | One self-relaunch on a hidden desktop. The desktop and the child are created on a short-lived dedicated thread (CloseDesktop fails while a thread of the process still uses the handle), with `STARTUPINFOEX`, an explicit three-handle inheritance list, a writable command line, and a Unicode environment block copied from `GetEnvironmentStringsW` so the hidden per-drive entries survive. The parent drains both pipes concurrently and propagates the child's exact exit code. It also classifies the one hole the desktop cannot close: on Windows 11 a new console is hosted by the user's default terminal application, which is not a descendant and never inherited the desktop, so a console window a payload opens can still appear. That is reported as one header note naming the setting that contains it, and the setting is never written. |
-| `RunStatus.cs` | The `key=value` snapshot (version 1) and its heartbeat. Whole snapshots are rendered under one lock and published by moving a temporary file into place, so a reader that polls and reopens sees only complete files. A reader that does not allow delete-sharing can block that rename, so a publish retries with backoff and a lost update costs one refresh rather than switching status off. There is no `crashed` state: an interrupted run leaves `state=running` with a heartbeat that stops. |
-| `TestSink.cs` | `FireTarget`, the abstraction every command fire row uses, and the run-wide backend choice between `ysonet.TestSink.exe` and the original `cmd /c echo` marker. |
+| `Runner\TestRunOptions.cs` | `--full`/`--dos`/`--oob`/`--legacy`/`--strict-env` plus `--ui-isolation`, `--wer-containment`, `--status-file` and `YSONET_TEST_SINK`. CLI beats environment; an invalid enumerated value or a missing value is the only thing that stops a run before it starts (exit 2). `auto` UI isolation resolves to `none` under a debugger or on CI, `desktop` otherwise. |
+| `Runner\TestEnvironment.cs` | The capability model, failure classification, and the environment report (section 8.4). |
+| `Harness\LoopbackListener.cs` | The test-owned ephemeral TCP endpoint every callback row is pointed at. It is its own file so the `loopback-tcp` capability probe and the payload rows exercise the same implementation; a probe built on a different socket would measure something the rows do not use. |
+| `Runner\WerContainment.cs` | A named job with `JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION`, created, verified by query, assigned and then confirmed by membership. Normal descendants inherit it, which is what suppresses Windows Error Reporting UI for a crashing payload child. `KILL_ON_JOB_CLOSE` is deliberately NOT set: this suppresses crash UI, it does not redefine child lifetime or hide a hang. Every native step goes through `IJobNativeApi` so the refusal paths are testable. |
+| `Runner\UiIsolation.cs` | One self-relaunch on a hidden desktop. The desktop and the child are created on a short-lived dedicated thread (CloseDesktop fails while a thread of the process still uses the handle), with `STARTUPINFOEX`, an explicit three-handle inheritance list, a writable command line, and a Unicode environment block copied from `GetEnvironmentStringsW` so the hidden per-drive entries survive. The parent drains both pipes concurrently and propagates the child's exact exit code. It also classifies the one hole the desktop cannot close: on Windows 11 a new console is hosted by the user's default terminal application, which is not a descendant and never inherited the desktop, so a console window a payload opens can still appear. That is reported as one header note naming the setting that contains it, and the setting is never written. |
+| `Runner\RunStatus.cs` | The `key=value` snapshot (version 1) and its heartbeat. Whole snapshots are rendered under one lock and published by moving a temporary file into place, so a reader that polls and reopens sees only complete files. A reader that does not allow delete-sharing can block that rename, so a publish retries with backoff and a lost update costs one refresh rather than switching status off. There is no `crashed` state: an interrupted run leaves `state=running` with a heartbeat that stops. |
+| `Harness\TestSink.cs` | `FireTarget`, the abstraction every command fire row uses, and the run-wide backend choice between `ysonet.TestSink.exe` and the original `cmd /c echo` marker. |
 
 Nothing here can turn an otherwise valid run red. A refused desktop, a refused job, an
 unwritable status path, or an unusable sink each prints one line and the run continues.
@@ -1318,7 +1585,7 @@ Two test tiers (gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` 
     non-empty. A curated `expectedGadgetSkips` table holds the few advertised-but-invalid cells,
     each with a written reason; a new gadget/formatter/variant is picked up automatically.
   - `PayloadsFireIntoTestSinks` - fires every payload whose effect a test-OWNED sink can observe:
-    a COMMAND fire target (`FireTarget` in `ysonet.Tests/TestSink.cs` - the windowless
+    a COMMAND fire target (`FireTarget` in `ysonet.Tests/Harness/TestSink.cs` - the windowless
     `ysonet.TestSink.exe` where it can run, otherwise the original `cmd /c echo x > marker`;
     most gadgets and the fireable plugins via their
     `-t`), a self-closing `.cs` compiled and run for the `*FromFile` gadgets (in a subprocess,
@@ -1326,24 +1593,37 @@ Two test tiers (gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` 
     PictureBox/InfiniteProgressPage, ResourceDictionary, ObjRef remoting - and for
     ResourceDictionary a RECORDING responder as well, which answers with a real XAML document
     so the row proves the fetched markup was LOADED and not merely requested), a temp
-    DIRECTORY (FileLogTraceListener), and test-owned FILES for the two gadgets whose sink is the
+    DIRECTORY (FileLogTraceListener), the READING PROCESS ITSELF
+    (`FileSystemProxyCurrentDirectory`: the payload moves the working directory, so the
+    witness is `Directory.GetCurrentDirectory()` and there is nothing to poll - but it is
+    also the one effect that would change how every LATER row in the run resolves a relative
+    path, so the helper captures the original directory before generating and restores it in
+    a `finally`), and test-owned FILES for the two gadgets whose sink is the
     deserializer itself: `TypeConfuseDelegateFileOperations` (write/copy/move/dirmove/empty) and
     `TempFileCollection` (delete, through both the finalizer - proven with a `WeakReference` plus a
     forced collection - and an explicit `Dispose`, with a sentinel file next to the target that
     must survive). Those two assert synchronously, with no marker-wait budget, because no process
-    is spawned. `DataViewManagerXxe` needs a sixth arrangement: the payload is generated here but
-    deserialized in a CHILD process (`ysonet.Tests/LegacyXmlChild.cs`) while the loopback listener
-    stays in the test process, because System.Xml decides once per process - from the ENTRY
-    assembly's target framework - whether a legacy `XmlTextReader` gets a real resolver. The child
+    is spawned. The XXE FAMILY needs a sixth arrangement, and all four gadgets share it through
+    one helper, `FireLegacyXmlXxe`: the payload is generated here but deserialized in a CHILD
+    process (`ysonet.Tests/Harness/LegacyXmlChild.cs`) while `ysonet.Tests/Harness/LegacyXmlHttpServer.cs` stays
+    in the test process, because System.Xml decides once per process - from the ENTRY assembly's
+    target framework - whether a legacy `XmlTextReader` gets a real resolver. The child
     is compiled at test time and stamped with the target framework moniker under test, so it needs
     no .NET 4.5.1 targeting pack and the suite never writes the machine-wide
-    `EnableLegacyXmlSettings` registry value. Ten legacy cells (5 formatters x minify) must fetch
-    the DTD and two hardened-default control cells must NOT. `DataSetXxe` reuses that same
-    child - the child's formatter switch covers BOTH families now, the property-setter one and
-    the ISerializable-constructor one - but points at `ysonet.Tests/LegacyXmlHttpServer.cs`
-    instead of the bare accept-and-close listener, because two of its rows need more than "a
-    connection arrived". Ten legacy cells plus two hardened controls assert the EXACT request
-    target, so a fetch of some other URL cannot pass as a hit. Its variant 2 then gets the one
+    `EnableLegacyXmlSettings` registry value; it reads the payload back through the product's own
+    `PayloadReader`, so it covers every format ysonet can read and needs no per-gadget branch.
+    The endpoint is a recording HTTP server rather than a bare accept-and-close listener, because
+    "a connection arrived" would also pass if something else in the child fetched something of
+    its own, and every one of these payloads claims the target requests the OPERATOR'S url
+    specifically. Each gadget contributes (formatters x minify) legacy cells that must fetch and
+    two hardened-default control cells that must NOT: `DataViewManagerXxe` 10 + 2,
+    `DataSetXxe` 10 + 2, `XmlDocumentXxe` variant 1 16 + 2, and `XmlDocumentSurrogateXxe`
+    14 + 2. `XmlDocumentXxe` variant 2 is the exception that proves its own claim: it brings its
+    own `XmlUrlResolver`, so `FireXmlDocumentXxeOwnResolver` runs it IN PROCESS on this hardened
+    4.7.2 runner and the request still has to arrive - 12 cells (6 formatters x minify), which
+    are also the only per-formatter proof of the MEMBER ORDER, since a payload that assigned
+    `InnerXml` first would produce an identical-looking `XmlDocument` and fetch nothing.
+    `DataSetXxe` variant 2 then gets the one
     row in the suite that proves DISCLOSURE rather than a callback: the server publishes the
     companion DTD the gadget itself wrote to `--dtd-out`, byte for byte, and the row requires
     the COMPLETE content of a test-owned marker file to come back in the query string of the
@@ -1353,7 +1633,7 @@ Two test tiers (gate: `Main` checks the `--full` arg or the `YSONET_FULL_TESTS` 
     Phase 1 cells separately prove every advertised formatter delivers the same `XmlSchema`
     string and the whole chain lives inside it. `AssemblyInstallerLoad` uses a
     seventh sink: the already-built `ysonet.Tests` assembly IS the DLL the payload points at,
-    because `ysonet.Tests/InstallerFixture.cs` declares an inert public
+    because `ysonet.Tests/Fixtures/InstallerFixture.cs` declares an inert public
     `[RunInstaller(true)]` `Installer` whose constructor appends one line to a marker named by
     the `YSONET_INSTALLER_MARKER` environment variable, which only the tests set. Nothing is
     compiled at test time. 30 cells (9 formatters x minify through the PropertyGrid carrier,
@@ -1385,7 +1665,7 @@ machine that is not already serving SMB plus elevation. The way through is that
 Windows must RESOLVE the host name before it can open the connection, so a DNS
 query for a run-unique name proves the callback was attempted even when outbound
 445 is blocked. The endpoint is `interactsh-client` (`tools/interactsh/`), driven
-by `OobSession` in `ysonet.Tests/Oob.cs`. These are the only tests that send
+by `OobSession` in `ysonet.Tests/Tiers/Oob.cs`. These are the only tests that send
 traffic off the machine, so they run only with `ysonet.Tests.exe --oob` (or
 `YSONET_OOB_TESTS`), never in NORMAL or FULL, and they run before the local tiers
 because they depend on nothing the other tests set up. Four rows:
@@ -1426,18 +1706,158 @@ protocol" would let one signal stand in for another. `OobSession` therefore expo
 separates an empty log from an unreadable one, and `CaptureInteractionCursor()` plus
 `WaitForSessionProtocolAfter(cursor, protocol, ms)` for the unlabelled SMB case.
 
+### 8.3b The LEGACY tier (CLR 2: .NET 2.0 / 3.0 / 3.5)
+
+A fourth opt-in tier, for the half of the runtime-version axis the other tiers cannot
+reach: whether a payload lands on the CLR 2 generation. It runs with
+`ysonet.Tests.exe --legacy` (or `YSONET_LEGACY_TESTS`), stands alone like OOB rather than
+requiring `--full`, and sends nothing off the machine.
+
+The seam that makes it possible is that ysonet only produces BYTES. What has to run on
+CLR 2 is the VICTIM, so the tool stays on 4.7.2 and only the victim moves: the suite
+compiles a small standalone deserializer with the in-box legacy `csc`
+(`%WINDIR%\Microsoft.NET\Framework*\{v3.5,v2.0.50727}\csc.exe`), pins it to
+`supportedRuntime v2.0.50727`, and runs one payload in it per row.
+
+Three rules the tier is built on:
+
+- **The config pin is not the guard.** A child whose config asks for `v4.0` really does
+  get CLR 4 (measured, and `LegacyClrChildRefusesAFourPointOhConfig` reproduces it), and
+  the shim rolls forward anyway when CLR 2 is absent. The guard is the child printing its
+  own `Environment.Version` and the parent asserting `2.0.50727`.
+- **`/noconfig` is mandatory.** The v3.5 compiler reads `csc.rsp`, which auto-references
+  `System.Core.dll` (3.5), so without it the 2.0 lane silently gains the surface it exists
+  to exclude. `LegacyLaneReferencesExcludeNewerAssemblies` proves it by requiring a
+  3.5-only type to FAIL to compile in the 2.0 lane.
+- **"Deserialized with no exception" is not a fire.** Carriers were measured deserializing
+  cleanly on CLR 2 and doing nothing, so every row asserts an observed EFFECT (a deleted
+  file with a surviving sentinel, a loopback connection, a created directory, a fire-sink
+  record).
+
+| File | Owns |
+|---|---|
+| `LegacyClrLane.cs` | The LANE: `{version token, reference set, readers, forbidden assemblies}`. 2.0, 3.0 and 3.5 are one CLR with different BCLs, so a lane is a parameter rather than a second harness. It also derives every path (framework folder from `RuntimeEnvironment.GetRuntimeDirectory()`, reference assemblies from the ProgramFiles folders) so no drive letter is written down. |
+| `LegacyClrChild.cs` | Compiling and running the reader child. The base child is generated per lane; a plugin consumer gets a separately cached child with its one reader branch and only its reader-specific framework reference. It must build under the C# 2 compiler (no `var`, LINQ, lambdas, auto-properties), and it records every assembly load, deserializes in a frame that returns only a string (so a finalizer-driven effect is not held alive), runs a full GC, and prints the whole exception chain. |
+| `LegacyClrTier.cs` | The `(source, reader, effect)` row table, the engine, the classifier, and the tier's self-checks. A source is either a gadget/formatter cell or complete plugin output plus argv. |
+
+Lanes and formatters: 2.0 has BinaryFormatter, SoapFormatter and LosFormatter; 3.0 adds
+NetDataContractSerializer and DataContractSerializer (both WCF,
+`System.Runtime.Serialization.dll`); 3.5 adds JavaScriptSerializer
+(`System.Web.Extensions.dll`), DataContractJsonSerializer
+(`System.ServiceModel.Web.dll`) and XmlSerializer. Nine of the tool's formatters can never
+appear: `System.Xaml` is 4.0, and the bundled Json.NET / fastJSON / SharpSerializer /
+FsPickler / MessagePack DLLs are 4.x builds.
+
+Every lane also declares the plugin consumer readers exercised by the public table:
+`ApplicationTrust.FromXml`, `TransactionManager.Reenlist`, both System.Web collection
+`Deserialize` paths, `ResXResourceReader`, and a page-state reader for ViewState. That last
+reader creates a real `Page`, supplies its virtual path and `ViewStateUserKey`, enables the
+MAC, and lets the page-owned `ObjectStateFormatter` validate the complete signed value before
+it can read the object graph. Its scoped child config supplies the matching `machineKey`.
+A wrong-key payload and a one-byte-tampered payload must both fail authentication without
+reaching the effect before the matching-key payload counts as a fire. This distinction is
+essential: feeding a signed value to a parameterless `LosFormatter` can consume its object-
+state prefix without proving that ASP.NET accepted the ViewState MAC.
+`System.Transactions.dll` and `System.Windows.Forms.dll` are references of their specific
+reader children only; adding those to the base lane would silently enlarge every unrelated
+row. The plugin rows use `TempFileCollection` as a narrow effect and cover raw and minified
+output. All five plugin sources fired on 2.0, 3.0, and 3.5. In particular, the
+ResX reader accepted the document's 4.0 reader/writer resheaders while loading the 2.0
+Windows Forms assembly, establishing that those header values are descriptive metadata
+rather than a bind request.
+
+XmlSerializer is the one formatter whose lane is decided by the CATALOGUE rather than by the
+framework. The reader is `System.Xml` 2.0 and would work in every lane, but the only gadget
+that can drive it in a tier (`ObjectDataProvider`; the other one is denial-of-service, which
+no tier deserializes) reaches the provider through the `System.Data.Services`
+`ExpandedWrapper` carrier, which is 3.5. Since `LegacyRowsCoverEveryLane` fails a lane that
+declares a formatter no row exercises, 3.5 is the only lane it can honestly sit in. It moves
+down as soon as a gadget can drive it with a 2.0 or 3.0 carrier.
+
+Nothing can BLOCK a GAC load - `AssemblyResolve` only fires after a bind FAILS - and a
+box with 3.5 installed physically has all three frameworks. So the child RECORDS every
+load and the parent asserts that a firing row loaded nothing from a newer framework and
+nothing at 4.0.0.0 or above. That is a measurement, not a sandbox.
+
+A row that does NOT fire is a deliverable, not a hidden failure. It records a classified
+reason: `payload-names-4x-assembly`, `type-absent-on-clr2`, `target-assembly-absent`,
+`carrier-member-shape-differs`, `deserialized-no-effect`, or
+`reader-refused-without-a-cause`. The most common blocker is an assembly VERSION string in
+our own payload rather than an absent type: `TempFileCollection` fires through
+BinaryFormatter and LosFormatter, whose binder unifies its `System, Version=4.0.0.0`
+identity to the 2.0 `System.dll`, and is refused by SoapFormatter,
+NetDataContractSerializer and DataContractSerializer, which bind that version as written.
+A NORMAL-tier row, `LegacyFloorCandidatesAreReported`, turns that finding into a free
+pre-filter: it prints which gadgets' generated bytes name no 4.x assembly version, so a
+contributor knows which rows are worth a child process.
+
+The tier feeds `RuntimeBuild.RecordFired(gadget, lane.VersionToken)` or
+`RecordPluginFired(plugin, lane.VersionToken)`, which is why the
+version-evidence rule is symmetric (section 8.5 below): a floor observation is REPORTED as
+`couldLower`, never failed.
+
+Scope limits stated rather than discovered. A "2.0" claim means 2.0 at the servicing level
+the run header prints (measured `2.0.50727.9179`; 2.0 RTM was `2.0.50727.42`), because
+installing 3.5 SP1 service-packs the 2.0 files in place. A 2.0-only box is not installable
+on modern Windows at all: the optional feature is ".NET Framework 3.5 (includes .NET 2.0
+and 3.0)".
+
+### 8.3c The NET40 tier (exact .NET Framework 4.0)
+
+The fifth opt-in tier exists for a target that cannot coexist with the current developer
+runtime. .NET Framework 4.5 and later replace 4.0 in place, so a net40-targeted executable
+on a 4.8 machine still runs on 4.8 and proves nothing about 4.0. The tier therefore keeps
+ysonet on 4.7.2, sends only generated bytes through a mapped directory, and moves the
+victim into an isolated full-.NET-4.0 VM. It runs with `ysonet.Tests.exe --net40` (or
+`YSONET_NET40_TESTS`) when `YSONET_NET40_SHARED_DIR` names the host side of that mapping.
+Setup and containment are in `tools/net40-test-host/README.md`.
+
+The Debug build compiles `tools/net40-test-host/Net40TestHost.cs` with the v4.0 compiler,
+`/nostdlib+`, and the exact v4.0 reference assemblies. That compile boundary stops the
+victim from accidentally using a newer API, but is not runtime evidence. The runtime
+guard is structural and runs before every payload read:
+
+- `Environment.Version` begins `4.0.30319`;
+- Workflow's no-serializable-check member discovery reports
+  `Array.FunctorComparer<string>` fields `comparison,c`;
+- `Comparer<string>.Create` is absent;
+- Workflow `ObjectSerializedRef` has FormatterServices members `type,memberDatas` and
+  implements `IObjectReference`.
+
+The last three checks distinguish the original 4.0 BCL from later CLR 4 builds, which
+share the same CLR version string. A NORMAL-tier control runs the same host locally and
+requires the installed replacement CLR to print `shape=not-netfx40` and
+`deserialize=refused-before-payload-read` for an absent payload path.
+
+`Net40Target.cs` owns the shared-folder client and capability probe. The parent writes a
+request, optional `payload.bin`, sentinel, then `ready` last. The VM's long-running agent
+claims the job and launches a fresh one-shot worker with the job directory as its current
+directory, so a payload crash does not kill the agent and a relative marker is visible on
+both sides even when the host and guest mount paths differ. The worker atomically publishes
+`result.txt`; the parent requires the exact marker token and surviving sentinel, then removes
+the job. There is no listener or remote-execution protocol.
+
+`Net40Tier.cs` owns six positive `TypeConfuseDelegateNet40Workflow` cells:
+BinaryFormatter, SoapFormatter, and LosFormatter, each raw and minified. Only an observed
+effect after the exact runtime proof calls
+`RuntimeBuild.RecordFired(..., RuntimeVersion.NetFx40)`. An unset mapping or absent agent is
+a named `netfx40-target` skip, never a pass.
+
 ### 8.4 Environment capabilities, failure classification, and the verdict
 
-`ysonet.Tests/TestEnvironment.cs` is how a run says that a machine or network capability
+`ysonet.Tests/Runner/TestEnvironment.cs` is how a run says that a machine or network capability
 was missing WITHOUT weakening an assertion or letting an unexecuted row count as a pass.
-Six capabilities, each probed LAZILY the first time a check needs it, so NORMAL adds no
+Nine capabilities, each probed LAZILY the first time a check needs it, so NORMAL adds no
 probe and sends nothing off the machine:
 
 | Token | Evidence | Gates |
 |---|---|---|
-| `loopback-tcp` | bind `127.0.0.1:0`, connect, and require the accept loop to see it | the FULL listener cells (`FireNetNonRceListener`, `FireDataViewManagerXxe`, `FireOdpXamlUrlListener`, `FireObjRefListener`) plus the `LegacyXmlHttpServer` cells (`FireDataSetXxe`, `FireDataSetXxeDiscloses`), which are the same plain `TcpListener` on `127.0.0.1:0` and so depend on the same capability the probe measures |
+| `loopback-tcp` | bind `127.0.0.1:0`, connect, and require the accept loop to see it | the FULL listener cells (`FireNetNonRceListener`, `FireOdpXamlUrlListener`, `FireObjRefListener`) plus the `LegacyXmlHttpServer` cells (`FireLegacyXmlXxe` for all four XXE gadgets, `FireXmlDocumentXxeOwnResolver`, `FireDataSetXxeDiscloses`), which are the same plain `TcpListener` on `127.0.0.1:0` and so depend on the same capability the probe measures |
 | `local-rpc-endpoint-mapper` | connect to `127.0.0.1:135` within two seconds | the 24 `FireWbemClassObjectUnmarshalComSink` cells (7 formatters x 2 minify on root carrier 1, plus the 5 formatters carrier 2 can build x 2 minify) |
 | `short-name-8dot3` | create a long-named directory under each artifact root in turn and require its 8.3 alias to differ from its long name | the 28 `FireFileSystemInfoShortNameExpansion` cells. It walks EVERY root because 8.3 creation is a per-volume NTFS setting, and a checkout on a volume with it disabled would otherwise lose the whole matrix while `%TEMP%` could have run it |
+| `clr2-runtime` | compile the LEGACY tier's own child with the in-box legacy compiler, run it, and require it to report `Environment.Version` `2.0.50727` | every LEGACY lane. The probe is deliberately the real thing rather than a registry read: what the rows need is a child that RUNS on CLR 2, and a config pin cannot promise that |
+| `netfx3x-reference-assemblies` | resolve the full `/r:` list the 3.0 and 3.5 lanes compile against | the LEGACY 3.0 and 3.5 lanes only; the 2.0 lane never depends on it |
+| `netfx40-target` | send a probe through the configured shared directory and require the victim to report the exact 4.0 FunctorComparer and Workflow serialization shapes | the NET40 victim canary and every NET40 effect cell |
 | `oob-endpoint` | one client session registered a payload domain | every OOB check |
 | `oob-dns` | a run-unique label is recorded as exactly `dns` | every OOB check |
 | `owned-oob-unc-endpoint` | `YSONET_INTERACTSH_SERVER` is set | the three UNC checks and the SMB diagnostic |
@@ -1447,7 +1867,7 @@ and does not run it, in strict mode exactly as in the default. `Unknown` (the pr
 not conclude) RUNS the row and records the coverage as unverified, so a broken probe can
 never hide coverage. `Unprobed` means this run did not need it.
 
-The hardened `DataViewManagerXxe` control cells and the OOB absence controls share the
+The hardened XXE-family control cells and the OOB absence controls share the
 prerequisite of the positive cells they qualify. An absence assertion on a stack that
 cannot accept a connection, or an endpoint that records nothing, would pass vacuously.
 
@@ -1538,9 +1958,13 @@ than a process-wide trust bypass every later request would inherit.
   `false` from `IsPrivate()`. Add to csproj. Reuse
   gadgets via `GadgetRegistry.CreateGadgetInstance` or the static gadget helpers.
   A plugin that lets the USER pick an inner gadget (`-g`) must generate it through
-  `PayloadRunner.GenerateSelectedGadget`, never `Generate*` directly, so the
-  denial-of-service policy and its warning apply there too; a plugin with a fixed
-  inner gadget keeps using `GenerateInner`.
+  `PayloadRunner.GeneratePluginGadget`, never `Generate*` directly, so the name
+  rules, the denial-of-service policy and its warning, and the error text are the
+  same as every other plugin's; a plugin with a fixed inner gadget keeps using
+  `GenerateInner`. Such a plugin should also reset ALL of its option statics before
+  parsing (the interactive editor and the test suite both drive a plugin repeatedly
+  in one process), forward its leftover args as `InputArgs.ExtraArguments`, and
+  generate with `Test = false` when it runs its own `-t` proof of concept.
 - **New serializer support**: add a `Helpers/Serialization/SerializersHelper.<Fmt>.cs`
   partial with the `<Serializer>_serialize/_deserialize/_test` family; wire minification
   into the matching `Helpers/Minifiers/<Fmt>Minifier.cs` and add a `FormatterType` enum

@@ -125,6 +125,18 @@ finished:
   `NetFx45` when the chain goes through `System.Security.Claims`, WIF, or
   `Comparer<T>.Create`. Microsoft documentation is acceptable evidence for a
   floor.
+- then PROBE the floor instead of leaving it at the default, because the default
+  is an assumption rather than a measurement. Cheap static check first: a NORMAL
+  run prints `LEGACY floor candidates`, the gadgets whose generated payload names
+  no 4.x assembly version. If yours is on that list, add a row to
+  `LegacyClrRows` in `ysonet.Tests/Tiers/LegacyClrTier.cs` (a private module uses the
+  `RunPrivateLegacyRows` hook) and run `ysonet.Tests.exe --legacy`, which fires
+  the real payload on CLR 2 in 2.0 / 3.0 / 3.5 lanes. Lower the floor only on an
+  observed EFFECT there, never on a clean deserialize. Record BOTH bounds, or say
+  explicitly in the plan and the gadget comment that the floor was not measured.
+  A measured negative is a result too: keep its classified reason (usually "the
+  payload names a 4.x assembly version and the strict readers bind it verbatim")
+  in `AdditionalInfo()`, not in a facet value.
 - use a single token when only one target version is verified. Use
   `.WithVersions(RuntimeVersion.Range(floor, ceiling))` only when the evidence
   supports that contiguous span. Repeat the declaration in every variant
@@ -452,6 +464,9 @@ Report any environment-specific skip or blocker honestly.
 - [ ] `WithVersions` uses a single token for one established version or an
       evidence-backed contiguous range, repeated in every variant override; a
       non-runtime gate is deliberately left `unspecified` and documented.
+- [ ] The FLOOR was probed, not assumed: the static `LEGACY floor candidates`
+      report was read, and either a LEGACY row measured the payload on CLR 2 or
+      the report says plainly that the floor was not measured.
 - [ ] Bridge metadata and `BridgedPayload` behavior are complete when applicable.
 - [ ] The old-style csproj entry is present only for the finished source.
 - [ ] Focused generation, deserialization, behavior, and runtime-effect coverage passed first.

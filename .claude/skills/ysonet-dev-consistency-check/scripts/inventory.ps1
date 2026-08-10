@@ -2,10 +2,12 @@
 .SYNOPSIS
   Deterministic consistency inventory for ysonet. Cross-references the live
   gadget/plugin catalog against docs, docs/ARCHITECTURE.md, and the test suite,
-  validates gadget variant numbering, audits test fire safety (nothing opens a
-  real application, every fired command comes from the shared sink), and prints
-  one compact report. Replaces dozens of manual Grep/Read calls for checks 1-5
-  of the ysonet-dev-consistency-check skill.
+  validates gadget variant numbering, compares formatter-count annotations with
+  declared variant metadata, identifies formatter-dependent option axes for
+  semantic review, audits test fire safety
+  (nothing opens a real application, every fired command comes from the shared
+  sink), and prints one compact report. Replaces dozens of manual Grep/Read calls
+  for checks 1-5 of the ysonet-dev-consistency-check skill.
 
 .DESCRIPTION
   The authoritative catalog is the built exe's `--list gadgets` / `--list
@@ -90,7 +92,7 @@ function Get-StaticNames([string]$dir, [string]$suffix) {
     return @($names | Sort-Object -Unique)
 }
 
-function Get-BuiltVariantNumbers([string]$assemblyPath, [string[]]$gadgetNames) {
+function Get-BuiltGadgetMetadata([string]$assemblyPath, [string[]]$gadgetNames) {
     $assembly = [System.Reflection.Assembly]::LoadFrom($assemblyPath)
     $registry = $assembly.GetType('ysonet.Helpers.GadgetRegistry', $true)
     $create = $registry.GetMethod('CreateGadgetInstance')
@@ -110,16 +112,54 @@ function Get-BuiltVariantNumbers([string]$assemblyPath, [string[]]$gadgetNames) 
             throw "gadget '$name' has no Variants() method"
         }
 
-        $numbers = @()
-        $variants = $variantsMethod.Invoke($generator, $null)
-        if ($null -ne $variants) {
-            foreach ($variant in $variants) {
-                $numbers += [int]$variant.Number
+        $variants = @($variantsMethod.Invoke($generator, $null))
+        $numbers = @($variants | ForEach-Object { [int]$_.Number })
+
+        $formattersMethod = $generator.GetType().GetMethod('SupportedFormatters')
+        if ($null -eq $formattersMethod) {
+            throw "gadget '$name' has no SupportedFormatters() method"
+        }
+        $formatterTokens = @($formattersMethod.Invoke($generator, $null) |
+            ForEach-Object { [string]$_ })
+
+        $optionRows = @()
+        $optionsMethod = $generator.GetType().GetMethod('Options')
+        if ($null -ne $optionsMethod) {
+            $optionSet = $optionsMethod.Invoke($generator, $null)
+            if ($null -ne $optionSet) {
+                foreach ($option in $optionSet) {
+                    $optionRows += [pscustomobject]@{
+                        Prototype = [string]$option.Prototype
+                        Description = [string]$option.Description
+                    }
+                }
             }
         }
-        $byGadget[$name] = @($numbers)
+
+        $byGadget[$name] = [pscustomobject]@{
+            VariantNumbers = @($numbers)
+            Variants = @($variants)
+            FormatterTokens = @($formatterTokens)
+            Options = @($optionRows)
+        }
     }
     return $byGadget
+}
+
+function Get-FirstToken([string]$value) {
+    if ([string]::IsNullOrWhiteSpace($value)) { return '' }
+    return ($value.Trim() -split '\s+')[0]
+}
+
+function Test-VariantSupportsFormatter($variant, [string]$formatter) {
+    $wanted = Get-FirstToken $formatter
+    foreach ($unsupported in @($variant.UnsupportedFormatters)) {
+        if ([string]::Equals((Get-FirstToken ([string]$unsupported)), $wanted,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $false
+        }
+    }
+    return $true
 }
 
 $built = Test-Path $exePath
@@ -234,39 +274,117 @@ foreach ($g in $gadgets) {
 }
 "  ($gClean of $($gadgets.Count) gadgets present in ARCHITECTURE + docs + tests)"
 ""
-"-- GADGET VARIANTS: numbering and declaration order --------------"
+"-- GADGET VARIANTS: numbering and formatter annotations ----------"
 if (-not (Test-Path $exePath)) {
-    "  UNVERIFIED: needs a Debug build to inspect each gadget's Variants() result."
+    "  UNVERIFIED: needs a Debug build to inspect variants and formatter annotations."
 } else {
     try {
-        $variantNumbers = Get-BuiltVariantNumbers $exePath $gadgets
+        $gadgetMetadata = Get-BuiltGadgetMetadata $exePath $gadgets
         $withVariants = 0
         $variantProblems = 0
+        $formatterProblems = 0
+        $formatterTokensChecked = 0
+        $optionAxisLeads = 0
         foreach ($g in $gadgets) {
-            $numbers = @($variantNumbers[$g])
-            if ($numbers.Count -eq 0) { continue }
-
-            $withVariants++
-            $valid = $true
-            for ($i = 0; $i -lt $numbers.Count; $i++) {
-                if ($numbers[$i] -ne ($i + 1)) {
-                    $valid = $false
-                    break
+            $metadata = $gadgetMetadata[$g]
+            $numbers = @($metadata.VariantNumbers)
+            $variants = @($metadata.Variants)
+            if ($numbers.Count -gt 0) {
+                $withVariants++
+                $valid = $true
+                for ($i = 0; $i -lt $numbers.Count; $i++) {
+                    if ($numbers[$i] -ne ($i + 1)) {
+                        $valid = $false
+                        break
+                    }
+                }
+                if (-not $valid) {
+                    $expected = 1..$numbers.Count
+                    $message = "  ORDER: $g declares " + ($numbers -join ', ') +
+                        "; expected " + ($expected -join ', ')
+                    $message
+                    $variantProblems++
                 }
             }
-            if (-not $valid) {
-                $expected = 1..$numbers.Count
-                $message = "  ORDER: $g declares " + ($numbers -join ', ') +
-                    "; expected " + ($expected -join ', ')
-                $message
-                $variantProblems++
+
+            foreach ($displayToken in @($metadata.FormatterTokens)) {
+                $formatterTokensChecked++
+                # The first whitespace token is the formatter identity. Text between
+                # it and a trailing (N), such as "< 5.0.0", is a version qualifier.
+                $formatter = Get-FirstToken $displayToken
+                $m = [regex]::Match($displayToken, '\s+\((\d+)\)\s*$')
+                $hasSuffix = $m.Success
+                $shownCount = if ($hasSuffix) { [int]$m.Groups[1].Value } else { 1 }
+                $realCount = if ($variants.Count -eq 0) {
+                    1
+                } else {
+                    @($variants | Where-Object {
+                        Test-VariantSupportsFormatter $_ $formatter
+                    }).Count
+                }
+
+                if ($realCount -eq 0) {
+                    "  FORMAT: $g lists $formatter, but every variant opts out"
+                    $formatterProblems++
+                } elseif ($shownCount -ne $realCount) {
+                    "  COUNT REVIEW: $g lists '$displayToken', while Variants()/Without() " +
+                        "describe $realCount variant(s); inspect formatter branches"
+                    $formatterProblems++
+                } elseif ($realCount -eq 1 -and $hasSuffix) {
+                    "  SUFFIX: $g lists '$displayToken'; a one-variant formatter must be bare"
+                    $formatterProblems++
+                } elseif ($realCount -gt 1 -and -not $hasSuffix) {
+                    "  SUFFIX: $g lists '$displayToken'; it needs the ($realCount) variant suffix"
+                    $formatterProblems++
+                }
+            }
+
+            # This is deliberately a REVIEW lead, not an automatic defect. An option
+            # description that names a formatter often means formatter compatibility
+            # changes along an axis other than Variants(). The semantic audit must
+            # inspect its guards, rendered help, docs and boundary tests separately.
+            foreach ($option in @($metadata.Options)) {
+                $prototype = [string]$option.Prototype
+                if ($prototype -match '^(var|variant)(\||=|$)') { continue }
+                $description = [string]$option.Description
+                $mentioned = @()
+                foreach ($displayToken in @($metadata.FormatterTokens)) {
+                    $formatter = Get-FirstToken $displayToken
+                    if ($formatter -ne '' -and $description -match
+                            ('(?i)\b' + [regex]::Escape($formatter) + '\b')) {
+                        $mentioned += $formatter
+                    }
+                }
+                if ($mentioned.Count -gt 0) {
+                    $optionName = (Get-FirstToken $prototype).TrimEnd('=')
+                    "  OPTION AXIS REVIEW: $g --$optionName mentions " +
+                        (($mentioned | Sort-Object -Unique) -join ', ') +
+                        '; verify formatter x variant x option support and count wording'
+                    $explainsSuffix = $description -match
+                        '(?is)(?:annotation|suffix|\(\d+\)).{0,160}(?:count|mean).{0,80}variant'
+                    if ($variants.Count -gt 1 -and $description -match '\b\d+\b' -and
+                            -not $explainsSuffix) {
+                        "  AMBIGUOUS HELP REVIEW: $g --$optionName mixes numbered option " +
+                            'support with a multi-variant formatter but does not explain that ' +
+                            'the formatter suffix counts variants'
+                    }
+                    $optionAxisLeads++
+                }
             }
         }
         if ($variantProblems -eq 0) {
             "  all $withVariants gadgets with variants declare exactly 1..N in order"
         }
+        if ($formatterProblems -eq 0) {
+            "  all $formatterTokensChecked formatter tokens match their per-formatter variant counts"
+        }
+        if ($optionAxisLeads -eq 0) {
+            "  no gadget option help names a formatter-specific compatibility rule"
+        } else {
+            "  ($optionAxisLeads option-axis lead(s); these require the semantic matrix review in check 4)"
+        }
     } catch {
-        "  UNVERIFIED: could not inspect built variant metadata ($($_.Exception.Message))."
+        "  UNVERIFIED: could not inspect built gadget metadata ($($_.Exception.Message))."
     }
 }
 ""
@@ -348,7 +466,7 @@ if ($placementProblems -eq 0) {
 # self-closing "cmd /c echo x > marker" only inside TestSink.cs.
 
 $testsDir = Join-Path $RepoRoot 'ysonet.Tests'
-$sinkOwnerFile = 'ysonet.Tests/TestSink.cs'
+$sinkOwnerFile = 'ysonet.Tests/Harness/TestSink.cs'
 $launcherRe = '(?i)\b(calc|notepad|mspaint|wordpad|winword|excel|iexplore|explorer|taskmgr|control|powershell|pwsh|wscript|cscript|rundll32|mshta)(\.exe)?\b'
 
 # Replace every string/char literal with a same-length filler, so brace depth and
@@ -368,7 +486,16 @@ $fireScopes = 0
 $reviewLines = New-Object System.Collections.Generic.List[string]
 $testFiles = @()
 if (Test-Path $testsDir) {
-    $testFiles = Get-ChildItem -Path $testsDir -Filter '*.cs' -ErrorAction SilentlyContinue
+    # RECURSIVE on purpose. The suite's sources are grouped into Runner\, Tiers\,
+    # Harness\ and Fixtures\ (see ysonet.Tests/README.md), so a flat listing would
+    # scan Tests.cs alone and quietly report an all-clear for everything else.
+    # bin\ and obj\ are build output; Private\ is an optional git-ignored area whose
+    # contents belong to another repository and are never audited from here.
+    $testFiles = Get-ChildItem -Path $testsDir -Filter '*.cs' -Recurse -ErrorAction SilentlyContinue |
+        Where-Object {
+            $p = $_.FullName -replace '/', '\'
+            ($p -notmatch '\\(bin|obj)\\') -and ($p -notmatch '\\Private\\')
+        }
 }
 
 foreach ($f in $testFiles) {

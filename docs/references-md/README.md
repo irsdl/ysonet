@@ -19,7 +19,7 @@ Curating the reading lists is a different job, owned by
 `tools/references/refs.py` and never edits those lists.
 
 
-503 reference(s) archived: **445 in `research/`**, documents that carry technique, and 58 in `records/`, real content that is a record ABOUT a product rather than research - a CVE database row, a vendor advisory, release notes, a registry page, a stub. Depth mix: full 498, metadata 5.
+508 reference(s) archived: **451 in `research/`**, documents that carry technique, and 57 in `records/`, real content that is a record ABOUT a product rather than research - a CVE database row, a vendor advisory, release notes, a registry page, a stub. Depth mix: full 503, metadata 5.
 
 Two more lists complete the picture: [needs-work.md](needs-work.md) is everything we WANT and do not have, and [excluded.md](excluded.md) is everything the archive deliberately keeps no document for, with the reason.
 
@@ -27,53 +27,54 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 |---|---|---|---|---|---|
 | [Advisory: mojoPortal CMS - Unauthenticated Remote Code Execution via Directory Traversal & ViewState Deserialization (CVE-2025-28367)](research/2025-lanks-advisory-mojoportal-cms-unauthenticated-remote-code-execution-direc.md) | advisory | Lanks | 2025 | full | 1 |
 | [Advisory: Sitecore RCE via Insecure Deserialization](research/assetnote-io-advisory-sitecore-rce-insecure-deserialization.md) | advisory | assetnote.io |  | full | 1 |
-| [CVE-2018-9843: Deserialization of Untrusted Data](records/rapid7-website-cve-2018-9843-deserialization-untrusted-data.md) | advisory | Rapid7-Website |  | full | 1 |
-| [CVE-2019-18935: Remote Code Execution via Insecure Deserialization in…](research/bishop-fox-cve-2019-18935-remote-code-execution-insecure-deserialization.md) | advisory | Bishop Fox |  | full | 1 |
-| [CVE-2019-9874](records/tenable-com-cve-2019.md) | advisory | tenable.com |  | full | 1 |
+| [CVE-2018-9843: Deserialization of Untrusted Data](records/2018-rapid7-website-cve-2018-9843-deserialization-untrusted-data.md) | advisory | Rapid7-Website |  | full | 1 |
+| [CVE-2019-18935: Remote Code Execution via Insecure Deserialization in…](research/2019-bishop-fox-cve-2019-18935-remote-code-execution-insecure-deserialization.md) | advisory | Bishop Fox |  | full | 1 |
+| [CVE-2019-9874](records/2019-tenable-com-cve-2019-9874.md) | advisory | tenable.com |  | full | 1 |
 | [CVE-2020-0618: RCE in SQL Server Reporting Services (SSRS)](research/2020-mdsec-cve-2020-0618-rce-sql-server-reporting-services-ssrs.md) | advisory | MDSec | 2020 | full | 1 |
-| [CVE-2020-17144 : Microsoft Exchange Server EWS Insecure Deserialization](research/keysight-com-cve-2020-17144-microsoft-exchange-server-ews-deserialization.md) | advisory | keysight.com |  | full | 1 |
-| [CVE-2021-25274: Deserialization of Untrusted Data](records/rapid7-website-cve-2021-25274-deserialization-untrusted-data.md) | advisory | Rapid7-Website |  | full | 1 |
+| [CVE-2020-17144 : Microsoft Exchange Server EWS Insecure Deserialization](research/2022-keysight-com-cve-2020-17144-microsoft-exchange-server-ews-deserialization.md) | advisory | keysight.com | 2022 | full | 1 |
+| [CVE-2021-25274: Deserialization of Untrusted Data](records/2021-rapid7-website-cve-2021-25274-deserialization-untrusted-data.md) | advisory | Rapid7-Website |  | full | 1 |
 | [CVE-2021-34523](records/2021-attackerkb-cve-2021-34523.md) | advisory | AttackerKB | 2021 | full | 1 |
 | [CVE-2022-22005 Microsoft SharePoint RCE](research/2022-hoangnd-cve-2022-22005-microsoft-sharepoint-rce.md) | advisory | HoangND | 2022 | full | 1 |
-| [CVE-2022-23535: LiteDB JSON Object Injection RCE](records/miggo-io-cve-2022-23535-litedb-json-object-injection-rce.md) | advisory | miggo.io |  | full | 1 |
-| [CVE-2022-41080, CVE-2022-41082: Rapid7 Observed Exploitation of `OWASSRF` in Exchange for RCE](research/rapid7-cve-2022-41080-cve-2022-41082-rapid7-observed-exploitation-owassrf-exchan.md) | advisory | Rapid7 |  | full | 1 |
-| [CVE-2022-48282: MongoDB .NET Driver Deser RCE](records/miggo-io-cve-2022-48282-mongodb-net-driver-deser-rce.md) | advisory | miggo.io |  | full | 1 |
+| [CVE-2022-23535: LiteDB JSON Object Injection RCE](records/2022-miggo-io-cve-2022-23535-litedb-json-object-injection-rce.md) | advisory | miggo.io |  | full | 1 |
+| [CVE-2022-41080, CVE-2022-41082: Rapid7 Observed Exploitation of `OWASSRF` in Exchange for RCE](research/2022-rapid7-cve-2022-41080-cve-2022-41082-rapid7-observed-exploitation-rce.md) | advisory | Rapid7 | 2022 | full | 1 |
+| [CVE-2022-48282: MongoDB .NET Driver Deser RCE](records/2022-miggo-io-cve-2022-48282-mongodb-net-driver-deser-rce.md) | advisory | miggo.io |  | full | 1 |
 | [CVE-2023-29357, CVE-2023-24955: Exploit Chain Released for Microsoft SharePoint Server Vulnerabilities](research/2023-tenable-cve-2023-29357-cve-2023-24955-exploit-chain-released-microsoft-shar.md) | advisory | Tenable® | 2023 | full | 1 |
-| [CVE-2024-5016: Deserialization of Untrusted Data](records/rapid7-website-cve-2024-5016-deserialization-untrusted-data.md) | advisory | Rapid7-Website |  | full | 1 |
+| [CVE-2024-38094 - Microsoft SharePoint Deserialization vulnerability exploited in the wild](research/2024-broadcom-com-cve-2024-38094-microsoft-sharepoint-deserialization-wild.md) | advisory | broadcom.com | 2024 | full | 1 |
+| [CVE-2024-5016: Deserialization of Untrusted Data](records/2024-rapid7-website-cve-2024-5016-deserialization-untrusted-data.md) | advisory | Rapid7-Website |  | full | 1 |
 | [CVE-2025-5086](records/2025-dassault-systemes-cve-2025-5086.md) | advisory | Dassault Systèmes | 2025 | full | 1 |
-| [CVE-2025-53690: Vulnerability in Sitecore leads to RCE](research/hadrian-cve-2025-53690-vulnerability-sitecore-leads-rce.md) | advisory | Hadrian |  | full | 1 |
+| [CVE-2025-53690: Vulnerability in Sitecore leads to RCE](research/2025-hadrian-cve-2025-53690-vulnerability-sitecore-leads-rce.md) | advisory | Hadrian | 2025 | full | 1 |
 | [CVE-2025-68924: UmbracoForms Vulnerable to Remote Code Execution via Untrusted WSDL Compilation in Dynamic SOAP Client Generation](records/2026-gitlab-advisory-database-glad-cve-2025-68924-umbracoforms-vulnerable-remo.md) | advisory | GitLab Advisory Database (GLAD) | 2026 | full | 1 |
-| [CVE-2026-13181 – Remote Code Execution via Unsafe Type Resolution](research/ionix-cve-2026-13181-remote-code-execution-unsafe-type-resolution.md) | advisory | IONIX |  | full | 1 |
+| [CVE-2026-13181 – Remote Code Execution via Unsafe Type Resolution](research/2026-ionix-cve-2026-13181-remote-code-execution-unsafe-type-resolution.md) | advisory | IONIX |  | full | 1 |
 | [CVE-2026-44963: Veeam Backup Authenticated RCE Explained](research/2026-securelayer7-offensive-security-api-scanner-attack-surface-management-cve.md) | advisory | SecureLayer7 - Offensive Security, API Scanner & Attack Surface Management | 2026 | full | 1 |
 | [Delta Electronics InfraSuite Device Master (Update A)](research/cybersecurity-and-infrastructure-security-agency-cisa-delta-electronics-infrasui.md) | advisory | Cybersecurity and Infrastructure Security Agency CISA |  | full | 1 |
-| [Deserialization of Untrusted Data in LiteDB - CVE-2022-23535](research/devhub-deserialization-untrusted-data-litedb-cve-2022.md) | advisory | DevHub |  | full | 1 |
+| [Deserialization of Untrusted Data in LiteDB - CVE-2022-23535](research/2022-devhub-deserialization-untrusted-data-litedb-cve-2022-23535.md) | advisory | DevHub |  | full | 1 |
 | [EOL Fix Available \| CVE-2024-48924](records/2026-herodevs-eol-fix-available-cve-2024.md) | advisory | HeroDevs | 2026 | full | 1 |
 | [ERROR: The request could not be satisfied](records/2025-attackerkb-cve-2025-27218.md) | advisory | attackerkb.com | 2025 | full | 1 |
 | [ERROR: The request could not be satisfied](records/2025-attackerkb-cve-2025-3935.md) | advisory | attackerkb.com | 2025 | full | 1 |
 | [GHSL-2022-001: Deserialization vulnerability in Orckestra C1 CMS](research/2022-github-security-lab-ghsl-2022-001-deserialization-vulnerability-orckestra-c.md) | advisory | GitHub Security Lab | 2022 | full | 1 |
-| [High severity vulnerability that affects YamlDotNet and YamlDotNet.Signed](records/https-github-com-advisories-ghsa-rpch-cqj9-h65r.md) | advisory | GitHub Advisory Database | 2018 | full | 1 |
+| [High severity vulnerability that affects YamlDotNet and YamlDotNet.Signed](records/2018-github-advisory-database-high-severity-vulnerability-that-affects-signed.md) | advisory | GitHub Advisory Database | 2018 | full | 1 |
 | [iba: Deserialization vulnerability in ibaPDA and ibaDatCoordinator](research/certvde-com-iba-deserialization-vulnerability-ibapda-ibadatcoordinator.md) | advisory | certvde.com |  | full | 1 |
 | [Insecure deserialization in Wire](records/2021-github-advisory-database-insecure-deserialization-wire.md) | advisory | GitHub Advisory Database | 2021 | full | 1 |
-| [MessagePack-CSharp: Typeless deserialization type restrictions do not recurse into arrays or generic arguments](records/github-cve-2026-48517-github-advisory-database.md) | advisory | GitHub Advisory Database | 2026 | full | 1 |
+| [MessagePack-CSharp: Typeless deserialization type restrictions do not recurse into arrays or generic arguments](records/2026-github-advisory-database-messagepack-csharp-typeless-arguments.md) | advisory | GitHub Advisory Database | 2026 | full | 1 |
 | [Milestone XProtect .NET Deserialization Vulnerability](research/mwr-labs-milestone-xprotect-net-deserialization-vulnerability.md) | advisory | MWR Labs |  | full | 1 |
-| [MongoDB .NET/C# Driver vulnerable to Deserialization of Untrusted Data](records/https-github-com-advisories-ghsa-7j9m-j397-g4wx.md) | advisory | GitHub Advisory Database | 2023 | full | 1 |
-| [New security advisory regarding vulnerabilities in .Net](records/modzero-com-new-security-advisory-regarding-vulnerabilities-net.md) | advisory | modzero.com |  | full | 1 |
-| [NVD - CVE-2026-50522](records/nvd-nist-gov-nvd-cve-2026-50522.md) | advisory | nvd.nist.gov |  | full | 1 |
+| [MongoDB .NET/C# Driver vulnerable to Deserialization of Untrusted Data](records/2023-github-advisory-database-mongodb-net-c-driver-vulnerable-data.md) | advisory | GitHub Advisory Database | 2023 | full | 1 |
+| [New security advisory regarding vulnerabilities in .Net](records/2020-modzero-com-new-security-advisory-regarding-vulnerabilities-net.md) | advisory | modzero.com | 2020 | full | 1 |
+| [NVD - CVE-2026-50522](records/2026-nvd-nist-gov-nvd-cve-2026-50522.md) | advisory | nvd.nist.gov |  | full | 1 |
 | [Orckestra C1 CMS's deserialization of untrusted data allows for arbitrary code execution.](records/2022-github-advisory-database-orckestra-c1-cms-s-deserialization-execution.md) | advisory | GitHub Advisory Database | 2022 | full | 1 |
 | [RedTeam Pentesting - CyberArk Password Vault Web Access Remote Code Execution](research/redteam-pentesting-de-redteam-pentesting-cyberark-password-vault-web-access-remo.md) | advisory | redteam-pentesting.de |  | full | 1 |
-| [Remote Code Execution in AjaxNetProfessional](records/github-cve-2021-23758-github-advisory-database.md) | advisory | GitHub Advisory Database | 2021 | full | 1 |
+| [Remote Code Execution in AjaxNetProfessional](records/2021-github-advisory-database-remote-code-execution-ajaxnetprofessional.md) | advisory | GitHub Advisory Database | 2021 | full | 1 |
 | [Schneider Electric EcoStruxure (Update B)](research/cybersecurity-and-infrastructure-security-agency-cisa-schneider-electric-ecost.md) | advisory | Cybersecurity and Infrastructure Security Agency CISA |  | full | 1 |
 | [Schneider Electric EcoStruxure Power Monitoring Expert and Power Operation Products](research/cybersecurity-and-infrastructure-security-agency-cisa-schneider-electric-ecostru.md) | advisory | Cybersecurity and Infrastructure Security Agency CISA |  | full | 1 |
 | [ScreenConnect versions 25.2.3 and earlier versions may be susceptible to a ViewState code injecti...](records/2025-github-advisory-database-screenconnect-versions-25-2-3-earlier-injecti.md) | advisory | GitHub Advisory Database | 2025 | full | 1 |
 | [SSD Advisory – Microsoft SharePoint Server WizardConnectToDataStep4 Deserialization Of Untrusted Data RCE](research/2022-ssd-secure-disclosure-ssd-advisory-microsoft-sharepoint-server-wizardconnec.md) | advisory | SSD Secure Disclosure | 2022 | full | 1 |
 | [Technical Advisory: Multiple Vulnerabilities in SmarterMail](research/nccgroup-com-technical-advisory-multiple-vulnerabilities-smartermail.md) | advisory | nccgroup.com |  | full | 1 |
-| [Untrusted data can lead to DoS attack due to hash collisions and stack overflow in MessagePack](records/github-cve-2020-5234-github-advisory-database.md) | advisory | GitHub Advisory Database | 2020 | full | 1 |
-| [ZDI-20-261 - TrendAI™ Zero Day Initiative™ (ZDI)](records/zerodayinitiative-com-zdi-20-261-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com |  | full | 1 |
-| [ZDI-21-1304 - TrendAI™ Zero Day Initiative™ (ZDI)](records/zerodayinitiative-com-zdi-21-1304-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com |  | full | 1 |
-| [ZDI-23-1754 - TrendAI™ Zero Day Initiative™ (ZDI)](records/zerodayinitiative-com-zdi-23-1754-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com |  | full | 1 |
-| [ZDI-24-403 - TrendAI™ Zero Day Initiative™ (ZDI)](records/zerodayinitiative-com-zdi-24-403-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com |  | full | 1 |
-| [ZDI-25-416 - TrendAI™ Zero Day Initiative™ (ZDI)](records/zerodayinitiative-com-zdi-25-416-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com |  | full | 1 |
-| [ZDI-26-412 - TrendAI™ Zero Day Initiative™ (ZDI)](records/zerodayinitiative-com-zdi-26-412-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com |  | full | 4 |
+| [Untrusted data can lead to DoS attack due to hash collisions and stack overflow in MessagePack](records/2020-github-advisory-database-untrusted-data-can-lead-dos-attack-messagepack.md) | advisory | GitHub Advisory Database | 2020 | full | 1 |
+| [ZDI-20-261 - TrendAI™ Zero Day Initiative™ (ZDI)](records/2020-zerodayinitiative-com-zdi-20-261-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com | 2020 | full | 1 |
+| [ZDI-21-1304 - TrendAI™ Zero Day Initiative™ (ZDI)](records/2021-zerodayinitiative-com-zdi-21-1304-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com | 2021 | full | 1 |
+| [ZDI-23-1754 - TrendAI™ Zero Day Initiative™ (ZDI)](records/2023-zerodayinitiative-com-zdi-23-1754-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com | 2023 | full | 1 |
+| [ZDI-24-403 - TrendAI™ Zero Day Initiative™ (ZDI)](records/2024-zerodayinitiative-com-zdi-24-403-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com | 2024 | full | 1 |
+| [ZDI-25-416 - TrendAI™ Zero Day Initiative™ (ZDI)](records/2025-zerodayinitiative-com-zdi-25-416-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com | 2025 | full | 1 |
+| [ZDI-26-412 - TrendAI™ Zero Day Initiative™ (ZDI)](records/2026-zerodayinitiative-com-zdi-26-412-trendaitm-zero-day-initiativetm-zdi.md) | advisory | zerodayinitiative.com | 2026 | full | 4 |
 | [Zero Day Initiative — Control Your Types or Get Pwned: Remote Code Execution in Exchange PowerShell Backend](research/2022-zero-day-initiative-zero-day-initiative-control-your-types-get-pwned-remote.md) | advisory | Zero Day Initiative | 2022 | full | 1 |
 | [Zero Day Initiative — CVE-2019-0604: Details of a Microsoft SharePoint RCE Vulnerability](research/2019-zero-day-initiative-zero-day-initiative-cve-2019-0604-details-microsoft-sha.md) | advisory | Zero Day Initiative | 2019 | full | 2 |
 | [Zero Day Initiative — CVE-2019-0604: Details of a Microsoft SharePoint RCE Vulnerability](research/2019-zero-day-initiative-zero-day-initiative-cve-2019-0604-details-microsoft-s.md) | advisory | Zero Day Initiative | 2019 | full | 1 |
@@ -97,25 +98,25 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [.NET Deserialization Leading to Remote Code Execution in Composite C1 CMS — CVE-2019–18211](research/2025-medium-net-deserialization-leading-remote-code-execution-composite-c1-cms-c.md) | article | Medium | 2025 | full | 1 |
 | [.NET JavaScriptSerializer Deserialization Vulnerability](research/hackmd-net-javascriptserializer-deserialization-vulnerability.md) | article | HackMD |  | full | 1 |
 | [.NET JSON.NET Deserialization RCE](research/invicti-net-json-net-deserialization-rce.md) | article | Invicti |  | full | 1 |
-| [.NET Remoting Revisited](research/codewhitesec-blogspot-com-net-remoting-revisited.md) | article | codewhitesec.blogspot.com |  | full | 2 |
+| [.NET Remoting Revisited](research/2022-codewhitesec-blogspot-com-net-remoting-revisited.md) | article | codewhitesec.blogspot.com | 2022 | full | 2 |
 | [.Net Roulette Exploiting Insecure Deserialization in Telerik UI](research/2021-bishop-fox-net-roulette-exploiting-insecure-deserialization-telerik-ui.md) | article | Bishop Fox | 2021 | full | 1 |
-| [.NET serialiception](research/blog-scrt-ch-net-serialiception.md) | article | blog.scrt.ch |  | full | 2 |
-| [.NET SOAPwn Flaw Opens Door for File Writes and Remote Code Execution via Rogue WSDL](research/the-hacker-news-net-soapwn-flaw-opens-door-file-writes-remote-code-execution-rog.md) | article | The Hacker News |  | full | 1 |
+| [.NET serialiception](research/2016-blog-scrt-ch-net-serialiception.md) | article | blog.scrt.ch | 2016 | full | 2 |
+| [.NET SOAPwn Flaw Opens Door for File Writes and Remote Code Execution via Rogue WSDL](research/2025-the-hacker-news-net-soapwn-flaw-opens-door-file-writes-remote-code-wsdl.md) | article | The Hacker News | 2025 | full | 1 |
 | [.Net ViewState反序列化实现无文件哥斯拉内存马](research/blog-wanghw-cn-net-viewstate.md) | article | blog.wanghw.cn |  | full | 1 |
-| [.Net 反序列化之 ViewState 利用-安全KER](research/anquanke-com-net-viewstate-ker.md) | article | anquanke.com |  | full | 1 |
-| [.net反序列化之ObjectStateFormatter](research/web-archive-org-netobjectstateformatter.md) | article | web.archive.org |  | full | 1 |
-| [.NET安全 - 随笔分类 - nice_0e3](records/cnblogs-com-net-nice-0e3.md) | article | cnblogs.com |  | full | 1 |
+| [.Net 反序列化之 ViewState 利用-安全KER](research/2020-anquanke-com-net-viewstate-ker.md) | article | anquanke.com | 2020 | full | 1 |
+| [.net反序列化之ObjectStateFormatter](research/xz-aliyun-com-netobjectstateformatter.md) | article | xz.aliyun.com |  | full | 1 |
+| [.NET安全 - 随笔分类 - nice_0e3](records/2022-cnblogs-com-net-nice-0e3.md) | article | cnblogs.com | 2022 | full | 1 |
 | [.NET高级代码审计-反序列化 Gadget之详解XAML](research/2022-net-gadgetxaml.md) | article | 码坊 | 2022 | full | 1 |
 | [[MS-PSRP]: PowerShell Remoting Protocol](research/learn-microsoft-com-ms-psrp-powershell-remoting-protocol.md) | article | learn.microsoft.com |  | full | 1 |
 | [[MS-WPO]: IManagedObject Interface Protocol](research/learn-microsoft-com-ms-wpo-imanagedobject-interface-protocol.md) | article | learn.microsoft.com |  | full | 1 |
-| [[Question]：Security Risk in TypeNameHandling.All  in JsonSerializerSettings](records/typenamehandling-all-security-risk-workflow-core-1280.md) | article | GitHub | 2024 | full | 1 |
+| [[Question]：Security Risk in TypeNameHandling.All  in JsonSerializerSettings](records/2024-github-question-security-risk-typenamehandling-all-jsonserializersettings.md) | article | GitHub | 2024 | full | 1 |
 | [A New Attack Surface on MS Exchange Part 1](research/2021-orange-tsai-new-attack-surface-ms-exchange-part.md) | article | Orange Tsai | 2021 | full | 1 |
 | [ABC-Code Execution for Veeam](research/2022-mdsec-abc-code-execution-veeam.md) | article | MDSec | 2022 | full | 1 |
 | [Abusing IDispatch for Trapped COM Object Access & Injecting into PPL Processes](research/mohamed-fakroud-gitbook-io-abusing-idispatch-trapped-com-object-access-injecting.md) | article | mohamed-fakroud.gitbook.io |  | full | 1 |
 | [Active Exploitation of Gladinet CentreStack and Triofox](research/2025-huntress-active-exploitation-gladinet-centrestack-triofox.md) | article | Huntress | 2025 | full | 1 |
 | [Active Exploitation of Microsoft SharePoint Vulnerabilities: Threat Brief (Updated August 12)](research/2025-unit-42-active-exploitation-microsoft-sharepoint-vulnerabilities-threat-bri.md) | article | Unit 42 | 2025 | full | 1 |
-| [Adding security notes to APIs](records/github-adding-security-notes-apis-mairaw-pull-request.md) | article | GitHub | 2018 | full | 5 |
-| [Analysis and explotation of 2019-10068, a Remote Command Execution ...](research/dreadlocked-github-io-analysis-explotation-2019-10068-remote-command-execution.md) | article | dreadlocked.github.io |  | full | 1 |
+| [Adding security notes to APIs](records/2018-github-adding-security-notes-apis.md) | article | GitHub | 2018 | full | 5 |
+| [Analysis and explotation of 2019-10068, a Remote Command Execution ...](research/2019-dreadlocked-github-io-analysis-explotation-2019-10068-remote-execution.md) | article | dreadlocked.github.io | 2019 | full | 1 |
 | [Analysis of CVE-2020-0605 – Code Execution using XPS Files in .NET](research/2020-mdsec-analysis-cve-2020-0605-code-execution-using-xps-files-net.md) | article | MDSec | 2020 | full | 1 |
 | [Analyzing attacks using the Exchange vulnerabilities CVE-2022-41040 and CVE-2022-41082](research/2022-microsoft-security-blog-analyzing-attacks-using-exchange-vulnerabilities-cv.md) | article | Microsoft Security Blog | 2022 | full | 1 |
 | [ASCWG 2025 CTF Finals — Neon Maze Challenge Writeup](research/2025-medium-ascwg-2025-ctf-finals-neon-maze-challenge-writeup.md) | article | Medium | 2025 | full | 1 |
@@ -125,64 +126,65 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [ASP.NET ViewState without MAC enabled](research/portswigger-net-asp-net-viewstate-without-mac-enabled.md) | article | portswigger.net |  | full | 1 |
 | [ASP.NET ViewState 反序列化](research/2024-exp10it-io-asp-net-viewstate.md) | article | exp10it.io | 2024 | full | 1 |
 | [Attacking PowerShell CLIXML Deserialization](research/2024-truesec-attacking-powershell-clixml-deserialization.md) | article | Truesec | 2024 | full | 1 |
-| [AutoCAD - Designing a Kill Chain](research/withsecure-labs-autocad-designing-kill-chain.md) | article | WithSecure Labs |  | full | 1 |
+| [AutoCAD - Designing a Kill Chain](research/2019-withsecure-labs-autocad-designing-kill-chain.md) | article | WithSecure Labs | 2019 | full | 1 |
 | [Basic .Net deserialization (ObjectDataProvider gadget, ExpandedWrapper, and Json.Net)](research/hacktricks-basic-net-deserialization-objectdataprovider-gadget-expandedwrapper-j.md) | article | HackTricks |  | full | 1 |
 | [BinaryFormatter is being removed in .NET 9](research/2024-github-binaryformatter-being-removed-net-9-issue.md) | article | GitHub | 2024 | full | 1 |
 | [BinaryFormatter removal from .NET 9 is complete](research/2024-github-binaryformatter-removal-net-9-complete-issue.md) | article | GitHub | 2024 | full | 1 |
 | [Buy A Help Desk, Bundle A Remote Access Solution? (SolarWinds Web Help Desk Pre-Auth RCE Chain(s))](research/2026-watchtowr-labs-buy-help-desk-bundle-remote-access-solution-solarwinds-web-h.md) | article | watchTowr Labs | 2026 | full | 1 |
 | [By Executive Order, We Are Banning Blacklists - Domain-Level RCE in Veeam Backup & Replication (CVE-2025-23120)](research/2025-watchtowr-labs-executive-order-we-banning-blacklists-domain-level-rce-veeam.md) | article | watchTowr Labs | 2025 | full | 3 |
-| [Bypassing .NET Serialization Binders](research/codewhitesec-blogspot-com-bypassing-net-serialization-binders.md) | article | codewhitesec.blogspot.com |  | full | 1 |
+| [Bypassing .NET Serialization Binders](research/2022-codewhitesec-blogspot-com-bypassing-net-serialization-binders.md) | article | codewhitesec.blogspot.com | 2022 | full | 1 |
 | [Bypassing Authentication Like It’s The ‘90s - Pre-Auth RCE Chain(s) in Kentico Xperience CMS](research/2025-watchtowr-labs-bypassing-authentication-like-its-90s-pre-auth-rce-chain-s-k.md) | article | watchTowr Labs | 2025 | full | 1 |
-| [Bypassing Low Type Filter in .NET Remoting](research/tiraniddo-dev-bypassing-low-type-filter-net-remoting.md) | article | tiraniddo.dev |  | full | 1 |
+| [Bypassing Low Type Filter in .NET Remoting](research/2019-tiraniddo-dev-bypassing-low-type-filter-net-remoting.md) | article | tiraniddo.dev | 2019 | full | 1 |
 | [C# \| Practical CTF](research/book-jorianwoltjer-com-c-practical-ctf.md) | article | book.jorianwoltjer.com |  | full | 1 |
 | [Cache Me If You Can (Sitecore Experience Platform Cache Poisoning to RCE)](research/2025-watchtowr-labs-cache-me-if-you-can-sitecore-experience-platform-cache-poiso.md) | article | watchTowr Labs | 2025 | full | 1 |
 | [CentreStack RCE exploited as zero-day to breach file sharing servers](research/2025-bleepingcomputer-centrestack-rce-exploited-as-zero-day-breach-file-sharin.md) | article | BleepingComputer | 2025 | full | 1 |
-| [CERT/CC Vulnerability Note VU#706695](research/kb-cert-org-https-www-kb-cert-org-vuls-id.md) | article | kb.cert.org |  | full | 1 |
-| [CISA Adds Exploited SharePoint RCE Zero-Day CVE-2026-58644 to KEV](research/the-hacker-news-cisa-adds-exploited-sharepoint-rce-zero-day-cve-2026-58644-kev.md) | article | The Hacker News |  | full | 1 |
-| [CISA Warns of CentreStack's Hard-Coded MachineKey Vulnerability Enabling RCE Attacks](research/the-hacker-news-cisa-warns-centrestack-s-hard-coded-machinekey-vulnerability-ena.md) | article | The Hacker News |  | full | 1 |
-| [CISA Warns of Sitecore RCE Flaws; Active Exploits Hit Next.js and DrayTek Devices](research/the-hacker-news-cisa-warns-sitecore-rce-flaws-active-exploits-hit-next-js-drayte.md) | article | The Hacker News |  | full | 1 |
+| [CERT/CC Vulnerability Note VU#706695](research/2021-kb-cert-org-cert-cc-vulnerability-note-vu-706695.md) | article | kb.cert.org | 2021 | full | 1 |
+| [CISA Adds Exploited SharePoint RCE Zero-Day CVE-2026-58644 to KEV](research/2026-the-hacker-news-cisa-adds-exploited-sharepoint-rce-zero-day-cve-2026-kev.md) | article | The Hacker News | 2026 | full | 1 |
+| [CISA Warns of CentreStack's Hard-Coded MachineKey Vulnerability Enabling RCE Attacks](research/2025-the-hacker-news-cisa-warns-centrestack-s-hard-coded-machinekey-attacks.md) | article | The Hacker News | 2025 | full | 1 |
+| [CISA Warns of Sitecore RCE Flaws; Active Exploits Hit Next.js and DrayTek Devices](research/2025-the-hacker-news-cisa-warns-sitecore-rce-flaws-active-exploits-hit-devices.md) | article | The Hacker News | 2025 | full | 1 |
 | [Citrix Zero-Day Bug Allows Unauthenticated RCE](research/2024-dark-reading-citrix-zero-day-bug-allows-unauthenticated-rce.md) | article | Dark Reading | 2024 | full | 1 |
 | [Code injection attacks using publicly disclosed ASP. NET machine keys](research/2025-microsoft-security-blog-code-injection-attacks-using-publicly-disclosed-asp.md) | article | Microsoft Security Blog | 2025 | full | 1 |
-| [CODE WHITE \| .NET Remoting Revisited](research/code-white-com-code-white-net-remoting-revisited.md) | article | code-white.com |  | full | 1 |
-| [CODE WHITE \| Bypassing .NET Serialization Binders](research/code-white-com-code-white-bypassing-net-serialization-binders.md) | article | code-white.com |  | full | 3 |
-| [CODE WHITE \| Exploiting ASP.NET TemplateParser — Part II: SharePoint (CVE-2023-33160)](research/code-white-com-code-white-exploiting-asp-net-templateparser-part-ii-sharepoint-c.md) | article | code-white.com |  | full | 1 |
+| [CODE WHITE \| .NET Remoting Revisited](research/2022-code-white-com-code-white-net-remoting-revisited.md) | article | code-white.com | 2022 | full | 1 |
+| [CODE WHITE \| Bypassing .NET Serialization Binders](research/2022-code-white-com-code-white-bypassing-net-serialization-binders.md) | article | code-white.com | 2022 | full | 3 |
+| [CODE WHITE \| Exploiting ASP.NET TemplateParser — Part II: SharePoint (CVE-2023-33160)](research/2023-code-white-com-code-white-exploiting-asp-net-templateparser-part-ii-33160.md) | article | code-white.com |  | full | 1 |
 | [CODE WHITE \| Leaking ObjRefs to Exploit HTTP .NET Remoting](research/code-white-com-code-white-leaking-objrefs-exploit-http-net-remoting.md) | article | code-white.com |  | full | 1 |
 | [CODE WHITE \| Teaching the Old .NET Remoting New Exploitation Tricks](research/code-white-com-code-white-teaching-old-net-remoting-new-exploitation-tricks.md) | article | code-white.com |  | full | 1 |
-| [CODE WHITE \| Telerik Revisited](research/code-white-com-code-white-telerik-revisited.md) | article | code-white.com |  | full | 1 |
+| [CODE WHITE \| Telerik Revisited](research/2019-code-white-com-code-white-telerik-revisited.md) | article | code-white.com | 2019 | full | 1 |
+| [Code-Reuse Attacks in Managed Programming Languages and Runtimes](research/kth-diva-portal-org-code-reuse-attacks-managed-programming-languages-runtimes.md) | article | kth.diva-portal.org |  | full | 1 |
 | [CRITICAL SECURITY BULLETIN: Trend Micro Apex Central (June 2025)](research/success-trendmicro-com-critical-security-bulletin-trend-micro-apex-central-june.md) | article | success.trendmicro.com |  | full | 1 |
-| [Critical ViewState Deserialization Zero-Day in Sitecore (CVE-2025-53690)](research/sonicwall-critical-viewstate-deserialization-zero-day-sitecore-cve-2025.md) | article | SonicWall |  | full | 1 |
+| [Critical ViewState Deserialization Zero-Day in Sitecore (CVE-2025-53690)](research/2025-sonicwall-critical-viewstate-deserialization-zero-day-sitecore-cve-53690.md) | article | SonicWall |  | full | 1 |
 | [Critical Vulnerabilities Found in Rockwell FactoryTalk AssetCentre](research/2021-claroty-critical-vulnerabilities-found-rockwell-factorytalk-assetcentre.md) | article | Claroty | 2021 | full | 1 |
 | [CTFtime.org / HITCON CTF 2019 Quals / Buggy .NET / Writeup](research/ctftime-ctftime-org-hitcon-ctf-2019-quals-buggy-net-writeup.md) | article | CTFtime |  | full | 1 |
 | [CVE from 2018 Strikes Again](research/2023-stratum-security-blog-cve-2018-strikes-again.md) | article | Stratum Security Blog | 2023 | full | 1 |
 | [CVE-2020-0688 Losing the keys to your kingdom](research/2020-github-security-lab-cve-2020-0688-losing-keys-your-kingdom.md) | article | GitHub Security Lab | 2020 | full | 1 |
 | [CVE-2022-28684 — Deserialization of Untrusted Data in Devexpress Safebinaryformatter+1](records/2022-dbugs-cve-2022-28684-deserialization-untrusted-data-devexpress-safebinaryfo.md) | article | dbugs | 2022 | full | 1 |
-| [CVE-2026-55040: Microsoft SharePoint JWT Token Authentication Bypass (FIXED)](research/rapid7-cve-2026-55040-microsoft-sharepoint-jwt-token-authentication-bypass-fixed.md) | article | Rapid7 |  | full | 1 |
+| [CVE-2026-55040: Microsoft SharePoint JWT Token Authentication Bypass (FIXED)](research/2026-rapid7-cve-2026-55040-microsoft-sharepoint-jwt-token-authentication-fixed.md) | article | Rapid7 |  | full | 1 |
 | [CyberArk Password Vault Web Access < 9.9.5 / < 9.10 / 10.1](research/2018-exploit-database-cyberark-password-vault-web-access-9-9-5-9-10-10.md) | article | Exploit Database | 2018 | full | 1 |
-| [Cybersecurity](research/community-opentext-com-cybersecurity.md) | article | community.opentext.com |  | full | 1 |
+| [Cybersecurity](research/2026-community-opentext-com-cybersecurity.md) | article | community.opentext.com | 2026 | full | 1 |
 | [Decrypting ASP.NET Identity cookies](research/2014-debug-notes-by-sebastian-solnica-decrypting-asp-net-identity-cookies.md) | article | Debug notes by Sebastian Solnica | 2014 | full | 1 |
 | [Decrypting View State Messages](research/zeroed-tech-decrypting-view-state-messages.md) | article | zeroed.tech |  | full | 1 |
 | [Deep Dive into .NET ViewState deserialization and its exploitation](research/2019-medium-deep-dive-net-viewstate-deserialization-its-exploitation.md) | article | Medium | 2019 | full | 1 |
-| [defcon quals writeup: NPC-UA](research/blog-awoo-systems-defcon-quals-writeup-npc-ua.md) | article | blog.awoo.systems |  | full | 1 |
+| [defcon quals writeup: NPC-UA](research/2024-blog-awoo-systems-defcon-quals-writeup-npc-ua.md) | article | blog.awoo.systems | 2024 | full | 1 |
 | [Deriving actual machine keys with “IsolateApps” modifier](research/2021-medium-deriving-actual-machine-keys-isolateapps-modifier.md) | article | Medium | 2021 | full | 1 |
-| [Description of the security update for SharePoint Server Subscription Edition: July 14, 2026 (KB5002882)](research/support-microsoft-com-description-security-update-sharepoint-server-subscription.md) | article | support.microsoft.com |  | full | 1 |
+| [Description of the security update for SharePoint Server Subscription Edition: July 14, 2026 (KB5002882)](research/2026-support-microsoft-com-description-security-update-sharepoint-kb5002882.md) | article | support.microsoft.com | 2026 | full | 1 |
 | [Deserialization - OWASP Cheat Sheet Series](research/cheatsheetseries-owasp-org-deserialization-owasp-cheat-sheet-series.md) | article | cheatsheetseries.owasp.org |  | full | 2 |
 | [Deserialization Attacks in .Net Games](research/modzero-com-deserialization-attacks-net-games.md) | article | modzero.com |  | full | 1 |
 | [Deserialization of untrusted data — CodeQL query help documentation](research/codeql-github-com-deserialization-untrusted-data-codeql-query-help-documentation.md) | article | codeql.github.com |  | full | 1 |
 | [deserialization package - github.com/projectdiscovery/dsl/deserialization](records/pkg-go-dev-deserialization-package-github-com-projectdiscovery-dsl-deserializati.md) | article | pkg.go.dev |  | full | 1 |
-| [Deserialization: RCE for modern web applications](research/northsec-deserialization-rce-modern-web-applications.md) | article | NorthSec |  | full | 1 |
+| [Deserialization: RCE for modern web applications](research/2019-northsec-deserialization-rce-modern-web-applications.md) | article | NorthSec | 2019 | full | 1 |
 | [Developers can use System.Text.Json to serialize type hierarchies securely](research/2022-github-developers-can-use-system-text-json-serialize-type-hierarchies-secur.md) | article | GitHub | 2022 | full | 1 |
-| [DG on Windows 10 S: Executing Arbitrary Code](research/tiraniddo-dev-dg-windows-10-s-executing-arbitrary-code.md) | article | tiraniddo.dev |  | full | 1 |
-| [Disabling Viewstate’s MAC: why you deserve having now a broken ASP.NET web application](research/blog-compass-security-com-disabling-viewstates-mac-why-you-deserve-having-now-br.md) | article | blog.compass-security.com |  | full | 1 |
+| [DG on Windows 10 S: Executing Arbitrary Code](research/2017-tiraniddo-dev-dg-windows-10-s-executing-arbitrary-code.md) | article | tiraniddo.dev | 2017 | full | 1 |
+| [Disabling Viewstate’s MAC: why you deserve having now a broken ASP.NET web application](research/2014-blog-compass-security-com-disabling-viewstates-mac-why-you-application.md) | article | blog.compass-security.com | 2014 | full | 1 |
 | [Disrupting active exploitation of on-premises SharePoint vulnerabilities](research/2025-microsoft-security-blog-disrupting-active-exploitation-premises-sharepoint.md) | article | Microsoft Security Blog | 2025 | full | 1 |
 | [Dot Net Deserialization](research/metasploit-documentation-penetration-testing-software-pen-testing-security-dot-n.md) | article | Metasploit Documentation Penetration Testing Software, Pen Testing Security |  | full | 1 |
 | [dotnet Insecure Serialization](research/2024-exp10it-io-dotnet-insecure-serialization.md) | article | exp10it.io | 2024 | full | 1 |
 | [dotnet New Deserialization Gadgets](research/2024-exp10it-io-dotnet-new-deserialization-gadgets.md) | article | exp10it.io | 2024 | full | 1 |
-| [DotNetNuke任意代码执行漏洞(CVE–2017–9822)分析预警](records/cert-360-cn-dotnetnuke-cve20179822.md) | article | cert.360.cn |  | full | 1 |
+| [DotNetNuke任意代码执行漏洞(CVE–2017–9822)分析预警](records/2017-cert-360-cn-dotnetnuke-cve20179822.md) | article | cert.360.cn | 2017 | full | 1 |
 | [DotNet反序列化——生成ViewState的程序实现](research/2021-3gstudent-blog-dotnetviewstate.md) | article | 3gstudent-Blog | 2021 | full | 1 |
 | [Exploitation of KnowledgeDeliver via ViewState Deserialization Vulnerability](research/2026-google-cloud-blog-exploitation-knowledgedeliver-viewstate-deserialization-v.md) | article | Google Cloud Blog | 2026 | full | 1 |
-| [Exploited in the Wild: DELMIA Apriso Insecure Deserialization (CVE-2025-5086)](research/sonicwall-exploited-wild-delmia-apriso-insecure-deserialization-cve-2025.md) | article | SonicWall |  | full | 1 |
-| [Exploiting .NET Managed DCOM](research/projectzero-google-exploiting-net-managed-dcom.md) | article | projectzero.google |  | full | 2 |
-| [Exploiting .NET Remoting with TypeFilterLevel Low and no MarshalByRef interfaces (英語記事) \| セキュリティブログ](research/gmo-by-exploiting-net-remoting-typefilterlevel-low-no-marshalbyref-interfaces.md) | article | 脆弱性診断（セキュリティ診断）のGMOサイバーセキュリティ byイエラエ |  | full | 1 |
+| [Exploited in the Wild: DELMIA Apriso Insecure Deserialization (CVE-2025-5086)](research/2025-sonicwall-exploited-wild-delmia-apriso-insecure-deserialization-cve-5086.md) | article | SonicWall |  | full | 1 |
+| [Exploiting .NET Managed DCOM](research/2017-projectzero-google-exploiting-net-managed-dcom.md) | article | projectzero.google | 2017 | full | 2 |
+| [Exploiting .NET Remoting with TypeFilterLevel Low and no MarshalByRef interfaces (英語記事) \| セキュリティブログ](research/2022-gmo-by-exploiting-net-remoting-typefilterlevel-low-no-interfaces.md) | article | 脆弱性診断（セキュリティ診断）のGMOサイバーセキュリティ byイエラエ | 2022 | full | 1 |
 | [Exploiting __VIEWSTATE without knowing the secrets](research/hacktricks-exploiting-viewstate-without-knowing-secrets.md) | article | HackTricks |  | full | 1 |
 | [Exploiting a Classic Deserialization Vulnerability in Siemens SIMATIC Energy Manager](research/2024-claroty-exploiting-classic-deserialization-vulnerability-siemens-simatic-en.md) | article | Claroty | 2024 | full | 1 |
 | [Exploiting CVE-2017-8759: SOAP WSDL Parser Code Injection](records/2017-mdsec-exploiting-cve-2017-8759-soap-wsdl-parser-code-injection.md) | article | MDSec | 2017 | full | 1 |
@@ -191,35 +193,37 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [Exploiting JSON serialization in .NET core](research/2023-medium-exploiting-json-serialization-net-core.md) | article | Medium | 2023 | full | 1 |
 | [Exploiting JSON.NET Deserialization for Remote Code Execution](research/exploiting-json-net-deserialization-for-remote-code-execution-simon-bertrand-e.md) | article | Exploiting JSON.NET Deserialization for Remote Code Execution \| Simon Bertrand |  | full | 1 |
 | [Exploiting ViewState Using ysoserial.net](research/hackmd-exploiting-viewstate-using-ysoserial-net.md) | article | HackMD |  | full | 1 |
-| [File Upload Attack using XAMLX Files](records/soroush-me-file-upload-attack-using-xamlx-files.md) | article | soroush.me |  | full | 1 |
+| [eye security uncovers actively exploited zero day in microsoft sharepoint cve 2025 53770](records/2025-eye-security-uncovers-actively-exploited-zero-day-microsoft-53770.md) | article |  |  | full | 1 |
+| [File Upload Attack using XAMLX Files](records/2019-soroush-me-file-upload-attack-using-xamlx-files.md) | article | soroush.me | 2019 | full | 1 |
 | [Fileless lateral movement with trapped COM objects](research/ibm-com-fileless-lateral-movement-trapped-com-objects.md) | article | ibm.com |  | full | 1 |
 | [Finding a New DataContractSerializer RCE Gadget Chain](research/muffsec-com-finding-new-datacontractserializer-rce-gadget-chain.md) | article | muffsec.com |  | full | 1 |
 | [Finding and Exploiting .NET Remoting over HTTP using Deserialisation](records/soroush-me-finding-exploiting-net-remoting-over-http-using-deserialisation.md) | article | soroush.me |  | full | 2 |
-| [forum.defcon.org](research/def-con-forums-forum-defcon-org.md) | article | DEF CON Forums |  | full | 2 |
+| [forum.defcon.org](research/2023-def-con-forums-forum-defcon-org.md) | article | DEF CON Forums | 2023 | full | 2 |
 | [Freddy: An extension for automatically identifying deserialisation issues in Java and .NET applications](records/nccgroup-com-freddy-extension-automatically-identifying-deserialisation-issues-j.md) | article | nccgroup.com |  | full | 1 |
 | [Friday the 13th: JSON Attacks : Black Hat : Free Download, Borrow, and Streaming : Internet Archive](research/internet-archive-friday-13th-json-attacks-black-hat-free-download-borrow-strea.md) | article | Internet Archive |  | full | 1 |
-| [From LFI to RCE: Active Exploitation Detected in Gladinet and TrioFox Vulnerability](research/the-hacker-news-lfi-rce-active-exploitation-detected-gladinet-triofox-vulnerabil.md) | article | The Hacker News |  | full | 1 |
+| [From LFI to RCE: Active Exploitation Detected in Gladinet and TrioFox Vulnerability](research/2025-the-hacker-news-lfi-rce-active-exploitation-detected-vulnerability.md) | article | The Hacker News | 2025 | full | 1 |
 | [GadgetToJScript利用分析](research/2019-3gstudent-blog-gadgettojscript.md) | article | 3gstudent-Blog | 2019 | full | 1 |
 | [GitHub - microsoft/referencesource: Source from the Microsoft .NET Reference Source that represent a subset of the .NET Framework](research/github-github-microsoft-referencesource-source-microsoft-net-reference-source-th.md) | article | GitHub |  | full | 2 |
-| [Gladinet CentreStack and Gladinet Triofox](research/kudelskisecurity-com-gladinet-centrestack-gladinet-triofox.md) | article | kudelskisecurity.com |  | full | 1 |
+| [Gladinet CentreStack and Gladinet Triofox](research/2025-kudelskisecurity-com-gladinet-centrestack-gladinet-triofox.md) | article | kudelskisecurity.com | 2025 | full | 1 |
 | [Gladinet CentreStack/Triofox: Cryptography Vulnerability](research/2025-huntress-gladinet-centrestack-triofox-cryptography-vulnerability.md) | article | Huntress | 2025 | full | 1 |
 | [GoldMelody’s Hidden Chords: Initial Access Broker In-Memory IIS Modules Revealed](research/2025-unit-42-goldmelodys-hidden-chords-initial-access-broker-memory-iis-modules.md) | article | Unit 42 | 2025 | full | 1 |
-| [GreyNoise Analysis Of A Quartet of Exchange Remote Code Execution Vulnerabilities: CVE-2023-21529; CVE-2023-21706; CVE-2023-21707; CVE-2023-21710](research/greynoise-io-greynoise-analysis-quartet-exchange-remote-code-execution-vulnerabi.md) | article | greynoise.io |  | full | 1 |
+| [GreyNoise Analysis Of A Quartet of Exchange Remote Code Execution Vulnerabilities: CVE-2023-21529; CVE-2023-21706; CVE-2023-21707; CVE-2023-21710](research/2023-greynoise-io-greynoise-analysis-quartet-exchange-remote-code-21710.md) | article | greynoise.io |  | full | 1 |
 | [Hacktron finds pre-auth RCE in Dassault Delmia Apriso](research/2025-hacktron-ai-hacktron-finds-pre-auth-rce-dassault-delmia-apriso.md) | article | Hacktron AI | 2025 | full | 1 |
 | [Half Measures and Full Compromise: Exploiting Microsoft Exchange PowerShell Remoting](records/piotr-bazydo-chudy-half-measures-full-compromise-exploiting-microsoft-exchange-p.md) | article | Piotr Bazydło (chudy) |  | full | 1 |
 | [HITCON 2018: Why so Serials? Write-up](research/2018-cyku-s-blog-hitcon-2018-why-so-serials-write-up.md) | article | Cyku's blog | 2018 | full | 1 |
-| [How can I trim space in XSLT without replacing repating whitespaces by single ones?](research/stack-overflow-how-can-i-trim-space-xslt-without-replacing-repating-ones.md) | article | Stack Overflow |  | full | 1 |
-| [How safe are .NET serialization libraries against StackOverflowException](research/mijailovic-net-how-safe-net-serialization-libraries-against-stackoverflowexcepti.md) | article | mijailovic.net |  | full | 1 |
+| [HITCON CTF 2018 - Why so Serials? Writeup](research/xz-aliyun-com-hitcon-ctf-2018-why-so-serials-writeup.md) | article | xz.aliyun.com |  | full | 1 |
+| [How can I trim space in XSLT without replacing repating whitespaces by single ones?](research/2012-stack-overflow-how-can-i-trim-space-xslt-without-replacing-repating-ones.md) | article | Stack Overflow | 2012 | full | 1 |
+| [How safe are .NET serialization libraries against StackOverflowException](research/2023-mijailovic-net-how-safe-net-serialization-libraries-stackoverflowexception.md) | article | mijailovic.net | 2023 | full | 1 |
 | [How to Break Out of Hyper-V and Compromise your Admins](research/2024-truesec-how-break-out-hyper-v-compromise-your-admins.md) | article | Truesec | 2024 | full | 1 |
-| [How to configure Json.NET to create a vulnerable web API](research/alphabot-com-how-configure-json-net-create-vulnerable-web-api.md) | article | alphabot.com |  | full | 1 |
+| [How to configure Json.NET to create a vulnerable web API](research/2017-alphabot-com-how-configure-json-net-create-vulnerable-web-api.md) | article | alphabot.com | 2017 | full | 1 |
 | [How to exploit the DotNetNuke Cookie Deserialization](research/2020-pentest-tools-com-how-exploit-dotnetnuke-cookie-deserialization.md) | article | Pentest-Tools.com | 2020 | full | 1 |
 | [HTB: Perspective](research/2022-0xdf-hacks-stuff-htb-perspective.md) | article | 0xdf hacks stuff | 2022 | full | 1 |
 | [HTB: Pov](research/2024-0xdf-hacks-stuff-htb-pov.md) | article | 0xdf hacks stuff | 2024 | full | 1 |
 | [HTB: Scrambled](records/2022-0xdf-hacks-stuff-htb-scrambled.md) | article | 0xdf hacks stuff | 2022 | full | 1 |
 | [HTB: Sharp](research/2021-0xdf-hacks-stuff-htb-sharp.md) | article | 0xdf hacks stuff | 2021 | full | 1 |
-| [https://claranet.com/us/blog/2018-11-18-project-blacklist3r](research/project-blacklist3r-claranet.md) | article |  |  | full | 1 |
+| [https://claranet.com/us/blog/2018-11-18-project-blacklist3r](research/2018-project-blacklist3r-claranet.md) | article |  | 2018 | full | 1 |
 | [https://community.progress.com/s/article/resolving-security-vulnerability-cve-2017-9248](research/https-community-progress-com-s-article-resolving-security-vulnerability-cve-2017.md) | article |  |  | full | 1 |
-| [https://mdsec.co.uk/2020/09/i-like-to-move-it-windows-lateral-movement-part-2-dcom](research/https-mdsec-co-uk-2020-09-i-like-move-it-windows-lateral-movement-part-2-dcom.md) | article |  |  | full | 1 |
+| [https://mdsec.co.uk/2020/09/i-like-to-move-it-windows-lateral-movement-part-2-dcom](research/2020-https-mdsec-co-uk-2020-09-i-like-move-it-windows-lateral-movement-dcom.md) | article |  | 2020 | full | 1 |
 | [https://milestonesys.my.site.com/developer/s/article/XProtect-NET-security-vulnerability](research/https-milestonesys-my-site-com-developer-s-article-xprotect-net-security-vulnera.md) | article |  |  | full | 1 |
 | [https://notsosecure.com/exploiting-viewstate-deserialization-using-blacklist3r-and-ysoserial-net](research/https-notsosecure-com-exploiting-viewstate-deserialization-using-blacklist3r-yso.md) | article |  |  | full | 1 |
 | [IIS Machine Keys - Payloads All The Things](research/swisskyrepo-github-io-iis-machine-keys-payloads-all-things.md) | article | swisskyrepo.github.io |  | full | 1 |
@@ -230,7 +234,7 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [Introducing Aladdin](research/2024-lrqa-introducing-aladdin.md) | article | LRQA | 2024 | full | 1 |
 | [Introducing Badsecrets](research/2023-black-lantern-security-blsops-introducing-badsecrets.md) | article | Black Lantern Security (BLSOPS) | 2023 | full | 1 |
 | [Introducing YSoSerial.Net April 2020 Improvements](research/2020-mdsec-introducing-ysoserial-net-april-2020-improvements.md) | article | MDSec | 2020 | full | 1 |
-| [Investigating a SharePoint Compromise: IR Tales from the Field](research/rapid7-investigating-sharepoint-compromise-ir-tales-field.md) | article | Rapid7 |  | full | 1 |
+| [Investigating a SharePoint Compromise: IR Tales from the Field](research/2024-rapid7-investigating-sharepoint-compromise-ir-tales-field.md) | article | Rapid7 | 2024 | full | 1 |
 | [Ivanti EPM RCE via .NET Remoting Deserialization (CVE-2024–29847)](research/2025-medium-ivanti-epm-rce-net-remoting-deserialization-cve.md) | article | Medium | 2025 | full | 1 |
 | [Jaroslav Lobačevski - Vulnerable deserialization in dnSpy and Resource.NET](research/blog-devsecurity-eu-jaroslav-lobacevski-vulnerable-deserialization-dnspy-resourc.md) | article | blog.devsecurity.eu |  | full | 1 |
 | [JetBrains fixes critical unauthenticated RCE in TeamCity On-Premises (CVE-2026-63077)](research/2026-help-net-security-jetbrains-fixes-critical-unauthenticated-rce-teamcity-pre.md) | article | Help Net Security | 2026 | full | 1 |
@@ -240,77 +244,77 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [KB4288: CVE-2022-26500](records/2022-veeam-software-kb4288-cve-2022-26500.md) | article | Veeam Software | 2022 | full | 1 |
 | [KB4289: CVE-2022-26503](research/2022-veeam-software-kb4289-cve-2022-26503.md) | article | Veeam Software | 2022 | full | 1 |
 | [KB4424: CVE-2023-27532](research/2023-veeam-software-kb4424-cve-2023-27532.md) | article | Veeam Software | 2023 | full | 1 |
-| [Kentico CMS Insecure Deserialization RCE](research/kentico-cms-insecure-deserialization-rce-kentico-cms-insecure-deserialization.md) | article | Kentico CMS Insecure Deserialization RCE |  | full | 1 |
+| [Kentico CMS Insecure Deserialization RCE](research/2021-kentico-cms-insecure-deserialization-rce-kentico-cms-insecure-rce.md) | article | Kentico CMS Insecure Deserialization RCE | 2021 | full | 1 |
 | [KnowledgeDeliver flaw exploited as a zero-day to install web shells](research/2026-bleepingcomputer-knowledgedeliver-flaw-exploited-as-zero-day-install-web.md) | article | BleepingComputer | 2026 | full | 1 |
 | [LAB - Deserialization](research/hackmd-lab-deserialization.md) | article | HackMD |  | full | 1 |
 | [Leveraging An Order of Operations Bug to Achieve RCE in Sitecore 8.x](research/assetnote-io-leveraging-order-operations-bug-achieve-rce-sitecore-8-x.md) | article | assetnote.io |  | full | 1 |
 | [Making Serialization Gadgets by Hand](research/vulncheck-making-serialization-gadgets-hand.md) | article | VulnCheck |  | full | 2 |
 | [Medium](records/medium-medium.md) | article | Medium |  | full | 1 |
-| [MessagePack Typeless mode deserialization exploits explained](research/netwrix-com-messagepack-typeless-mode-deserialization-exploits-explained.md) | article | netwrix.com |  | full | 1 |
+| [MessagePack Typeless mode deserialization exploits explained](research/2023-netwrix-com-messagepack-typeless-mode-deserialization-exploits-explained.md) | article | netwrix.com | 2023 | full | 1 |
 | [Microsoft Exchange From Deserialization to Post-Auth RCE (CVE-2021–28482)](research/2021-medium-microsoft-exchange-deserialization-post-auth-rce-cve.md) | article | Medium | 2021 | full | 1 |
 | [Microsoft Exchange Powershell Remoting Deserialization lead to RCE (CVE-2023–21707)](research/2023-medium-microsoft-exchange-powershell-remoting-deserialization-lead-rce-cve.md) | article | Medium | 2023 | full | 1 |
-| [Microsoft Exchange Powershell Remoting Deserialization leading to RCE (CVE-2023-21707)](research/star-labs-microsoft-exchange-powershell-remoting-deserialization-leading-rce-cve.md) | article | STAR Labs |  | full | 1 |
-| [Microsoft Patches SharePoint RCE Flaw CVE-2026-45659 Across Server Versions](research/the-hacker-news-microsoft-patches-sharepoint-rce-flaw-cve-2026-45659-across-serv.md) | article | The Hacker News |  | full | 1 |
+| [Microsoft Exchange Powershell Remoting Deserialization leading to RCE (CVE-2023-21707)](research/2023-star-labs-microsoft-exchange-powershell-remoting-deserialization-21707.md) | article | STAR Labs | 2023 | full | 1 |
+| [Microsoft Patches SharePoint RCE Flaw CVE-2026-45659 Across Server Versions](research/2026-the-hacker-news-microsoft-patches-sharepoint-rce-flaw-cve-2026-versions.md) | article | The Hacker News | 2026 | full | 1 |
 | [Microsoft sharepoint breach linked to vulnerability discovered by Viettel Cyber Security - Customer alert, Latest research and Recommendations](research/2025-viettel-cyber-security-microsoft-sharepoint-breach-linked-recommendations.md) | article | Viettel Cyber Security | 2025 | full | 1 |
 | [Microsoft SharePoint's CVE-2025-30382: Unpacking the Deserialization RCE Risk](research/2025-zeropath-microsoft-sharepoint-s-cve-2025-30382-unpacking-deserialization-rc.md) | article | ZeroPath | 2025 | full | 1 |
 | [Microsoft Windows - ManagementObject Arbitrary .NET Serialization Remote Code Execution](research/2017-exploit-database-microsoft-windows-managementobject-arbitrary-net-serializa.md) | article | Exploit Database | 2017 | full | 1 |
 | [MicrosoftはなぜBinaryFormatterを排除したのか](research/zenn-microsoftbinaryformatter.md) | article | Zenn |  | full | 1 |
 | [Module: Msf::Util::DotNetDeserialization — Documentation by YARD 0.9.37](research/docs-metasploit-com-module-msf-util-dotnetdeserialization-documentation-yard-0.md) | article | docs.metasploit.com |  | full | 1 |
-| [More research on .NET deserialization](records/soroush-me-more-research-net-deserialization.md) | article | soroush.me |  | full | 1 |
+| [More research on .NET deserialization](records/2018-soroush-me-more-research-net-deserialization.md) | article | soroush.me | 2018 | full | 1 |
 | [More Than DoS (Progress Telerik UI for ASP.NET AJAX Unsafe Reflection CVE-2025-3600)](research/2025-watchtowr-labs-more-than-dos-progress-telerik-ui-asp-net-ajax-unsafe-reflec.md) | article | watchTowr Labs | 2025 | full | 2 |
-| [MOVEIt Transfer RCE Part Two (CVE-2023-34362)](research/assetnote-io-moveit-transfer-rce-part-two-cve-2023-34362.md) | article | assetnote.io |  | full | 1 |
-| [New Wine in Old Bottle - Microsoft Sharepoint Post-Auth Deserialization RCE (CVE-2022-29108)](research/2022-web-archive-org-new-wine-old-bottle-microsoft-sharepoint-post-auth-deserial.md) | article | web.archive.org | 2022 | full | 1 |
+| [MOVEIt Transfer RCE Part Two (CVE-2023-34362)](research/2023-assetnote-io-moveit-transfer-rce-part-two-cve-2023-34362.md) | article | assetnote.io |  | full | 1 |
+| [New Wine in Old Bottle - Microsoft Sharepoint Post-Auth Deserialization RCE (CVE-2022-29108)](research/2022-starlabs-sg-new-wine-old-bottle-microsoft-sharepoint-post-auth-29108.md) | article | starlabs.sg | 2022 | full | 1 |
 | [Nexus Void \| Jorian Woltjer](research/jorianwoltjer-com-nexus-void-jorian-woltjer.md) | article | jorianwoltjer.com |  | full | 1 |
 | [Now You Serial, Now You Don’t — Systematically Hunting for Deserialization Exploits](research/2021-google-cloud-blog-now-you-serial-now-you-dont-systematically-hunting-deseri.md) | article | Google Cloud Blog | 2021 | full | 1 |
 | [NSA Meeting Proposal for ProxyShell](research/2021-mdsec-nsa-meeting-proposal-proxyshell.md) | article | MDSec | 2021 | full | 1 |
-| [Observed Exploitation of MOVEit Transfer Vulnerability CVE-2023-34362](research/rapid7-observed-exploitation-moveit-transfer-vulnerability-cve-2023.md) | article | Rapid7 |  | full | 1 |
-| [Old .NET Vulnerability #5: Security Transparent Compiled Expressions (CVE-2013-0073)](research/tiraniddo-dev-old-net-vulnerability-5-security-transparent-compiled-expressions.md) | article | tiraniddo.dev |  | full | 1 |
+| [Observed Exploitation of MOVEit Transfer Vulnerability CVE-2023-34362](research/2023-rapid7-observed-exploitation-moveit-transfer-vulnerability-cve-2023-34362.md) | article | Rapid7 | 2023 | full | 1 |
+| [Old .NET Vulnerability #5: Security Transparent Compiled Expressions (CVE-2013-0073)](research/2020-tiraniddo-dev-old-net-vulnerability-5-security-transparent-compiled-0073.md) | article | tiraniddo.dev | 2020 | full | 1 |
 | [Oleksandr Mirosh (@olekmirosh) on X](research/x-formerly-twitter-oleksandr-mirosh-olekmirosh-x.md) | article | X (formerly Twitter) |  | full | 1 |
 | [Open source tool SerialDetector speeds up discovery of .Net deserialization bugs](research/2021-the-daily-swig-cybersecurity-news-and-views-open-source-tool-serialdetector.md) | article | The Daily Swig \| Cybersecurity news and views | 2021 | full | 1 |
-| [OWASSRF: CrowdStrike Identifies New Exploit Method for Exchange Bypassing ProxyNotShell Mitigations](research/crowdstrike-com-owassrf-crowdstrike-identifies-new-exploit-method-exchange-bypas.md) | article | CrowdStrike.com |  | full | 1 |
-| [Paranoids Vulnerability Research: Ivanti Issues Security Alert \| Paranoids](research/yahooinc-com-paranoids-vulnerability-research-ivanti-issues-security-alert-paran.md) | article | yahooinc.com |  | full | 1 |
+| [OWASSRF: CrowdStrike Identifies New Exploit Method for Exchange Bypassing ProxyNotShell Mitigations](research/2022-crowdstrike-com-owassrf-crowdstrike-identifies-new-exploit-mitigations.md) | article | CrowdStrike.com | 2022 | full | 1 |
+| [Paranoids Vulnerability Research: Ivanti Issues Security Alert \| Paranoids](research/2023-yahooinc-com-paranoids-vulnerability-research-ivanti-issues-paranoids.md) | article | yahooinc.com | 2023 | full | 1 |
 | [Path Traversal to Remote Code Execution](research/2023-claranet-cyber-security-path-traversal-remote-code-execution.md) | article | Claranet Cyber Security | 2023 | full | 1 |
-| [Persistent Exploitation of ASP.NET Components Fuels Remote Code Execution Attacks](research/kudelskisecurity-com-persistent-exploitation-asp-net-components-fuels-remote-cod.md) | article | kudelskisecurity.com |  | full | 1 |
+| [Persistent Exploitation of ASP.NET Components Fuels Remote Code Execution Attacks](research/2025-kudelskisecurity-com-persistent-exploitation-asp-net-components-attacks.md) | article | kudelskisecurity.com | 2025 | full | 1 |
 | [Piotr Bazydło (@chudyPB) on X](records/2025-x-formerly-twitter-piotr-bazydo-chudypb-x.md) | article | X (formerly Twitter) | 2025 | full | 1 |
 | [PowerShell Serialization Payload Signing in Exchange Server](research/2024-practical-365-powershell-serialization-payload-signing-exchange-server.md) | article | Practical 365 | 2024 | full | 1 |
-| [Programming with XAML: Assemly.Load for .NET deserialization](research/russtone-io-programming-xaml-assemly-load-net-deserialization.md) | article | russtone.io |  | full | 1 |
-| [ProxyShell: More Widespread Exploitation of Microsoft Exchange Servers](research/rapid7-proxyshell-more-widespread-exploitation-microsoft-exchange-servers.md) | article | Rapid7 |  | full | 1 |
+| [Programming with XAML: Assemly.Load for .NET deserialization](research/2023-russtone-io-programming-xaml-assemly-load-net-deserialization.md) | article | russtone.io | 2023 | full | 1 |
+| [ProxyShell: More Widespread Exploitation of Microsoft Exchange Servers](research/2021-rapid7-proxyshell-more-widespread-exploitation-microsoft-exchange-servers.md) | article | Rapid7 | 2021 | full | 1 |
 | [Rapid7](research/rapid7-rapid7.md) | article | Rapid7 |  | full | 1 |
-| [Rapid7 Analysis: CVE-2021-42237](research/rapid7-rapid7-analysis-cve-2021.md) | article | Rapid7 |  | full | 1 |
-| [Rapid7 Analysis: CVE-2023-27532](research/rapid7-rapid7-analysis-cve-2023.md) | article | Rapid7 |  | full | 1 |
-| [Rapid7 Analysis: CVE-2023-40044](research/rapid7-rapid7-analysis-cve-2023-40044.md) | article | Rapid7 |  | full | 1 |
-| [RCE in Progress WS_FTP Ad Hoc via IIS HTTP Modules (CVE-2023-40044)](research/assetnote-io-rce-progress-ws-ftp-ad-hoc-iis-http-modules-cve-2023-40044.md) | article | assetnote.io |  | full | 1 |
+| [Rapid7 Analysis: CVE-2021-42237](research/2021-rapid7-rapid7-analysis-cve-2021-42237.md) | article | Rapid7 |  | full | 1 |
+| [Rapid7 Analysis: CVE-2023-27532](research/2023-rapid7-rapid7-analysis-cve-2023-27532.md) | article | Rapid7 |  | full | 1 |
+| [Rapid7 Analysis: CVE-2023-40044](research/2023-rapid7-rapid7-analysis-cve-2023-40044.md) | article | Rapid7 |  | full | 1 |
+| [RCE in Progress WS_FTP Ad Hoc via IIS HTTP Modules (CVE-2023-40044)](research/2023-assetnote-io-rce-progress-ws-ftp-ad-hoc-iis-http-modules-cve-2023-40044.md) | article | assetnote.io |  | full | 1 |
 | [Re-Animating ActivitySurrogateSelector](research/2019-netspi-re-animating-activitysurrogateselector.md) | article | NetSPI | 2019 | full | 1 |
 | [Remote Code Execution (RCE) via Telerik Dialog Handler Exploit](research/2025-medium-remote-code-execution-rce-telerik-dialog-handler-exploit.md) | article | Medium | 2025 | full | 1 |
 | [Researchers Release Details of New RCE Exploit Chain for SharePoint](research/2023-dark-reading-researchers-release-details-new-rce-exploit-chain-sharepoint.md) | article | Dark Reading | 2023 | full | 1 |
-| [Resecurity \| From Web Request to Domain Compromise: Understanding the July 2026 SharePoint Attacks](research/resecurity-com-resecurity-web-request-domain-compromise-understanding-july.md) | article | resecurity.com |  | full | 1 |
+| [Resecurity \| From Web Request to Domain Compromise: Understanding the July 2026 SharePoint Attacks](research/2026-resecurity-com-resecurity-web-request-domain-compromise-attacks.md) | article | resecurity.com | 2026 | full | 1 |
 | [Searching for Deserialization Protection Bypasses in Microsoft Exchange (CVE-2022–21969)](research/2022-medium-searching-deserialization-protection-bypasses-microsoft-exchange-cve.md) | article | Medium | 2022 | full | 1 |
 | [Security: Deserialization](research/ravendb-documentation-security-deserialization.md) | article | RavenDB Documentation |  | full | 1 |
 | [SerialDetector: Principled and Practical Exploration of Object Injection Vulnerabilities for the Web](research/ndss-symposium-serialdetector-principled-practical-exploration-object-injection.md) | article | NDSS Symposium |  | full | 1 |
 | [Serialization Vulnerabilities](research/rce-serialization-dotnet-serialization-vulnerabilities.md) | article | rce-serialization-dotnet |  | full | 1 |
-| [SEVD-2026-069-06 Deserialization of Untrusted Data vulnerability on Multiple Products](records/2026-schneider-electric-sevd-2026-069-06-deserialization-untrusted-data-vulnerab.md) | article | Schneider Electric | 2026 | full | 1 |
+| [SEVD-2026-069-06 Deserialization of Untrusted Data vulnerability on Multiple Products](research/2026-schneider-electric-sevd-2026-069-06-deserialization-untrusted-data-vulnerab.md) | article | Schneider Electric | 2026 | full | 1 |
 | [SharePoint 0-day uncovered (CVE-2025-53770)](research/2025-eye-research-sharepoint-0-day-uncovered-cve-2025.md) | article | Eye Research | 2025 | full | 1 |
-| [SharePoint and Pwn :: Remote Code Execution Against SharePoint Server Abusing DataSet](research/srcincite-io-sharepoint-pwn-remote-code-execution-against-sharepoint-server-abus.md) | article | srcincite.io |  | full | 5 |
+| [SharePoint and Pwn :: Remote Code Execution Against SharePoint Server Abusing DataSet](research/2020-srcincite-io-sharepoint-pwn-remote-code-execution-against-dataset.md) | article | srcincite.io | 2020 | full | 5 |
 | [SharePoint ToolShell – One Request PreAuth RCE chain CVE-2025-53770](research/2025-blog-of-viettel-cyber-security-sharepoint-toolshell-one-request-preauth-rce.md) | article | Blog of Viettel Cyber Security | 2025 | full | 6 |
 | [SharePoint Unknown CVE Unveiled: RCE via WebPart Properties Deserialization](research/2025-blog-of-viettel-cyber-security-sharepoint-unknown-cve-unveiled-rce-webpart.md) | article | Blog of Viettel Cyber Security | 2025 | full | 3 |
-| [Siebene@ Blog](research/siebene-blog-siebene-blog.md) | article | Siebene@ Blog |  | full | 1 |
+| [Siebene@ Blog](research/2023-siebene-blog-siebene-blog.md) | article | Siebene@ Blog | 2023 | full | 1 |
 | [Sitecore CVE-2025-27218: Unsafe Deserialization Vulnerability](research/2025-searchlight-cyber-sitecore-cve-2025-27218-unsafe-deserialization-vulnerabil.md) | article | Searchlight Cyber | 2025 | full | 1 |
 | [Sitecore Experience Platform Pre-Auth RCE](research/assetnote-io-sitecore-experience-platform-pre-auth-rce.md) | article | assetnote.io |  | full | 1 |
 | [SmarterMail Build 6985](research/2020-exploit-database-smartermail-build.md) | article | Exploit Database | 2020 | full | 1 |
-| [Snyk Vulnerability Database](records/learn-more-about-nuget-with-snyk-open-source-vulnerability-database-snyk-vulnera.md) | article | Learn more about NuGet with Snyk Open Source Vulnerability Database |  | full | 1 |
-| [Snyk Vulnerability Database](records/learn-more-about-nuget-with-snyk-open-source-vulnerability-database-snyk-vulne.md) | article | Learn more about NuGet with Snyk Open Source Vulnerability Database |  | full | 1 |
-| [Snyk Vulnerability Database](records/learn-more-about-nuget-with-snyk-open-source-vulnerability-database-snyk-vulne-3.md) | article | Learn more about NuGet with Snyk Open Source Vulnerability Database |  | full | 1 |
-| [SoapFormatter 反序列化与ActivitySurrogateSelector gadgets](research/web-archive-org.md) | article | web.archive.org |  | full | 1 |
+| [Snyk Vulnerability Database](records/2025-database.md) | article | Learn more about NuGet with Snyk Open Source Vulnerability Database | 2025 | full | 1 |
+| [Snyk Vulnerability Database](records/2025-database-2.md) | article | Learn more about NuGet with Snyk Open Source Vulnerability Database | 2025 | full | 1 |
+| [Snyk Vulnerability Database](records/2018-database.md) | article | Learn more about NuGet with Snyk Open Source Vulnerability Database | 2018 | full | 1 |
+| [SoapFormatter 反序列化与ActivitySurrogateSelector gadgets](research/xz-aliyun-com-soapformatter-activitysurrogateselector-gadgets.md) | article | xz.aliyun.com |  | full | 1 |
 | [SOAPwn: Pwning .NET Framework Applications Through HTTP Client Proxies And WSDL](research/2025-watchtowr-labs-soapwn-pwning-net-framework-applications-through-http-client.md) | article | watchTowr Labs | 2025 | full | 1 |
-| [SolarWinds Fixed Critical RCE (CVE-2024-28991) in Access Rights Manage](research/secpod-com-solarwinds-fixed-critical-rce-cve-2024-28991-access-rights-manage.md) | article | secpod.com |  | full | 1 |
+| [SolarWinds Fixed Critical RCE (CVE-2024-28991) in Access Rights Manage](research/2024-secpod-com-solarwinds-fixed-critical-rce-cve-2024-28991-access-manage.md) | article | secpod.com |  | full | 1 |
 | [SolarWinds Patches High-Severity Flaws in Access Rights Manager](research/2023-securityweek-solarwinds-patches-high-severity-flaws-access-rights-manager.md) | article | SecurityWeek | 2023 | full | 1 |
 | [Some notes about Microsoft Exchange Deserialization RCE (CVE-2021–42321)](research/2021-medium-some-notes-about-microsoft-exchange-deserialization-rce-cve.md) | article | Medium | 2021 | full | 1 |
 | [Some notes of Microsoft Exchange Deserialization RCE (CVE-2021–42321)](research/2021-medium-some-notes-microsoft-exchange-deserialization-rce-cve.md) | article | Medium | 2021 | full | 1 |
 | [Spec-tac-ula Deserialization: Deploying Specula with .NET](research/trustedsec-spec-tac-ula-deserialization-deploying-specula-net.md) | article | TrustedSec |  | full | 1 |
 | [Stealing Machine Keys for fun and profit (or riding the SharePoint wave)](research/sans-internet-storm-center-stealing-machine-keys-fun-profit-riding-sharepoint-wa.md) | article | SANS Internet Storm Center |  | full | 1 |
 | [Story of my two (but actually three) RCEs in SharePoint in 2018](research/soroush-me-story-my-two-but-actually-three-rces-sharepoint.md) | article | soroush.me |  | full | 1 |
-| [Stupid is as Stupid Does When It Comes to .NET Remoting](research/tiraniddo-dev-stupid-as-stupid-does-when-it-comes-net-remoting.md) | article | tiraniddo.dev |  | full | 1 |
-| [System.Xml.XmlReader.Create methods](research/web-archive-org-system-xml-xmlreader-create-methods.md) | article | web.archive.org |  | full | 1 |
+| [Stupid is as Stupid Does When It Comes to .NET Remoting](research/2014-tiraniddo-dev-stupid-as-stupid-does-when-it-comes-net-remoting.md) | article | tiraniddo.dev | 2014 | full | 1 |
+| [System.Xml.XmlReader.Create methods](research/learn-microsoft-com-system-xml-xmlreader-create-methods.md) | article | learn.microsoft.com |  | full | 1 |
 | [Telerik Report Server Insecure Deserialization Vulnerability](research/progress-telerik-telerik-report-server-insecure-deserialization-vulnerability-2.md) | article | Progress Telerik |  | full | 1 |
 | [Telerik Report Server Insecure Deserialization Vulnerability](research/progress-telerik-telerik-report-server-insecure-deserialization-vulnerability.md) | article | Progress Telerik |  | full | 1 |
 | [Telerik Reporting Insecure Deserialization Vulnerability](research/progress-telerik-telerik-reporting-insecure-deserialization-vulnerability.md) | article | Progress Telerik |  | full | 1 |
@@ -319,11 +323,11 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [Telerik Web Forms Allows JavaScriptSerializer Deserialization](research/progress-telerik-telerik-web-forms-allows-javascriptserializer-deserialization.md) | article | Progress Telerik |  | full | 1 |
 | [Telerik Web Forms Critical Security Bulletin - Multiple Vulnerabilities Chained to Remote Code Execution (July 2026)](research/progress-telerik-telerik-web-forms-critical-security-bulletin-multiple-vulnerabi.md) | article | Progress Telerik |  | full | 1 |
 | [Telerik Web Forms Cryptographic Weakness](research/progress-telerik-telerik-web-forms-cryptographic-weakness.md) | article | Progress Telerik |  | full | 1 |
-| [Telerik Web Forms Deserialization of Untrusted Data Vulnerability (CVE-2026-6023)](research/progress-telerik-telerik-web-forms-deserialization-untrusted-data-vulnerability.md) | article | Progress Telerik |  | full | 1 |
+| [Telerik Web Forms Deserialization of Untrusted Data Vulnerability (CVE-2026-6023)](research/2026-progress-telerik-telerik-web-forms-deserialization-untrusted-data-6023.md) | article | Progress Telerik |  | full | 1 |
 | [Telerik Web Forms Insecure Direct Object Reference in RadAsyncUpload](research/progress-telerik-telerik-web-forms-insecure-direct-object-reference-radasyncuplo.md) | article | Progress Telerik |  | full | 1 |
 | [Telerik Web Forms Unrestricted File Upload in RadAsyncUpload](research/progress-telerik-telerik-web-forms-unrestricted-file-upload-radasyncupload.md) | article | Progress Telerik |  | full | 1 |
 | [Telerik Web Forms Unsafe Reflection Vulnerability (3600)](research/progress-telerik-telerik-web-forms-unsafe-reflection-vulnerability.md) | article | Progress Telerik |  | full | 1 |
-| [TextFormattingRunProperties 利用链 - nice_0e3](research/cnblogs-com-textformattingrunproperties-nice-0e3.md) | article | cnblogs.com |  | full | 1 |
+| [TextFormattingRunProperties 利用链 - nice_0e3](research/2022-cnblogs-com-textformattingrunproperties-nice-0e3.md) | article | cnblogs.com | 2022 | full | 1 |
 | [Threat Brief: CVE-2022-41040 and CVE-2022-41082: Microsoft Exchange Server (ProxyNotShell)](research/2022-unit-42-threat-brief-cve-2022-41040-cve-2022-41082-microsoft-exchange-serve.md) | article | Unit 42 | 2022 | full | 1 |
 | [TypeNameHandling Enumeration](research/newtonsoft-com-typenamehandling-enumeration.md) | article | newtonsoft.com |  | full | 1 |
 | [Tìm hiểu CVE-2017-9822 - DotNetNuke Cookie Deserialization RCE](research/2023-devme4f-github-io-tim-hieu-cve-2017-9822-dotnetnuke-cookie-deserialization.md) | article | devme4f.github.io | 2023 | full | 1 |
@@ -333,7 +337,7 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [Uploading web.config for Fun and Profit 2](research/soroush-me-uploading-web-config-fun-profit.md) | article | soroush.me |  | full | 1 |
 | [Useful Collection of C# String Manipulation Snippets](research/2010-azulia-designs-useful-collection-c-string-manipulation-snippets.md) | article | Azulia Designs | 2010 | full | 1 |
 | [v3.0](research/protobuf-net-v3.md) | article | protobuf-net |  | full | 1 |
-| [VCI - Cyber Wellness for A Trusted Vietnam](research/sec-vnpt-vn-vci-cyber-wellness-trusted-vietnam.md) | article | sec.vnpt.vn |  | full | 1 |
+| [VCI - Cyber Wellness for A Trusted Vietnam](research/2021-sec-vnpt-vn-vci-cyber-wellness-trusted-vietnam.md) | article | sec.vnpt.vn | 2021 | full | 1 |
 | [Veeam Backup & Replication CVE-2025-48983: Brief Summary of Critical Remote Code Execution Vulnerability](research/2025-zeropath-veeam-backup-replication-cve-2025-48983-brief-summary-critical-rem.md) | article | ZeroPath | 2025 | full | 1 |
 | [Veeam Backup & Response - RCE With Auth, But Mostly Without Auth (CVE-2024-40711)](research/2024-watchtowr-labs-veeam-backup-response-rce-auth-but-mostly-without-auth-cve.md) | article | watchTowr Labs | 2024 | full | 1 |
 | [View State, The unpatchable IIS forever day being actively exploited](research/zeroed-tech-view-state-unpatchable-iis-forever-day-being-actively-exploited.md) | article | zeroed.tech |  | full | 1 |
@@ -341,16 +345,16 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [ViewState snooping](records/2007-portswigger-blog-viewstate-snooping.md) | article | PortSwigger Blog | 2007 | full | 1 |
 | [Visionaries Have Democratised Remote Network Access - Citrix Virtual Apps and Desktops (CVE-2024-8068 and CVE-2024-8069)](research/2024-watchtowr-labs-visionaries-have-democratised-remote-network-access-citrix-v.md) | article | watchTowr Labs | 2024 | full | 1 |
 | [VSHost crash, REGDB_E_INVALIDVALUE loading Specific Project](research/stack-overflow-vshost-crash-regdb-e-invalidvalue-loading-specific-project.md) | article | Stack Overflow |  | full | 1 |
-| [Vulnerability Spotlight: RCE in Ajax.NET Professional](research/mogwai-labs-gmbh-web-site-vulnerability-spotlight-rce-ajax-net-professional.md) | article | MOGWAI LABS GmbH web site |  | full | 1 |
+| [Vulnerability Spotlight: RCE in Ajax.NET Professional](research/2022-mogwai-labs-gmbh-web-site-vulnerability-spotlight-rce-ajax-net-professional.md) | article | MOGWAI LABS GmbH web site | 2022 | full | 1 |
 | [WhatsUp Gold Pre-Auth RCE GetFileWithoutZip Primitive](research/whatsup-gold-pre-auth-rce-getfilewithoutzip-primitive-whatsup-gold-pre-auth-rce.md) | article | WhatsUp Gold Pre-Auth RCE GetFileWithoutZip Primitive |  | full | 1 |
 | [WhatsUp Gold Pre-Auth RCE WriteDataFile Primitive](research/whatsup-gold-pre-auth-rce-writedatafile-primitive-whatsup-gold-pre-auth-rce-writ.md) | article | WhatsUp Gold Pre-Auth RCE WriteDataFile Primitive |  | full | 1 |
 | [Windows Exploit \| Exploitation of Remote WCF Vulnerabilities](research/versprite-threat-modeling-and-pentesting-services-windows-exploit-exploitation-r.md) | article | VerSprite, Threat Modeling and Pentesting Services |  | full | 1 |
 | [WSUS Deserialization Exploit in the Wild (CVE‑2025‑59287)](research/2025-eye-research-wsus-deserialization-exploit-wild-cve202559287.md) | article | Eye Research | 2025 | full | 1 |
-| [XamlReader的Parse如何内存马注入 - zpchcbd](research/cnblogs-com-xamlreaderparse-zpchcbd.md) | article | cnblogs.com |  | full | 1 |
+| [XamlReader的Parse如何内存马注入 - zpchcbd](research/2023-cnblogs-com-xamlreaderparse-zpchcbd.md) | article | cnblogs.com | 2023 | full | 1 |
 | [XSL - How to remove unused namespaces from source xml?](research/stack-overflow-xsl-how-remove-unused-namespaces-source-xml.md) | article | Stack Overflow |  | full | 1 |
 | [Yet Another .NET deserialization](research/2019-medium-yet-another-net-deserialization.md) | article | Medium | 2019 | full | 1 |
 | [Yet Another Telerik UI Revisit](research/2022-black-lantern-security-blsops-yet-another-telerik-ui-revisit.md) | article | Black Lantern Security (BLSOPS) | 2022 | full | 1 |
-| [You can't contain me! :: Analyzing and Exploiting an Elevation of Privilege Vulnerability in Docker for Windows](research/srcincite-io-you-can-t-contain-me-analyzing-exploiting-elevation-privilege-vulne.md) | article | srcincite.io |  | full | 1 |
+| [You can't contain me! :: Analyzing and Exploiting an Elevation of Privilege Vulnerability in Docker for Windows](research/2018-srcincite-io-you-can-t-contain-me-analyzing-exploiting-elevation-windows.md) | article | srcincite.io | 2018 | full | 1 |
 | [YSoSerial.NET references](research/gist-ysoserial-net-references.md) | article | Gist |  | full | 1 |
 | [Zero Day Initiative — Exploiting Exchange PowerShell After ProxyNotShell: Part 1](research/2024-zero-day-initiative-zero-day-initiative-exploiting-exchange-powershell-af-3.md) | article | Zero Day Initiative | 2024 | full | 1 |
 | [Zero Day Initiative — Exploiting Exchange PowerShell After ProxyNotShell: Part 2](research/2024-zero-day-initiative-zero-day-initiative-exploiting-exchange-powershell-afte.md) | article | Zero Day Initiative | 2024 | full | 1 |
@@ -359,7 +363,7 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [Zero Day Initiative — From Pwn2Own 2021: A New Attack Surface on Microsoft Exchange](research/2021-zero-day-initiative-zero-day-initiative-pwn2own-2021-new-attack-surface-mic.md) | article | Zero Day Initiative | 2021 | full | 1 |
 | [安全KER - 安全资讯平台](records/anquanke-com-ker.md) | article | anquanke.com |  | full | 1 |
 | [玩轉 ASP.NET VIEWSTATE 反序列化攻擊、建立無檔案後門！](research/2020-cyku-s-blog-asp-net-viewstate.md) | article | Cyku's blog | 2020 | full | 1 |
-| [草泥马之家-CVE-2020-0688的武器化与.net反序列化漏洞那些事](research/zcgonvh-com-cve-2020-0688-net.md) | article | zcgonvh.com |  | full | 1 |
+| [草泥马之家-CVE-2020-0688的武器化与.net反序列化漏洞那些事](research/2024-zcgonvh-com-cve-2020-0688-net.md) | article | zcgonvh.com | 2024 | full | 1 |
 | [dotnet/designs: accepted/2020/better-obsoletion/binaryformatter-obsoletion.md](research/github-designs-accepted-2020-better-obsoletion-binaryformatter-obsoletion-md-mai.md) | code | GitHub |  | full | 1 |
 | [dotnet/docs: docs/standard/serialization/system-text-json/polymorphism.md](research/github-docs-docs-standard-serialization-system-text-json-polymorphism-md-main.md) | code | GitHub |  | full | 1 |
 | [dotnet/runtime: src/libraries/System.Text.Json/docs/ThreatModel.md](research/github-runtime-src-libraries-system-text-json-docs-threatmodel-md-main.md) | code | GitHub |  | full | 1 |
@@ -435,11 +439,11 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [Y4er dotnet-deserialization (notes repository)](records/github-y4er-dotnet-deserialization.md) | repo | GitHub |  | full | 1 |
 | [YSoSerial.Net](research/github-pwntester-ysoserial-net.md) | repo | GitHub |  | full | 3 |
 | [ysoserial.net (Mono fork)](research/github-revoverflow-ysoserial.md) | repo | GitHub |  | full | 1 |
-| [(De)serial Killers - BSides Las Vegas & AppSec IL 2018](research/de-serial-killers-dor-tumarkin-bsides-las-vegas-appsec-il-2018-slides.md) | slides | Slideshare | 2018 | full | 1 |
-| [.NET Deserialization Attacks](research/net-deserialization-attacks-dharmalingam-ganesan-slides.md) | slides | Slideshare | 2023 | full | 1 |
-| [.NET Serialization: Detecting and defending vulnerable endpoints](research/net-serialization-detecting-defending-vulnerable-endpoints.md) | slides | Speaker Deck | 2018 | full | 2 |
-| [Attacking .NET Serialization](research/attacking-net-serialization.md) | slides | Speaker Deck | 2017 | full | 2 |
-| [BlueHat v17 \|\| Dangerous Contents](research/dangerous-contents-securing-net-deserialization-jonathan-birch-slides.md) | slides | Slideshare | 2017 | full | 1 |
+| [(De)serial Killers - BSides Las Vegas & AppSec IL 2018](research/2018-slideshare-de-serial-killers-bsides-las-vegas-appsec-il-2018.md) | slides | Slideshare | 2018 | full | 1 |
+| [.NET Deserialization Attacks](research/2023-slideshare-net-deserialization-attacks.md) | slides | Slideshare | 2023 | full | 1 |
+| [.NET Serialization: Detecting and defending vulnerable endpoints](research/2018-speaker-deck-net-serialization-detecting-defending-vulnerable-endpoints.md) | slides | Speaker Deck | 2018 | full | 2 |
+| [Attacking .NET Serialization](research/2017-speaker-deck-attacking-net-serialization.md) | slides | Speaker Deck | 2017 | full | 2 |
+| [BlueHat v17 \|\| Dangerous Contents](research/2017-slideshare-bluehat-v17-dangerous-contents.md) | slides | Slideshare | 2017 | full | 1 |
 | [<loadFromRemoteSources> Element](research/learn-microsoft-com-loadfromremotesources-element.md) | vendor-doc | learn.microsoft.com |  | full | 1 |
 | [ApplicationTrust.FromXml(SecurityElement) Method (System.Security.Policy)](research/learn-microsoft-com-applicationtrust-fromxml-securityelement-method-system-secur.md) | vendor-doc | learn.microsoft.com |  | full | 1 |
 | [AssemblyInstaller Class (System.Configuration.Install)](research/learn-microsoft-com-assemblyinstaller-class-system-configuration-install.md) | vendor-doc | learn.microsoft.com |  | full | 1 |
@@ -495,45 +499,37 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [VirtualPathProvider Class (System.Web.Hosting)](research/learn-microsoft-com-virtualpathprovider-class-system-web-hosting.md) | vendor-doc | learn.microsoft.com |  | full | 1 |
 | [Working with .resx Files Programmatically](research/learn-microsoft-com-working-resx-files-programmatically.md) | vendor-doc | learn.microsoft.com |  | full | 1 |
 | [XamlReader.Parse Method (System.Windows.Markup)](research/learn-microsoft-com-xamlreader-parse-method-system-windows-markup.md) | vendor-doc | learn.microsoft.com |  | full | 1 |
-| [.NET deserialization attacks and their associated threats in the world of CMS - Daniel Susid](research/net-deserialization-attacks-their-associated-threats-world-cms.md) | video | YouTube | 2022 | full | 1 |
-| [.NET Roulette: Exploiting Insecure Deserialization in Telerik UI - Caleb Gross](research/net-roulette-exploiting-insecure-deserialization-telerik-ui-caleb-gross-2020-vid.md) | video | YouTube | 2020 | full | 1 |
-| [Alvaro Muñoz  NET Serialization Detecting and defending vulnerable endpoints](research/net-serialization-detecting-defending-vulnerable-endpoints-alternate-recording.md) | video | YouTube | 2023 | full | 1 |
-| [Alvaro Muñoz: .NET Serialization: Detecting and defending vulnerable endpoints](research/net-serialization-detecting-defending-vulnerable-endpoints-video.md) | video | YouTube | 2018 | full | 1 |
-| [Attacking .NET deserialization - Alvaro Muñoz](research/attacking-net-deserialization-alvaro-munoz-insomni-hack-2018-video.md) | video | YouTube | 2018 | full | 1 |
-| [Black Hat USA 2012 - Are You My Type? Breaking .net Sandboxes Through Serialization](research/you-my-type-breaking-net-sandboxes-through-serialization-james-forshaw-black-hat.md) | video | YouTube | 2013 | full | 1 |
-| [BlueHat v17 \|\| Dangerous Contents - Securing .Net Deserialization](research/dangerous-contents-securing-net-deserialization-jonathan-birch-bluehat-v17.md) | video | YouTube | 2018 | full | 2 |
-| [DEF CON 25 Conference - Alvaro Muñoz, Alexandr Mirosh - Friday the 13th JSON attacks](research/friday-13th-json-attacks-video-demos.md) | video | YouTube | 2017 | full | 2 |
-| [DEF CON 31 - Second Breakfast Implicit & Mutation Based Serialization Vulns in  NET - Jonathan Birch](research/second-breakfast-implicit-mutation-based-serialization-vulnerabilities-net-def-c.md) | video | YouTube | 2023 | full | 1 |
-| [Friday the 13th: Attacking JSON - Alvaro Muñoz & Oleksandr Mirosh - AppSecUSA 2017](research/friday-13th-attacking-json-appsec-usa-2017-video.md) | video | YouTube | 2017 | full | 1 |
-| [From Hexacon 2023 - A Demonstration of CVE-2022-47504: An RCE in SolarWinds NPM](records/hexacon-2023-demonstration-cve-2022-47504-rce-solarwinds-npm-youtube.md) | video | YouTube | 2023 | full | 1 |
-| [HEXACON2023 - Exploiting Hardened .NET Deserialization by Piotr Bazydło](research/exploiting-hardened-net-deserialization-hexacon-2023-video.md) | video | YouTube | 2023 | full | 2 |
-| [OffensiveCon24 - Piotr Bazydlo - Half Measures and Full Compromise](research/half-measures-full-compromise-exploiting-microsoft-exchange-powershell-remoting.md) | video | YouTube | 2024 | full | 1 |
+| [.NET deserialization attacks and their associated threats in the world of CMS - Daniel Susid](research/2022-youtube-net-deserialization-attacks-their-associated-threats-world-susid.md) | video | YouTube | 2022 | full | 1 |
+| [.NET Roulette: Exploiting Insecure Deserialization in Telerik UI - Caleb Gross](research/2020-youtube-net-roulette-exploiting-insecure-deserialization-telerik-ui-gross.md) | video | YouTube | 2020 | full | 1 |
+| [Alvaro Muñoz  NET Serialization Detecting and defending vulnerable endpoints](research/2023-youtube-alvaro-munoz-net-serialization-detecting-defending-endpoints.md) | video | YouTube | 2023 | full | 1 |
+| [Alvaro Muñoz: .NET Serialization: Detecting and defending vulnerable endpoints](research/2018-youtube-alvaro-munoz-net-serialization-detecting-defending-endpoints.md) | video | YouTube | 2018 | full | 1 |
+| [Attacking .NET deserialization - Alvaro Muñoz](research/2018-youtube-attacking-net-deserialization-alvaro-munoz.md) | video | YouTube | 2018 | full | 1 |
+| [Black Hat USA 2012 - Are You My Type? Breaking .net Sandboxes Through Serialization](research/2013-youtube-black-hat-usa-2012-you-my-type-breaking-net-serialization.md) | video | YouTube | 2013 | full | 1 |
+| [BlueHat v17 \|\| Dangerous Contents - Securing .Net Deserialization](research/2018-youtube-bluehat-v17-dangerous-contents-securing-net-deserialization.md) | video | YouTube | 2018 | full | 2 |
+| [DEF CON 25 Conference - Alvaro Muñoz, Alexandr Mirosh - Friday the 13th JSON attacks](research/2017-youtube-def-con-25-conference-alvaro-munoz-alexandr-mirosh-friday-attacks.md) | video | YouTube | 2017 | full | 2 |
+| [DEF CON 31 - Second Breakfast Implicit & Mutation Based Serialization Vulns in  NET - Jonathan Birch](research/2023-youtube-def-con-31-second-breakfast-implicit-mutation-based-birch.md) | video | YouTube | 2023 | full | 1 |
+| [Friday the 13th: Attacking JSON - Alvaro Muñoz & Oleksandr Mirosh - AppSecUSA 2017](research/2017-youtube-friday-13th-attacking-json-alvaro-munoz-oleksandr-mirosh-2017.md) | video | YouTube | 2017 | full | 1 |
+| [HEXACON2023 - Exploiting Hardened .NET Deserialization by Piotr Bazydło](research/2023-youtube-hexacon2023-exploiting-hardened-net-deserialization-piotr-bazydo.md) | video | YouTube | 2023 | full | 2 |
+| [OffensiveCon24 - Piotr Bazydlo - Half Measures and Full Compromise](research/2024-youtube-offensivecon24-piotr-bazydlo-half-measures-full-compromise.md) | video | YouTube | 2024 | full | 1 |
 | [Are you my Type? - Slides](research/you-my-type-slides.md) | whitepaper |  |  | full | 2 |
 | [Are you my Type? - Whitepaper](research/you-my-type-whitepaper.md) | whitepaper |  |  | full | 6 |
-| [aspnet resource files resx deserialization issues](research/aspnet-resource-files-resx-deserialization-issues.md) | whitepaper |  |  | full | 3 |
+| [aspnet resource files resx deserialization issues](research/2018-aspnet-resource-files-resx-deserialization-issues.md) | whitepaper |  | 2018 | full | 3 |
 | [bypassing workflows protection mechanisms remote code execution on sharepoint](research/https-soroush-me-downloadable-bypassing-workflows-protection-mechanisms-remote-c.md) | whitepaper |  |  | full | 1 |
 | [Friday the 13th: JSON Attacks (Alvaro Munoz and Oleksandr Mirosh, DEF CON 25 - slides)](research/friday-13th-json-attacks-alvaro-munoz-oleksandr-mirosh-def-con-25-slides.md) | whitepaper |  |  | metadata | 1 |
 | [Friday the 13th: JSON Attacks - Whitepaper](research/friday-13th-json-attacks-whitepaper.md) | whitepaper |  |  | full | 2 |
-| [History of Deserialization RCE for modern web applications (GoSecure)](research/history-deserialization-rce-modern-web-applications-gosecure.md) | whitepaper |  |  | full | 1 |
+| [History of Deserialization RCE for modern web applications (GoSecure)](research/2019-history-deserialization-rce-modern-web-applications-gosecure.md) | whitepaper |  | 2019 | full | 1 |
 | [https://www.synacktiv.com/ressources/advisories/Sitecore_CSRF_deserialize_RCE.pdf](research/https-www-synacktiv-com-ressources-advisories-sitecore-csrf-deserialize-rce-pdf.md) | whitepaper |  |  | metadata | 1 |
 | [Jonathan Birch Second Breakfast Implicit and Mutation Based Serialization Vulnerabilities in .NET](research/jonathan-birch-second-breakfast-implicit-mutation-based-serialization-net.md) | whitepaper |  |  | metadata | 2 |
 | [Jonathan Birch Second Breakfast Implicit and Mutation Based Serialization Vulnerabilities in .NET whitepaper](research/jonathan-birch-second-breakfast-implicit-mutation-based-whitepaper.md) | whitepaper |  |  | metadata | 2 |
 | [Nullcon Goa 2018 slides](research/nullcon-goa-2018-slides.md) | whitepaper | web.archive.org |  | full | 1 |
 | [ProxyLogon Is Just the Tip of the Iceberg: A New Attack Surface on Microsoft Exchange Server (Orange Tsai, Black Hat USA 2021 - slides)](research/proxylogon-just-tip-iceberg-new-attack-surface-microsoft-exchange-server-orange.md) | whitepaper |  |  | full | 1 |
 | [RCEvil.net (BSides Iowa)](research/rcevil-net-bsides-iowa.md) | whitepaper |  |  | full | 2 |
-| [Security boot camp for .NET developers (Confoo)](research/security-boot-camp-net-developers-confoo.md) | whitepaper |  |  | full | 1 |
+| [Security boot camp for .NET developers (Confoo)](research/2018-security-boot-camp-net-developers-confoo.md) | whitepaper |  | 2018 | full | 1 |
 | [SerialDetector (NDSS 2021 paper PDF)](research/serialdetector-ndss-2021-paper-pdf.md) | whitepaper |  |  | full | 1 |
 | [SOAPwn: Pwning .NET Framework Applications Through HTTP Client Proxies and WSDL (Black Hat EU 2025 - whitepaper)](research/soapwn-pwning-net-framework-applications-through-http-client-proxies-wsdl-black.md) | whitepaper |  |  | metadata | 1 |
 | [SOAPwn: Pwning .NET Framework Applications Through HTTP Client Proxies and WSDL (Piotr Bazydlo, Black Hat EU 2025 - slides)](research/soapwn-pwning-net-framework-applications-through-http-client-proxies-wsdl-piotr.md) | whitepaper |  |  | full | 1 |
 | [SSO Wars: The Token Menace - Whitepaper (Black Hat USA 2019)](research/sso-wars-token-menace-whitepaper-black-hat-usa.md) | whitepaper |  |  | full | 2 |
+| [Transformers: Dark Side of the Type - Weaponizing the Conversion Layer (Oleksandr Mirosh, Black Hat USA 2026 - slides)](research/transformers-dark-side-type-weaponizing-conversion-layer-oleksandr-slides.md) | whitepaper |  |  | full | 1 |
+| [Transformers: Dark Side of the Type - Weaponizing the Conversion Layer (Oleksandr Mirosh, Black Hat USA 2026 - whitepaper)](research/transformers-dark-side-type-weaponizing-conversion-layer-oleksandr-whitepaper.md) | whitepaper |  |  | full | 1 |
 | [Use of Deserialisation in .NET Framework Methods and Classes (session-token research)](research/use-deserialisation-net-framework-methods-classes-session-token-research.md) | whitepaper |  |  | full | 2 |
 | [workflows rce upon compiling xoml using deserialization](research/https-soroush-me-downloadable-workflows-rce-upon-compiling-xoml-using-deserializ.md) | whitepaper |  |  | full | 3 |
-
-## Not archived
-
-Recorded but not preserved, with the reason. Nothing here is lost:
-each one is re-runnable.
-
-| Reference | Why |
-|---|---|
-| <https://www.eye.security/blog/eye-security-uncovers-actively-exploited-zero-day-in-microsoft-sharepoint-cve-2025-53770> | every candidate kept under a third of the 4312 characters the probe saw (widest 946) |

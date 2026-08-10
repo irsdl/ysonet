@@ -98,7 +98,7 @@ not a failure and not a pass. See "Environment verdict" in `CONTRIBUTING.md`.
    is generated and never deserialized, which proves the tool does not resolve `-c` while
    building.
 
-The harness itself is `OobSession` in `ysonet.Tests/Oob.cs`.
+The harness itself is `OobSession` in `ysonet.Tests/Tiers/Oob.cs`.
 
 ## Automated UNC needs a server you own
 

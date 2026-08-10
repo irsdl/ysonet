@@ -181,7 +181,7 @@ ysoserial.net generates deserialization payloads for a variety of .NET formatter
 			                               Choices: 1 (default), 2 (shorter but may not 
 			                               work between versions)
 			
-	(*) ActivitySurrogateSelectorFromFile [Another variant of the ActivitySurrogateSelector gadget. This gadget interprets the command parameter as path to the .cs file that should be compiled as exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.Windows.Forms.dll']
+	(*) ActivitySurrogateSelectorFromFile [Another variant of the ActivitySurrogateSelector gadget. This gadget interprets the command parameter as path to the .cs file that should be compiled as exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.dll']
 		Formatters: BinaryFormatter (2), LosFormatter, SoapFormatter
 			Labels: Not bridge or derived
 			Extra options:
@@ -217,7 +217,7 @@ ysoserial.net generates deserialization payloads for a variety of .NET formatter
 			                             The assembly name you want to use in the 
 			                               generated serialized object (example: 'mscorlib')
 			
-	(*) DataSetOldBehaviourFromFile [Another variant of the DataSetOldBehaviour gadget. This gadget interprets the command parameter as path to the .cs file that should be compiled as exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.Windows.Forms.dll']
+	(*) DataSetOldBehaviourFromFile [Another variant of the DataSetOldBehaviour gadget. This gadget interprets the command parameter as path to the .cs file that should be compiled as exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.dll']
 		Formatters: BinaryFormatter, LosFormatter
 			Labels: Bridge and derived
 			Extra options:
@@ -368,7 +368,7 @@ ysoserial.net generates deserialization payloads for a variety of .NET formatter
 	(*) WindowsPrincipal
 		Formatters: BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter
 			Labels: Bridge and derived
-	(*) XamlAssemblyLoadFromFile [Loads assembly using XAML. This gadget interprets the command parameter as path to the .cs file that should be compiled as exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.Windows.Forms.dll']
+	(*) XamlAssemblyLoadFromFile [Loads assembly using XAML. This gadget interprets the command parameter as path to the .cs file that should be compiled as exploit class. Use a semicolon to separate the file from any additional required assemblies, e.g., '-c ExploitClass.cs;System.dll']
 		Formatters: BinaryFormatter, LosFormatter, NetDataContractSerializer, SoapFormatter
 			Labels: Not bridge but derived
 			Extra options:

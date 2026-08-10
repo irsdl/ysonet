@@ -44,8 +44,19 @@ namespace ysonet.Generators
                 .WithKinds(PayloadKind.CodeExecution)
                 .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
                     GadgetRequirement.NetFramework)
-                // PresentationFramework 4.0.0.0 chain; fired on 4.8.1
-                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
+                // ObjectDataProvider and XamlReader are PresentationFramework types, and
+                // PresentationFramework shipped in .NET 3.0 - the 4.0 floor this gadget used to
+                // declare was a property of the identity string the payload writes, not of the
+                // technique. Fired on 4.8.1, and the LEGACY tier fired it on CLR 2 in the 3.5
+                // lane with --legacyfx, on XmlSerializer (XamlReader.Parse) and on
+                // JavaScriptSerializer, loading only PresentationFramework/PresentationCore/
+                // WindowsBase 3.0.0.0, System.Core and System.Data.Services 3.5.0.0.
+                //
+                // The floor is 3.5 rather than 3.0 because of the CARRIER, not the provider:
+                // every CLR-2-capable reader here reaches it either through the 3.5
+                // System.Data.Services `ExpandedWrapper`2` or through JavaScriptSerializer,
+                // which is itself 3.5. See AdditionalInfo() for the --legacyfx condition.
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx35, RuntimeVersion.NetFx481));
         }
 
         private int variant_number = 1; // Default
@@ -73,6 +84,20 @@ namespace ysonet.Generators
             return "Oleksandr Mirosh, Alvaro Munoz";
         }
 
+        public override string AdditionalInfo()
+        {
+            // The version facet records 3.5 because that is what fired; this records the
+            // CONDITION, because a facet value cannot. Without --legacyfx the payload names
+            // PresentationFramework 4.0.0.0 and a CLR-2 reader refuses it: XmlSerializer and
+            // DataContractSerializer resolve the <root type=...> envelope with Type.GetType,
+            // which does not unify a version, and the 3.5 JavaScriptSerializer type resolver
+            // refuses without naming anything at all.
+            return "Reaching a .NET Framework 3.5 target needs --legacyfx, which rewrites the"
+                + " PresentationFramework identity to 3.0.0.0. Measured there on XmlSerializer"
+                + " and JavaScriptSerializer; DataContractSerializer binds every assembly and"
+                + " still fails to build the projected property on the 3.0 reader.";
+        }
+
         // Variant meaning depends on the formatter. Three of them branch on the number, and
         // SupportedFormatters() annotates exactly those three: Xaml (the ResourceDictionary
         // container), XmlSerializer (a LosFormatter inner payload) and DataContractSerializer
@@ -93,7 +118,23 @@ namespace ysonet.Generators
             return new List<GadgetVariant>
             {
                 new GadgetVariant(1, "plain ObjectDataProvider (default)"),
+                // Variant 2 keeps the 4.0 floor the gadget used to declare, and it is MEASURED
+                // rather than inherited. The 3.5 evidence belongs to variant 1 only, and variant
+                // 2 cannot reach CLR 2 on any of the three formatters that branch on it: Xaml is
+                // System.Xaml 4.0 and never exists there; on XmlSerializer variant 2 wraps a
+                // LosFormatter inner payload built on SortedSet`1, which arrived in 4.0; and on
+                // DataContractSerializer it fails with the same unexplained NullReferenceException
+                // variant 1 does, so the reader rather than the shape is the blocker. Recorded by
+                // the LEGACY rows in ysonet.Tests/Tiers/LegacyClrTier.cs.
+                //
+                // An override replaces the WHOLE facet set, so everything the gadget-level set
+                // declares is repeated here on purpose.
                 new GadgetVariant(2, "ResourceDictionary wrapper (Xaml) / LosFormatter inner (XmlSerializer)")
+                    .WithFacets(new GadgetFacetSet()
+                        .WithKinds(PayloadKind.CodeExecution)
+                        .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
+                            GadgetRequirement.NetFramework)
+                        .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481)))
             };
         }
 
@@ -206,18 +247,7 @@ namespace ysonet.Generators
                 // the mechanic is a shared one now (GenericGenerator.SelfTestNeedsStaThread).
                 // Variants 1 and 2 build no WPF object themselves, so a plain deserialize is
                 // all this path ever needed.
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.Xaml_deserialize(payload);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             if (formatter.ToLower().Equals("json.net"))
             {
@@ -255,18 +285,7 @@ namespace ysonet.Generators
                     }
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.JsonNet_deserialize(payload);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("fastjson"))
             {
@@ -310,19 +329,7 @@ namespace ysonet.Generators
                     payload = JsonMinifier.Minify(payload, null, null);
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        var instance = JSON.ToObject<Object>(payload);
-
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("javascriptserializer"))
             {
@@ -356,18 +363,7 @@ namespace ysonet.Generators
                     payload = JsonMinifier.Minify(payload, null, null);
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.JavaScriptSerializer_deserialize(payload);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("xmlserializer"))
             {
@@ -433,18 +429,7 @@ namespace ysonet.Generators
                 }
 
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.XmlSerializer_deserialize(payload, null, "root", "type");
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("datacontractserializer"))
             {
@@ -520,18 +505,7 @@ namespace ysonet.Generators
                     payload = XmlMinifier.Minify(payload, null, null, FormatterType.DataContractXML, true);
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.DataContractSerializer_deserialize(payload, null, "root", "type");
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("yamldotnet"))
             {
@@ -567,18 +541,7 @@ namespace ysonet.Generators
                     payload = YamlMinifier.Minify(payload);
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.YamlDotNet_deserialize(payload);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLower().Equals("fspickler"))
             {
@@ -642,18 +605,7 @@ namespace ysonet.Generators
                     payload = JsonMinifier.Minify(payload, null, null);
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.FsPickler_deserialize(payload);
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-                return payload;
+                return FinishHandWrittenPayload(payload, formatter, inputArgs, null, true);
             }
             else if (formatter.ToLowerInvariant().Equals("sharpserializerbinary") || formatter.ToLowerInvariant().Equals("sharpserializerxml"))
             {

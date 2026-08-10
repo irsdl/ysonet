@@ -45,11 +45,12 @@ claims and run the full suite yourself. Both auto-detect the repo root.
   It prints the authoritative gadget/plugin catalog (from the built exe's
   `--list`, or an APPROXIMATE static scan if there is no Debug build), the
   ARCHITECTURE.md declared counts and `Last reviewed` version vs `VERSION`,
-  validates every built gadget's variant-number sequence, audits test fire safety
-  (no fire scope executes a real application or a literal command; the sink is
-  wired and staged), and, per gadget and plugin, reports whether it is missing
-  from ARCHITECTURE.md, the docs, or the tests. Build Debug first so the catalog
-  and variant data are exact.
+  validates every built gadget's variant sequence, compares formatter-count
+  suffixes with variant metadata, flags formatter-dependent option axes for
+  semantic review, audits test fire safety (no fire scope executes a real
+  application or a literal command; the
+  sink is wired and staged), and reports catalog gaps across ARCHITECTURE.md,
+  docs, and tests. Build Debug first so the catalog and metadata are exact.
 - Skill/agent frontmatter and style (check 6): run
   `powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/scripts/check-skills.ps1"`.
   It validates every `.claude/skills/*/SKILL.md` against the hard limits in
@@ -72,7 +73,12 @@ not assert from memory.
 - Compare every doc under `docs/` against the code it describes: `README.md`,
   `gadgets-and-plugins.md`, `getting-started.md`, `usage-and-examples.md`,
   `minification-savings.md`, `credits.md`, `references.md`,
-  `dependency-security.md`.
+  `dotnet-deserialization-research.md`, `dependency-security.md`.
+- Run `python tools/references/refs.py verify` for the reference archive. It is
+  offline and instant. It checks the archive against what was actually acquired,
+  that every published file still names its source, and that neither curated
+  reading list was modified by an archive run. A failure there is a real defect,
+  not noise.
 - Check that gadget names, plugin names, option flags, example commands, and
   counts in the docs still exist and still behave as written.
 - Flag stale flags, renamed gadgets, dropped or added options, and example
@@ -171,21 +177,20 @@ doubles under a `Helpers.TestingArena` namespace merely for mentioning
   stale.
 - Formatter display annotations state the real variant count. A `(N)` suffix in a
   `SupportedFormatters()` token means "this formatter carries N variants"; a bare
-  name means one. For every gadget with more than one `GadgetVariant`, derive the
-  per-formatter count from `Variants()`, each variant's `.Without(...)` list, and any
-  formatter-specific branching in `Generate()`, then compare it against:
+  name means one. It never counts combinations with an independent option such as
+  a root/container/carrier selector. Count a variant when that formatter supports
+  it in at least one valid option setting. Separately audit every option whose value
+  changes formatter compatibility using
+  `references/formatter-option-matrices.md`. Derive the per-formatter count from
+  `Variants()`, `.Without(...)`, option guards, and `Generate()`, then compare it to:
   - the token in `SupportedFormatters()`;
   - the row in `docs/gadgets-and-plugins.md`;
   - the formatter column of the gadget table in `docs/ARCHITECTURE.md`.
-  Report a missing suffix on a multi-variant gadget (the catalog then understates
-  coverage and reads as single-variant), a wrong number, and a suffix on a
-  single-variant gadget. Counts are per formatter, not per gadget:
-  `WindowsClaimsIdentityGenerator.cs` is the reference case, with different numbers
-  per formatter. The suffix is display-only because every consumer splits on the
-  first space, so a wrong count breaks no payload; it misleads the user, which is
-  why it is still a finding. Every multi-variant gadget was annotated on
-  2026-07-25, so there is no backlog to excuse a gap: a missing or wrong suffix is
-  a new defect.
+  Report a missing or wrong suffix, a suffix on a single-variant formatter, an
+  undocumented option restriction, ambiguous help that makes option values look
+  like variant counts, and any supported/refused matrix boundary with no test.
+  Counts are per formatter; `WindowsClaimsIdentityGenerator.cs` is the differing-
+  count reference. The suffix is display-only, but a wrong count misleads users.
 - Hosted payloads sit in the right folder with the right tag. The two must agree,
   and both must match what the code does. For every gadget, read what reaches
   `Serialize()`:
@@ -468,6 +473,8 @@ say which gadgets, plugins, docs, and surfaces were checked, not just "all good"
       gadget hands to `Serialize()` (check 4).
 - [ ] Every multi-variant gadget's `(N)` formatter annotation matches the real
       per-formatter variant count, in code and in both docs (check 4).
+- [ ] Every independent option that changes formatter support has a verified
+      formatter x variant x option matrix, unambiguous help, and boundary tests.
 - [ ] Every non-empty `Variants()` list is exactly `1, 2, ..., N` in order, and
       `GadgetsDeclareVariants` enforces that invariant catalogue-wide (checks 4-5).
 - [ ] Every new runtime-gated gadget names a verified working target version,

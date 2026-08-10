@@ -12,6 +12,7 @@ is authoritative.
 """
 
 import hashlib
+import json
 import os
 import re
 
@@ -53,8 +54,44 @@ def run(root, config, manifest, store, curated_hashes=None):
     findings.extend(_check_curated_untouched(root, config, curated_hashes))
     findings.extend(_check_boundary(root))
     findings.extend(_check_manifest(manifest))
+    findings.extend(_check_no_local_path_in_state(manifest))
     findings.extend(_check_store(manifest, store))
     findings.extend(check_published_attribution(root, config))
+    findings.extend(_check_translations(manifest, store))
+    return findings
+
+
+def _check_translations(manifest, store):
+    """A document not in English must carry an English translation.
+
+    THIS IS THE STEP THAT GETS FORGOTTEN. Acquiring, classifying and rendering a
+    foreign-language write-up all succeed on their own, and the result looks
+    finished: a file with frontmatter, attribution and content. Only a reader who
+    cannot read the content finds out, long after the run. So the gate asks the
+    question every time rather than trusting whoever ran the pipeline to notice.
+    """
+    from refslib import translate
+
+    missing = []
+    for key, entry in (manifest.data.get("urls") or {}).items():
+        sha = entry.get("content_sha256")
+        if not sha or not store.has(sha):
+            # Already reported as a missing store object by `_check_store`.
+            continue
+        if entry.get("translation_sha256"):
+            continue
+        if not translate.has_foreign_prose(
+                store.get_text(sha), entry.get("language") or "",
+                {field: entry.get(field) or ""
+                 for field in translate.METADATA_FIELDS}):
+            continue
+        missing.append(entry.get("slug") or key)
+    findings = []
+    if missing:
+        findings.append(Finding(
+            "warn", "untranslated documents",
+            "%d document(s) are not in English and have no translation, e.g. %s. "
+            "Run 'refs.py translate --prepare'." % (len(missing), missing[0])))
     return findings
 
 
@@ -339,6 +376,63 @@ def _check_manifest(manifest):
             findings.append(Finding(
                 "fail", "a blocked row selected a capture", key +
                 " is unreadable over plain HTTP, which says nothing about the page."))
+    return findings
+
+
+def _is_url_field(name):
+    # A URL legitimately contains a "s:/" and path-looking runs, so it is never
+    # treated as a local path. Everything else is fair game.
+    return name == "url" or name.endswith("_url")
+
+
+def _abs_path_in_row(row):
+    """The first (field, value) in a record row whose value carries an absolute
+    local path, or None. Nested lists are checked; deeper structures are not,
+    because a manifest row is flat."""
+    if not isinstance(row, dict):
+        return None
+    for field, value in row.items():
+        if _is_url_field(field):
+            continue
+        values = value if isinstance(value, list) else [value]
+        for item in values:
+            if isinstance(item, str) and ABSOLUTE_PATH.search(item):
+                return field, item
+    return None
+
+
+def _check_no_local_path_in_state(manifest):
+    """No absolute local path in any recorded field of the manifest or journal.
+
+    `_check_manifest` covers the PATH_FIELDS, whose values are paths by design.
+    This is the other channel a real leak came through: a path baked into a
+    free-text field like a step 'reason' (a git clone target in a failure
+    message), and the append-only journal that keeps that line forever even after
+    the manifest row is overwritten by a later run. paths.redact_text now scrubs
+    these at write time; this asserts nothing slipped past it."""
+    findings = []
+    for key, entry in (manifest.data.get("urls") or {}).items():
+        for step, row in (entry.get("steps") or {}).items():
+            hit = _abs_path_in_row(row)
+            if hit:
+                findings.append(Finding("fail", "absolute path in a manifest field",
+                                        "%s [%s] -> %s" % (key, "%s.%s" % (step, hit[0]),
+                                                           hit[1][:70])))
+    journal = getattr(manifest, "journal_path", None)
+    if journal and os.path.exists(journal):
+        with open(journal, "r", encoding="utf-8") as stream:
+            for number, line in enumerate(stream, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                hit = _abs_path_in_row(row)
+                if hit:
+                    findings.append(Finding("fail", "absolute path in the history journal",
+                                            "line %d [%s] -> %s" % (number, hit[0], hit[1][:70])))
     return findings
 
 

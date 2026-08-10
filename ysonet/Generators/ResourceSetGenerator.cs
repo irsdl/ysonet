@@ -264,42 +264,14 @@ namespace ysonet.Generators
 
                 if (formatter.Equals("binaryformatter", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (inputArgs.Test)
-                    {
-                        try
-                        {
-                            MemoryStream ms = new MemoryStream(bfSerializedObj);
-                            ms.Position = 0;
-                            System.Runtime.Serialization.Formatters.Binary.BinaryFormatter bf = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-                            bf.Deserialize(ms);
-                        }
-                        catch (Exception err)
-                        {
-                            Debugging.ShowErrors(inputArgs, err);
-                        }
-                    }
-                    return bfSerializedObj;
+                    return FinishHandWrittenPayload(bfSerializedObj, formatter, inputArgs, null, true);
                 }
                 else
                 {
                     // it is LosFormatter
                     byte[] lfSerializedObj = SimpleMinifiedObjectLosFormatter.BFStreamToLosFormatterStream(bfSerializedObj);
 
-                    MemoryStream ms = new MemoryStream(lfSerializedObj);
-                    ms.Position = 0;
-                    if (inputArgs.Test)
-                    {
-                        try
-                        {
-                            System.Web.UI.LosFormatter lf = new System.Web.UI.LosFormatter();
-                            lf.Deserialize(ms);
-                        }
-                        catch (Exception err)
-                        {
-                            Debugging.ShowErrors(inputArgs, err);
-                        }
-                    }
-                    return lfSerializedObj;
+                    return FinishHandWrittenPayload(lfSerializedObj, formatter, inputArgs, null, true);
                 }
                 //return Serialize(myResourceSet, formatter, inputArgs);
             }
@@ -351,24 +323,7 @@ namespace ysonet.Generators
                     }
                 }
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        SerializersHelper.NetDataContractSerializer_deserialize(ndcPayload);
-                        /*
-                        MemoryStream ms = new MemoryStream(Encoding.UTF8.GetBytes(ndcPayload));
-                        ms.Position = 0;
-                        ndcs.Deserialize(ms);
-                        */
-                    }
-                    catch (Exception err)
-                    {
-                        Debugging.ShowErrors(inputArgs, err);
-                    }
-                }
-
-                return ndcPayload;
+                return FinishHandWrittenPayload(ndcPayload, formatter, inputArgs, null, true);
                 //return Serialize(myResourceSet, formatter, inputArgs);
             }
             else

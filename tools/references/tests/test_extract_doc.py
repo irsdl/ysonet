@@ -165,3 +165,34 @@ class TestATruncatedPdfIsRefused(unittest.TestCase):
     def test_the_reason_names_the_size_so_a_cap_is_recognisable(self):
         cut = extract_doc.looks_truncated(b"%PDF-1.4\n" + b"x" * (2 * 1024 * 1024))
         self.assertIn("2097161", cut.replace(",", ""))
+
+
+class TestKerningDrawnWordSpaces(unittest.TestCase):
+    """A TJ array interleaves strings with horizontal adjustments, and plenty of
+    typesetters - TeX above all - never emit a space character at all, drawing
+    every word gap with one of those numbers. Dropping them cost a 566,247
+    character doctoral thesis all but 951 of its spaces: `dataflow` survived as
+    `data ow` and the title as `Code-ReuseAttacksinManagedProgramming`."""
+
+    def test_a_wide_negative_adjustment_becomes_a_space(self):
+        text = extract_doc._show_array(b"(Code)-278(Reuse)-278(Attacks)")
+        self.assertEqual(text, "Code Reuse Attacks")
+
+    def test_ordinary_kerning_does_not_become_a_space(self):
+        """A letter pair is nudged by a few thousandths of an em."""
+        self.assertEqual(extract_doc._show_array(b"(A)-30(V)-25(a)"), "AVa")
+
+    def test_a_positive_adjustment_is_never_a_space(self):
+        self.assertEqual(extract_doc._show_array(b"(A)120(B)"), "AB")
+
+    def test_a_document_that_does_emit_spaces_is_unchanged(self):
+        self.assertEqual(extract_doc._show_array(b"(Hello world)"), "Hello world")
+
+    def test_a_fractional_adjustment_is_read(self):
+        self.assertEqual(extract_doc._show_array(b"(a)-250.5(b)"), "a b")
+
+    def test_the_threshold_sits_between_the_two_uses(self):
+        """Below it is kerning, above it is a word break. Stated here so the
+        number cannot drift without a test saying so."""
+        self.assertGreater(extract_doc.SPACE_KERN, 100)
+        self.assertLess(extract_doc.SPACE_KERN, 250)
