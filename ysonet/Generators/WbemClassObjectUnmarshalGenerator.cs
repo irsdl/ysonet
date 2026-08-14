@@ -394,7 +394,8 @@ namespace ysonet.Generators
                         + "constructor. Use it when the target names its own root type (a plain "
                         + "DataContractSerializer consumer can only ever name a public one), or "
                         + "when a rule keys on the internal name. "
-                        + CarrierTwoFormatterNote,
+                        + CarrierTwoFormatterNote
+                        + " The (2) formatter annotation counts blob variants, not root-carrier choices.",
                     v => rootCarrier = ParseRootCarrierOption(v)
                 },
             };
@@ -762,27 +763,18 @@ namespace ysonet.Generators
         // here is the same as TempFileCollection's: verify the emitted document, do not
         // predict which characters are at risk.
         //
-        // Whitespace is removed from both sides before comparing because base64 is
-        // whitespace-insensitive: every reader here ignores line breaks inside it, so a
-        // wrapped value is intact, not corrupted. BinaryFormatter and LosFormatter carry the
-        // byte[] as a length-prefixed record with no text encoding at all, so they are
-        // skipped rather than checked against a base64 string they never contain.
+        // MinifiedTextGuard removes whitespace from both sides before comparing because
+        // base64 is whitespace-insensitive: every reader here ignores line breaks inside it,
+        // so a wrapped value is intact, not corrupted. BinaryFormatter and LosFormatter carry
+        // the byte[] as a length-prefixed record with no text encoding at all, so this caller
+        // skips them rather than checking for a base64 string they never contain.
         private void RequireBlobArrivesIntact(object payload, string formatter, string base64)
         {
             if (IsFormatter(formatter, Formatters.BinaryFormatter)
                 || IsFormatter(formatter, Formatters.LosFormatter))
                 return;
 
-            string text = payload as string;
-            if (text == null)
-            {
-                byte[] bytes = payload as byte[];
-                if (bytes == null)
-                    return;
-                text = Encoding.UTF8.GetString(bytes);
-            }
-
-            if (StripWhitespace(text).IndexOf(StripWhitespace(base64), StringComparison.Ordinal) >= 0)
+            if (MinifiedTextGuard.CarriesBase64(payload, base64))
                 return;
 
             throw new Exception(Name() + " did not carry its blob through " + formatter
@@ -790,15 +782,6 @@ namespace ysonet.Generators
                 + "This is a bug in the gadget or in the minifier, not in your input; generate "
                 + "without --minify, or use BinaryFormatter or LosFormatter, whose streams carry "
                 + "the bytes unchanged.");
-        }
-
-        private static string StripWhitespace(string value)
-        {
-            var sb = new StringBuilder(value.Length);
-            foreach (char c in value)
-                if (!char.IsWhiteSpace(c))
-                    sb.Append(c);
-            return sb.ToString();
         }
 
         // ---- Carrier guard -----------------------------------------------------

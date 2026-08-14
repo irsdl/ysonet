@@ -75,19 +75,19 @@ namespace ysonet.Generators
                 inputArgs.Cmd = cmdFromFile;
             }
 
-            Delegate da = new Comparison<string>(String.Compare);
-            Comparison<string> d = (Comparison<string>)MulticastDelegate.Combine(da, da);
+            string executable = inputArgs.CmdFileName;
+            // Process.Start takes two arguments, so the set always holds two elements.
+            string arguments = inputArgs.HasArguments ? inputArgs.CmdArguments : "";
+
+            Comparison<string> benign = new Comparison<string>(String.Compare);
+            // Slot 0 is the benign comparison; slot 1 only orders the set while it is filled
+            // here, and both slots are replaced below before anything is serialized.
+            Comparison<string> d = (Comparison<string>)MulticastDelegate.Combine(
+                benign, FillOrderPuttingTheExecutableLast(benign, executable));
             IComparer<string> comp = Comparer<string>.Create(d);
             SortedSet<string> set = new SortedSet<string>(comp);
-            set.Add(inputArgs.CmdFileName);
-            if (inputArgs.HasArguments)
-            {
-                set.Add(inputArgs.CmdArguments);
-            }
-            else
-            {
-                set.Add(""); // this is needed (as Process.Start accepts two args)
-            }
+            set.Add(executable);
+            set.Add(arguments);
 
             // MulticastDelegate stores its invocation list under different private
             // field names per runtime: Mono calls it "delegates", .NET Framework calls
@@ -106,5 +106,29 @@ namespace ysonet.Generators
             return set;
         }
 
+        // The set serializes its two elements smallest first, and on deserialize the target
+        // compares the SECOND one against the first - which is what makes that second element
+        // Process.Start's file name. Left to the strings themselves the order is luck: the
+        // default -c path wraps the command as "cmd" and "/c ...", which always sorts the
+        // right way round, but --rawcmd removes that wrapper and a command like
+        // "notepad.exe zzz.txt" sorts the executable BELOW its argument, which used to build
+        // Process.Start("zzz.txt", "notepad.exe").
+        //
+        // A multicast Comparison returns the result of the LAST method in its invocation list,
+        // which is slot 1 - and both slots are replaced with Process.Start before the set is
+        // serialized. So an ordering placed there decides the serialized order and never
+        // reaches the wire; the bytes are unchanged for every command that already sorted the
+        // right way round. Equality still comes from the benign comparison, so equal strings
+        // still collapse the set to one element exactly as before.
+        private static Comparison<string> FillOrderPuttingTheExecutableLast(
+            Comparison<string> benign, string executable)
+        {
+            return delegate(string x, string y)
+            {
+                if (benign(x, y) == 0)
+                    return 0;
+                return String.Equals(x, executable, StringComparison.Ordinal) ? 1 : -1;
+            };
+        }
     }
 }

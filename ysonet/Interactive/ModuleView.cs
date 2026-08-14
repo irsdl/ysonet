@@ -21,6 +21,7 @@ namespace ysonet.Interactive
         public List<GadgetVariant> Variants;  // gadgets only; empty if none
         public GadgetFacetSet Facets;         // gadgets only; variant may override it
         public bool SupportsLegacyFx;          // gadgets only; controls the shared field
+        public List<string> RuntimeVersions;  // plugins only; empty for gadgets
         public List<OptionField> OptionFields;
         public List<PluginMode> Modes;        // plugins that declare interactive modes; else null
 
@@ -56,6 +57,7 @@ namespace ysonet.Interactive
             view.Variants = g.Variants();
             view.Facets = g.Facets();
             view.SupportsLegacyFx = g.SupportsLegacyFx();
+            view.RuntimeVersions = new List<string>();
             view.OptionFields = OptionField.FromOptionSet(g.Options());
             return view;
         }
@@ -76,6 +78,7 @@ namespace ysonet.Interactive
             view.BridgedFormatter = "";
             view.Variants = new List<GadgetVariant>();
             view.Facets = null;
+            view.RuntimeVersions = new List<string>(p.RuntimeVersions());
             view.OptionFields = OptionField.FromOptionSet(p.Options());
             view.Modes = (p is IPluginModes) ? ((IPluginModes)p).InteractiveModes() : null;
             return view;
@@ -112,6 +115,11 @@ namespace ysonet.Interactive
                 if (g != null)
                     foreach (string cl in GadgetCategoryCommand.CompactLines(g, "  "))
                         lines.Add(cl);
+            }
+            else if (RuntimeVersions != null && RuntimeVersions.Count > 0)
+            {
+                lines.Add("  Runtime versions: "
+                    + GadgetFacetReader.VersionSummary(RuntimeVersions));
             }
 
             if (OptionFields != null && OptionFields.Count > 0)

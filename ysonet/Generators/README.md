@@ -113,6 +113,38 @@ Two things are NOT input validation and stay as they are:
 - **Scope.** Declining to become a generic "instantiate any type" tool is a decision about
   what the gadget IS. It is not a judgement about the operator's input.
 
+# Option help is an INPUT: how to state a `Default:`
+
+An option's help text is not only documentation. NDesk.Options records no default, no
+choice set and no required flag (the validation is a compiled lambda), so the interactive
+editor RECOVERS them from the help text: `EditableField.ParseDefault` reads the value after
+a `Default:` marker, the editor pre-fills the field with it, and `ModuleEditor.CollectGadget`
+puts it on the generated command line. A default the parser reads wrongly therefore SHIPS,
+as a well-formed payload built around a value the module never meant. The command line
+never reads help text, so only an interactive user meets it.
+
+- **State it as `Default: <value>`.** The colon is required, so prose like "no default is
+  assumed" is not read as a value. An unquoted value ends at the first comma, semicolon,
+  bracket, space, line break, or sentence-ending period. A period only ends a sentence when
+  whitespace or the end of the text follows it, so `System.Data.Entity.Design.SsdlGenerator`
+  and `payload.resources` stay whole, and `Default: AES. e.g: ...` and `Default: b.` at the
+  end of a line both stop at the period.
+- **Quote a value that contains a separator.** A comma always ends an unquoted value, so an
+  assembly display name has no other safe form:
+  `Default: "System.Management.Automation, Version=3.0.0.0, Culture=neutral, PublicKeyToken=..."`
+  (`WSManPluginInstance --assembly`). Quoting is also how you say "the whole string is the
+  value", which leaves nothing to guess from punctuation, so prefer it whenever the value
+  is not one plain token.
+- **An option whose default depends on ANOTHER option carries no `Default:` marker at
+  all.** Describe both defaults in prose and let the module's own resolution apply. Any
+  single token would be wrong for one of the cases and the editor would emit it
+  (`AltserializationPlugin`'s inner-gadget option is the worked example).
+
+`EditorDefaultsAreCompleteValuesNotTruncations` audits every gadget and plugin option for
+a default that is only the front half of a value, and
+`EveryGadgetEditorDefaultMatchesTheGadgetsOwnDefault` proves the editor's pre-filled
+defaults generate the same payload as typing nothing at all.
+
 # `-t` (self-test) policy
 
 `-t` means "deserialize the finished payload here so I can see it work". **Accept it by

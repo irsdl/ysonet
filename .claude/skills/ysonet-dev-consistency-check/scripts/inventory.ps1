@@ -467,7 +467,13 @@ if ($placementProblems -eq 0) {
 
 $testsDir = Join-Path $RepoRoot 'ysonet.Tests'
 $sinkOwnerFile = 'ysonet.Tests/Harness/TestSink.cs'
-$launcherRe = '(?i)\b(calc|notepad|mspaint|wordpad|winword|excel|iexplore|explorer|taskmgr|control|powershell|pwsh|wscript|cscript|rundll32|mshta)(\.exe)?\b'
+# `control` is the one launcher name that is also ordinary English, and the suite uses
+# it constantly for a "control payload" (102 prose uses, 0 uses of control.exe). With
+# the extension optional it reported nothing but noise, and a section that cries wolf
+# gets skipped, so this name alone requires the `.exe`. Coverage is not lost: a bare
+# `cmd /c control` is still reported by the REVIEW rule below, which flags any literal
+# shell command in the test sources.
+$launcherRe = '(?i)(\b(calc|notepad|mspaint|wordpad|winword|excel|iexplore|explorer|taskmgr|powershell|pwsh|wscript|cscript|rundll32|mshta)(\.exe)?\b|\bcontrol\.exe\b)'
 
 # Replace every string/char literal with a same-length filler, so brace depth and
 # the "//" comment index can be found without a literal confusing either.

@@ -105,7 +105,9 @@ while ($true) { Get-Content "$env:TEMP\..\ysonet_testrun.txt"; Start-Sleep 2; Cl
 
 `state=finished` means the run completed (even if it failed - check `failed` and `exit_code`). `state=running` with an `updated_utc` more than a few seconds old means the run was interrupted; there is no `crashed` state, because a killed process cannot write one.
 
-Each mechanism has an off switch: `--ui-isolation=none`, `--wer-containment=off`, `--status-file=off`, and `YSONET_TEST_SINK=off`. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the details.
+Only one automated run happens at a time on a machine: a second one waits for the first and says who is holding it. Separate checkouts do not change that, because the runs share CPU and the same local probes.
+
+Each mechanism has an off switch: `--ui-isolation=none`, `--wer-containment=off`, `--status-file=off`, `--test-lock=off`, and `YSONET_TEST_SINK=off`. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the details.
 
 Test policy and how to extend: never weaken a test to make it pass (investigate and fix the root cause; see the "Test integrity policy" in [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md)). A new gadget/formatter/variant is covered automatically by the generation matrix; a new gadget's runtime EFFECT and a new PLUGIN MODE must be added by hand. See [Architecture](ARCHITECTURE.md) (the `ysonet.Tests` section and "How to add things") for where each kind of coverage goes.
 

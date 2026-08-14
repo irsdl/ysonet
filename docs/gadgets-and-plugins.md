@@ -101,7 +101,9 @@ Xps (Generates a malicious XPS document (CVE-2020-0605) - binary output, use --o
 
 ### Plugin options
 
-For help on a specific plugin's options, use `-h` with `-p <plugin name>`. Example:
+For a plugin's target-runtime evidence and options, use `-h` with `-p <plugin name>`.
+`Runtime versions: Unspecified` means no concrete target runtime has been evidenced yet.
+Example:
 
 ```text
 ./ysonet.exe -h -p DotNetNuke
@@ -111,6 +113,8 @@ ysonet generates deserialization payloads for a variety of .NET formatters.
 Plugin:
 
 DotNetNuke (Generates payload for DotNetNuke CVE-2017-9822)
+
+Runtime versions: Unspecified
 
 Options:
 

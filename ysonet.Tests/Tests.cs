@@ -41,6 +41,11 @@ namespace ysonet.Tests
         // runner's whole lifetime so the limit stays in force.
         private static WerContainment _wer;
 
+        // One automated run at a time on this machine, held from before the first probe until
+        // the last row. Never null after startup: --test-lock=off yields an instance that
+        // holds nothing.
+        private static TestRunLock _testLock;
+
         // 1-based position of the row being run, published in the status file.
         private static int _rowIndex;
 
@@ -52,6 +57,7 @@ namespace ysonet.Tests
         private const string WerProbeVar = "YSONET_WER_PROBE";
         private const string StatusProbeVar = "YSONET_STATUS_PROBE";
         private const string ViewStateProbeVar = "YSONET_VIEWSTATE_PROBE";
+        private const string TestLockProbeVar = "YSONET_TESTLOCK_PROBE";
 
         // The job this process belongs to, whether it created it or inherited it from the
         // hidden-desktop parent. Null when containment is off or unavailable.
@@ -79,6 +85,10 @@ namespace ysonet.Tests
             if (containerProbe != null) return XamlContainerProbe(containerProbe);
             string viewStateProbe = Environment.GetEnvironmentVariable(ViewStateProbeVar);
             if (viewStateProbe != null) return ViewStateProbe(viewStateProbe);
+            // Holds a NAMED lock of its own and never the run lock, so it can be started
+            // while this suite is itself holding the real one.
+            string lockProbe = Environment.GetEnvironmentVariable(TestLockProbeVar);
+            if (lockProbe != null) return TestLockProbe(lockProbe);
 
             TestRunOptions options = TestRunOptions.Parse(args, Environment.GetEnvironmentVariable,
                 System.Diagnostics.Debugger.IsAttached);
@@ -137,6 +147,14 @@ namespace ysonet.Tests
             _dosGenerationAllowed = options.Dos;
             SweepStaleTestArtifacts();
 
+            // One automated run at a time on this machine, taken BEFORE the sink probe: that
+            // probe launches a process and reads its record on a tight budget, so it is one of
+            // the first things a competing run breaks. Waiting is reported to stderr rather
+            // than to the status file, because this run has not published one yet - the peer
+            // holds the canonical path until it finishes.
+            _testLock = TestRunLock.Acquire(options.TestLock, ResolveTestArtifactRoot(),
+                Console.Error.WriteLine);
+
             // One fire backend for the whole run, chosen before the first row so no gadget or
             // plugin assertion has to know which one is live.
             FireBackend.Select(options.SinkAllowed, ResolveTestArtifactDir(), MarkerPath);
@@ -159,6 +177,7 @@ namespace ysonet.Tests
             if (handoffNote != null)
                 Console.Error.WriteLine("  note: " + handoffNote);
             Console.Error.WriteLine("WER containment: " + werDescription);
+            Console.Error.WriteLine("Test lock: " + _testLock.Description);
             Console.Error.WriteLine("Fire backend: " + FireBackend.Description);
             Console.Error.WriteLine();
 
@@ -215,6 +234,7 @@ namespace ysonet.Tests
             Run("OptionField flag vs value ToArgv", OptionFieldToArgv);
             Run("CommandEcho quotes and builds", CommandEchoBuild);
             Run("CommandEcho gadget tokens shape", CommandEchoGadgetTokens);
+            Run("JSON string escapers encode every control character", JsonStringEscapersEncodeEveryControlCharacter);
             Run("Local self-test resolves current-runtime and CLR2 targets explicitly", SelfTestTargetsStayExplicit);
             Run("The shipped CLR2 host reads an inert payload when available", Clr2HostReadsAnInertPayload);
             Run("The CLR4 test host parses args and reads an inert payload", Clr4HostReadsAnInertPayload);
@@ -257,6 +277,7 @@ namespace ysonet.Tests
             Run("TCD variant formatter opt-outs match their authored graphs", VariantFormatterOptOutWiring);
             Run("Editor blocks a variant+formatter mismatch at generate", EditorBlocksVariantFormatterMismatch);
             Run("Guard rejects variant+formatter mismatch on the non-UI path", GuardBlocksVariantFormatterOnNonUiPath);
+            Run("Sparse formatter matrices reject every unsupported variant", SparseFormatterMatricesRejectUnsupportedVariants);
             Run("DataTable implicit default equals explicit variant 1 (byte-for-byte)", DataTableDefaultEqualsVariantOne);
             Run("DataTableTypeSpoof names the subclass, not DataTable, on every formatter", DataTableTypeSpoofNamesTheSubclassOnTheWire);
             Run("DataTableTypeSpoof writes the operator's type and assembly verbatim", DataTableTypeSpoofWritesTheOperatorTypeVerbatim);
@@ -282,16 +303,16 @@ namespace ysonet.Tests
             Run("An outer gadget's --variant does not reach its inner TypeConfuseDelegate", OuterVariantDoesNotReachTheInnerTypeConfuseDelegate);
             Run("Editor offers the TypeConfuseDelegate container labels and emits the number", EditorExposesTypeConfuseDelegateContainerVariants);
             Run("The shared container builder keeps every original TypeConfuseDelegate graph", TypeConfuseDelegateSharedBuilderKeepsTheOriginalGraphs);
-            Run("TypeConfuseDelegate notes a swapped --rawcmd split in debug mode only", TypeConfuseDelegateNotesSwappedArgumentsInDebugOnly);
+            Run("TypeConfuseDelegate places the executable first whatever the two strings sort like", TypeConfuseDelegateFamilyPlacesTheExecutableFirst);
             Run("The CLR-v2 TypeConfuseDelegate workflow gadget has one exact public contract", TypeConfuseDelegateLegacyWorkflowDeclaresItsContract);
             Run("The CLR-v2 workflow graph stays explicit in raw and minified BF/Soap/Los payloads", TypeConfuseDelegateLegacyWorkflowGraphIsVisible);
             Run("The CLR-v2 workflow gadget forces legacy identities on a copy", TypeConfuseDelegateLegacyWorkflowForcesLegacyOnACopy);
             Run("The CLR-v2 workflow gadget honors command files and refuses equal keys", TypeConfuseDelegateLegacyWorkflowInputBoundaries);
-            Run("The CLR-v2 workflow gadget notes swapped raw arguments in debug only", TypeConfuseDelegateLegacyWorkflowNotesSwappedArguments);
+            Run("The CLR-v2 workflow gadget generates silently and orders its two strings", TypeConfuseDelegateLegacyWorkflowGeneratesSilently);
             Run("The CLR-v2 workflow graph is inert on generation and rejected on 4.8.1", TypeConfuseDelegateLegacyWorkflowRejectsCurrentRuntime);
             Run("File operations serialize an ordinal comparer and the real file sink", FileOperationsSerializeAnOrdinalComparerAndTheRealSink);
             Run("File operations order arguments ordinally, not by the operator's culture", FileOperationsOrderingIsOrdinalNotCultural);
-            Run("File operations refuse an order the primitive cannot represent", FileOperationsRefuseAnImpossibleOrder);
+            Run("File operations accept either direction and refuse only an equal pair", FileOperationsAcceptEitherDirectionAndRefuseAnEqualPair);
             Run("File operations split -c on the first ';' and keep both fields verbatim", FileOperationsParseTheCommandStrictly);
             Run("File operations embed the local content file at generation time", FileOperationsWriteEmbedsTheLocalFileAtGenerationTime);
             Run("File operations validate the variant and root container selectors", FileOperationsOptionsAreValidated);
@@ -353,6 +374,7 @@ namespace ysonet.Tests
             Run("TempFileCollection accepts -t (a self-exploit that deletes your files here)", TempFileCollectionAcceptsSelfTest);
             Run("TempFileCollection refuses a target path it would rewrite", TempFileCollectionRefusesAPathItWouldRewrite);
             Run("TempFileCollection info panel still shows its formatters, input and categories", TempFileCollectionInfoPanelStillShowsItsFacts);
+            Run("MinifiedTextGuard finds base64 across whitespace in text and UTF-8 bytes", MinifiedTextGuardCarriesBase64);
             Run("WbemClassObjectUnmarshal builds a well formed OBJREF_STANDARD naming the host", WbemClassObjectUnmarshalBuildsAValidObjRef);
             Run("WbemClassObjectUnmarshal carries the target type, member and blob in every formatter", WbemClassObjectUnmarshalCarriesTheTargetTypeAndBlob);
             Run("WbemClassObjectUnmarshal accepts -t for variant 1 and refuses it for variant 2", WbemClassObjectUnmarshalSelfTestPolicy);
@@ -488,6 +510,7 @@ namespace ysonet.Tests
             Run("Xps options do not leak between in-process runs", XpsOptionsDoNotLeak);
             Run("Option help renders without hanging for every plugin and gadget", OptionHelpNeverHangs);
             Run("Every plugin declares valid runtime-version metadata", PluginRuntimeVersionsAreValid);
+            Run("Plugin runtime versions are visible in help and interactive info", PluginRuntimeVersionsAreSurfaced);
             Run("ViewState authenticates and fires through the CLR4 page-state formatter",
                 ViewStateAuthenticatesAndFiresThroughCurrentPageStateFormatter);
             Run("SoftBreak wraps over-long help tokens (NDesk hang guard)", SoftBreakWrapsLongTokens);
@@ -506,6 +529,8 @@ namespace ysonet.Tests
             Run("Non-RCE gadget payloads carry an apostrophe in the operator value unchanged", NonRcePayloadsCarryAnApostropheValue);
             Run("ObjectDataProvider carries an apostrophe in the command unchanged", ObjectDataProviderCarriesAnApostropheInTheCommand);
             Run("MessagePack Typeless payloads carry the target type names, not the surrogates'", MessagePackTypelessCarriesTargetTypeNames);
+            Run("ObjectDataProvider's MessagePack cells meet MessagePack's own deny list", ObjectDataProviderMessagePackHitsTheLibraryDenyList);
+            Run("ObjectDataProvider's serialized branches go through the shared boundary", ObjectDataProviderSerializedBranchesUseTheSharedBoundary);
             Run("Debug-mode errors name every exception in the chain, on stderr", ShowErrorsExplainsTheWholeExceptionChain);
             Run("-t fires through the product's own self-test path, not just the harness", SelfTestFiresThroughTheProductsOwnPath);
             Run("Each claims-key variant carries only its own SerializationInfo key", ClaimsKeyVariantsCarryOnlyTheirOwnKey);
@@ -533,12 +558,13 @@ namespace ysonet.Tests
             Run("Status readers only ever see complete snapshots", RunStatusPublishesCompleteSnapshots);
             Run("Status finishes honestly and goes stale rather than claiming a crash", RunStatusFinishesAndBecomesStaleHonestly);
             Run("Status handles concurrent runs and I/O failure without failing the suite", RunStatusHandlesConcurrencyAndIoFailure);
+            Run("One test run at a time: the machine-wide lock serialises two real runs", MachineWideTestLockSerialisesRuns);
             Run("WER containment configures and joins that specific job", WerContainmentConfiguresTheSpecificJob);
             Run("WER containment failure falls back and leaks nothing", WerContainmentFailureFallsBack);
             Run("A normal child inherits the test job and its crash-UI limit", WerContainmentIsInheritedByAChild);
             Run("The test sink refuses every malformed invocation", TestSinkRejectsInvalidInput);
             Run("The test sink publishes one complete record per invocation", TestSinkPublishesUniqueCompleteRecords);
-            Run("The sink path is space-free and sorts above its tag", TestSinkPathAndOrdering);
+            Run("The sink path is space-free and its tag alphabet is what a test relies on", TestSinkPathAndOrdering);
             Run("The sink probe selects a backend and never skips a fire row", TestSinkProbeSelectsBackend);
             Run("The sink record proves the exact argument it received", TestSinkRecordsParsedArgument);
             Run("Non-raw -c reaches the fire backend (TypeConfuseDelegate)", NonRawTypeConfuseDelegateCanary);
@@ -733,6 +759,10 @@ namespace ysonet.Tests
             _status.Finish(exitCode);
             _status.Dispose();
             RemoveEmptyRunDirectories();
+            // Released on the thread that took it, and only once this run has stopped using
+            // the machine. An interrupted run abandons it instead, which the next waiter
+            // acquires cleanly.
+            if (_testLock != null) _testLock.Dispose();
             if (_wer != null) _wer.Dispose();
             return exitCode;
         }
@@ -794,6 +824,38 @@ namespace ysonet.Tests
                 System.Threading.Thread.Sleep(120000);
             }
             return 0;
+        }
+
+        // Hidden probe: take the NAMED test lock, say so, and hold it until a release file
+        // appears. MachineWideTestLockSerialisesRuns needs a real second process, because a
+        // mutex is re-entrant for the thread that owns it: taking it twice in one process
+        // would prove nothing about two runs. The lock name arrives as an argument so the
+        // probe can never touch the lock the running suite is holding.
+        //
+        // Spec: "<mutex name>|<ready file>|<release file>". Exit codes are distinct so a
+        // failed probe is diagnosable from the parent.
+        private static int TestLockProbe(string spec)
+        {
+            string[] parts = spec.Split('|');
+            if (parts.Length != 3) return 4;
+
+            using (TestRunLock held = TestRunLock.Acquire(TestRunLockMode.Wait, parts[0], null,
+                TimeSpan.FromSeconds(5), delegate { }))
+            {
+                if (!held.Held) return 5;
+                File.WriteAllText(parts[1], held.Description);
+                Console.Out.WriteLine("testlock-probe-held");
+                Console.Out.Flush();
+
+                // Bounded, so a parent that dies mid-test cannot leave this holding a
+                // machine-wide lock forever.
+                for (int waited = 0; waited < 120000; waited += 100)
+                {
+                    if (File.Exists(parts[2])) return 0;
+                    System.Threading.Thread.Sleep(100);
+                }
+                return 6;
+            }
         }
 
         // Hidden probe: consume one complete __VIEWSTATE in a fresh CLR4 process whose
@@ -918,6 +980,56 @@ namespace ysonet.Tests
             string line = CommandEcho.Build(tokens);
             AssertTrue(line.StartsWith("ysonet.exe -g ObjectDataProvider -f Json.NET -c calc.exe"),
                 "gadget command shape: " + line);
+        }
+
+        private static void JsonStringEscapersEncodeEveryControlCharacter()
+        {
+            // JSON permits the five short forms below. Every other U+0000-U+001F
+            // character has to use its six-character Unicode escape.
+            string[] expected =
+            {
+                "\\u0000", "\\u0001", "\\u0002", "\\u0003",
+                "\\u0004", "\\u0005", "\\u0006", "\\u0007",
+                "\\b",     "\\t",     "\\n",     "\\u000b",
+                "\\f",     "\\r",     "\\u000e", "\\u000f",
+                "\\u0010", "\\u0011", "\\u0012", "\\u0013",
+                "\\u0014", "\\u0015", "\\u0016", "\\u0017",
+                "\\u0018", "\\u0019", "\\u001a", "\\u001b",
+                "\\u001c", "\\u001d", "\\u001e", "\\u001f",
+            };
+
+            for (int i = 0; i < expected.Length; i++)
+            {
+                string value = ((char)i).ToString();
+                string doubleQuoted = CommandArgSplitter.JsonDoubleQuotedStringEscape(value);
+                string singleQuoted = CommandArgSplitter.JsonStringEscape(value);
+
+                AssertEqual(expected[i], doubleQuoted,
+                    "double-quoted JSON escape for U+" + i.ToString("X4"));
+                AssertEqual(expected[i], singleQuoted,
+                    "single-quoted JSON escape for U+" + i.ToString("X4"));
+
+                // The strict reader is the regression boundary: raw controls made this
+                // throw FormatException even though more forgiving readers accepted them.
+                byte[] document = Encoding.UTF8.GetBytes("\"" + doubleQuoted + "\"");
+                using (var stream = new MemoryStream(document))
+                {
+                    var reader = new System.Runtime.Serialization.Json.DataContractJsonSerializer(
+                        typeof(string));
+                    AssertEqual(value, (string)reader.ReadObject(stream),
+                        "strict JSON round trip for U+" + i.ToString("X4"));
+                }
+            }
+
+            string punctuation = "\\\"'";
+            AssertEqual("\\\\" + "\\\"" + "'",
+                CommandArgSplitter.JsonDoubleQuotedStringEscape(punctuation),
+                "double-quoted JSON escapes backslash and quote but leaves apostrophe alone");
+            AssertEqual("\\\\" + "\\\"" + "\\'",
+                CommandArgSplitter.JsonStringEscape(punctuation),
+                "single-quoted JSON also escapes the apostrophe that delimits its literal");
+            AssertEqual("", CommandArgSplitter.JsonDoubleQuotedStringEscape(null),
+                "the double-quoted helper keeps its null contract");
         }
 
         private static void SelfTestTargetsStayExplicit()
@@ -2754,6 +2866,84 @@ namespace ysonet.Tests
             AssertTrue(dtV1soap.Success, "DataTable variant 1 + SoapFormatter still generates: " + dtV1soap.ErrorMessage);
         }
 
+        private static void SparseFormatterMatricesRejectUnsupportedVariants()
+        {
+            // A bare formatter token means exactly one variant. These three gadgets used to
+            // advertise that correctly while a direct --variant request silently built variant
+            // 1. Lock the metadata, non-UI guard and editor against that split.
+            AssertVariantFormatterBoundary("GenericPrincipal", 2,
+                new[] { "DataContractSerializer", "DataContractJsonSerializer", "NetDataContractSerializer" });
+            AssertVariantFormatterBoundary("GetterSettingsPropertyValue", 2,
+                new[] { "MessagePackTypeless", "MessagePackTypelessLz4" });
+            AssertVariantFormatterBoundary("GetterSettingsPropertyValue", 3,
+                new[] { "MessagePackTypeless", "MessagePackTypelessLz4" });
+            AssertVariantFormatterBoundary("GetterSettingsPropertyValue", 4,
+                new[] { "MessagePackTypeless", "MessagePackTypelessLz4" });
+            AssertVariantFormatterBoundary("ObjectDataProvider", 2,
+                new[] { "Json.NET", "FastJson", "JavaScriptSerializer", "YamlDotNet",
+                    "FsPickler", "SharpSerializerBinary", "SharpSerializerXml",
+                    "MessagePackTypeless", "MessagePackTypelessLz4" });
+
+            AssertTrue(GenerateWithVariant("GenericPrincipal", "BinaryFormatter", 2).Success,
+                "GenericPrincipal variant 2 still works with BinaryFormatter");
+            AssertTrue(GenerateWithVariant("GetterSettingsPropertyValue", "Json.NET", 4).Success,
+                "GetterSettingsPropertyValue variant 4 still works with Json.NET");
+            AssertTrue(GenerateWithVariant("ObjectDataProvider", "Xaml", 2).Success,
+                "ObjectDataProvider variant 2 still works with Xaml");
+
+            AssertOptionHelpContains("GenericPrincipal", "variant",
+                "bare formatters support only variant 1");
+            AssertOptionHelpContains("GetterSettingsPropertyValue", "variant",
+                "bare MessagePack formatters support only variant 1");
+            AssertOptionHelpContains("ObjectDataProvider", "variant",
+                "bare formatters support only variant 1");
+            AssertOptionHelpContains("ActivitySurrogateDisableTypeCheck", "rootcontainer",
+                "counts wrapper variants, not root-container choices");
+            AssertOptionHelpContains("XamlAssemblyLoadFromFile", "rootcontainer",
+                "counts wrapper variants, not root-container choices");
+            AssertOptionHelpContains("AssemblyInstallerLoad", "variant",
+                "variants, not the independent --getter choices");
+            AssertOptionHelpContains("AssemblyInstallerLoad", "getter",
+                "counts DLL-path variants, not getter choices");
+            AssertOptionHelpContains("WbemClassObjectUnmarshal", "rootcarrier",
+                "counts blob variants, not root-carrier choices");
+        }
+
+        private static void AssertOptionHelpContains(string gadget, string option,
+            string expected)
+        {
+            OptionField field = FindField(OptionField.FromOptionSet(Gadget(gadget).Options()),
+                option);
+            AssertTrue(field != null && (field.Description ?? "").Contains(expected),
+                gadget + " --" + option + " explains the independent axis: "
+                    + (field == null ? "(missing option)" : field.Description));
+        }
+
+        private static void AssertVariantFormatterBoundary(string gadget, int variant,
+            string[] unsupportedFormatters)
+        {
+            GadgetVariant metadata = Gadget(gadget).Variants()[variant - 1];
+            foreach (string formatter in unsupportedFormatters)
+            {
+                AssertTrue(!metadata.SupportsFormatter(formatter),
+                    gadget + " variant " + variant + " declares the " + formatter + " opt-out");
+
+                RunResult result = GenerateWithVariant(gadget, formatter, variant);
+                AssertTrue(!result.Success,
+                    gadget + " variant " + variant + " + " + formatter + " is refused");
+                AssertTrue((result.ErrorMessage ?? "").IndexOf("is not supported by variant " + variant,
+                        StringComparison.OrdinalIgnoreCase) >= 0,
+                    "the shared guard names the unsupported cell: " + result.ErrorMessage);
+            }
+
+            var editor = new ModuleEditor(null, null, true, null, null);
+            var fields = editor.BuildFieldsForTest(gadget);
+            FindEditable(fields, "formatter").Value = unsupportedFormatters[0];
+            FindEditable(fields, "variant").Value = metadata.Label;
+            AssertTrue(editor.MissingVariantFormatterProblemForTest() != null,
+                "the editor blocks " + gadget + " variant " + variant + " + " + unsupportedFormatters[0]);
+        }
+
         // GenericIdentity reaches the ClaimsIdentity nested-BinaryFormatter sink through a
         // DIFFERENT root type than the ClaimsIdentity gadget. Because GenericIdentity derives
         // from ClaimsIdentity, the inherited private field is exposed by FormatterServices
@@ -3385,8 +3575,8 @@ namespace ysonet.Tests
         // A recovered default has to be a COMPLETE value, not the front half of one. The
         // property is parser-independent on purpose: whatever heuristic recovers the value,
         // the character following it in the help text must end a value. A '.' only ends one
-        // when a space or the end of the text follows it, which is what separates the
-        // sentence in "Default: AES. e.g: ..." from the dots inside
+        // when whitespace or the end of the text follows it, which is what separates the
+        // sentence in "Default: AES. e.g: ..." and in "Default: b.\r\n" from the dots inside
         // "Default: System.Data.Entity.Design...".
         private static void EditorDefaultsAreCompleteValuesNotTruncations()
         {
@@ -3449,11 +3639,18 @@ namespace ysonet.Tests
         }
 
         // True when the character at `i` ends a value rather than continuing it.
+        //
+        // This is deliberately a SECOND, independent statement of the rule rather than a
+        // call into EditableField: the audit asks whether the recovered value is complete
+        // in the help text, and a check that borrowed the parser's own opinion would agree
+        // with it by construction, including when both are wrong. Keep it in step with
+        // EditableField.EndsSentence - a period ends a value when whitespace or the end of
+        // the text follows it, which covers the line break that option help is written with.
         private static bool EndsAValue(string help, int i)
         {
             char c = help[i];
             if (c == '.')
-                return i + 1 >= help.Length || help[i + 1] == ' ';
+                return i + 1 >= help.Length || char.IsWhiteSpace(help[i + 1]);
             return c == ' ' || c == ',' || c == ';' || c == ')' || c == '"' || c == '\''
                 || c == '\r' || c == '\n' || c == '/';
         }
@@ -3568,11 +3765,14 @@ namespace ysonet.Tests
         // flag and is refused again by the identical sentence.
         //
         // It is swept catalogue-wide rather than per gadget because the shape is COPIED between
-        // gadgets, and because the underlying asymmetry is in a shared helper:
-        // GenericGenerator.MinifyHandWrittenPayload has no NetDataContractSerializer branch, so
-        // any gadget that hand writes an NDCS document and shares one advice branch with
-        // DataContractSerializer (whose document IS minified) inherits it. Nothing about that is
-        // visible in the gadget that has the bug.
+        // gadgets, and because the cause is usually in a shared helper rather than in the gadget
+        // that carries the wrong sentence. The worked example: GenericGenerator
+        // .MinifyHandWrittenPayload used to have no NetDataContractSerializer branch, so every
+        // gadget that hand wrote an NDCS document and shared one advice branch with
+        // DataContractSerializer (whose document IS minified) promised an escape that did
+        // nothing. Nothing about that was visible in the gadget that had the bug - and when the
+        // branch was later added, the per-gadget wording written for the gap went stale the same
+        // invisible way. Only a second build decides either direction.
         //
         // TWO RULES, both decided by a SECOND BUILD rather than by the wording, so no rewording
         // can satisfy them and a future gadget is covered for free:
@@ -3792,8 +3992,9 @@ namespace ysonet.Tests
         // rather than inferred from a gadget's behaviour.
         private static void ParseDefaultKeepsDottedValuesWhole()
         {
-            // A dotted type name is ONE value: a period only ends it when a space or the
-            // end of the text follows. This is the bug DataTableTypeSpoof shipped with.
+            // A dotted type name is ONE value: a period only ends it when whitespace or the
+            // end of the text follows. This is the bug DataTableTypeSpoof shipped with. The
+            // line-break half of that rule is asserted in both directions in OptionHeuristics.
             AssertEqual("System.Data.Entity.Design.SsdlGenerator.TableDetailsCollection",
                 EditableField.ParseDefault("Must be a DataTable subclass. Default: System.Data.Entity.Design.SsdlGenerator.TableDetailsCollection. Second profile: x"),
                 "a dotted default is taken whole and still stops at the sentence end");
@@ -4657,8 +4858,11 @@ namespace ysonet.Tests
                 "the .NET 4.0 generator refuses NDCS through its formatter contract: "
                     + ndcs.ErrorMessage);
 
+            // Test = true, and this gadget DOES read Cmd, so the command must not name an
+            // application: the row asserts the self-test is refused, and a placeholder means
+            // a regression of that refusal cannot launch anything on the maintainer's desktop.
             InputArgs localTest = new InputArgs();
-            localTest.Cmd = "calc.exe";
+            localTest.Cmd = "unused-by-this-gadget";
             localTest.Test = true;
             RunResult tested = PayloadRunner.GenerateGadget(new GenerationRequest
             {
@@ -4746,16 +4950,17 @@ namespace ysonet.Tests
                 Console.SetError(savedErr);
             }
             AssertTrue(debugRun.Success,
-                "the swapped-argument debug payload generates: "
-                    + debugRun.ErrorMessage);
-            AssertTrue(debugErr.ToString().Contains(
-                        "[TypeConfuseDelegateNet40Workflow]")
-                    && debugErr.ToString().Contains("swapped")
-                    && debugErr.ToString().Contains("--rawcmd"),
-                "debug mode explains the .NET 4.0 raw-command ordering problem: "
-                    + debugErr);
+                "the reversed-argument payload generates: " + debugRun.ErrorMessage);
+            // The reversed pair is built correctly instead of being reported: the executable
+            // is serialized SECOND, so the .NET 4.0 target hands it to Process.Start first.
+            string reversedWire = SearchableWire(debugRun, Formatters.BinaryFormatter);
+            AssertTrue(reversedWire.IndexOf("zzz.txt", StringComparison.Ordinal)
+                    < reversedWire.IndexOf("notepad.exe", StringComparison.Ordinal),
+                "the argument string is serialized before the executable");
+            AssertEqual("", debugErr.ToString(),
+                "not even --debugmode writes prose about the ordering");
             AssertEqual("", debugOut.ToString(),
-                "the debug note never contaminates payload stdout");
+                "nothing but the payload reaches stdout");
         }
 
         // A generation-time negative and a wrong-runtime negative are both valuable, but
@@ -4938,61 +5143,149 @@ namespace ysonet.Tests
             }
         }
 
-        // The command path RELIES on the sorted container's ordering rule instead of
-        // enforcing it: Process.Start only receives the executable in parameter 1 while the
-        // executable sorts above the argument string. The default "cmd /c <command>"
-        // wrapping is safe by construction ("/" sorts below "c"), but --rawcmd removes that
-        // wrapper and a command like "notepad.exe zzz.txt" comes out swapped.
+        // A TypeConfuseDelegate container's two elements ARE Process.Start's two arguments,
+        // and which one arrives FIRST is decided by the order they are SERIALIZED in: on
+        // deserialize the target inserts the first element as the root and compares the second
+        // against it, so the second element becomes the file name.
         //
-        // Until that input is refused outright, the generator NOTES it - and only in debug
-        // mode. That gate is the tested behavior, not an implementation detail: ysonet is
-        // embedded as a payload generator by other tools, and a wrapper that merges stderr
-        // into what it captures would carry the text into a base64 payload field.
-        private static void TypeConfuseDelegateNotesSwappedArgumentsInDebugOnly()
+        // That order used to be left to how the operator's two strings happened to sort. The
+        // default -c path always sorted correctly (the wrapper makes the pair "cmd" and
+        // "/c ...", and "/" sorts below "c"), but --rawcmd removes the wrapper, and a command
+        // like "notepad.exe zzz.txt" sorts the executable BELOW its argument: the payload
+        // generated, deserialized, and called Process.Start("zzz.txt", "notepad.exe").
+        //
+        // Every command form of the family now fixes that order while it builds the container,
+        // so this asserts the serialized order directly - on a REVERSED pair and on an already
+        // correct one, in the live object graph and in every authored document.
+        private static void TypeConfuseDelegateFamilyPlacesTheExecutableFirst()
         {
-            const string swapped = "notepad.exe zzz.txt";   // executable sorts BELOW its argument
-            const string ordered = "zzz.exe aaa.txt";       // and this pair is the right way round
+            const string swappedExe = "notepad.exe", swappedArg = "zzz.txt";
+            const string orderedExe = "zzz.exe", orderedArg = "aaa.txt";
 
-            // Assert the fixtures really are what the test claims, so it cannot pass by
-            // accident if the ordering ever stops diverging.
-            AssertTrue(String.Compare("notepad.exe", "zzz.txt") < 0,
-                "the swapped fixture really does sort the wrong way round");
-            AssertTrue(String.Compare("zzz.exe", "aaa.txt") > 0,
+            // Guard the fixtures, so this cannot pass by accident if the two strings ever stop
+            // disagreeing with the role each one plays.
+            AssertTrue(String.Compare(swappedExe, swappedArg) < 0,
+                "the reversed fixture really does sort the wrong way round");
+            AssertTrue(String.Compare(orderedExe, orderedArg) > 0,
                 "the ordered fixture really does sort the right way round");
 
+            string[][] pairs = new[]
+            {
+                new[] { swappedExe, swappedArg },
+                new[] { orderedExe, orderedArg },
+            };
+
+            // 1) The live object graph, read back as the container itself: in-order
+            //    enumeration is exactly what SortedSet.GetObjectData writes as Items.
+            foreach (string[] pair in pairs)
+            {
+                InputArgs ia = new InputArgs();
+                ia.Cmd = pair[0] + " " + pair[1];
+                ia.IsRawCmd = true;
+                ia.Test = false;
+
+                var set = (SortedSet<string>)
+                    TypeConfuseDelegateGenerator.TypeConfuseDelegateGadget(ia);
+                var items = new List<string>(set);
+                AssertEqual(2, items.Count, "the container holds both strings: " + ia.Cmd);
+                AssertEqual(pair[1], items[0],
+                    "the ARGUMENT string is serialized first: " + ia.Cmd);
+                AssertEqual(pair[0], items[1],
+                    "the EXECUTABLE is serialized second, so the target passes it to "
+                        + "Process.Start first: " + ia.Cmd);
+            }
+
+            // 2) Every command-carrying form of the family, on the wire. A cell is
+            //    {gadget, formatter, minify, useSimpleType, extra options}.
+            var cells = new List<object[]>
+            {
+                new object[] { "TypeConfuseDelegate", Formatters.BinaryFormatter, false, false, new[] { "--variant", "1" } },
+                new object[] { "TypeConfuseDelegate", Formatters.BinaryFormatter, false, false, new[] { "--variant", "2" } },
+                new object[] { "TypeConfuseDelegate", Formatters.BinaryFormatter, false, false, new[] { "--variant", "3" } },
+                // The hand-built minified NRBF stream, which has always written its two
+                // strings in this fixed order - it is what the object graph now matches.
+                new object[] { "TypeConfuseDelegate", Formatters.BinaryFormatter, true, true, new[] { "--variant", "1" } },
+                new object[] { "TypeConfuseDelegate", Formatters.LosFormatter, false, false, new[] { "--variant", "1" } },
+                new object[] { "TypeConfuseDelegate", Formatters.NetDataContractSerializer, false, false, new[] { "--variant", "1" } },
+                new object[] { "TypeConfuseDelegate", Formatters.SoapFormatter, false, false, new[] { "--variant", "1" } },
+                new object[] { "TypeConfuseDelegate", Formatters.SoapFormatter, false, false, new[] { "--variant", "3" } },
+                new object[] { "TypeConfuseDelegateMono", Formatters.BinaryFormatter, false, false, new string[0] },
+                new object[] { "TypeConfuseDelegateNet40Workflow", Formatters.BinaryFormatter, false, false, new string[0] },
+                new object[] { "TypeConfuseDelegateNet40Workflow", Formatters.SoapFormatter, false, false, new string[0] },
+                new object[] { "TypeConfuseDelegateLegacyWorkflow", Formatters.BinaryFormatter, false, false, new string[0] },
+                new object[] { "TypeConfuseDelegateLegacyWorkflow", Formatters.SoapFormatter, false, false, new string[0] },
+                // The two carriers whose variant 2 hosts the same inner chain.
+                new object[] { "DataTable", Formatters.BinaryFormatter, false, false, new[] { "--variant", "2" } },
+                new object[] { "DataTable", Formatters.SoapFormatter, false, false, new[] { "--variant", "2" } },
+                new object[] { "DataTableTypeSpoof", Formatters.BinaryFormatter, false, false, new[] { "--variant", "2" } },
+                new object[] { "DataTableTypeSpoof", Formatters.SoapFormatter, false, false, new[] { "--variant", "2" } },
+                // A hosting gadget that reuses the shared command builder.
+                new object[] { "ResourceSet", Formatters.BinaryFormatter, false, false, new string[0] },
+            };
+
+            foreach (object[] cell in cells)
+            {
+                string gadget = (string)cell[0], formatter = (string)cell[1];
+                bool minify = (bool)cell[2], useSimpleType = (bool)cell[3];
+                string[] extra = (string[])cell[4];
+
+                foreach (string[] pair in pairs)
+                {
+                    string label = gadget + " " + formatter
+                        + (extra.Length > 0 ? " " + String.Join(" ", extra) : "")
+                        + (minify ? " --minify" : "") + (useSimpleType ? " --ust" : "")
+                        + " -c \"" + pair[0] + " " + pair[1] + "\"";
+                    RunResult r = GenerateRawCommandCell(gadget, formatter,
+                        pair[0] + " " + pair[1], minify, useSimpleType, extra);
+                    AssertTrue(r.Success, label + " generates: " + r.ErrorMessage);
+
+                    string wire = SearchableWire(r, formatter);
+                    int exeAt = wire.IndexOf(pair[0], StringComparison.Ordinal);
+                    int argAt = wire.IndexOf(pair[1], StringComparison.Ordinal);
+                    AssertTrue(exeAt >= 0 && argAt >= 0,
+                        label + " carries both operator strings on the wire");
+                    AssertTrue(argAt < exeAt,
+                        label + ": the executable must be serialized SECOND, so the target "
+                            + "hands it to Process.Start first (argument at " + argAt
+                            + ", executable at " + exeAt + ")");
+                }
+            }
+
+            // 3) Fixing the order is silent. ysonet is embedded as a payload generator by
+            //    other tools, and a wrapper that merges the streams (2>&1) and base64-encodes
+            //    what it captured must never receive prose - not even about a reversed pair.
             string outDebug, errDebug, outQuiet, errQuiet;
-            byte[] debugBytes = GenerateTcdCapturing(swapped, true, true, out outDebug, out errDebug);
-            byte[] quietBytes = GenerateTcdCapturing(swapped, true, false, out outQuiet, out errQuiet);
-
-            AssertTrue(errDebug.Contains("[TypeConfuseDelegate]"),
-                "debug mode notes the problem on stderr: " + errDebug);
-            AssertTrue(errDebug.Contains("swapped"),
-                "the note says what actually happens to the two strings: " + errDebug);
-            AssertTrue(errDebug.Contains("--rawcmd"),
-                "the note says how to avoid it: " + errDebug);
-
-            // The reason the note is gated. An embedding tool that merges the streams and
-            // base64-encodes what it captured must never receive this text.
+            byte[] debugBytes = GenerateTcdCapturing(swappedExe + " " + swappedArg, true, true,
+                out outDebug, out errDebug);
+            byte[] quietBytes = GenerateTcdCapturing(swappedExe + " " + swappedArg, true, false,
+                out outQuiet, out errQuiet);
+            AssertEqual("", errDebug, "even --debugmode writes nothing about the ordering");
             AssertEqual("", errQuiet, "a normal run writes nothing to stderr");
-            AssertEqual("", outDebug, "the note never reaches stdout, which carries the payload");
+            AssertEqual("", outDebug, "nothing but the payload reaches stdout");
             AssertEqual("", outQuiet, "a normal run writes nothing to stdout either");
-
-            // The note is an observation, not a change: identical payload either way.
             AssertTrue(BytesEqual(debugBytes, quietBytes),
-                "noting the problem does not change a single byte of the payload");
+                "--debugmode does not change a single byte of the payload");
+        }
 
-            // No false positives, in debug mode where a note would be visible:
-            string o, e;
-            GenerateTcdCapturing(ordered, true, true, out o, out e);
-            AssertEqual("", e, "a correctly ordered raw command produces no note");
-
-            GenerateTcdCapturing("calc.exe", true, true, out o, out e);
-            AssertEqual("", e, "a raw command with no arguments produces no note (\"\" sorts lowest)");
-
-            // ...including the DEFAULT path, whose "cmd /c" wrapper is exactly why this has
-            // gone unnoticed: the pair is always "cmd" and "/c ...".
-            GenerateTcdCapturing("notepad.exe zzz.txt", false, true, out o, out e);
-            AssertEqual("", e, "the default cmd /c wrapping always sorts correctly, so no note");
+        // One command cell with a RAW command, so the test controls exactly how the command
+        // splits into the executable and argument strings.
+        private static RunResult GenerateRawCommandCell(string gadget, string formatter,
+            string rawCommand, bool minify, bool useSimpleType, string[] extraArguments)
+        {
+            InputArgs ia = new InputArgs();
+            ia.Cmd = rawCommand;
+            ia.IsRawCmd = true;
+            ia.Test = false;
+            ia.Minify = minify;
+            ia.UseSimpleType = useSimpleType;
+            ia.ExtraArguments = new List<string>(extraArguments);
+            return PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = gadget,
+                FormatterName = formatter,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
         }
 
         // Generate a TypeConfuseDelegate BinaryFormatter payload, capturing everything
@@ -5329,7 +5622,12 @@ namespace ysonet.Tests
             }
         }
 
-        private static void TypeConfuseDelegateLegacyWorkflowNotesSwappedArguments()
+        // The CLR-v2 workflow gadget shares the family's ordering contract (asserted for its
+        // two formatters in TypeConfuseDelegateFamilyPlacesTheExecutableFirst). What is
+        // specific here is that it reaches it SILENTLY: a reversed pair is built correctly
+        // rather than reported, so an embedding tool that merges stderr into what it
+        // base64-encodes cannot pick up prose about it.
+        private static void TypeConfuseDelegateLegacyWorkflowGeneratesSilently()
         {
             string debugOut, debugErr, quietOut, quietErr;
             byte[] debug = GenerateTcdLegacyWorkflowCapturing(
@@ -5337,14 +5635,24 @@ namespace ysonet.Tests
             byte[] quiet = GenerateTcdLegacyWorkflowCapturing(
                 "notepad.exe zzz.txt", false, out quietOut, out quietErr);
 
-            AssertTrue(debugErr.Contains("[TypeConfuseDelegateLegacyWorkflow]")
-                && debugErr.Contains("swapped") && debugErr.Contains("--rawcmd"),
-                "debug mode explains the raw ordering problem: " + debugErr);
+            // --debugmode still reports what this gadget DOES (the legacy identity rewrite);
+            // what it must never report is the ordering of the operator's two strings.
+            AssertTrue(debugErr.IndexOf("swapped", StringComparison.OrdinalIgnoreCase) < 0
+                    && debugErr.IndexOf("sorts", StringComparison.OrdinalIgnoreCase) < 0,
+                "even --debugmode writes nothing about a reversed pair: " + debugErr);
             AssertEqual("", quietErr, "a normal embedded generation writes no warning");
-            AssertEqual("", debugOut, "the warning never contaminates payload stdout");
+            AssertEqual("", debugOut, "nothing but the payload reaches stdout");
             AssertEqual("", quietOut, "the quiet generation writes no stdout");
             AssertTrue(BytesEqual(debug, quiet),
-                "the debug note does not change the payload bytes");
+                "--debugmode does not change the payload bytes");
+
+            // The reversed pair really is the one this gadget used to get wrong: the
+            // executable is written SECOND, so the CLR-2 target hands it to Process.Start
+            // first.
+            string wire = Encoding.ASCII.GetString(quiet);
+            AssertTrue(wire.IndexOf("zzz.txt", StringComparison.Ordinal)
+                    < wire.IndexOf("notepad.exe", StringComparison.Ordinal),
+                "the argument string is serialized before the executable");
         }
 
         private static byte[] GenerateTcdLegacyWorkflowCapturing(string command,
@@ -5694,13 +6002,12 @@ namespace ysonet.Tests
             return FileOpsPath("zz_source.txt") + ";" + FileOpsPath("aa_destination.txt");
         }
 
-        // The whole reason the builder takes a benign comparison: the container is sorted
-        // HERE, at generation time, so the payload's argument order is decided by whatever
-        // comparison fills it. With the culture-sensitive String.Compare the command path
-        // uses, "aa..." sorts BELOW "BB..." and the two arguments would come out reversed;
-        // ordinally "aa..." sorts above it. This proves both halves: the bytes do not move
-        // when the operator's culture changes, and the operation really receives its source
-        // first even in the case where the two comparisons disagree.
+        // The serialized order is fixed while the container is filled, so it depends on no
+        // comparison at all - which makes it culture-independent by construction rather than
+        // by choosing the right comparison. This fixture is the case where the two candidate
+        // comparisons DISAGREE ("aa..." sorts below "BB..." culturally and above it
+        // ordinally), so a build-time ordering that quietly went back to reading the strings
+        // under the operator's culture would move these bytes and reverse this copy.
         private static void FileOperationsOrderingIsOrdinalNotCultural()
         {
             string source = FileOpsPath("aa_culture_source.txt");
@@ -5752,10 +6059,16 @@ namespace ysonet.Tests
             finally { System.Threading.Thread.CurrentThread.CurrentCulture = previous; }
         }
 
-        // An input the primitive cannot represent must be refused before serialization,
-        // with a message that names the operation and both fields. Never repaired by
-        // swapping or rewriting what the user typed.
-        private static void FileOperationsRefuseAnImpossibleOrder()
+        // The operator's two strings no longer have to sort in the direction the primitive
+        // happens to serialize in: the builder fixes that order (the semantic first argument
+        // is always written second), so a copy from "aa_src" to "zz_dst" is an ordinary
+        // request rather than a refusal telling the operator to rename a file on the TARGET.
+        //
+        // What is still impossible is an EQUAL pair: every root here is keyed on the string,
+        // so two equal values collapse to one element, the rebuilt container never calls the
+        // comparer, and the payload silently does nothing. That is refused, with the
+        // operation and both fields named.
+        private static void FileOperationsAcceptEitherDirectionAndRefuseAnEqualPair()
         {
             var reversed = new Dictionary<int, string>
             {
@@ -5767,40 +6080,68 @@ namespace ysonet.Tests
 
             foreach (KeyValuePair<int, string> kv in reversed)
             {
+                // Guard the fixture: this pair really is the direction that used to be
+                // refused, so the assertion below is not vacuous.
+                string[] fields = kv.Value.Split(new[] { ';' }, 2);
+                AssertTrue(String.CompareOrdinal(fields[0], fields[1]) < 0,
+                    "variant " + kv.Key + "'s fixture really is the previously refused direction");
+
                 RunResult r = GenerateFileOps(kv.Key, kv.Value);
-                AssertTrue(!r.Success, "variant " + kv.Key + " refuses a reversed pair");
-                AssertTrue((r.ErrorMessage ?? "").Contains(names[kv.Key]),
-                    "the refusal names the operation: " + r.ErrorMessage);
-                AssertTrue((r.ErrorMessage ?? "").Contains("String.CompareOrdinal"),
-                    "the refusal names the comparison that decides: " + r.ErrorMessage);
-                AssertTrue((r.ErrorMessage ?? "").Contains("source path")
-                    && (r.ErrorMessage ?? "").Contains("destination path"),
-                    "the refusal names both semantic fields: " + r.ErrorMessage);
+                AssertTrue(r.Success, "variant " + kv.Key
+                    + " builds the reversed direction instead of refusing it: " + r.ErrorMessage);
 
                 string same = FileOpsPath("same.txt");
                 RunResult equal = GenerateFileOps(kv.Key, same + ";" + same);
                 AssertTrue(!equal.Success, "variant " + kv.Key + " refuses an equal pair");
-                AssertTrue((equal.ErrorMessage ?? "").Contains("String.CompareOrdinal"),
-                    "the equal-pair refusal explains the rule: " + equal.ErrorMessage);
+                AssertTrue((equal.ErrorMessage ?? "").Contains(names[kv.Key]),
+                    "the equal-pair refusal names the operation: " + equal.ErrorMessage);
+                AssertTrue((equal.ErrorMessage ?? "").Contains("source path")
+                    && (equal.ErrorMessage ?? "").Contains("destination path"),
+                    "the equal-pair refusal names both semantic fields: " + equal.ErrorMessage);
+                AssertTrue((equal.ErrorMessage ?? "").Contains("collapses"),
+                    "the equal-pair refusal explains why it cannot work: " + equal.ErrorMessage);
             }
 
-            // The write operation compares the target path against the EMBEDDED TEXT, so a
-            // content file whose text sorts above the target path is refused the same way.
-            string high = MakeTempFile("ysonet_fileops_high_content.txt", "zzzz sorts above any path");
+            // Generating is not the claim; the DIRECTION is. Fire the previously refused copy
+            // and prove the source really reached File.Copy's first parameter.
+            string source = FileOpsPath("aa_src.txt");
+            string destination = FileOpsPath("zz_dst.txt");
+            SafeDelete(source);
+            SafeDelete(destination);
             try
             {
-                RunResult r = GenerateFileOps(1, FileOpsPath("aa_target.txt") + ";" + high);
-                AssertTrue(!r.Success, "write refuses content that sorts above the target path");
-                AssertTrue((r.ErrorMessage ?? "").Contains("embedded text"),
-                    "the write refusal names the embedded text, not the file path: " + r.ErrorMessage);
-                AssertTrue((r.ErrorMessage ?? "").Contains("change the content")
-                    || (r.ErrorMessage ?? "").Contains("Change the target path"),
-                    "the write refusal suggests what to change: " + r.ErrorMessage);
-            }
-            finally { SafeDelete(high); }
+                RunResult copy = GenerateFileOps(2, source + ";" + destination);
+                AssertTrue(copy.Success, "the reversed copy generates: " + copy.ErrorMessage);
+                File.WriteAllText(source, "the previously refused direction still copies");
+                RunSTA(delegate { DeserializeAs("bf", copy.Raw); });
 
-            // Variant 5 pairs the path with an internal "", which every non-empty string
-            // sorts after, so it only needs the normal non-empty check.
+                AssertTrue(File.Exists(destination),
+                    "the reversed copy ran with the SOURCE as its first argument");
+                AssertEqual("the previously refused direction still copies",
+                    File.ReadAllText(destination), "the destination holds the source content");
+                AssertTrue(File.Exists(source), "File.Copy leaves the source in place");
+            }
+            finally { SafeDelete(source); SafeDelete(destination); }
+
+            // The write operation pairs the target path with the EMBEDDED TEXT, so content
+            // that sorts above the target path is the same previously refused direction.
+            string high = MakeTempFile("ysonet_fileops_high_content.txt", "zzzz sorts above any path");
+            string target = FileOpsPath("aa_target.txt");
+            SafeDelete(target);
+            try
+            {
+                RunResult write = GenerateFileOps(1, target + ";" + high);
+                AssertTrue(write.Success,
+                    "write accepts content that sorts above the target path: " + write.ErrorMessage);
+                RunSTA(delegate { DeserializeAs("bf", write.Raw); });
+                AssertTrue(File.Exists(target),
+                    "the write ran with the TARGET PATH as its first argument");
+                AssertEqual("zzzz sorts above any path", File.ReadAllText(target),
+                    "the target file holds the embedded text, not the other way round");
+            }
+            finally { SafeDelete(high); SafeDelete(target); }
+
+            // Variant 5 pairs the path with an internal "", which is always distinct.
             AssertTrue(GenerateFileOps(5, FileOpsPath("aa_empty_target.txt")).Success,
                 "the empty-file operation accepts a low-sorting target path");
         }
@@ -6600,6 +6941,24 @@ namespace ysonet.Tests
                 OutputFormat = "",
                 InputArgs = ia,
             });
+        }
+
+        private static void MinifiedTextGuardCarriesBase64()
+        {
+            const string expected = "AP+A/Q==";
+            const string wrapped = "AP+A/\r\n\t Q==";
+            string payload = "{\"blob\":\"prefix" + wrapped + "suffix\"}";
+
+            AssertTrue(MinifiedTextGuard.CarriesBase64(payload, expected),
+                "a string payload carries base64 split across insignificant whitespace");
+            AssertTrue(MinifiedTextGuard.CarriesBase64(Encoding.UTF8.GetBytes(payload), wrapped),
+                "UTF-8 payload bytes and a wrapped expected value are normalized equally");
+            AssertTrue(!MinifiedTextGuard.CarriesBase64(payload, "AP+A/R=="),
+                "a changed base64 value is rejected");
+            AssertTrue(!MinifiedTextGuard.CarriesBase64(new object(), expected),
+                "an unsupported payload shape is not mistaken for text");
+            AssertTrue(!MinifiedTextGuard.CarriesBase64(payload, " \r\n\t"),
+                "an empty normalized expected value cannot pass vacuously");
         }
 
         // The OBJREF builder is the part of this gadget that is real protocol work rather
@@ -8438,6 +8797,26 @@ namespace ysonet.Tests
             while (xsRoot.InnerException != null) xsRoot = xsRoot.InnerException;
             AssertTrue(xsRoot.Message.IndexOf("IDictionary", StringComparison.Ordinal) >= 0,
                 "and names IDictionary as the reason: " + xsRoot.Message);
+
+            // Reason 4b: MessagePack. The obvious wall is MessagePack's own hardcoded deny
+            // list, but that list only names this type from 2.5.205 and 3.1.5, so on its own
+            // it would make the exclusion depend on the target's library version. It does not,
+            // because the CONTRACT wall is the same one Json.NET hits above and is older than
+            // the list: ResourceDictionary implements IDictionary, so the contractless
+            // resolver writes a dictionary and "Source" can only ever travel as a KEY.
+            // Serialization is measured rather than deserialization on purpose - the deny list
+            // is a read-side check, so a write still reaches the type and shows the shape.
+            var mpProbe = new System.Windows.ResourceDictionary();
+            mpProbe.Add("YsonetRdProbeKey", "v");
+            string mpShape = Encoding.UTF8.GetString(
+                SerializersHelper.MessagePackTypeless_serialize(mpProbe, false));
+            AssertTrue(mpShape.IndexOf("YsonetRdProbeKey", StringComparison.Ordinal) >= 0,
+                "MessagePack gives ResourceDictionary a dictionary contract and writes its "
+                    + "entries: " + Truncate(mpShape, 300));
+            AssertTrue(mpShape.IndexOf("Source", StringComparison.Ordinal) < 0,
+                "and names no member called Source, so no payload shape can reach the setter "
+                    + "even on a MessagePack whose deny list predates this type: "
+                    + Truncate(mpShape, 300));
 
             // Reason 4: the DataContract family writes a key/value COLLECTION, which has no
             // place to name a member at all.
@@ -12524,11 +12903,20 @@ namespace ysonet.Tests
                 AssertTrue(cap.Requirements.Contains(GadgetRequirement.BuiltIn)
                         && cap.Requirements.Contains(GadgetRequirement.NetFramework),
                     "needs only built-in .NET Framework types");
-                // The real gate is the target's security zone for the share plus
-                // loadFromRemoteSources, not a CLR build, so the version axis stays honest.
-                AssertEqual(1, cap.Versions.Count, "declares one value on the version axis");
-                AssertTrue(cap.Versions.Contains(RuntimeVersion.Unspecified),
-                    "leaves the runtime version axis unspecified");
+                // Both variants declare the span the CHAIN is present on: the floor is the
+                // CLR v4 generation the payload's 4.0.0.0 assembly identities need, the
+                // ceiling is what the fire rows observed. The zone plus loadFromRemoteSources
+                // gate on the UNC delivery is not version shaped and lives in the option
+                // help, so it must not turn either variant back into "unspecified".
+                AssertTrue(!cap.Versions.Contains(RuntimeVersion.Unspecified),
+                    "the runtime version axis is declared, not unspecified");
+                AssertTrue(cap.Versions.Contains(RuntimeVersion.NetFx40)
+                        && cap.Versions.Contains(RuntimeVersion.NetFx481),
+                    "declares .NET Framework 4.0 through 4.8.1");
+                AssertEqual(
+                    RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481).Length,
+                    cap.Versions.Count,
+                    "declares the whole contiguous span, with no hole a target could fall into");
             }
 
             AssertTrue(g.AdditionalInfo().IndexOf("RunInstaller", StringComparison.Ordinal) >= 0,
@@ -12881,7 +13269,8 @@ namespace ysonet.Tests
             // change that stopped checking would not pass this row by refusing nothing.
             AssertTrue(refusals > 0,
                 "at least one --minify cell is refused, which is what proves the guard runs "
-                    + "(DataContractSerializer with a trailing space is the measured one)");
+                    + "(the measured ones are the two XML text-node documents, "
+                    + "DataContractSerializer and NetDataContractSerializer, with a trailing space)");
         }
 
         // The effect is a moved working directory, and nothing more. Borrowing the impact of
@@ -13343,8 +13732,8 @@ namespace ysonet.Tests
         // XamlReader.Parse, which runs it.
         //
         // It also proves the ordering the whole XAML path depends on: the spliced method
-        // receives the LARGER-sorting element as its first argument, and "" always sorts
-        // smaller than a XAML document, so Parse gets the document - in every container.
+        // receives the SECOND serialized element as its first argument, and the builder always
+        // writes the XAML document there, so Parse gets the document - in every container.
         //
         // Every deserialization runs in a CHILD process. Parsing this XAML inside a
         // BinaryFormatter callback makes the CLR fail-fast (0xC0000409 in clr.dll) after the
@@ -13682,15 +14071,18 @@ namespace ysonet.Tests
             var gen = GadgetRegistry.CreateGadgetInstance("ActivitySurrogateDisableTypeCheck") as GenericGenerator;
             AssertTrue(gen != null, "the gadget loads");
 
+            // This row really does self-test (Test = true deserializes the payload), so the
+            // command must not name an application even though this gadget ignores it. A
+            // placeholder keeps the row safe if the gadget ever starts reading Cmd.
             InputArgs probe = new InputArgs();
-            probe.Cmd = "calc.exe";
+            probe.Cmd = "unused-by-this-gadget";
             probe.Test = true;
             AssertTrue(gen.SelfTestNeedsChildProcess("BinaryFormatter", probe),
                 "variant 1 declares that its self-test needs a child process");
 
             InputArgs ia = new InputArgs();
-            ia.Cmd = "calc.exe";     // ignored by this gadget
-            ia.Test = true;          // the whole point: run the self-test
+            ia.Cmd = "unused-by-this-gadget";   // ignored by this gadget
+            ia.Test = true;                     // the whole point: run the self-test
             RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
             {
                 GadgetName = "ActivitySurrogateDisableTypeCheck",
@@ -13853,6 +14245,25 @@ namespace ysonet.Tests
             AssertEqual("winforms", EditableField.ParseDefault("delivery mode. Default: winforms"), "default winforms");
             AssertEqual("", EditableField.ParseDefault("no default mentioned here"), "no default -> empty");
 
+            // A DEFAULT STATED AT THE END OF A LINE. Option help here is written with \r\n
+            // line breaks for the command-line help formatter, so "Default: b.\r\n" is the
+            // ordinary shape; the period is sentence punctuation and must not become part of
+            // the value. The editor pre-fills the field with what this returns and then
+            // EMITS it, so "b." would run as `--<option> b.` and the module would refuse it.
+            AssertEqual("b",
+                EditableField.ParseDefault("Which carrier to use. Choices: a, b, c. Default: b.\r\nSee the notes above."),
+                "a period before a line break ends the value, like one before a space");
+            AssertEqual("b",
+                EditableField.ParseDefault("Which carrier to use. Choices: a, b, c. Default: b.\n"),
+                "a bare \\n counts too, so help written either way behaves the same");
+
+            // The other direction: a period INSIDE the value still keeps it whole when the
+            // value itself sits at the end of a line, because what follows the period is a
+            // letter, not whitespace.
+            AssertEqual("payload.resources",
+                EditableField.ParseDefault("Where to write it. Default: payload.resources\r\nOverwritten without asking."),
+                "a dotted value at the end of a line is still taken whole");
+
             // A VALUE THAT CONTAINS COMMAS IS NOT A LIST OF CHOICES. An assembly display
             // name is the case that exposed this: the editor offered "Version=3.0.0.0" and
             // "Culture=neutral" as selectable values for WSManPluginInstance's --assembly,
@@ -13997,6 +14408,19 @@ namespace ysonet.Tests
             // Numbered options -> the numbers.
             var num = EditableField.ParseChoices("XAML variant: 1 = bare, 2 = wrapper. Default: 2");
             AssertTrue(num != null && num.Count == 2 && num[0] == "1" && num[1] == "2", "numbered choices 1,2");
+
+            // A LIST THAT ENDS AT A LINE BREAK. Option help is written with \r\n, and the
+            // list reader ends a segment at a sentence-ending period - the same rule the
+            // default reader uses (EditableField.EndsSentence). Before both shared it, the
+            // segment ran on into the next sentence, that over-long fragment failed the
+            // token filter, the list dropped under the three-token bar, and the operator was
+            // offered no menu at all for a description that plainly states one.
+            var wrapped = EditableField.ParseChoices("The object format: Csv, PenData, WaveAudio.\r\nAnything else is refused.");
+            AssertTrue(wrapped != null && wrapped.Count == 3,
+                "a list stated at the end of a line is still a list: "
+                    + (wrapped == null ? "(none)" : string.Join(" | ", wrapped.ToArray())));
+            AssertTrue(wrapped != null && wrapped.Contains("Csv") && wrapped.Contains("WaveAudio"),
+                "and it holds the tokens the sentence listed, not words from the next one");
 
             // Quoted lowercase modes, ignoring a quoted CamelCase format name.
             var mode = EditableField.ParseChoices("mode. 'winforms' (default) under the 'Xaml' format, or 'wpfxaml'. Default: winforms");
@@ -16133,6 +16557,56 @@ namespace ysonet.Tests
             }
         }
 
+        private static void PluginRuntimeVersionsAreSurfaced()
+        {
+            const string earned = "Runtime versions: .NET Framework 2.0 - 4.8.1";
+            const string unspecified = "Runtime versions: Unspecified";
+
+            ModuleView applicationTrust = ModuleView.FromPlugin("ApplicationTrust");
+            AssertTrue(applicationTrust != null, "the measured plugin view loads");
+            AssertTrue(applicationTrust.PreviewText().Contains(earned),
+                "the plugin picker preview shows the complete measured range");
+
+            ModuleView activatorUrl = ModuleView.FromPlugin("ActivatorUrl");
+            AssertTrue(activatorUrl != null, "the unspecified plugin view loads");
+            AssertTrue(activatorUrl.PreviewText().Contains(unspecified),
+                "the plugin picker preview states when no concrete version is evidenced");
+
+            var editor = new ModuleEditor(null, null, false, null, null);
+            string[] lines = editor.ModuleInfoLinesForTest("ApplicationTrust", 34);
+            int runtimeAt = IndexOfPanelFact(lines, "Runtime versions:");
+            int optionsAt = IndexOfPanelFact(lines, "Options:");
+            AssertTrue(runtimeAt >= 0, "the plugin info panel states the runtime versions");
+            AssertTrue(runtimeAt < ModuleEditor.BodyRowsForTest,
+                "the runtime versions are visible without scrolling the info panel");
+            AssertTrue(optionsAt < 0 || runtimeAt < optionsAt,
+                "the short runtime fact is shown before the unbounded option list");
+
+            int exit;
+            string outText, errText;
+            AssertTrue(TryRunYsonet("-p ApplicationTrust --help", out exit, out outText, out errText),
+                "ysonet.exe must be built beside the test runner");
+            AssertEqual(0, exit, "measured plugin-specific help exits 0");
+            AssertTrue(outText.Contains(earned),
+                "plugin-specific help shows the complete measured range");
+
+            TryRunYsonet("-p ActivatorUrl --help", out exit, out outText, out errText);
+            AssertEqual(0, exit, "unspecified plugin-specific help exits 0");
+            AssertTrue(outText.Contains(unspecified),
+                "plugin-specific help states when no concrete version is evidenced");
+
+            TryRunYsonet("--fullhelp", out exit, out outText, out errText);
+            AssertEqual(0, exit, "global full help exits 0");
+            int pluginAt = outText.IndexOf("(*) ApplicationTrust", StringComparison.Ordinal);
+            int rangeAt = pluginAt < 0 ? -1
+                : outText.IndexOf(earned, pluginAt, StringComparison.Ordinal);
+            int nextPluginAt = pluginAt < 0 ? -1
+                : outText.IndexOf("(*) Clipboard", pluginAt, StringComparison.Ordinal);
+            AssertTrue(pluginAt >= 0 && rangeAt > pluginAt
+                    && (nextPluginAt < 0 || rangeAt < nextPluginAt),
+                "global full help shows the measured range inside ApplicationTrust's block");
+        }
+
         private static void ViewStateAuthenticatesAndFiresThroughCurrentPageStateFormatter()
         {
             foreach (bool minify in new bool[] { false, true })
@@ -16930,6 +17404,134 @@ namespace ysonet.Tests
                 });
                 AssertTrue(lz4.Success && RawLength(lz4.Raw) > 0,
                     gadget + " MessagePackTypelessLz4 generates: " + lz4.ErrorMessage);
+            }
+        }
+
+        // MessagePack carries a gadget deny list of its OWN, hardcoded in
+        // MessagePackSerializerOptions and consulted before the typeless reader creates a
+        // named type. System.Windows.Data.ObjectDataProvider is on it in the version this
+        // project pins, so both MessagePack cells this gadget advertises are refused by any
+        // target on such a build - and the gadget's own -t could not say so, because its
+        // MessagePack branch caught the exception and dropped it.
+        //
+        // Both halves are MEASURED here rather than argued: the reader refuses by name, and
+        // the fire backend records nothing. It is also the guard on the AdditionalInfo text,
+        // which is the only place an operator learns the condition.
+        private static void ObjectDataProviderMessagePackHitsTheLibraryDenyList()
+        {
+            foreach (string formatter in new[] { "MessagePackTypeless", "MessagePackTypelessLz4" })
+            {
+                bool lz4 = formatter == "MessagePackTypelessLz4";
+                using (FireTarget fire = FireBackend.Create("odp_mp_" + (lz4 ? "lz4" : "plain")))
+                {
+                    InputArgs ia = new InputArgs();
+                    ia.Cmd = fire.Command;
+                    ia.IsRawCmd = true;
+                    ia.Test = false;
+                    RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = "ObjectDataProvider",
+                        FormatterName = formatter,
+                        OutputFormat = "",
+                        InputArgs = ia,
+                    });
+                    AssertTrue(r.Success && !RawIsEmpty(r.Raw),
+                        "ObjectDataProvider " + formatter + " generates: " + r.ErrorMessage);
+
+                    // ObjectDataProvider invokes the method as soon as both members are
+                    // assigned, and that path wants a dispatcher, so read it back the same way
+                    // every other fire row does.
+                    byte[] payload = Bytes(r.Raw);
+                    Exception thrown = null;
+                    RunSTA(delegate
+                    {
+                        try { SerializersHelper.MessagePackTypeless_deserialize(payload, lz4); }
+                        catch (Exception ex) { thrown = ex; }
+                    });
+
+                    AssertTrue(thrown != null, formatter
+                        + ": the reader was expected to refuse the payload, but it returned "
+                        + "without an exception");
+                    Exception root = thrown;
+                    while (root.InnerException != null) root = root.InnerException;
+                    AssertTrue(
+                        root.Message.IndexOf("System.Windows.Data.ObjectDataProvider",
+                            StringComparison.Ordinal) >= 0
+                        && root.Message.IndexOf("not allowed", StringComparison.Ordinal) >= 0,
+                        formatter + ": the refusal names the deny-listed type. Got "
+                            + root.GetType().Name + ": " + root.Message);
+
+                    AssertTrue(!fire.Wait(2000), formatter
+                        + ": nothing ran, because the type was never created ("
+                        + fire.Describe() + ")");
+                }
+            }
+
+            // The cells STAY advertised, because the wall belongs to the target's MessagePack
+            // build rather than to the payload: the type joined that deny list in 2.5.205 and
+            // 3.1.5, and the same bytes still fire on anything older. That is a library
+            // version, so it cannot live in the runtime-version facet, and AdditionalInfo is
+            // the only place an operator can read it. Locked here so the list and the text
+            // cannot drift apart.
+            var odp = GadgetRegistry.CreateGadgetInstance("ObjectDataProvider") as GenericGenerator;
+            AssertTrue(odp != null, "the gadget loads");
+            List<string> advertised = odp.SupportedFormatters();
+            foreach (string formatter in new[] { "MessagePackTypeless", "MessagePackTypelessLz4" })
+                AssertTrue(advertised.Contains(formatter),
+                    formatter + " stays advertised: it fires below the deny-list versions");
+
+            string info = odp.AdditionalInfo();
+            foreach (string expected in new[] { "MessagePack", "2.5.205", "3.1.5" })
+                AssertTrue(info.IndexOf(expected, StringComparison.Ordinal) >= 0,
+                    "AdditionalInfo states the MessagePack condition, including " + expected
+                        + ": " + info);
+        }
+
+        // Four ObjectDataProvider cells - both MessagePack Typeless flavours and both
+        // SharpSerializer modes - used to return their own bytes and run their own deserialize
+        // inside a bare catch. That silently opted them out of the shared generation boundary
+        // AND of the whole self-test entry point, so -t could never report why a payload
+        // failed - which is exactly what made the deny-list refusal above invisible from a
+        // hand run.
+        //
+        // A bypass leaves no trace in the payload, so it is asserted through the one boundary
+        // step that has an observable refusal: --legacyfx refuses a -c that itself carries a
+        // framework assembly identity, because inside the finished bytes the operator's text
+        // and an identity ysonet wrote are indistinguishable.
+        private static void ObjectDataProviderSerializedBranchesUseTheSharedBoundary()
+        {
+            foreach (string formatter in new[] { "MessagePackTypeless", "MessagePackTypelessLz4",
+                "SharpSerializerXml", "SharpSerializerBinary" })
+            {
+                InputArgs ambiguous = new InputArgs();
+                ambiguous.LegacyFx = true;
+                ambiguous.Cmd = "mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";
+                RunResult refused = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = "ObjectDataProvider",
+                    FormatterName = formatter,
+                    OutputFormat = "",
+                    InputArgs = ambiguous,
+                });
+                AssertTrue(!refused.Success,
+                    formatter + " reaches the shared boundary, so an ambiguous -c is refused");
+                AssertTrue((refused.ErrorMessage ?? "").IndexOf(
+                        "--legacyfx cannot run on this payload", StringComparison.Ordinal) >= 0,
+                    formatter + " refuses with the boundary's own message: " + refused.ErrorMessage);
+
+                // And an ordinary input still generates, so the boundary was added rather than
+                // the branch broken.
+                InputArgs ordinary = new InputArgs();
+                ordinary.Cmd = "calc.exe";
+                RunResult built = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = "ObjectDataProvider",
+                    FormatterName = formatter,
+                    OutputFormat = "",
+                    InputArgs = ordinary,
+                });
+                AssertTrue(built.Success && !RawIsEmpty(built.Raw),
+                    formatter + " still generates normally: " + built.ErrorMessage);
             }
         }
 
@@ -20527,6 +21129,109 @@ namespace ysonet.Tests
             throw new Exception("payload is neither string nor byte[], but " + raw.GetType().Name);
         }
 
+        // The one fire row whose two strings sort the WRONG way round.
+        //
+        // Every other row in this matrix runs an absolute sink path, which always sorts above
+        // the sink's own tag alphabet, so none of them would notice if TypeConfuseDelegate went
+        // back to letting the two strings decide which one Process.Start receives first. This
+        // row is the opposite case, and it fires only because the gadget fixes that order while
+        // it builds the container.
+        //
+        // A reversed pair cannot be expressed with the real sink path (an absolute path starts
+        // with a drive letter, which sorts above every tag the sink alphabet can mint), so the
+        // sink is COPIED to a digit-first name that sorts below the tag and is launched by that
+        // bare name. The copy still writes its record where the run's sink directory variable
+        // points, so the evidence is the usual one: the exact argument the sink received.
+        private static void FireTypeConfuseDelegateReversedPair(
+            FailureCollector failures, ref int fired, ref int skipped, bool trace)
+        {
+            const string label = "fire TypeConfuseDelegate_reversed_pair";
+            if (trace) { Console.Error.WriteLine("    [fire] " + label); Console.Error.Flush(); }
+
+            if (!FireBackend.UsesSink)
+            {
+                skipped++;
+                Console.Error.WriteLine("  [skip] " + label
+                    + ": the legacy marker backend cannot express a reversed pair");
+                return;
+            }
+
+            // Sorts below a minted tag ("0p..."): same leading digit, then 'a' before 'p'.
+            const string sinkCopyName = "0asink.exe";
+            string dir = Path.Combine(ResolveTestArtifactDir(),
+                "ysonet_tcdrev_" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            string tag = FireBackend.NewTag();
+            string savedPath = Environment.GetEnvironmentVariable("PATH");
+            string savedCurrentDirectory = Environment.CurrentDirectory;
+            try
+            {
+                Directory.CreateDirectory(dir);
+                File.Copy(FireBackend.SinkExePath, Path.Combine(dir, sinkCopyName), true);
+
+                // The row only means anything while the pair really is reversed, so assert it
+                // against the gadget's OWN comparison rather than a lookalike.
+                AssertTrue(
+                    TypeConfuseDelegateGenerator.CultureSensitiveCompare(sinkCopyName, tag) < 0,
+                    label + ": the fixture executable must sort BELOW its argument (\""
+                        + sinkCopyName + "\" vs \"" + tag + "\")");
+
+                // The payload names the executable by bare name, so the deserializing process
+                // has to be able to find it. Both lookups are set, and both are restored.
+                Environment.SetEnvironmentVariable("PATH", dir + ";" + savedPath);
+                Environment.CurrentDirectory = dir;
+                FireBackend.RemoveRecords(tag);
+
+                InputArgs ia = new InputArgs();
+                ia.Cmd = sinkCopyName + " " + tag;
+                ia.IsRawCmd = true;
+                ia.Test = false;
+                RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = "TypeConfuseDelegate",
+                    FormatterName = "BinaryFormatter",
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+                if (!r.Success)
+                {
+                    failures.Add(label + ": generate -> " + r.ErrorMessage);
+                    return;
+                }
+
+                RunSTA(delegate { DeserializeAs("bf", r.Raw); });
+
+                SinkRecord record;
+                if (!FireBackend.TryReadRecord(tag, MarkerWaitMs, out record))
+                {
+                    failures.Add(label + ": did not fire (no sink record for tag " + tag
+                        + "; a swapped payload would have tried to run \"" + tag
+                        + "\" as the executable)");
+                    return;
+                }
+                if (record.ArgCount != 1 || record.Arg0 != tag)
+                {
+                    failures.Add(label + ": the sink received " + record.ArgCount
+                        + " argument(s), arg0 '" + record.Arg0 + "', expected exactly '"
+                        + tag + "' (raw: " + record.RawCommandLine + ")");
+                    return;
+                }
+
+                fired++;
+                RuntimeBuild.RecordFired("TypeConfuseDelegate");
+            }
+            catch (Exception ex)
+            {
+                failures.Add(label + ": " + ex.Message);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("PATH", savedPath);
+                try { Environment.CurrentDirectory = savedCurrentDirectory; } catch { }
+                FireBackend.RemoveRecords(tag);
+                SafeDeleteDir(dir);
+            }
+        }
+
         // Generate the gadget's own payload with a fire command, deserialize it in-process on
         // an STA thread, and prove the command ran through the selected fire backend.
         // formatter/deserialize helper are chosen per gadget by the caller.
@@ -21262,6 +21967,8 @@ namespace ysonet.Tests
             };
             foreach (string g in bfMarkerGadgets)
                 FireGadgetMarker(g, "BinaryFormatter", 0, false, false, "bf", true, failures, ref fired, ref skipped, trace);
+
+            FireTypeConfuseDelegateReversedPair(failures, ref fired, ref skipped, trace);
 
             // ---- MARKER: WindowsIdentity variants 2 and 3. Membership in bfMarkerGadgets
             // above passes variant 0, so it only ever proves the .actor key. These four cells
@@ -22095,15 +22802,16 @@ namespace ysonet.Tests
         }
 
         // Every supported TypeConfuseDelegateFileOperations cell, fired for real into
-        // test-owned files and directories: 5 operations x (three all-root formatters plus
-        // SOAP roots 1 and 3) x minify off/on = 110 effects. There is no marker command and no spawned process here - the
-        // deserializer itself performs the file operation - so the effect is asserted
-        // synchronously right after the deserialize instead of polled for.
+        // test-owned files and directories: 5 operations plus one reversed-pair copy x (three
+        // all-root formatters plus SOAP roots 1 and 3) x minify off/on = 132 effects. There is
+        // no marker command and no spawned process here - the deserializer itself performs the
+        // file operation - so the effect is asserted synchronously right after the deserialize
+        // instead of polled for.
         //
-        // Fixture names carry the ordering rule: the FIRST argument must sort after the
-        // second with String.CompareOrdinal, so sources/targets start "zz_" and
-        // destinations start "aa_". Nothing here rewrites those names; the generator
-        // refuses any pair that does not already satisfy the rule.
+        // Fixture names still put sources/targets at "zz_" and destinations at "aa_", which is
+        // the direction this gadget once REQUIRED. It no longer does, and that is exactly why
+        // FireFileOpsReversedCopy exists: with every other row satisfying the old rule by
+        // construction, none of them could tell a fixed serialized order from a lucky fixture.
         private static void FireFileOperations(FailureCollector failures, ref int fired, bool trace)
         {
             string root = TestArtifactPath("ysonet_fileops_fire");
@@ -22139,6 +22847,7 @@ namespace ysonet.Tests
                             }
                             FireFileOpsWrite(root, contentFile, stem, formatter, container, minify, cell, failures, ref fired);
                             FireFileOpsCopy(root, stem, formatter, container, minify, cell, failures, ref fired);
+                            FireFileOpsReversedCopy(root, stem, formatter, container, minify, cell, failures, ref fired);
                             FireFileOpsMove(root, stem, formatter, container, minify, cell, failures, ref fired);
                             FireFileOpsDirMove(root, stem, formatter, container, minify, cell, failures, ref fired);
                             FireFileOpsEmpty(root, stem, formatter, container, minify, cell, failures, ref fired);
@@ -22199,6 +22908,41 @@ namespace ysonet.Tests
                     failures.Add("fire " + label + ": File.Copy must leave the source in place");
                 else if (!File.Exists(dest))
                     failures.Add("fire " + label + ": the destination copy was not created");
+                else if (File.ReadAllText(dest) != "copied by ysonet")
+                    failures.Add("fire " + label + ": the copy does not hold the source content");
+                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+            }
+            SafeDelete(source); SafeDelete(dest);
+        }
+
+        // The same copy with the two paths the OTHER way round, which every cell above
+        // avoids by naming its source "zz_" and its destination "aa_". That naming used to be
+        // mandatory - the gadget refused any other direction - so no cell in this matrix
+        // could see whether the serialized order was fixed or merely satisfied by the
+        // fixture. This row is the one that can: the source sorts BELOW the destination, and
+        // it must still arrive as File.Copy's first argument in every formatter and root.
+        private static void FireFileOpsReversedCopy(string root, string stem, string formatter,
+            int container, bool minify, string cell, FailureCollector failures, ref int fired)
+        {
+            string label = "TCDFileOps copy (reversed pair)" + cell;
+            string source = Path.Combine(root, "aa_revcopy_" + stem + ".txt");
+            string dest = Path.Combine(root, "zz_revcopy_" + stem + ".txt");
+            if (String.CompareOrdinal(source, dest) >= 0)
+            {
+                failures.Add("fire " + label + ": the fixture is not a reversed pair, so it "
+                    + "proves nothing (" + source + " vs " + dest + ")");
+                return;
+            }
+            SafeDelete(source); SafeDelete(dest);
+            File.WriteAllText(source, "copied by ysonet");
+            if (FireFileOpsCell(2, source + ";" + dest, formatter, container, minify, label, failures))
+            {
+                if (!File.Exists(source))
+                    failures.Add("fire " + label + ": File.Copy must leave the source in place");
+                else if (!File.Exists(dest))
+                    failures.Add("fire " + label + ": the destination copy was not created "
+                        + "(a payload built the old way would have called File.Copy the other "
+                        + "way round and thrown)");
                 else if (File.ReadAllText(dest) != "copied by ysonet")
                     failures.Add("fire " + label + ": the copy does not hold the source content");
                 else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
@@ -25339,6 +26083,19 @@ namespace ysonet.Tests
                 TestRunOptions.Parse(new[] { "--wer-containment=off" }, Env(TestRunOptions.WerVar, "job"), false).Wer,
                 "--wer-containment=off overrides the environment");
 
+            // One run at a time is the DEFAULT: a second run waits rather than competing for
+            // the machine. Turning it off is deliberate, and says so in both spellings.
+            AssertEqual(TestRunLockMode.Wait, plain.TestLock, "the machine test lock is on by default");
+            AssertEqual(TestRunLockMode.Off,
+                TestRunOptions.Parse(new[] { "--test-lock=off" }, noEnv, false).TestLock,
+                "--test-lock=off runs without the machine lock");
+            AssertEqual(TestRunLockMode.Off,
+                TestRunOptions.Parse(new string[0], Env(TestRunOptions.TestLockVar, "off"), false).TestLock,
+                "YSONET_TEST_LOCK=off runs without the machine lock");
+            AssertEqual(TestRunLockMode.Wait,
+                TestRunOptions.Parse(new[] { "--test-lock", "wait" }, Env(TestRunOptions.TestLockVar, "off"), false).TestLock,
+                "--test-lock wait overrides the environment");
+
             TestRunOptions statusOff = TestRunOptions.Parse(new[] { "--status-file=off" }, noEnv, false);
             AssertTrue(!statusOff.StatusEnabled, "--status-file=off disables status");
             TestRunOptions statusPath = TestRunOptions.Parse(new[] { "--status-file=C:\\x\\run.txt" }, noEnv, false);
@@ -25360,6 +26117,8 @@ namespace ysonet.Tests
                 "an unknown WER containment mode is rejected");
             AssertTrue(TestRunOptions.Parse(new string[0], Env(TestRunOptions.SinkVar, "sometimes"), false).ConfigError != null,
                 "an unknown sink value is rejected");
+            AssertTrue(TestRunOptions.Parse(new[] { "--test-lock=maybe" }, noEnv, false).ConfigError != null,
+                "an unknown test lock mode is rejected");
             AssertTrue(TestRunOptions.Parse(new[] { "--ui-isolation" }, noEnv, false).ConfigError != null,
                 "a switch with no value is rejected");
             AssertTrue(TestRunOptions.Parse(new[] { "--ui-isolation=" }, noEnv, false).ConfigError != null,
@@ -25936,6 +26695,208 @@ namespace ysonet.Tests
             }.Render();
         }
 
+        /// <summary>
+        /// The machine-wide lock, driven on its own name so the live run's lock is never
+        /// touched. Two real processes are the point: a mutex is re-entrant for its owning
+        /// thread, so a second Acquire in this process would report success and prove
+        /// nothing about a second RUN.
+        /// </summary>
+        private static void MachineWideTestLockSerialisesRuns()
+        {
+            string name = "ysonet-test-lock-probe-" + Guid.NewGuid().ToString("N");
+            Action<string> quiet = delegate { };
+            TimeSpan tick = TimeSpan.FromMilliseconds(200);
+
+            // Off holds nothing, blocks on nothing, and says which it is.
+            using (TestRunLock off = TestRunLock.Acquire(TestRunLockMode.Off, name, null, tick, quiet))
+            {
+                AssertTrue(!off.Held, "--test-lock=off takes no lock");
+                AssertTrue(off.Description.StartsWith("off (")
+                    && off.Description.Contains(TestRunOptions.TestLockVar),
+                    "off says so in the header, in both spellings: " + off.Description);
+            }
+
+            // A free name is taken at once, and released again on Dispose.
+            using (TestRunLock first = TestRunLock.Acquire(TestRunLockMode.Wait, name, null, tick, quiet))
+            {
+                AssertTrue(first.Held, "an unheld lock is acquired");
+                AssertEqual(TimeSpan.Zero, first.Waited, "acquiring a free lock waits for nothing");
+                AssertTrue(first.Description.Contains(name), "the header names the lock: " + first.Description);
+            }
+            using (TestRunLock again = TestRunLock.Acquire(TestRunLockMode.Wait, name, null, tick, quiet))
+                AssertTrue(again.Held && again.Waited == TimeSpan.Zero, "Dispose really released it");
+
+            // A name Windows cannot use degrades to "no lock" with a reason. An OS refusal
+            // must never fail a run that is otherwise valid.
+            using (TestRunLock bad = TestRunLock.Acquire(TestRunLockMode.Wait,
+                new string('n', 300), null, tick, quiet))
+            {
+                AssertTrue(!bad.Held, "an unusable lock name takes no lock instead of throwing");
+                AssertTrue(bad.Description.Contains("unavailable"),
+                    "the run header says the lock is unavailable and why: " + bad.Description);
+            }
+
+            string dir = Path.Combine(ResolveTestArtifactDir(),
+                "ysonet_lock_" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                // ---- a second run WAITS while the first one holds the machine ----------
+                string ready = Path.Combine(dir, "ready.txt");
+                string release = Path.Combine(dir, "release.txt");
+                using (System.Diagnostics.Process holder = StartTestLockProbe(name, ready, release))
+                {
+                    AssertTrue(WaitForFile(ready, 30000), "the probe process took the lock");
+
+                    // Acquire on a worker thread: a Mutex belongs to the thread that took it,
+                    // so this thread also releases it.
+                    bool held = false;
+                    TimeSpan waited = TimeSpan.Zero;
+                    string description = null;
+                    Exception failure = null;
+                    var acquired = new System.Threading.ManualResetEvent(false);
+                    var mayRelease = new System.Threading.ManualResetEvent(false);
+                    var second = new System.Threading.Thread(delegate ()
+                    {
+                        try
+                        {
+                            using (TestRunLock waiter = TestRunLock.Acquire(TestRunLockMode.Wait,
+                                name, null, tick, quiet))
+                            {
+                                held = waiter.Held;
+                                waited = waiter.Waited;
+                                description = waiter.Description;
+                                acquired.Set();
+                                mayRelease.WaitOne(60000);
+                            }
+                        }
+                        catch (Exception ex) { failure = ex; acquired.Set(); }
+                    });
+                    second.IsBackground = true;
+                    second.Start();
+
+                    AssertTrue(!acquired.WaitOne(3000),
+                        "a second run does not start while another holds the machine test lock");
+
+                    File.WriteAllText(release, "go");
+                    AssertTrue(acquired.WaitOne(60000),
+                        "the waiting run acquires the lock once the holder releases it");
+                    AssertTrue(failure == null, "waiting for the lock threw nothing: " + failure);
+                    AssertTrue(held, "the second run really owns the lock");
+                    AssertTrue(waited >= TimeSpan.FromSeconds(2),
+                        "the wait is measured and reported (" + waited.TotalSeconds + "s)");
+                    AssertTrue(description != null && description.Contains("acquired after"),
+                        "the header records the wait: " + description);
+
+                    mayRelease.Set();
+                    AssertTrue(second.Join(30000), "the waiting run released the lock");
+                    holder.WaitForExit(30000);
+                    AssertEqual(0, holder.ExitCode, "the holder probe exited cleanly");
+                }
+
+                // ---- a KILLED holder must not wedge the machine -----------------------
+                // Windows abandons a mutex whose owner died, which is the whole reason the
+                // lock can be taken unconditionally: a worker that is killed mid-run cannot
+                // stop every later run on the machine.
+                string ready2 = Path.Combine(dir, "ready2.txt");
+                string release2 = Path.Combine(dir, "never-released.txt");
+                using (System.Diagnostics.Process doomed = StartTestLockProbe(name, ready2, release2))
+                {
+                    AssertTrue(WaitForFile(ready2, 30000), "the second probe took the lock");
+                    try { doomed.Kill(); } catch { }
+                    doomed.WaitForExit(30000);
+                }
+                using (TestRunLock afterAbandon = TestRunLock.Acquire(TestRunLockMode.Wait,
+                    name, null, tick, quiet))
+                {
+                    AssertTrue(afterAbandon.Held, "a killed holder's lock is not left wedged");
+                    AssertTrue(afterAbandon.Waited < TimeSpan.FromSeconds(5),
+                        "an abandoned lock is taken at once, not waited out");
+                }
+
+                // ---- the waiting line names the run that is holding it -----------------
+                // It reads the holder's own status snapshot rather than a second file, so a
+                // stale or foreign one yields the generic wording instead of a wrong pid.
+                AssertEqual("pid unknown", TestRunLock.DescribeHolder(null),
+                    "with no status directory the holder is simply unknown");
+                AssertEqual("pid unknown", TestRunLock.DescribeHolder(dir),
+                    "an empty status directory names nobody");
+
+                string live = Path.Combine(dir, "ysonet_testrun.txt");
+                File.WriteAllText(live, new RunStatusSnapshot
+                {
+                    State = "running",
+                    Pid = System.Diagnostics.Process.GetCurrentProcess().Id,
+                    Tier = "NORMAL+FULL",
+                    StartedUtc = DateTime.UtcNow,
+                    UpdatedUtc = DateTime.UtcNow,
+                    Current = "a row",
+                    Index = 231,
+                }.Render());
+                AssertEqual("pid unknown", TestRunLock.DescribeHolder(dir),
+                    "a run never reports itself as the holder it is waiting for");
+
+                // A live snapshot from another process is named in full: whoever reads the
+                // waiting line can go and look at that run.
+                using (System.Diagnostics.Process other = StartTestLockProbe(
+                    name + "-x", Path.Combine(dir, "ready3.txt"), Path.Combine(dir, "release3.txt")))
+                {
+                    try
+                    {
+                        AssertTrue(WaitForFile(Path.Combine(dir, "ready3.txt"), 30000),
+                            "the third probe started");
+                        File.WriteAllText(live, new RunStatusSnapshot
+                        {
+                            State = "running",
+                            Pid = other.Id,
+                            Tier = "NORMAL+FULL",
+                            StartedUtc = DateTime.UtcNow,
+                            UpdatedUtc = DateTime.UtcNow,
+                            Current = "a row",
+                            Index = 231,
+                        }.Render());
+                        string described = TestRunLock.DescribeHolder(dir);
+                        AssertTrue(described.Contains("pid " + other.Id) && described.Contains("NORMAL+FULL")
+                            && described.Contains("row 231: a row"),
+                            "the waiting line names the live holder: " + described);
+
+                        // Same file, dead process: the generic wording, never a wrong pid.
+                        File.WriteAllText(Path.Combine(dir, "release3.txt"), "go");
+                        other.WaitForExit(30000);
+                        AssertEqual("pid unknown", TestRunLock.DescribeHolder(dir),
+                            "a snapshot whose process is gone names nobody");
+                    }
+                    finally
+                    {
+                        File.WriteAllText(Path.Combine(dir, "release3.txt"), "go");
+                        other.WaitForExit(30000);
+                    }
+                }
+            }
+            finally { SafeDeleteDir(dir); }
+        }
+
+        // One holder process for the lock test: this same executable, through the hidden
+        // TestLockProbe branch, so nothing production is involved in proving a mutex works.
+        private static System.Diagnostics.Process StartTestLockProbe(string name, string readyFile,
+            string releaseFile)
+        {
+            string exe = System.Reflection.Assembly.GetEntryAssembly().Location;
+            var psi = new System.Diagnostics.ProcessStartInfo(exe);
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            psi.RedirectStandardOutput = true;
+            psi.RedirectStandardError = true;
+            psi.WorkingDirectory = Path.GetDirectoryName(exe);
+            psi.EnvironmentVariables[TestLockProbeVar] = name + "|" + readyFile + "|" + releaseFile;
+            var proc = System.Diagnostics.Process.Start(psi);
+            proc.OutputDataReceived += delegate { };
+            proc.ErrorDataReceived += delegate { };
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
+            return proc;
+        }
+
         private static void WerContainmentConfiguresTheSpecificJob()
         {
             using (WerContainment off = WerContainment.Apply(WerContainmentMode.Off))
@@ -26156,9 +27117,9 @@ namespace ysonet.Tests
                 AssertEqual(SinkExitBadArgumentCount, RunSink(exe, tag + " " + tag, dir),
                     "two arguments are refused");
 
-                // The tag alphabet is strict on purpose: the leading digit is what keeps the
-                // sink path sorting ABOVE the tag for TypeConfuseDelegate, and the rest keeps
-                // the record's file name predictable.
+                // The tag alphabet is strict on purpose: it keeps the record's file name
+                // predictable, and the leading digit is what lets a test express a REVERSED
+                // TypeConfuseDelegate pair (see FireTypeConfuseDelegateReversedPair).
                 // Quoted, so each of these arrives as ONE argument with a bad VALUE. Passing
                 // "0bad tag" unquoted would arrive as two arguments and be refused for the
                 // wrong reason.
@@ -26285,22 +27246,20 @@ namespace ysonet.Tests
             }
             finally { SafeDeleteDir(spaced); }
 
-            // The ordering invariant, checked against the gadget's OWN comparison rather than
-            // a lookalike. BuildConfusedContainer hands its LARGER element to the spliced
-            // Process.Start's first parameter, so the executable must sort strictly above the
-            // tag or the payload would call Process.Start(tag, executable) and never fire.
+            // A minted tag matches the alphabet the sink validates. The leading digit is no
+            // longer what makes a TypeConfuseDelegate row fire - the gadget fixes its own
+            // argument order now - but it is still what lets
+            // FireTypeConfuseDelegateReversedPair build a pair that sorts the wrong way round,
+            // so it is asserted here rather than assumed there.
             string tag = FireBackend.NewTag();
-            AssertTrue(tag.Length > 2 && tag[0] >= '0' && tag[0] <= '9', "a minted tag starts with a digit: " + tag);
-            string exe = "D:\\somewhere\\ysonet.TestSink.exe";
-            AssertTrue(FireBackend.OrderingHolds(exe, tag), "an executable path sorts above a minted tag");
-            AssertTrue(TypeConfuseDelegateGenerator.CultureSensitiveCompare(exe, tag) > 0,
-                "the gadget's own comparison agrees that the executable is the larger element");
-
-            // The largest tag this alphabet can produce, which is what selection checks once so
-            // no per-row check can ever fail.
-            AssertTrue(FireBackend.OrderingHolds(exe, "9" + new string('z', 63)),
-                "the invariant holds for the largest possible tag");
-            AssertTrue(!FireBackend.OrderingHolds("0abc", "9zzz"), "a swapped pair is detected, not assumed");
+            AssertTrue(tag.Length > 2 && tag[0] >= '0' && tag[0] <= '9',
+                "a minted tag starts with a digit: " + tag);
+            AssertTrue(TypeConfuseDelegateGenerator.CultureSensitiveCompare(
+                    "D:\\somewhere\\ysonet.TestSink.exe", tag) > 0,
+                "a drive-lettered path still sorts above a minted tag, so an ordinary fire row "
+                    + "exercises the already-ordered case");
+            AssertTrue(TypeConfuseDelegateGenerator.CultureSensitiveCompare("0asink.exe", tag) < 0,
+                "and a digit-first executable name sorts BELOW it, which is the reversed case");
         }
 
         private static void TestSinkProbeSelectsBackend()

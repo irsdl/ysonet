@@ -317,7 +317,10 @@ namespace ysonet.Tests
 
         // "Live" is deliberately narrow: still running, heartbeat inside the window, and the
         // PID still exists. Anything else is an interrupted or finished run whose file may go.
-        private static bool TryReadLive(string path, DateTime now, Func<int, bool> processAlive,
+        // Internal because the machine-wide test lock names its holder from the same rule: a
+        // second definition of "that run is still going" would be free to disagree with this
+        // one.
+        internal static bool TryReadLive(string path, DateTime now, Func<int, bool> processAlive,
             out RunStatusSnapshot snapshot)
         {
             snapshot = null;

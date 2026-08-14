@@ -428,7 +428,7 @@ namespace ysonet.Generators
         }
 
         // Both JSON templates here quote with DOUBLE quotes, so they escape with
-        // EscapeForJsonDoubleQuoted (only \ and "). EscapeForJson would also write an
+        // EscapeForJsonDoubleQuoted. EscapeForJson would also write an
         // apostrophe as \', which is not a legal JSON escape: fastJSON DROPS the character and
         // the URL would reach the target with the apostrophe missing.
         //

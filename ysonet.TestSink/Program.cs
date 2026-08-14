@@ -23,12 +23,14 @@ namespace ysonet.TestSink
     /// producing a record that looks valid:
     ///   YSONET_TEST_SINK_DIR   must name a writable directory (the harness sets it).
     ///   argv                   exactly one argument, the tag.
-    ///   tag                    [0-9][A-Za-z0-9_-]{0,63}. The leading DIGIT is load bearing:
-    ///                          TypeConfuseDelegate hands the LARGER of its two strings to
-    ///                          the spliced Process.Start's first parameter, so the sink path
-    ///                          must sort ABOVE the tag under the culture-sensitive
-    ///                          comparison the gadget uses. A digit sorts below any letter,
-    ///                          and an executable path starts with a drive letter.
+    ///   tag                    [0-9][A-Za-z0-9_-]{0,63}, so the record's file name stays
+    ///                          predictable and one tag can never be a prefix-safe lookalike
+    ///                          of another. The leading DIGIT also keeps a tag sorting below
+    ///                          any drive-lettered path, which is what lets a test build the
+    ///                          deliberately REVERSED TypeConfuseDelegate pair it needs
+    ///                          (FireTypeConfuseDelegateReversedPair). It is no longer what
+    ///                          makes an ordinary fire row work: the gadget fixes its own
+    ///                          argument order while it builds the payload.
     ///
     /// Every invocation writes its own file. Nothing appends: two payload processes firing at
     /// once would race on a shared file, and a duplicate fire is evidence worth keeping

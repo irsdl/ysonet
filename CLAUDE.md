@@ -235,6 +235,16 @@ or interactive screen changes, and a hand-run `ysonet.exe -t` behaves exactly as
   windowless sink and shows nothing). The runner prints one note naming the setting that
   closes it (default terminal application = "Windows Console Host"). It must never WRITE that
   setting: a test run does not reconfigure the maintainer's machine.
+- One run at a time. The runner takes a machine-wide named mutex before it probes the fire
+  sink, so a second automated run WAITS instead of competing for the machine. Control:
+  `--test-lock=wait|off` or `YSONET_TEST_LOCK`. Git isolation is not machine isolation: two
+  worktrees still share CPU, the loopback and RPC probes, and the tight launch-and-read
+  budgets the fire rows depend on, and a competing run shows up as ORDINARY test failures -
+  which is the one classification that tells an agent to go and change product code. A
+  waiting run prints who holds the lock (pid, tier, current row) every 30s, taken from that
+  run's own status file. A run that is killed abandons the mutex, so a dead run can never
+  wedge the machine, and a lock that cannot be created prints one line and the run carries on
+  unserialised. Turn it off only for a deliberately concurrent experiment.
 - WER job. The runner joins a job object with `JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION`,
   which suppresses crash UI for the whole tree. Control: `--wer-containment=job|off` or
   `YSONET_WER_CONTAINMENT`. `KILL_ON_JOB_CLOSE` is deliberately not set, so the job does not

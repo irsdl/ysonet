@@ -47,11 +47,17 @@ namespace ysonet.Generators
         // same shape; the difference is what the target does to reach the file, which is why
         // variant 2 declares the extra network kind below.
         //
-        // Versions stay unspecified on purpose. The gate is not a CLR build: the chain is
-        // present on every 4.x runtime, and whether a REMOTE load succeeds is decided by the
-        // target's security zone for the share plus loadFromRemoteSources, not by a version
-        // range. Stating a range would read as "these builds are vulnerable", which is wrong
-        // in both directions, so the real condition is stated in the --variant option help
+        // The version axis describes the framework the TARGET PROCESS RUNS ON. The floor is
+        // the CLR v4 generation: every payload here names the 4.0.0.0 identities of
+        // System.Configuration.Install and System.Windows.Forms, so an older runtime cannot
+        // bind them at all, and on 4.0 the chain already has the body it has on the newest
+        // build (the Path setter's Assembly.LoadFrom, HelpText -> InitializeFromAssembly, and
+        // the five WinForms getter-call carriers). The ceiling is what the fire rows observed.
+        //
+        // What the span does NOT say is that a REMOTE load works on all of those builds.
+        // Whether the target loads an assembly from a share is decided by the security zone
+        // it gives that share plus loadFromRemoteSources, on every build in the range alike,
+        // so that gate is not version shaped. It is stated in the --variant option help
         // (which --fullhelp and the interactive editor both show) and in
         // docs/usage-and-examples.md, rather than in AdditionalInfo(), which has to stay
         // short enough for the interactive info panel.
@@ -59,7 +65,8 @@ namespace ysonet.Generators
         {
             return new GadgetFacetSet()
                 .WithKinds(PayloadKind.CodeExecution)
-                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework);
+                .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481));
         }
 
         // The installer-gadget class (an assembly load reached through a serialized object,
@@ -79,11 +86,14 @@ namespace ysonet.Generators
 
         // Kept SHORT on purpose: this is the first block of the interactive info panel, and a
         // long one pushes Formatters, Command input and the category summary off the visible
-        // rows (locked by AssemblyInstallerLoadInfoPanelStillShowsItsFacts). The UNC zone
-        // rules and the getter-carrier table live in the option help and the public docs.
+        // rows (locked by AssemblyInstallerLoadInfoPanelStillShowsItsFacts). Declaring the
+        // runtime versions above lengthened the category line of BOTH variants, which cost
+        // one row, so this sentence gives one back: it wraps to two rows in the narrow panel
+        // instead of three. The UNC zone rules, the installer-constructor detail and the
+        // getter-carrier table live in the option help and the public docs.
         public override string AdditionalInfo()
         {
-            return "The target loads a DLL you name and runs its [RunInstaller(true)] installer constructors.";
+            return "Loads a DLL you name and runs its [RunInstaller(true)] installers.";
         }
 
         public override List<string> Labels()
@@ -139,13 +149,17 @@ namespace ysonet.Generators
 
                 // A UNC path makes the target fetch the DLL over SMB before loading it, so
                 // this variant adds the network kind. WithFacets replaces the WHOLE set, so
-                // the requirements are repeated here; Inputs stays null so it derives from
-                // this variant's own CommandInputType.UncPath.
+                // the requirements AND the versions are repeated here; Inputs stays null so it
+                // derives from this variant's own CommandInputType.UncPath. The span is the
+                // same one variant 1 declares, and it means the same thing: it is the chain
+                // that is present on those builds. The zone plus loadFromRemoteSources gate on
+                // the SMB delivery is in the option help below, because it is not a version.
                 new GadgetVariant(2, "UNC DLL path (the target fetches it over SMB)",
                         CommandInputType.UncPath)
                     .WithFacets(new GadgetFacetSet()
                         .WithKinds(PayloadKind.CodeExecution, PayloadKind.Network)
-                        .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)),
+                        .WithRequirements(GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework)
+                        .WithVersions(RuntimeVersion.Range(RuntimeVersion.NetFx40, RuntimeVersion.NetFx481))),
             };
         }
 
@@ -165,7 +179,8 @@ namespace ysonet.Generators
                     + "\r\n2 - a UNC path the target fetches over SMB, e.g. \\\\attacker\\share\\installer.dll. "
                     + "The target must be able to reach the share, and .NET only loads an assembly from a share it "
                     + "classifies as Local Intranet; an Internet-zone share (a bare IP is one) needs "
-                    + "loadFromRemoteSources=true on the target.",
+                    + "loadFromRemoteSources=true on the target. The (2) formatter annotation counts these two "
+                    + "variants, not the independent --getter choices.",
                     v => int.TryParse(v, out variant_number)
                 },
                 {
@@ -177,7 +192,8 @@ namespace ysonet.Generators
                     + "\r\n4 - CheckedListBox"
                     + "\r\n5 - BindingSource (reads HelpText once; a Component with no window, so it suits a headless target)"
                     + "\r\nOnly Json.NET and Xaml can build carriers 2 to 4. Carrier 5 works with Xaml, FastJson, "
-                    + "JavaScriptSerializer and both SharpSerializer flavours, but not with Json.NET, YamlDotNet or MessagePack.",
+                    + "JavaScriptSerializer and both SharpSerializer flavours, but not with Json.NET, YamlDotNet or MessagePack."
+                    + " The (2) formatter annotation counts DLL-path variants, not getter choices.",
                     v => int.TryParse(v, out getter_number)
                 },
             };

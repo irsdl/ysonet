@@ -58,11 +58,12 @@ Everything the FULL suite runs is safe: every command is self-closing or is a va
 
 ### Quiet runs, and watching one
 
-An automated run keeps itself off your screen. Three things do that, and each has an off switch that restores the older behavior. They belong to the TEST RUNNER only: `ysonet.exe`, including `ysonet.exe -t`, is unchanged.
+An automated run keeps itself off your screen and out of another run's way. Four things do that, and each has an off switch that restores the older behavior. They belong to the TEST RUNNER only: `ysonet.exe`, including `ysonet.exe -t`, is unchanged.
 
 - The runner relaunches itself once on a hidden Windows desktop, so a payload window never appears and never steals focus. Descendants inherit that desktop. Turn it off with `--ui-isolation=none` (or `YSONET_UI_ISOLATION=none`); it is off automatically under a debugger and on CI. There is no way to hide a window a process explicitly puts on another desktop, and this does not claim to.
 - The runner puts itself in a job object with `JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION`, which suppresses Windows Error Reporting UI for the whole process tree. Turn it off with `--wer-containment=off` (or `YSONET_WER_CONTAINMENT=off`).
 - Command fire rows run a windowless `ysonet.TestSink.exe` instead of `cmd /c echo`, and assert the exact argument it received. If that executable cannot run, the suite prints one reason and uses the old `cmd` marker; it never skips a fire row. Force the old marker with `YSONET_TEST_SINK=off`.
+- Only one automated run at a time on the machine. A second run waits for the first, printing who holds the lock every 30 seconds, and starts when it finishes. Separate checkouts do not help here: the runs still share CPU, the loopback and RPC probes, and the short timeouts the fire rows wait on, and a competing run looks exactly like ordinary test failures. Turn it off with `--test-lock=off` (or `YSONET_TEST_LOCK=off`) when you deliberately want two runs at once. A killed run releases the lock automatically.
 
 Every run publishes one status file and prints its path as the first line. Poll it and REOPEN the path each time; every update replaces the whole file, so a retained handle is not promised to follow it and you always see a complete snapshot, never a half-written one. Open it allowing delete-sharing if you can (`FileShare.ReadWrite | FileShare.Delete`) - a reader that does not, such as `type` or `Get-Content`, can briefly block the replace and cost one update, though the writer retries around it:
 

@@ -26,9 +26,9 @@ namespace ysonet.Generators
         {
             // The "(N)" suffix is a display-only annotation meaning "this formatter
             // carries N variants". The DataContract serializers have no suffix because
-            // they always use the ClaimsPrincipal identities sink; the variant option
-            // only changes the BinaryFormatter/LosFormatter/SoapFormatter graphs (see
-            // the note below).
+            // they implement variant 1 only, through the ClaimsPrincipal identities sink.
+            // Variant 2 opts out of those formatters below so a direct CLI request cannot
+            // silently receive variant 1.
             return new List<string> { "BinaryFormatter (2)", "SoapFormatter (2)", "DataContractSerializer", "DataContractJsonSerializer", "NetDataContractSerializer", "LosFormatter (2)" };
         }
 
@@ -53,6 +53,9 @@ namespace ysonet.Generators
             {
                 new GadgetVariant(1, "payload in m_serializedClaimsIdentities (default)"),
                 new GadgetVariant(2, "payload in ClaimsIdentity m_serializedClaims")
+                    .Without(Formatters.DataContractSerializer,
+                        Formatters.DataContractJsonSerializer,
+                        Formatters.NetDataContractSerializer)
             };
         }
 
@@ -65,7 +68,7 @@ namespace ysonet.Generators
         {
             OptionSet options = new OptionSet()
             {
-                {"var|variant=", "Payload variant number where applicable. Choices: 1 (uses serialized ClaimsIdentities), 2 (uses serialized Claims)", v => int.TryParse(v, out variant_number) },
+                {"var|variant=", "Payload variant number. The (N) formatter suffix counts these variants; bare formatters support only variant 1. Choices: 1 (uses serialized ClaimsIdentities), 2 (uses serialized Claims)", v => int.TryParse(v, out variant_number) },
             };
 
             return options;
@@ -78,6 +81,8 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
+            GuardVariantFormatter(variant_number, formatter);
+
             byte[] binaryFormatterPayload;
             if (BridgedPayload != null)
             {

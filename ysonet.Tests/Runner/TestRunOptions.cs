@@ -13,6 +13,16 @@ namespace ysonet.Tests
         None = 2,
     }
 
+    // Whether this run waits for another automated run on the same machine to finish.
+    internal enum TestRunLockMode
+    {
+        // Take the machine-wide lock, waiting for the run that holds it. One run at a time.
+        Wait = 0,
+        // Run without the lock. For a deliberately concurrent experiment, and for a machine
+        // where the lock cannot be created at all.
+        Off = 1,
+    }
+
     // How the automated run stops an unhandled exception in a descendant from putting
     // Windows Error Reporting UI on screen.
     internal enum WerContainmentMode
@@ -67,6 +77,11 @@ namespace ysonet.Tests
 
         public WerContainmentMode Wer = WerContainmentMode.Job;
 
+        // One automated run at a time on this machine. On by default: git isolation does not
+        // isolate CPU, the loopback and RPC probes, or the launch-and-read budgets every fire
+        // row depends on, and a competing run shows up as ordinary test failures.
+        public TestRunLockMode TestLock = TestRunLockMode.Wait;
+
         // Status file: enabled by default at the artifact-directory path. StatusPath stays
         // null for "auto"; RunStatus then picks the canonical name.
         public bool StatusEnabled = true;
@@ -90,6 +105,7 @@ namespace ysonet.Tests
         // helper cannot drift apart on a string literal.
         public const string UiVar = "YSONET_UI_ISOLATION";
         public const string WerVar = "YSONET_WER_CONTAINMENT";
+        public const string TestLockVar = "YSONET_TEST_LOCK";
         public const string StatusVar = "YSONET_TEST_STATUS_FILE";
         public const string SinkVar = "YSONET_TEST_SINK";
         public const string FullVar = "YSONET_FULL_TESTS";
@@ -138,6 +154,17 @@ namespace ysonet.Tests
                 if (Is(werValue, "job")) o.Wer = WerContainmentMode.Job;
                 else if (Is(werValue, "off")) o.Wer = WerContainmentMode.Off;
                 else return Fail(o, "--wer-containment", werValue, "job, off");
+            }
+
+            // ---- Machine-wide test lock ----
+            string lockValue;
+            if (!TryValue(args, "--test-lock", env(TestLockVar), out lockValue, o))
+                return o;
+            if (!Blank(lockValue))
+            {
+                if (Is(lockValue, "wait")) o.TestLock = TestRunLockMode.Wait;
+                else if (Is(lockValue, "off")) o.TestLock = TestRunLockMode.Off;
+                else return Fail(o, "--test-lock", lockValue, "wait, off");
             }
 
             // ---- Status file ----

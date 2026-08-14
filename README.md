@@ -67,6 +67,40 @@ New to this tool? The easiest way to start is interactive mode: a menu-driven wi
 
 See all options with `ysonet.exe --fullhelp`, and per-gadget or per-plugin help with `-g NameHere -help` or `-p NameHere -help`. More in [Usage and Examples](docs/usage-and-examples.md).
 
+## Build from source
+
+Needs Windows, MSBuild from Visual Studio 2022 or the Build Tools (".NET desktop
+development" workload), and `nuget.exe`. Every project targets .NET Framework 4.7.2.
+
+```powershell
+git clone https://github.com/irsdl/ysonet
+cd ysonet
+nuget restore ysonet.sln
+msbuild ysonet.sln -p:Configuration=Release   # or Debug
+
+.\ysonet\bin\Release\ysonet.exe -h
+```
+
+- A Release build also needs the Windows optional feature ".NET Framework 3.5 (includes
+  .NET 2.0 and 3.0)" to compile the shipped CLR2 local-test host, and fails without it. A
+  Debug build only warns.
+- Release string-encrypts `ysonet.exe` to cut antivirus false positives; payload bytes are
+  unchanged. Skip it with `-p:ObfuscateRelease=false`. Debug is never obfuscated.
+- Full setup, including a one-liner that installs the toolchain: [Getting Started](docs/getting-started.md#build-from-source).
+
+## Testing
+
+A Debug build runs the fast test suite automatically, and a failed test fails the build
+(skip it with `-p:RunYsonetTests=false`). The exhaustive FULL suite is opt-in:
+
+```powershell
+.\ysonet\bin\Debug\ysonet.Tests.exe --full
+```
+
+Both are safe: commands are self-closing or never executed, and listeners are loopback
+only. Details and the other opt-in tiers: [Getting Started](docs/getting-started.md#testing)
+and [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Tab completion (PowerShell)
 
 `ysonet.exe` can tab-complete options, gadget names (`-g`), plugin names (`-p`), formatters (`-f`), and output formats (`-o`) in PowerShell. The completion values come live from the tool, so they stay correct as gadgets and plugins are added.
@@ -93,12 +127,6 @@ This software has been created purely for the purposes of academic research and 
 
 This software is a personal project and not related to any companies, including the project owner's and contributors' employers.
 
-## Building and testing
-
-- Build from source: `nuget restore ysonet.sln` then `msbuild ysonet.sln -p:Configuration=Release` (or `Debug`). Release builds require the Windows .NET Framework 3.5 optional feature to build the shipped CLR2 local-test host. Full steps in [Getting Started](docs/getting-started.md#build-from-source).
-- Tests: a Debug build runs the fast test suite automatically (a failed test fails the build). To run the exhaustive FULL suite (every gadget x formatter x variant, payload firing into test-owned sinks, bridged chains, and the plugin matrix), set `YSONET_FULL_TESTS=1` and build Debug, or run `ysonet\bin\Debug\ysonet.Tests.exe --full`. See [Getting Started -> Testing](docs/getting-started.md#testing).
-- Extending the project (new gadgets, plugins, serializers, or test cases): start with the code map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ("How to add things" and the `ysonet.Tests` section) and [CONTRIBUTING.md](CONTRIBUTING.md). Never weaken a test to make it pass - see the "Test integrity policy" in [CONTRIBUTING.md](CONTRIBUTING.md).
-
 ## Contributing
 
 **Canonical repository:** `https://github.com/irsdl/ysonet`
@@ -110,7 +138,9 @@ This software is a personal project and not related to any companies, including 
    `https://github.com/irsdl/ysonet/compare/master...YOUR_USER:ysonet:YOUR_BRANCH`
 5. For breaking changes, call them out clearly in the PR description.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the short version.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the short version. Adding a gadget, plugin, or
+serializer? Start with the code map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and
+never weaken a test to make it pass.
 
 ## Credits
 

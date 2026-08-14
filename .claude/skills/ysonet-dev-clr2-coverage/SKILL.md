@@ -113,7 +113,7 @@ with a small manual harness, the same pattern earlier retained proofs use:
 1. write a `.cs` child that deserializes the exact generator output on CLR v2 and observes the
    effect against a test-owned probe (a marker file, a probe type with a `(Stream)` constructor, a
    loopback listener);
-2. compile it with the in-box `Microsoft.NET\Framework\v3.5\csc.exe` (resolve the folder from the
+2. compile it with the in-box `Microsoft.NET/Framework/v3.5/csc.exe` (resolve the folder from the
    running runtime directory, never a hardcoded drive letter). The v3.5 compiler still emits CLR-2
    IL and, unlike the v2.0 `csc`, accepts object initializers;
 3. run it and assert ALL of the following, per claimed lane, or the proof is not one:

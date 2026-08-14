@@ -21,6 +21,21 @@ namespace ysonet.Helpers
         }
 
         /// <summary>
+        /// Write an object with the Typeless resolver, the way a target's own writer would.
+        /// Public for the same reason as the reader below: it is the only way to measure which
+        /// CONTRACT MessagePack gives a type, and therefore which members could ever reach a
+        /// setter, without a gadget in the way. The deny list is a deserialize-side check, so
+        /// this reaches types a read refuses.
+        /// </summary>
+        public static byte[] MessagePackTypeless_serialize(object myobj, bool useLz4)
+        {
+            MessagePackSerializerOptions options = useLz4
+                ? TypelessContractlessStandardResolver.Options.WithCompression(MessagePackCompression.Lz4BlockArray)
+                : TypelessContractlessStandardResolver.Options;
+            return MessagePackSerializer.Serialize(myobj, options);
+        }
+
+        /// <summary>
         /// Read a Typeless payload back the way a target would. Public so a test can fire a
         /// MessagePack payload with the real deserializer instead of only inspecting bytes.
         /// </summary>

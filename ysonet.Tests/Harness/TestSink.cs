@@ -117,11 +117,6 @@ namespace ysonet.Tests
 
         public const string DirectoryVariable = "YSONET_TEST_SINK_DIR";
 
-        // The tag alphabet is [0-9][A-Za-z0-9_-]{0,63}, so this is the largest tag that can
-        // ever be minted. Checking the ordering invariant against it once at selection
-        // covers every tag the run will produce.
-        private const string WorstCaseTag = "9zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz";
-
         private static Func<string, string> _markerPath;
         private static int _counter;
         private static readonly int Pid = System.Diagnostics.Process.GetCurrentProcess().Id;
@@ -166,12 +161,6 @@ namespace ysonet.Tests
                 return;
             }
 
-            if (!OrderingHolds(exe, WorstCaseTag))
-            {
-                Description = "legacy-cmd (the sink path does not sort above a sink tag in this culture)";
-                return;
-            }
-
             string recordDir = Path.Combine(artifactDirectory, "ysonet_sink");
             try { Directory.CreateDirectory(recordDir); }
             catch (Exception ex)
@@ -194,19 +183,6 @@ namespace ysonet.Tests
             UsesSink = true;
             Name = "test-sink";
             Description = "test-sink (" + exe + ")";
-        }
-
-        /// <summary>
-        /// TypeConfuseDelegate hands the LARGER of its two strings to the spliced
-        /// Process.Start's first parameter, under the culture-sensitive comparison the
-        /// gadget itself uses. The executable must therefore sort strictly above the tag, or
-        /// the payload would call Process.Start(tag, exe) and nothing would fire. An EQUAL
-        /// pair is its own documented problem (the container collapses to one element), so
-        /// this is a strict comparison.
-        /// </summary>
-        public static bool OrderingHolds(string executablePath, string tag)
-        {
-            return string.Compare(executablePath, tag, StringComparison.CurrentCulture) > 0;
         }
 
         /// <summary>
@@ -365,9 +341,9 @@ namespace ysonet.Tests
         }
 
         /// <summary>
-        /// Cross-run unique, and DIGIT-first so it always sorts below the sink path (see
-        /// OrderingHolds). Runner PID plus a monotonic counter makes it unique within and
-        /// across concurrent runs; the random suffix covers PID reuse.
+        /// Cross-run unique, and DIGIT-first because that is the tag alphabet the sink
+        /// validates. Runner PID plus a monotonic counter makes it unique within and across
+        /// concurrent runs; the random suffix covers PID reuse.
         /// </summary>
         internal static string NewTag()
         {
@@ -480,12 +456,6 @@ namespace ysonet.Tests
             {
                 _tag = tag;
                 _descriptiveTag = descriptiveTag;
-                // Unreachable in practice: Select already proved the invariant against the
-                // largest tag this alphabet can produce. Kept because a payload built with a
-                // swapped pair would fail in a way that looks like a broken gadget.
-                if (!OrderingHolds(SinkExePath, tag))
-                    throw new InvalidOperationException(
-                        "the test sink path does not sort above the tag '" + tag + "'");
                 Clear();
             }
 

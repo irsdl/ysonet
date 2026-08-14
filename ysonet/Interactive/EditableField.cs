@@ -193,14 +193,15 @@ namespace ysonet.Interactive
         }
 
         // The text from `start` up to the next sentence-ending period or the word
-        // "Default". A period counts as a terminator only when followed by a space
-        // or end of string, so a token like "System.String" is not cut in half.
+        // "Default". A period counts as a terminator only when whitespace or the end
+        // of the text follows it (EndsSentence), so a token like "System.String" is
+        // not cut in half.
         private static string SegmentAfter(string description, int start)
         {
             int end = -1;
             for (int k = start; k < description.Length; k++)
             {
-                if (description[k] == '.' && (k + 1 >= description.Length || description[k + 1] == ' '))
+                if (EndsSentence(description, k))
                 {
                     end = k;
                     break;
@@ -384,10 +385,9 @@ namespace ysonet.Interactive
         /// <summary>
         /// Where an unquoted "Default: ..." value ends.
         ///
-        /// A PERIOD ENDS THE VALUE ONLY WHEN IT ENDS THE SENTENCE - that is, when a space
-        /// or the end of the text follows it. This is the same rule SegmentAfter already
-        /// uses, and for the same reason: a dotted value is one value, not a value plus
-        /// prose. Breaking on every period silently truncated
+        /// A PERIOD ENDS THE VALUE ONLY WHEN IT ENDS THE SENTENCE (EndsSentence), because a
+        /// dotted value is one value, not a value plus prose. Breaking on every period
+        /// silently truncated
         /// "Default: System.Data.Entity.Design.SsdlGenerator.TableDetailsCollection" to
         /// "System" and "(default: payload.resources)" to "payload", and a TRUNCATED
         /// default is worse than none - the editor shows a plausible value and then emits
@@ -403,8 +403,36 @@ namespace ysonet.Interactive
         {
             char c = description[k];
             if (c == '.')
-                return k + 1 >= description.Length || description[k + 1] == ' ';
+                return EndsSentence(description, k);
             return c == ',' || c == ' ' || c == ';' || c == ')' || c == '(' || c == '\r' || c == '\n';
+        }
+
+        /// <summary>
+        /// True when the period at `k` ENDS A SENTENCE instead of sitting inside a value.
+        /// What decides it is the character AFTER it: any whitespace, or the end of the
+        /// text. So "System.Data.Entity.Design" and "payload.resources" keep their periods
+        /// (a letter follows), while "Default: AES. e.g: ..." stops at the sentence.
+        ///
+        /// ONE rule, shared by both readers above, because a period that ends a sentence
+        /// for one of them ends it for the other. They used to accept a SPACE only, and
+        /// option help in this project is written with `\r\n` line breaks for the
+        /// command-line help formatter, so the very common shape
+        ///
+        ///     "Choices: a, b, c. Default: b.\r\n"
+        ///
+        /// recovered "b." WITH the period. That is not cosmetic: the module editor
+        /// pre-fills the field with the recovered default and CollectGadget emits it, so
+        /// the run became `--&lt;option&gt; b.`, which the module refuses as an unknown value.
+        /// Only an interactive user could see it - the CLI never reads the help text - and
+        /// the same blindness applied to a choice list stated at the end of a line, which
+        /// swallowed the next sentence and then failed its own token filter, leaving the
+        /// operator with no menu at all.
+        /// </summary>
+        private static bool EndsSentence(string description, int k)
+        {
+            if (description[k] != '.')
+                return false;
+            return k + 1 >= description.Length || char.IsWhiteSpace(description[k + 1]);
         }
     }
 }

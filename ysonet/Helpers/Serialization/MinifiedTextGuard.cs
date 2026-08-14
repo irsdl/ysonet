@@ -19,13 +19,40 @@ namespace ysonet.Helpers
     // have missed the "; " case entirely, and any later minifier change would silently
     // invalidate it. So a gadget serializes once with the self-test off, hands the result
     // here, and gets back the values that no longer appear as exact text in the document.
-    // Each gadget keeps its OWN refusal wording, because the fix it can suggest ("use
-    // another path", "drop --minify") is gadget specific.
+    // CarriesBase64 applies the same verify-after-serialization rule to a byte blob rendered
+    // as base64: whitespace is insignificant inside base64, so both sides are normalized
+    // before an ordinal containment check. Each gadget keeps its OWN refusal wording, because
+    // the fix it can suggest ("use another path", "drop --minify") is gadget specific.
     //
     // Binary formatters are unaffected: their streams carry string records verbatim. That
     // is why AsXmlText returns null for them and MissingTextValues then reports nothing.
     internal static class MinifiedTextGuard
     {
+        // Whether a text payload still contains the expected base64 after insignificant
+        // whitespace is removed from both. Text serializers return either a string or UTF-8
+        // bytes; false means the payload has another shape, the expected value is empty, or
+        // the value did not survive. This helper deliberately does not classify formatters:
+        // a caller whose binary formatter carries the original byte[] opaquely skips this
+        // text-only check itself.
+        internal static bool CarriesBase64(object serializedPayload, string base64)
+        {
+            string expected = StripWhitespace(base64);
+            if (expected.Length == 0)
+                return false;
+
+            string text = serializedPayload as string;
+            if (text == null)
+            {
+                byte[] bytes = serializedPayload as byte[];
+                if (bytes == null)
+                    return false;
+                try { text = Encoding.UTF8.GetString(bytes); }
+                catch (Exception) { return false; }
+            }
+
+            return StripWhitespace(text).IndexOf(expected, StringComparison.Ordinal) >= 0;
+        }
+
         // The values in `required` that are NOT present as an exact text or attribute value
         // in the serialized payload. Empty when the payload is not XML at all (a binary
         // formatter stream), when `required` is empty, or when everything survived. An empty
@@ -68,6 +95,18 @@ namespace ysonet.Helpers
                 if (string.Equals(v, wanted, StringComparison.Ordinal))
                     return true;
             return false;
+        }
+
+        private static string StripWhitespace(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return string.Empty;
+
+            var sb = new StringBuilder(value.Length);
+            foreach (char c in value)
+                if (!char.IsWhiteSpace(c))
+                    sb.Append(c);
+            return sb.ToString();
         }
 
         // The payload as XML text, or null when it is not XML output at all (a binary

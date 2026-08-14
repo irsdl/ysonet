@@ -35,6 +35,8 @@ Credits for available gadgets:
                 [Finders: James Forshaw] [Contributors: Alvaro Munoz, zcgonvh]
         ActivitySurrogateSelectorFromFile
                 [Finders: James Forshaw] [Contributors: Alvaro Munoz, zcgonvh]
+        AssemblyCatalogLoad
+                [Finders: Soroush Dalili]
         AssemblyInstallerLoad
                 [Finders: Alvaro Munoz, Oleksandr Mirosh, Piotr Bazydlo] [Contributors: Soroush Dalili]
         AxHostState
@@ -117,6 +119,8 @@ Credits for available gadgets:
                 [Finders: James Forshaw] [Contributors: Soroush Dalili]
         TypeConfuseDelegateMono
                 [Finders: James Forshaw] [Contributors: Denis Andzakovic, Soroush Dalili]
+        TypeConfuseDelegateNet40Workflow
+                [Finders: James Forshaw] [Contributors: Soroush Dalili]
         WbemClassObjectUnmarshal
                 [Finders: James Forshaw, SCRT] [Contributors: Soroush Dalili]
         WindowsClaimsIdentity
@@ -164,5 +168,7 @@ Credits for available plugins:
         TransactionManagerReenlist
                 Soroush Dalili
         ViewState
+                Soroush Dalili
+        Xps
                 Soroush Dalili
 ```

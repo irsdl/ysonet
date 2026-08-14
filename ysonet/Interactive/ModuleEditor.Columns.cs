@@ -1037,6 +1037,9 @@ namespace ysonet.Interactive
             }
             else
             {
+                if (v.RuntimeVersions != null && v.RuntimeVersions.Count > 0)
+                    lines.AddRange(Wrap("Runtime versions: "
+                        + GadgetFacetReader.VersionSummary(v.RuntimeVersions), width));
                 if (v.Modes != null && v.Modes.Count > 0)
                 {
                     var mn = new List<string>();

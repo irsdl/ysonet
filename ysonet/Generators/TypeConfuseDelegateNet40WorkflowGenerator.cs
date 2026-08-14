@@ -150,15 +150,17 @@ namespace ysonet.Generators
 
             string executable = inputArgs.CmdFileName;
             string arguments = inputArgs.HasArguments ? inputArgs.CmdArguments : "";
-            NoteIfArgumentsWillBeSwapped(inputArgs, executable, arguments);
 
             Delegate benign = BenignComparison;
             Comparison<string> confused =
                 (Comparison<string>)MulticastDelegate.Combine(benign, benign);
             SpliceSlot1(confused, new Func<string, string, Process>(Process.Start));
 
+            // The proxy's authoring comparison only orders the set while it is filled here;
+            // the wire carries the confused delegate above. Ordering by ROLE puts the
+            // executable in Process.Start's first parameter whatever the two strings sort like.
             var comparer = new FunctorComparerProxy(
-                BenignComparison, confused, false);
+                FillOrderPuttingTheExecutableLast(executable), confused, false);
             RejectEqualKeys(comparer, executable, arguments);
 
             var set = new SortedSet<string>(comparer);
@@ -176,20 +178,19 @@ namespace ysonet.Generators
 
             string executable = inputArgs.CmdFileName;
             string arguments = inputArgs.HasArguments ? inputArgs.CmdArguments : "";
-            NoteIfArgumentsWillBeSwapped(inputArgs, executable, arguments);
 
             var comparer = new FunctorComparerProxy(
-                BenignComparison,
+                FillOrderPuttingTheExecutableLast(executable),
                 new SoapDelegateProxy(
                     BenignComparison,
                     new Func<string, string, Process>(Process.Start)),
                 true);
-            int order = comparer.Compare(executable, arguments);
             RejectEqualKeys(comparer, executable, arguments);
 
-            string[] items = order < 0
-                ? new string[] { executable, arguments }
-                : new string[] { arguments, executable };
+            // The executable is written SECOND: the target compares the second item against
+            // the first and hands it to Process.Start as the file name. Equal strings never
+            // reach this point (RejectEqualKeys above).
+            string[] items = new string[] { arguments, executable };
             var set = new SoapSetProxy(comparer, items);
             var root = new SoapListProxy(comparer, set);
 
@@ -227,19 +228,26 @@ namespace ysonet.Generators
                 inputArgs.Cmd = contents;
         }
 
-        private static void NoteIfArgumentsWillBeSwapped(InputArgs inputArgs,
-            string executable, string arguments)
+        // The set serializes its two elements smallest first, and the target compares the
+        // SECOND one against the first, so that second element becomes Process.Start's file
+        // name. Which string that is must not depend on how the operator's two strings sort:
+        // the default "cmd" / "/c ..." pair is safe by construction, but --rawcmd removes that
+        // wrapper and a command like "notepad.exe zzz.txt" sorts the executable BELOW its
+        // argument, which used to build Process.Start("zzz.txt", "notepad.exe").
+        //
+        // This ordering is generation-only. It fills the set through the comparer PROXY, whose
+        // authoring comparison never reaches the wire (the payload carries the spliced
+        // delegate), so the bytes are unchanged for every command that already sorted the right
+        // way round. Equality still comes from the benign comparison, so RejectEqualKeys still
+        // sees an equal pair as equal.
+        private static Comparison<string> FillOrderPuttingTheExecutableLast(string executable)
         {
-            if (BenignComparison(executable, arguments) >= 0)
-                return;
-
-            Debugging.ShowNote(inputArgs,
-                "[" + new TypeConfuseDelegateNet40WorkflowGenerator().Name()
-                + "] The executable string sorts BELOW the argument string, so this payload "
-                + "calls Process.Start(\"" + arguments + "\", \"" + executable
-                + "\") - the two are swapped. Drop --rawcmd (the 'cmd /c' wrapper always "
-                + "sorts correctly), or change the command so the executable sorts above "
-                + "its arguments.");
+            return delegate(string x, string y)
+            {
+                if (BenignComparison(x, y) == 0)
+                    return 0;
+                return String.Equals(x, executable, StringComparison.Ordinal) ? 1 : -1;
+            };
         }
 
         private static void RejectEqualKeys(IComparer<string> comparer,

@@ -2,6 +2,21 @@
 
 Conventions and traps for the one-shot command line. Entry format: `date - what - why`.
 
+2026-07-30 - `-s` NOW MEANS THE FIRST LINE OF STDIN, EVERYWHERE, and the reading lives in
+`Helpers/Core/StdinCommandReader.cs` so the ViewState plugin's own `-s` gets the same
+answer as the CLI (it used `Console.ReadLine()` and silently built a signed ViewState
+around a null or byte-order-mark command, exit 0). Three rules, each of which was a payload
+built around the wrong command with no error at all. (1) Read until a whole LINE, not once:
+one `Read` on a pipe can return part of the command, so a chunked write used to produce a
+TRUNCATED command. (2) Stop at the first newline - that is what keeps a hand-typed command
+ending at Enter instead of waiting for Ctrl+Z, so it is not just a trailing-CRLF strip.
+(3) Drop a leading UTF-8 byte-order mark: a .NET caller that redirects our stdin sends
+`EF BB BF` whether it means to or not (see the testing note), and ASCII-decoded that became
+the literal command `???`, so an EMPTY stdin generated a full payload and a real command
+arrived as `???calc.exe`. Exactly ONE mark is dropped; a second is content. The decode
+stays ASCII on purpose, so no existing payload changes. `ParseCommand(byte[], int)` is a
+separate method from the reading so the byte rules can be tested without a process.
+
 2026-07-28 - `--raf` validates itself in `Main`, between module-specific help and the
 global missing-argument block; there is no synthetic gadget name - a sentinel
 `gadget_name` made the ordinary gadget validation reject every valid sweep before it ran,
@@ -28,18 +43,3 @@ length before removing a trailing CRLF/LF - both call sites used to index `cmd[l
 closed or one-byte stdin crashed with an IndexOutOfRangeException. Empty input is now the
 defined error `Standard input did not contain a command.` A non-empty `-c` still wins over
 `-s` everywhere.
-
-2026-07-30 - `-s` NOW MEANS THE FIRST LINE OF STDIN, EVERYWHERE, and the reading lives in
-`Helpers/Core/StdinCommandReader.cs` so the ViewState plugin's own `-s` gets the same
-answer as the CLI (it used `Console.ReadLine()` and silently built a signed ViewState
-around a null or byte-order-mark command, exit 0). Three rules, each of which was a payload
-built around the wrong command with no error at all. (1) Read until a whole LINE, not once:
-one `Read` on a pipe can return part of the command, so a chunked write used to produce a
-TRUNCATED command. (2) Stop at the first newline - that is what keeps a hand-typed command
-ending at Enter instead of waiting for Ctrl+Z, so it is not just a trailing-CRLF strip.
-(3) Drop a leading UTF-8 byte-order mark: a .NET caller that redirects our stdin sends
-`EF BB BF` whether it means to or not (see the testing note), and ASCII-decoded that became
-the literal command `???`, so an EMPTY stdin generated a full payload and a real command
-arrived as `???calc.exe`. Exactly ONE mark is dropped; a second is content. The decode
-stays ASCII on purpose, so no existing payload changes. `ParseCommand(byte[], int)` is a
-separate method from the reading so the byte rules can be tested without a process.

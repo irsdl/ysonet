@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using System.Xml;
 
 namespace ysonet.Helpers
@@ -110,12 +111,12 @@ namespace ysonet.Helpers
 
         public static string JsonStringEscape(string text)
         {
-            return text.Replace(@"\", @"\\").Replace(@"""", @"\""").Replace(@"'", @"\'");
+            return EscapeJsonStringContents(text, true);
         }
 
         /// <summary>
-        /// Escape for a DOUBLE quoted JSON or YAML string literal: the backslash and the
-        /// double quote, which is exactly what those formats define.
+        /// Escape for a DOUBLE quoted JSON or YAML string literal. Backslash, double quote
+        /// and every U+0000-U+001F control character are escaped as JSON requires.
         ///
         /// JsonStringEscape above also turns a single quote into \', because many payload
         /// templates in this project are written with SINGLE quoted strings (Json.NET
@@ -129,7 +130,38 @@ namespace ysonet.Helpers
         {
             if (text == null)
                 return "";
-            return text.Replace(@"\", @"\\").Replace(@"""", @"\""");
+            return EscapeJsonStringContents(text, false);
+        }
+
+        private static string EscapeJsonStringContents(string text, bool escapeSingleQuote)
+        {
+            var result = new StringBuilder(text.Length);
+            foreach (char c in text)
+            {
+                switch (c)
+                {
+                    case '\\': result.Append("\\\\"); break;
+                    case '"': result.Append("\\\""); break;
+                    case '\'':
+                        if (escapeSingleQuote)
+                            result.Append("\\'");
+                        else
+                            result.Append(c);
+                        break;
+                    case '\b': result.Append("\\b"); break;
+                    case '\f': result.Append("\\f"); break;
+                    case '\n': result.Append("\\n"); break;
+                    case '\r': result.Append("\\r"); break;
+                    case '\t': result.Append("\\t"); break;
+                    default:
+                        if (c < ' ')
+                            result.Append("\\u").Append(((int)c).ToString("x4"));
+                        else
+                            result.Append(c);
+                        break;
+                }
+            }
+            return result.ToString();
         }
 
         public static String[] SplitCommand(string cmd, out Boolean hasArgs)

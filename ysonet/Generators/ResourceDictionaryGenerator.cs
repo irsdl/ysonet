@@ -132,9 +132,15 @@ namespace ysonet.Generators
         ///     not [Serializable] (Type.IsSerializable is false), so the reader rejects it
         ///     before it creates anything and no document shape helps.
         ///   NetDataContractSerializer - InvalidDataContractException: not a data contract.
-        ///   MessagePackTypeless and its Lz4 flavour - "System.Windows.ResourceDictionary"
-        ///     is on MessagePack's own hardcoded gadget DENY LIST, so its TypelessFormatter
-        ///     refuses to create the type however the payload is written.
+        ///   MessagePackTypeless and its Lz4 flavour - TWO walls, and the second one is why
+        ///     this exclusion does not depend on the target's library version.
+        ///     "System.Windows.ResourceDictionary" is on MessagePack's own hardcoded gadget
+        ///     DENY LIST, so its TypelessFormatter refuses to create the type however the
+        ///     payload is written - but only from MessagePack 2.5.205 and 3.1.5, the
+        ///     releases that grew that list from two entries to seven. Below those it is
+        ///     the SAME wall as Json.NET above: ResourceDictionary implements IDictionary,
+        ///     so the contractless resolver gives it a dictionary formatter and "Source"
+        ///     travels as a KEY, never reaching the setter.
         ///
         /// Xaml works because it is the one format here that assigns members by name AND
         /// runs the Uri type converter over the attribute text.

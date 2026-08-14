@@ -489,7 +489,16 @@ are descriptive metadata, not a binding the reader enforces.
 **All five are measured, not argued.** Each one executes code on a real CLR 2.0.50727 child
 on the 2.0, 3.0 and 3.5 lanes, raw and minified, and the children load only 2.0/3.0
 assemblies. That is what `IPlugin.RuntimeVersions()` records for them, and it is earned by
-the `--legacy` test tier the same way a gadget's floor is.
+the `--legacy` test tier the same way a gadget's floor is. Check a plugin's target-runtime
+evidence in its help or in the interactive plugin picker:
+
+```
+./ysonet.exe -p ApplicationTrust --help
+```
+
+The `Runtime versions:` line says `Unspecified` when no concrete target runtime has been
+evidenced. It is compatibility evidence, not a promise that every inner gadget works on
+that runtime.
 
 Pair it with `-g`, which the same five plugins accept, to choose a gadget that can exist on
 the target. The default gadget for most of them is `TextFormattingRunProperties`, which
@@ -609,13 +618,11 @@ Two things to know:
 
 - Only the FIRST `;` splits the value, so a destination path or embedded text may
   contain more of them. Quote the whole `-c` value in a shell.
-- The sorted container hands its LARGER element to the operation first, so the
-  first argument must sort strictly after the second using `String.CompareOrdinal`
-  (the target path above the embedded text; the source path above the
-  destination). ysonet refuses any other input instead of quietly swapping or
-rewriting what you typed. The second example is named so the source sorts
-higher; the first one only passes if the text in `payload.aspx` starts below
-the target path.
+- The two strings only have to DIFFER, in either order. ysonet fixes the order the
+  payload is built in, so the source path always reaches the operation first
+  whatever the two strings sort like. An EQUAL pair is refused: the sorted
+  container keeps one element per value, so it would collapse to a single item and
+  the payload would do nothing.
 - SoapFormatter directly authors rootcontainer 1 and 3 and exposes the native CLR4
   container and `ComparisonComparer<string>` to the target. It uses no Workflow surrogate
   or outer carrier. Rootcontainer 2 is a deeper generic graph and is refused on SOAP.
@@ -899,8 +906,10 @@ Four things to know:
   without ever calling the setter - no error, no request. `Source` is also typed
   `Uri`, which FastJson and both SharpSerializer modes cannot construct from a
   string. The runtime formatters refuse the type outright (it is not
-  `[Serializable]`), and MessagePack Typeless has
-  `System.Windows.ResourceDictionary` on its own hardcoded deny list.
+  `[Serializable]`). MessagePack Typeless fails twice over: from MessagePack
+  2.5.205 and 3.1.5 it has `System.Windows.ResourceDictionary` on its own
+  hardcoded deny list, and below those versions it gives the type a dictionary
+  contract, so `Source` travels as a key there too.
 - `-t` WORKS, and it means what it means everywhere else: the payload is
   deserialized HERE, so YOUR machine performs the fetch and loads what comes back.
 
@@ -1529,6 +1538,12 @@ Things to know:
   The target must also be able to reach the share at all: SMB egress, share
   permissions, and Mark-of-the-Web all apply. A DNS or SMB callback proves the target
   TRIED, not that it loaded the assembly.
+- BOTH VARIANTS DECLARE 4.0 - 4.8.1, and that is a statement about the CHAIN, not about
+  remote loading. The payload names the 4.0.0.0 `System.Configuration.Install` and
+  `System.Windows.Forms` identities, so an older runtime cannot bind them, and on 4.0 the
+  `Path` setter, `HelpText` and the carriers already behave as they do on the newest build.
+  The zone rule above applies on every build in that span, so it is not something the
+  version axis can express - which is why it lives here and in `--variant`'s own help.
 - `--getter` picks the carrier that reads `HelpText`, and the five carriers do NOT all
   work on the same formatters:
   - `--getter 1` (PropertyGrid) works everywhere and is the default.

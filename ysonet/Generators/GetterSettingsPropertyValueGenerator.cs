@@ -56,8 +56,8 @@ namespace ysonet.Generators
             // The "(N)" suffix is a display-only annotation meaning "this formatter
             // carries N variants". Json.NET builds the four Control getter chains, Xaml
             // builds those four plus the BindingSource one, and the MessagePack helpers
-            // implement variant 1 only (Generate() switches back to 1 and says so), so
-            // they stay bare.
+            // implement variant 1 only, so variants 2-5 opt out of them below and the
+            // formatter names stay bare.
             return new List<string> { "Json.NET (4)", "Xaml (5)", "MessagePackTypeless", "MessagePackTypelessLz4" };
         }
 
@@ -71,9 +71,12 @@ namespace ysonet.Generators
             return new List<GadgetVariant>
             {
                 new GadgetVariant(1, "PropertyGrid getter (default; only option for MessagePack)"),
-                new GadgetVariant(2, "ComboBox getter"),
-                new GadgetVariant(3, "ListBox getter"),
-                new GadgetVariant(4, "CheckedListBox getter"),
+                new GadgetVariant(2, "ComboBox getter")
+                    .Without(Formatters.MessagePackTypeless, Formatters.MessagePackTypelessLz4),
+                new GadgetVariant(3, "ListBox getter")
+                    .Without(Formatters.MessagePackTypeless, Formatters.MessagePackTypelessLz4),
+                new GadgetVariant(4, "CheckedListBox getter")
+                    .Without(Formatters.MessagePackTypeless, Formatters.MessagePackTypelessLz4),
 
                 // Xaml only. Json.NET and both MessagePack flavours read BindingSource as a
                 // list, because it implements IList, and populate it with Add instead of
@@ -88,7 +91,7 @@ namespace ysonet.Generators
         {
             OptionSet options = new OptionSet()
             {
-                {"var|variant=", "Variant number. Variant defines a different getter-call gadget. Choices: \r\n1 (default) - PropertyGrid getter-call gadget, " +
+                {"var|variant=", "Variant number. The (N) formatter suffix counts these variants; bare MessagePack formatters support only variant 1. Variant defines a different getter-call gadget. Choices: \r\n1 (default) - PropertyGrid getter-call gadget, " +
                 "\r\n2 - ComboBox getter-call gadget (may execute code twice)" +
                 "\r\n3 - ListBox getter-call gadget" +
                 "\r\n4 - CheckedListBox getter-call gadget" +
@@ -111,11 +114,10 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
-            // Reject variant 5 on any formatter it opted out of (Json.NET and both
-            // MessagePack flavours, declared with Without() above), using the catalogue's
+            // Reject every formatter a variant opted out of, using the catalogue's
             // shared guard so the message, the interactive editor block and the matrix all
-            // agree. It runs BEFORE the MessagePack branch on purpose: without it, variant 5
-            // + MessagePack would be silently switched to variant 1 rather than refused.
+            // agree. It runs BEFORE the MessagePack branch on purpose so a request for
+            // variants 2-5 cannot be silently switched to variant 1.
             GuardVariantFormatter(variant_number, formatter);
 
             byte[] binaryFormatterPayload;
@@ -312,11 +314,6 @@ namespace ysonet.Generators
             else if (IsMessagePackTypeless(formatter))
             {
                 Console.WriteLine("\r\nThis version of the gadget works for MessagePack >= 2.3.75\r\n");
-                if (variant_number != 1)
-                {
-                    Console.WriteLine("GetterSettingsPropertyValue is implemented only for variant 1 (PropertyGrid getter chain). Switching to variant 1.\r\n");
-                    variant_number = 1;
-                }
                 byte[] serializedData = BuildMessagePackTypeless(
                     binaryFormatterPayload,
                     IsMessagePackLz4(formatter));

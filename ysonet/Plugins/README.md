@@ -11,6 +11,10 @@ A plugin follows the same two rules as a gadget, and the contract is written up 
 - **Write it to be read.** Plugins are research material. The payload must be fully visible in
   the source, copyable straight into the testing arena, never obfuscated or encoded to hide
   what it is, named after the real types, and commented with the WHY.
+- **Option help is an input.** The interactive editor recovers each option's default from its
+  help text and then EMITS it, so a `Default:` marker follows the same rules for a plugin as
+  for a gadget: one value, quoted when it contains a separator, and no marker at all when the
+  default depends on another option.
 
 # Development test order
 
@@ -51,7 +55,9 @@ measured endpoints into a range unless every intervening version is evidenced.
 
 The LEGACY tier records plugin sources separately from their readers and earns the CLR-v2
 tokens. Current-runtime execution rows call `RuntimeBuild.RecordPluginFired`. The version
-evidence audit treats gadget and plugin claims the same way.
+evidence audit treats gadget and plugin claims the same way. Operators see the compact
+range in `-p <plugin> --help`, global `--fullhelp`, and the interactive plugin picker/info
+panel. It is not a plugin category filter and does not change generation.
 
 # Security review notice
 

@@ -104,6 +104,7 @@
     <Compile Include="Runner\RunStatus.cs" />
     <Compile Include="Runner\RuntimeBuild.cs" />
     <Compile Include="Runner\TestEnvironment.cs" />
+    <Compile Include="Runner\TestRunLock.cs" />
     <Compile Include="Runner\TestRunOptions.cs" />
     <Compile Include="Runner\UiIsolation.cs" />
     <Compile Include="Runner\WerContainment.cs" />

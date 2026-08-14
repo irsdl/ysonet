@@ -48,11 +48,11 @@ namespace ysonet.Generators
         /// <summary>
         /// Same, for a gadget that has ALREADY shrunk its payload itself.
         ///
-        /// The shared minifier below knows the JSON, YAML, XAML and DataContract/XmlSerializer
-        /// shapes. A gadget whose document needs different minifier arguments - a SoapFormatter
-        /// or NetDataContractSerializer document, or one with its own loose-assembly list -
-        /// does that step in its own file and passes <paramref name="alreadyMinified"/> so this
-        /// one does not shrink it twice.
+        /// The shared minifier below knows the JSON, YAML, XAML and
+        /// DataContract/NetDataContract/XmlSerializer shapes. A gadget whose document needs
+        /// different minifier arguments - a SoapFormatter document, or one with its own
+        /// loose-assembly list or discardable patterns - does that step in its own file and
+        /// passes <paramref name="alreadyMinified"/> so this one does not shrink it twice.
         ///
         /// Everything AFTER minification is still shared, and that is the point: the
         /// generation boundary (--legacyfx today) and the self-test both run here, in that
@@ -315,6 +315,14 @@ namespace ysonet.Generators
                 // envelope, so they shrink the same way.
                 || IsFormatter(formatter, Formatters.XmlSerializer))
                 return XmlMinifier.Minify(text, null, null, FormatterType.DataContractXML, true);
+
+            // The same arguments Serialize() uses for an OBJECT GRAPH written by
+            // NetDataContractSerializer, so --minify means one thing on both halves of the
+            // product. NetDataContractXML is what tells the minifier to read the z:Id/z:Ref
+            // pair this format writes (the DataContract branch above looks for "ref0" style
+            // ids, which an NDCS document never has).
+            if (IsFormatter(formatter, Formatters.NetDataContractSerializer))
+                return XmlMinifier.Minify(text, null, null, FormatterType.NetDataContractXML, true);
 
             // FsPickler's wire format is a JSON document, so it shrinks like the others.
             if (IsFormatter(formatter, Formatters.FsPickler))
