@@ -1,0 +1,10 @@
+# Adds the "Sponsor" button to this repository's sidebar and to the release pages.
+#
+# GitHub only renders the button once GitHub Sponsors is enabled on the account named
+# below. Until then the file is inert: it shows nothing and breaks nothing.
+#
+# Keep this to the maintainer's own funding targets. Every other supported key
+# (patreon, open_collective, ko_fi, tidelift, community_bridge, liberapay, issuehunt,
+# lfx_mentorship, polar, buy_me_a_coffee, thanks_dev, custom) is deliberately left out
+# rather than commented in, so nobody enables one by uncommenting a placeholder.
+github: [irsdl]
