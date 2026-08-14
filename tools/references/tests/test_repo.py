@@ -7,6 +7,7 @@ tests drive a fake git so they need neither a network nor a repository.
 
 from . import support  # noqa: F401
 
+import tempfile
 import unittest
 
 from refslib import repo
@@ -60,8 +61,10 @@ class TestUrlParsing(unittest.TestCase):
 
 class TestSelection(unittest.TestCase):
     def setUp(self):
+        self.store = tempfile.TemporaryDirectory()
+        self.addCleanup(self.store.cleanup)
         self.git = FakeGit()
-        self.package = repo.acquire("https://github.com/o/n", "/store", run=self.git)
+        self.package = repo.acquire("https://github.com/o/n", self.store.name, run=self.git)
 
     def test_prose_documents_are_preserved_with_their_path_and_blob(self):
         paths = [material.path for material in self.package.materials]
@@ -90,8 +93,10 @@ class TestSelection(unittest.TestCase):
 
 class TestNoExecution(unittest.TestCase):
     def setUp(self):
+        self.store = tempfile.TemporaryDirectory()
+        self.addCleanup(self.store.cleanup)
         self.git = FakeGit()
-        repo.acquire("https://github.com/o/n", "/store", run=self.git)
+        repo.acquire("https://github.com/o/n", self.store.name, run=self.git)
         self.commands = [" ".join(call) for call in self.git.calls]
 
     def test_the_clone_is_bare_shallow_and_single_branch(self):
@@ -139,11 +144,12 @@ class TestGitIsLockedDown(unittest.TestCase):
 
 class TestRendering(unittest.TestCase):
     def test_the_overview_names_the_commit_and_every_blob(self):
-        package = repo.acquire("https://github.com/o/n", "/store", run=FakeGit())
-        text = repo.to_markdown(package, "https://github.com/o/n")
-        self.assertIn("c0ffee1234567890", text)
-        self.assertIn("## `README.md`", text)
-        self.assertIn("never checked out, built or run", text)
+        with tempfile.TemporaryDirectory() as store:
+            package = repo.acquire("https://github.com/o/n", store, run=FakeGit())
+            text = repo.to_markdown(package, "https://github.com/o/n")
+            self.assertIn("c0ffee1234567890", text)
+            self.assertIn("## `README.md`", text)
+            self.assertIn("never checked out, built or run", text)
 
 
 if __name__ == "__main__":

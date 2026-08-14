@@ -60,7 +60,7 @@ page going offline. To read the original, follow the link above.
 
 `dotnet/designs` at `main`, path `accepted/2020/better-obsoletion/binaryformatter-obsoletion.md`.
 
-```markdown
+````markdown
 # BinaryFormatter Obsoletion Strategy
 
 **Owner** [Levi Broderick](https://github.com/GrabYourPitchforks)
@@ -451,4 +451,4 @@ __Why not make `BinaryFormatter` safe for untrusted payloads?__
 The `BinaryFormatter` protocol works by specifying the values of an object's raw instance fields. In other words, the entire point of `BinaryFormatter` is to bypass an object's typical constructor and to use private reflection to set the instance fields to the contents that came in over the wire. Bypassing the constructor in this fashion means that the object cannot perform any validation or otherwise guarantee that its internal invariants are satisfied. One consequence of this is that `BinaryFormatter` is unsafe even for seemingly innocuous types such as `Exception` or `List<T>` or `Dictionary<TKey, TValue>`, regardless of the actual types of _T_, _TKey_, or _TValue_. Restricting deserialization to a list of allowed types will not resolve this issue.
 
 This behavior is intrinsic to `BinaryFormatter` and cannot practically be addressed without changing both the serialized payload format itself and its supported capability set. And once we do that, what we have is essentially a brand new serializer incompatible with `BinaryFormatter`. This would not help existing consumers of `BinaryFormatter`.
-```
+````

@@ -288,8 +288,21 @@ def _render(node, out, base_url, stack):
 
     if tag == "pre":
         language = _code_language(node)
+        held = []
+        _children(node, held, base_url, stack + ["pre"])
+        body = "".join(held).strip("\r\n")
+        # Some sites put a literal Markdown fence inside <pre><code>. Adding
+        # our own fence around it produces two openers and two closers; Markdown
+        # treats the inner opener as code, the first closer as the outer close,
+        # and the final closer as a new unclosed block. Preserve the source's
+        # complete fence when it already supplied one.
+        fenced = re.match(r"^(`{3,}|~{3,})[^\r\n]*\r?\n.*\r?\n\1\s*$",
+                          body, re.DOTALL)
+        if fenced:
+            out.append("\n\n" + body + "\n\n")
+            return
         out.append("\n\n```" + language + "\n")
-        _children(node, out, base_url, stack + ["pre"])
+        out.append(body)
         out.append("\n```\n\n")
         return
 

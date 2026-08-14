@@ -179,16 +179,48 @@ def check_published_attribution(root, config):
 # by a sweep, and each names a bug upstream rather than a taste preference.
 COMPRESSED_MARKERS = "�"
 ENTITY = re.compile(r"&(?:amp|lt|gt|quot|apos|nbsp|#\d{2,5});")
-# A fence line: ``` at the start of a line with no SECOND ``` on it. The
-# info string can be anything - `c#` broke a character class and turned four
-# balanced fences into "three", reporting eight correct files as unclosed -
-# and the second-``` test is what excludes an inline ```span```.
-FENCE = re.compile(r"^```(?!.*```).*$", re.M)
+FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})([^\r\n]*)\r?\n?$")
+PDF_PAGE = re.compile(r"^--- page \d+ ---$", re.M)
 
-# Entities inside a fenced block may be the CODE. A markdown source file
-# fetched whole is one big fence, and a PDF's text is not HTML at all;
-# both were reported for carrying "unescaped entities" that are content.
-FENCED_BLOCK = re.compile(r"^```.*?^```", re.M | re.S)
+
+def _outside_fences(text):
+    """Return (visible text, fence-line count, unclosed).
+
+    A raw Markdown file is wrapped in a fence longer than any fence it carries.
+    A non-greedy `````...````` regex closes that outer block at the first inner
+    three-backtick line and exposes most of the source to the entity scanner.
+    Track the opening delimiter and require a closing run at least as long,
+    matching Markdown's actual nesting boundary.
+    """
+    visible = []
+    active = None
+    fence_lines = 0
+    for line in text.splitlines(True):
+        if active is not None:
+            character, width = active
+            close = re.compile(r"^ {0,3}%s{%d,}\s*$"
+                               % (re.escape(character), width))
+            if close.match(line.rstrip("\r\n")):
+                active = None
+                fence_lines += 1
+            visible.append("\n" if line.endswith(("\n", "\r")) else "")
+            continue
+        opening = FENCE_OPEN.match(line)
+        if opening:
+            delimiter = opening.group(1)
+            # Some source documents use a whole fenced-looking span on one
+            # line (```command```). It is inline code, not the start of a block.
+            # Treating it as an opener hides everything until an unrelated
+            # later fence and reports a clean document as unclosed.
+            if delimiter in opening.group(2):
+                visible.append(line)
+                continue
+            active = (delimiter[0], len(delimiter))
+            fence_lines += 1
+            visible.append("\n" if line.endswith(("\n", "\r")) else "")
+            continue
+        visible.append(line)
+    return "".join(visible), fence_lines, active is not None
 
 
 def malformed(text):
@@ -209,8 +241,12 @@ def malformed(text):
         found.append(("fail", "published file is mostly replacement characters",
                       "%d of %d characters" % (replacements, len(document))))
 
-    entities = len(ENTITY.findall(FENCED_BLOCK.sub("", document)))
-    if entities > 20:
+    visible, fence_lines, unclosed = _outside_fences(document)
+    entities = len(ENTITY.findall(visible))
+    # PDF extraction is plain text, not HTML. Entity spellings in that text are
+    # source material (usually an XML payload), so treating them as a failed
+    # HTML conversion is the same false positive as scanning inside a fence.
+    if entities > 20 and not PDF_PAGE.search(document):
         # `&lt;`/`&gt;` written into the archive verbatim, so a reader sees the
         # markup instead of the code being quoted.
         found.append(("warn", "published file carries unescaped HTML entities",
@@ -218,9 +254,9 @@ def malformed(text):
 
     # A fence ALONE ON ITS LINE. An inline ```span``` is not a block, and
     # counting it made two correct files look unbalanced.
-    if len(FENCE.findall(document)) % 2:
+    if unclosed:
         found.append(("warn", "published file has an unclosed code fence",
-                      "%d block fences" % len(FENCE.findall(document))))
+                      "%d block fences" % fence_lines))
     return found
 
 

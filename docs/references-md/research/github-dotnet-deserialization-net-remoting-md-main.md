@@ -62,7 +62,7 @@ they are byte-identical to the original below._
 
 `Y4er/dotnet-deserialization` at `main`, path `.NET Remoting.md`.
 
-```markdown
+````markdown
 # 简介
 
 .net remoting是一种在不同进程间传递对象的方式。假如两个不同的进程分别为服务端、客户端，客户端和服务端各自保存相同的一份对象（DLL），那么可以通过.net remoting技术来远程传递对象。拿java来讲更类似于rmi的概念。
@@ -437,7 +437,7 @@ PS C:\Users\ddd\Downloads\ExploitRemotingService-master\ExploitRemotingService\b
 1. https://www.codeproject.com/Articles/14791/NET-Remoting-with-an-Easy-Example
 2. https://research.nccgroup.com/2019/03/19/finding-and-exploiting-net-remoting-over-http-using-deserialisation/
 3. https://github.com/tyranid/ExploitRemotingService
-```
+````
 
 
 ## Content (original)
@@ -455,7 +455,7 @@ be checked against this._
 
 `Y4er/dotnet-deserialization` at `main`, path `.NET Remoting.md`.
 
-```markdown
+````markdown
 # 简介
 
 .net remoting是一种在不同进程间传递对象的方式。假如两个不同的进程分别为服务端、客户端，客户端和服务端各自保存相同的一份对象（DLL），那么可以通过.net remoting技术来远程传递对象。拿java来讲更类似于rmi的概念。
@@ -830,4 +830,4 @@ PS C:\Users\ddd\Downloads\ExploitRemotingService-master\ExploitRemotingService\b
 1. https://www.codeproject.com/Articles/14791/NET-Remoting-with-an-Easy-Example
 2. https://research.nccgroup.com/2019/03/19/finding-and-exploiting-net-remoting-over-http-using-deserialisation/
 3. https://github.com/tyranid/ExploitRemotingService
-```
+````

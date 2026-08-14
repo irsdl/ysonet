@@ -126,6 +126,14 @@ class TestFile(unittest.TestCase):
         self.assertIn("internal void ReadXml()", markdown)
         self.assertIn("DataSet.cs", facts["title"])
 
+    def test_a_markdown_file_uses_a_fence_longer_than_its_inner_blocks(self):
+        source = b"# Notes\n\n```csharp\nvar x = 1;\n```\n"
+        fetcher = FakeFetcher({"https://raw.githubusercontent.com/": (200, source)})
+        markdown, _facts = github.to_markdown(
+            "https://github.com/o/r/blob/main/notes.md", fetcher)
+        self.assertIn("````markdown\n# Notes", markdown)
+        self.assertTrue(markdown.rstrip().endswith("````"))
+
     def test_the_cited_line_is_recorded(self):
         """The citation points at a line for a reason, even though the whole
         file is preserved."""

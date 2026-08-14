@@ -351,6 +351,15 @@ class TestMalformedPublishedFiles(unittest.TestCase):
     def test_an_occasional_entity_is_not_a_finding(self):
         self.assertEqual(verify.malformed(self.page("a &amp; b " + "prose " * 200)), [])
 
+    def test_entities_in_a_nested_markdown_fence_are_source_text(self):
+        document = "````markdown\n# source\n\n```xml\n" + "&lt;x&gt;\n" * 25 \
+            + "```\n````\n"
+        self.assertEqual(verify.malformed(self.page(document)), [])
+
+    def test_entities_in_pdf_text_are_source_text(self):
+        document = "--- page 1 ---\n\n" + "&lt;x&gt; " * 25
+        self.assertEqual(verify.malformed(self.page(document)), [])
+
     def test_an_unclosed_code_fence_is_a_warning(self):
         found = verify.malformed(self.page("```csharp\nvar x = 1;\n"))
         self.assertTrue(any("code fence" in what for _level, what, _d in found))
@@ -359,6 +368,9 @@ class TestMalformedPublishedFiles(unittest.TestCase):
         """```mvn clean package``` on one line is a span, not a block, and
         counting it made two correct files look unbalanced."""
         self.assertEqual(verify.malformed(self.page("run ```mvn clean package``` first")), [])
+
+    def test_an_inline_span_at_the_start_of_a_line_is_not_a_fence(self):
+        self.assertEqual(verify.malformed(self.page("```tool --help```\nordinary prose")), [])
 
     def test_balanced_fences_are_fine(self):
         self.assertEqual(verify.malformed(self.page("```csharp\nvar x = 1;\n```\n")), [])

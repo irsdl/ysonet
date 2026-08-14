@@ -61,6 +61,12 @@ class TestCandidates(unittest.TestCase):
         text = self.by_name["precision"].markdown
         self.assertIn("<ResourceDictionary>\n", text)
 
+    def test_a_preformatted_markdown_fence_is_not_wrapped_twice(self):
+        page = "<main><pre><code>```python\nprint(1)\n```</code></pre></main>"
+        text = extract_html.candidates(page)[0].markdown
+        self.assertEqual(text.count("```"), 2)
+        self.assertIn("```python\nprint(1)\n```", text)
+
     def test_headings_tables_and_figures_are_measured(self):
         metrics = self.by_name["precision"].metrics
         self.assertGreaterEqual(metrics["headings"], 2)

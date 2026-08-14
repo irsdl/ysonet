@@ -175,7 +175,14 @@ def _file(url, fetcher):
     if line:
         lines.append("")
         lines.append("The citation points at line %s." % line.group(1))
-    lines += ["", "```%s" % _language(name), text.rstrip("\n"), "```"]
+    # A Markdown source can contain fenced code blocks of its own. Wrapping it
+    # in another three-backtick fence closes the outer fence at the first inner
+    # block and makes the rest of the archived page render as live Markdown.
+    # Use a delimiter longer than every backtick run in the source so the raw
+    # file remains one inert, readable block.
+    longest = max([len(run) for run in re.findall(r"`+", text)] or [0])
+    fence = "`" * max(3, longest + 1)
+    lines += ["", fence + _language(name), text.rstrip("\n"), fence]
     return "\n".join(lines) + "\n", {"title": "%s/%s: %s" % (owner, repo, path),
                                      "publisher": "GitHub", "published": "",
                                      "authors": [owner]}

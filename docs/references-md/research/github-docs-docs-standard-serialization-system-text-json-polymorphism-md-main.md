@@ -60,7 +60,7 @@ page going offline. To read the original, follow the link above.
 
 `dotnet/docs` at `main`, path `docs/standard/serialization/system-text-json/polymorphism.md`.
 
-```markdown
+````markdown
 ---
 title: How to serialize properties of derived classes with System.Text.Json
 description: "Learn how to serialize polymorphic objects while serializing to and deserializing from JSON in .NET."
@@ -696,4 +696,4 @@ End Class
 
 * [System.Text.Json overview](overview.md)
 * [How to serialize and deserialize JSON](how-to.md)
-```
+````

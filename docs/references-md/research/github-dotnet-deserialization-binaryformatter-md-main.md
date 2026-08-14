@@ -62,7 +62,7 @@ they are byte-identical to the original below._
 
 `Y4er/dotnet-deserialization` at `main`, path `BinaryFormatter.md`.
 
-```markdown
+````markdown
 # BinaryFormatter
 
 BinaryFormatter将对象序列化为二进制流，命名空间位于`System.Runtime.Serialization.Formatters.Binary`。[微软文档](https://docs.microsoft.com/zh-cn/dotnet/standard/serialization/binaryformatter-security-guide)也已经标注了使用BinaryFormatter会造成严重的RCE漏洞。
@@ -550,7 +550,7 @@ BinaryFormatter有多个反序列化方法重载，审计时应多加关注。
 # 后文
 
 本节讲解了BinaryFormatter在反序列化中的使用及TextFormattingRunProperties和DataSet两条反序列化利用链。
-```
+````
 
 ## Content (original)
 
@@ -567,7 +567,7 @@ be checked against this._
 
 `Y4er/dotnet-deserialization` at `main`, path `BinaryFormatter.md`.
 
-```markdown
+````markdown
 # BinaryFormatter
 
 BinaryFormatter将对象序列化为二进制流，命名空间位于`System.Runtime.Serialization.Formatters.Binary`。[微软文档](https://docs.microsoft.com/zh-cn/dotnet/standard/serialization/binaryformatter-security-guide)也已经标注了使用BinaryFormatter会造成严重的RCE漏洞。
@@ -1055,4 +1055,4 @@ BinaryFormatter有多个反序列化方法重载，审计时应多加关注。
 # 后文
 
 本节讲解了BinaryFormatter在反序列化中的使用及TextFormattingRunProperties和DataSet两条反序列化利用链。
-```
+````
