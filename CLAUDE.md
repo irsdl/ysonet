@@ -70,11 +70,12 @@ When safe and practical, prove causality by showing that the same check fails be
 
 Every project in `ysonet.sln` targets .NET Framework 4.7.2. Keep them unified on the same version.
 
-The shipped `ysonet.Clr2TestHost.exe` is not a solution project. Its C# 2-compatible source
-lives under `tools/clr2-self-test/` and `ysonet.csproj` builds it with the installed .NET
-Framework 3.5 compiler. Debug warns when that toolchain is absent; Release fails so an
-archive never silently omits the advertised CLR2 local-test host. Do not commit the
-generated executable or retarget the product projects to CLR 2.
+The shipped CLR2 self-test hosts are not solution projects. Their shared C# 2-compatible
+source lives under `tools/clr2-self-test/`, and `ysonet.csproj` builds the default,
+x86, and x64 executables with the installed .NET Framework 3.5 compiler. Debug warns when
+that toolchain is absent; Release fails so an archive never silently omits an advertised
+CLR2 local-test host. Do not commit the generated executables or retarget the product
+projects to CLR 2.
 
 - Why 4.7.2: it is the practical minimum. The NuGet dependencies (MessagePack, the System.* 9.0 era packages) need netstandard2.0, and 4.7.2 is the lowest framework where netstandard2.0 loads reliably in-box, without a fragile pile of shim assemblies and binding redirects.
 - Users need 4.7.2 or any newer 4.x (4.8, 4.8.1). A 4.x app runs on that version or higher, so newer runtimes are fine.
@@ -146,14 +147,17 @@ Rules:
   failure. An ordinary failure in the same run is still yours to fix.
 - Every automated UNC touch needs `YSONET_INTERACTSH_SERVER` pointing at a self-hosted
   server the operator owns, because Windows sends authentication material when it opens an
-  SMB session. On the default public endpoint both UNC checks are named skips. This gates
+  SMB session. On the default public endpoint all three UNC checks are named skips. This gates
   the TEST HARNESS only; a user running `ysonet.exe ... -t` themselves is unchanged.
 
 #### UNC/SMB callback testing while developing a gadget or plugin
 
 An automated run never touches a UNC path on the public endpoint, and that stays true.
-Developing a new gadget or plugin is the one case where an agent may still need the touch,
-because a UNC/SMB callback effect cannot be proved any other way. Handle it like this:
+For a callback gadget, an exact DNS interaction for its run-unique host is the required
+and sufficient OOB effect proof. A completed SMB session is not a release gate.
+
+Developing a new gadget or plugin is the one case where an agent may still need the UNC
+touch that produces that DNS lookup. Handle it like this:
 
 - If the maintainer has a self-hosted interactsh server, use it. Nothing else to decide.
 - If they do not, STOP AND ASK before the first UNC touch. Say plainly what it costs:
@@ -163,9 +167,13 @@ because a UNC/SMB callback effect cannot be proved any other way. Handle it like
   the module under development. Approval for one module or session does not carry over.
 - Never point `YSONET_INTERACTSH_SERVER` at a public endpoint to make the gate pass on
   your own. That is defeating the safety gate, not configuring it.
-- Without approval the check stays a named skip and the runtime effect is reported as
-  UNVERIFIED. Do not call the gadget finished on generation evidence alone, and do not
-  swap in a weaker check that looks green.
+- If packet-level SMB evidence is useful during development, an optional manual check may
+  target a WSL or Docker listener the operator controls by IP and observe the inbound
+  request on port 445. Keep any authentication material local. This supplements the DNS
+  assertion; it is not an automated release requirement.
+- Without an approved endpoint or an owned local observer, the check stays a named skip
+  and the runtime effect is reported as UNVERIFIED. Do not call the gadget finished on
+  generation evidence alone.
 
 Tests live in `ysonet.Tests` (a self-contained console runner, no framework). They run on every Debug build as a post-build step, and also stand alone at `ysonet\bin\Debug\ysonet.Tests.exe`. A failed test fails the build.
 
@@ -201,7 +209,7 @@ Two tiers:
     `Comparer<string>.Create`, and Workflow `ObjectSerializedRef` members
     `type,memberDatas` implementing `IObjectReference`.
   - The tier currently owns the six positive target-effect cells for
-    `TypeConfuseDelegateNet40Workflow`: BinaryFormatter, SoapFormatter, and LosFormatter,
+    `TypeConfuseDelegateNetFx40`: BinaryFormatter, SoapFormatter, and LosFormatter,
     each raw and minified. Every cell must create its exact marker in the shared job folder
     and preserve the neighbouring sentinel before it records `net-fx-4.0` evidence.
 

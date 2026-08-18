@@ -12,7 +12,7 @@ using ysonet.Helpers;
 namespace ysonet.Generators
 {
     /*
-     * TypeConfuseDelegateNet40Workflow is the exact .NET Framework 4.0 counterpart
+     * TypeConfuseDelegateNetFx40 is the exact .NET Framework 4.0 counterpart
      * to TypeConfuseDelegate. Comparer<T>.Create and its serializable
      * ComparisonComparer<T> adapter arrived in 4.5, so the ordinary graph cannot
      * bind on 4.0.
@@ -31,7 +31,7 @@ namespace ysonet.Generators
      * graph deliberately targets exactly .NET Framework 4.0 and is not a fourth
      * root-container variant of the 4.5+ gadget.
      */
-    public sealed class TypeConfuseDelegateNet40WorkflowGenerator : GenericGenerator
+    public sealed class TypeConfuseDelegateNetFx40Generator : GenericGenerator
     {
         public override bool SupportsLegacyFx()
         {

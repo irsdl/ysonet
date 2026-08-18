@@ -43,10 +43,14 @@ Credits for available gadgets:
                 [Finders: Soroush Dalili]
         BaseActivationFactory
                 [Finders: Piotr Bazydlo]
+        BootstrapperBuilder
+                [Finders: Soroush Dalili]
         ClaimsIdentity
                 [Finders: Soroush Dalili]
         ClaimsPrincipal
                 [Finders: jang]
+        ColorConvertedBitmapExtension
+                [Finders: Soroush Dalili]
         DataSet
                 [Finders: James Forshaw] [Contributors: Soroush Dalili]
         DataSetOldBehaviour
@@ -69,6 +73,8 @@ Credits for available gadgets:
                 [Finders: Piotr Bazydlo]
         FileSystemInfo
                 [Finders: James Forshaw] [Contributors: Soroush Dalili]
+        FileSystemInfoTimeSetter
+                [Finders: James Forshaw] [Contributors: Soroush Dalili]
         FileSystemProxyCurrentDirectory
                 [Finders: Piotr Bazydlo] [Contributors: Soroush Dalili]
         FormsIdentity
@@ -83,6 +89,8 @@ Credits for available gadgets:
                 [Finders: Piotr Bazydlo]
         GetterSettingsPropertyValue
                 [Finders: Piotr Bazydlo]
+        HashPEFileHandle
+                [Finders: Soroush Dalili]
         InfiniteProgressPage
                 [Finders: Piotr Bazydlo]
         ObjectDataProvider
@@ -115,12 +123,14 @@ Credits for available gadgets:
                 [Finders: James Forshaw] [Contributors: Alvaro Munoz, Soroush Dalili]
         TypeConfuseDelegateFileOperations
                 [Finders: James Forshaw] [Contributors: Soroush Dalili]
-        TypeConfuseDelegateLegacyWorkflow
-                [Finders: James Forshaw] [Contributors: Soroush Dalili]
         TypeConfuseDelegateMono
                 [Finders: James Forshaw] [Contributors: Denis Andzakovic, Soroush Dalili]
-        TypeConfuseDelegateNet40Workflow
+        TypeConfuseDelegateNetFx35
                 [Finders: James Forshaw] [Contributors: Soroush Dalili]
+        TypeConfuseDelegateNetFx40
+                [Finders: James Forshaw] [Contributors: Soroush Dalili]
+        TypeConfuseDelegatePowerShell
+                [Finders: James Forshaw, Soroush Dalili] [Contributors: Soroush Dalili]
         WbemClassObjectUnmarshal
                 [Finders: James Forshaw, SCRT] [Contributors: Soroush Dalili]
         WindowsClaimsIdentity
@@ -137,6 +147,8 @@ Credits for available gadgets:
                 [Finders: Soroush Dalili] [Contributors: russtone]
         XamlImageInfo
                 [Finders: Piotr Bazydlo]
+        XamlTypeConverterFetch
+                [Finders: Soroush Dalili]
         XmlDocumentSurrogateXxe
                 [Finders: Soroush Dalili]
         XmlDocumentXxe

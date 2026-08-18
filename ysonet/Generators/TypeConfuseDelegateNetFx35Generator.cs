@@ -13,7 +13,7 @@ using ysonet.Helpers;
 namespace ysonet.Generators
 {
     /*
-     * TypeConfuseDelegateLegacyWorkflow is the CLR-v2-generation counterpart to the
+     * TypeConfuseDelegateNetFx35 is the CLR-v2-generation counterpart to the
      * normal TypeConfuseDelegate gadget. The normal chain needs two .NET 4.5 additions:
      * Comparer<T>.Create and its serializable ComparisonComparer<T> implementation. This
      * chain instead reconstructs CLR 2's non-serializable Array.FunctorComparer<string>
@@ -33,7 +33,7 @@ namespace ysonet.Generators
      * The generator then forces the existing --legacyfx boundary on a COPY of InputArgs so
      * every ordinary framework identity also names the CLR-v2 generation by default.
      */
-    public sealed class TypeConfuseDelegateLegacyWorkflowGenerator : GenericGenerator
+    public sealed class TypeConfuseDelegateNetFx35Generator : GenericGenerator
     {
         private const string Mscorlib20 =
             "mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089";

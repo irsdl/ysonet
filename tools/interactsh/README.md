@@ -61,9 +61,8 @@ $env:YSONET_OOB_TESTS = "1"
 ysonet\bin\Debug\ysonet.Tests.exe
 ```
 
-The whole tier starts and disposes ONE client session. Three separate sessions would
-register three unrelated domains, and unlabeled interactions (see SMB below) could not
-then be correlated at all.
+The whole tier starts and disposes ONE client session. Separate sessions would repeat the
+registration cost, register unrelated domains, and make one run harder to audit.
 
 ### What the tier checks first
 
@@ -79,7 +78,7 @@ Two preconditions run once, before any payload row:
 If either is unusable, every OOB check is a named skip in the run's environment report,
 not a failure and not a pass. See "Environment verdict" in `CONTRIBUTING.md`.
 
-### The three checks
+### The four checks
 
 1. **UNC short-name expansion calls out.** Normalizes `\\<label>.<oob-domain>\share\aaaaaa~1\x`
    and requires an exact `dns` interaction for `<label>`. A control normalizes a plain
@@ -92,7 +91,10 @@ not a failure and not a pass. See "Environment verdict" in `CONTRIBUTING.md`.
    `dns` interaction. The row table is `UncCallbackRows` in `ysonet.Tests/Tests.cs`; a
    gadget that is not registered yet is skipped by name. **Needs a self-hosted server you
    own.**
-3. **WbemClassObjectUnmarshal calls out to a real remote host.** Its `-c` is a bare host
+3. **FileSystemInfo calls out on every formatter and variant.** Covers its full advertised
+   matrix plus a generated-but-never-deserialized control, and requires an exact `dns`
+   interaction for every positive cell. **Needs a self-hosted server you own.**
+4. **WbemClassObjectUnmarshal calls out to a real remote host.** Its `-c` is a bare host
    inside a COM OBJREF, not a UNC path, so no SMB session and no Windows authentication is
    involved. This one stays available on the default public endpoint. Its control payload
    is generated and never deserialized, which proves the tool does not resolve `-c` while
@@ -109,8 +111,8 @@ control, so the harness refuses:
 - **Every automated UNC touch requires `YSONET_INTERACTSH_SERVER`.** Setting it is your
   DECLARATION that the server is self-hosted and yours. The harness cannot prove
   ownership. Never point it at a third-party service.
-- On the public endpoint the two UNC checks are named skips and the SMB diagnostic is
-  `NOT-PROBED`, decided before any label, UNC path, or socket is created.
+- On the public endpoint the three UNC checks are named skips before any UNC path is
+  touched.
 - Constructing or serializing a UNC string as inert data is not a touch. Normalizing,
   resolving, opening, enumerating, or deserializing a payload so Windows acts on the path
   is.
@@ -126,7 +128,6 @@ apart from a machine that cannot reach the server. It never gates a payload row.
 |---|---|---|
 | `http` | an ordinary GET at a unique label, waiting for exactly `http` | `OBSERVED` or `NOT-CONCLUSIVE` |
 | `https` | the same over TLS with NORMAL certificate validation, waiting for exactly `https` | `OBSERVED` or `NOT-CONCLUSIVE` |
-| `smb` | only with an owned server: touch a unique UNC path and wait for a new `smb` record | `OBSERVED`, `NOT-CONCLUSIVE`, or `NOT-PROBED` |
 
 Protocol names are matched EXACTLY. interactsh answers a TLS request as `https` and a
 plain one as `http`, so accepting either would let one signal stand in for the other.
@@ -142,31 +143,18 @@ nothing within the budget. That can be local policy, a proxy, name resolution, t
 listener's configuration, or a transient failure, and this cannot tell them apart. Do not
 report it as proof of a local firewall rule.
 
-## Self-hosting, and SMB
+## Optional direct SMB observation during development
 
-interactsh serves SMB only when you self-host it:
+The run-unique DNS interaction is the automated effect proof. A completed SMB session is
+not required. If packet-level confirmation helps while developing a new path, run a
+listener you control in WSL or Docker, target its IP directly with a UNC path, and observe
+the inbound request on port 445. Addressing it by IP deliberately bypasses DNS and makes
+this a separate manual check, not a substitute for the labelled DNS assertion.
 
-```text
-interactsh-server -smb ...
-```
-
-Per the v1.3.1 README, `-smb` is self-hosted only, is backed by Python 3 and impacket, and
-listens on **real port 445**. A Windows UNC client cannot be told to use another port, so
-the host must have 445 free.
-
-Two facts about SMB records that the harness has to work around:
-
-- the SMB server writes an interaction with protocol `smb` and **no `full-id`**, so label
-  matching can never find it;
-- the correlation left is positional. The harness remembers how many complete records the
-  JSONL log held before an action and only looks at records after that point, runs its UNC
-  actions serially, and finishes each wait before starting the next.
-
-When a session's own egress profile observes SMB, each positive UNC row additionally
-requires a new post-cursor `smb` record, on top of its exact DNS assertion.
-
-The default public servers can change, rotate, or be unavailable, which is another reason
-a missing observation is never presented as a local diagnosis.
+A Windows UNC client cannot be told to use another port. WSL or Docker is useful because
+the host's own SMB service may already own port 445. Treat any captured authentication
+material as sensitive, keep it local, and do not make this optional observation a release
+gate.
 
 ## Environment variables
 
@@ -188,7 +176,7 @@ a missing observation is never presented as a local diagnosis.
   text, or its tests.
 - **Public by default, and limited by default.** With no `YSONET_INTERACTSH_SERVER` the
   client uses ProjectDiscovery's public OAST servers. Only the non-UNC DCOM check and the
-  HTTP/HTTPS diagnostics run; both UNC checks are skipped. What the third party sees is
+  HTTP/HTTPS diagnostics run; all three UNC checks are skipped. What the third party sees is
   the lookup itself, and the label carries no data about the machine.
 - **The interaction log can hold sensitive data.** An SMB interaction's raw request can
   contain authentication material. The harness parses only the protocol field, never
@@ -205,6 +193,5 @@ a missing observation is never presented as a local diagnosis.
 - Registering successfully does not prove DNS reaches the server, which is why the DNS
   precondition exists as a separate capability.
 - A DNS interaction proves the callback was ATTEMPTED. It does not prove the SMB session
-  completed or that credentials were sent. When the SMB interaction itself is needed
-  (NTLM material), self-host with `-smb` on port 445, or use a lab endpoint that can log
-  the connection and point the gadget at it manually.
+  completed or that credentials were sent. When packet-level SMB evidence is useful,
+  use the optional owned WSL/Docker listener described above.

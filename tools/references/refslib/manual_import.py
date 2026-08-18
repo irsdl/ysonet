@@ -9,7 +9,8 @@ Three properties are load-bearing.
 
 * **The local path never reaches tracked output.** `CLAUDE.md` forbids it. What
   is recorded is the content hash, the provenance `manual-import`, and the date.
-  The directory the files came from is never written anywhere.
+  A single imported PDF is also preserved by content hash, just like a fetched
+  PDF; the directory the file came from is never written anywhere.
 * **Several files can describe one source.** Online converters truncate, mangle
   encodings, and disagree, so the maintainer often has two or three attempts at
   the same document. They are grouped and JOINED rather than one being picked
@@ -36,6 +37,11 @@ CONVERTER_NOISE = (
 )
 
 READABLE_SUFFIXES = (".md", ".markdown", ".txt", ".html", ".htm", ".pdf")
+
+# A replay host is the transport, not the document's publisher. This can be
+# left behind when a failed Wayback extraction is replaced by a hand-obtained
+# copy; carrying it into the replacement would misattribute the document.
+ARCHIVE_PUBLISHERS = frozenset(("web.archive.org",))
 
 # Below this the filename is not evidence of anything.
 MATCH_FLOOR = 0.34
@@ -121,6 +127,24 @@ def scan(directory):
         if name in stated:
             group.stated_url = stated[name]
     return split_unlike(merge_similar(groups))
+
+
+def publisher_for_import(entry):
+    """Keep stated publishers, but never promote an archive host to one."""
+    publisher = (entry.get("publisher") or "").strip()
+    return "" if publisher.lower().rstrip("/") in ARCHIVE_PUBLISHERS else publisher
+
+
+def raw_document(candidates, used):
+    """Return the exact bytes when one imported PDF supplied the document."""
+    if len(used) != 1:
+        return b""
+    selected = next((item for item in candidates if item.name == used[0]), None)
+    if selected is None or not selected.path.lower().endswith(".pdf"):
+        return b""
+    with open(selected.path, "rb") as handle:
+        data = handle.read()
+    return data if data[:5] == b"%PDF-" else b""
 
 
 # A maintainer's own statement of what a file is, which no heuristic may

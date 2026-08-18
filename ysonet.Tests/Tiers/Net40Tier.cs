@@ -55,14 +55,14 @@ namespace ysonet.Tests
                 AssertEqual(1, minified, formatter + " has one minified NET40 cell");
             }
 
-            AssertSetEqual(Gadget(TcdNet40WorkflowGadget).SupportedFormatters(),
+            AssertSetEqual(Gadget(TcdNetFx40Gadget).SupportedFormatters(),
                 new[]
                 {
                     Formatters.BinaryFormatter,
                     Formatters.SoapFormatter,
                     Formatters.LosFormatter,
                 }, "the target table covers every advertised formatter");
-            AssertSetEqual(Gadget(TcdNet40WorkflowGadget).Facets().Versions,
+            AssertSetEqual(Gadget(TcdNetFx40Gadget).Facets().Versions,
                 new[] { RuntimeVersion.NetFx40 },
                 "a successful target cell earns exactly the 4.0 version token");
         }
@@ -129,7 +129,7 @@ namespace ysonet.Tests
                 "---- NET40 tier (genuine .NET Framework 4.0 target) ----");
 
             if (!TestEnvironment.CanRun(TestEnvironment.NetFx40Target,
-                "NET40 victim self-check and TypeConfuseDelegateNet40Workflow cells"))
+                "NET40 victim self-check and TypeConfuseDelegateNetFx40 cells"))
                 return;
 
             Run("The NET40 victim proves its exact private serialization shape",
@@ -137,7 +137,7 @@ namespace ysonet.Tests
             foreach (Net40Cell cell in Net40Cells)
             {
                 Net40Cell captured = cell;
-                Run("TypeConfuseDelegateNet40Workflow fires on .NET 4.0 ("
+                Run("TypeConfuseDelegateNetFx40 fires on .NET 4.0 ("
                     + cell.Label + ")", delegate { RunNet40Cell(captured); });
             }
             Console.Error.WriteLine();
@@ -169,7 +169,7 @@ namespace ysonet.Tests
 
             RunResult generated = PayloadRunner.GenerateGadget(new GenerationRequest
             {
-                GadgetName = TcdNet40WorkflowGadget,
+                GadgetName = TcdNetFx40Gadget,
                 FormatterName = cell.Formatter,
                 OutputFormat = "",
                 InputArgs = input,
@@ -195,7 +195,7 @@ namespace ysonet.Tests
                 cell.Label + " creates the exact marker token. Victim output: "
                     + (result.Output ?? "<empty>"));
 
-            RuntimeBuild.RecordFired(TcdNet40WorkflowGadget,
+            RuntimeBuild.RecordFired(TcdNetFx40Gadget,
                 RuntimeVersion.NetFx40);
         }
     }

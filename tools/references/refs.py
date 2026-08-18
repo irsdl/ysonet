@@ -39,6 +39,7 @@ from refslib import grade as grade_module              # noqa: E402
 from refslib import harvest as harvest_module          # noqa: E402
 from refslib import inventory as inventory_module      # noqa: E402
 from refslib import ledger as ledger_module            # noqa: E402
+from refslib import manifest as manifest_module        # noqa: E402
 from refslib import paths                             # noqa: E402
 from refslib import slugs as slugs_module              # noqa: E402
 from refslib.exclusions import Classifier             # noqa: E402
@@ -341,10 +342,10 @@ def command_acquire(args):
             if judged and judged.get("class") in grade_module.FOLDERS:
                 entry["grade"] = record["grade"] = judged["class"]
                 entry["decision"] = dict(judged, by="maintainer", at=manifest_utc()[:10])
-            for field in ("raw_sha256", "content_sha256", "licence", "publisher",
-                          "published", "authors", "language", "commit"):
-                if record.get(field):
-                    entry[field] = record[field]
+            # These MIRROR the acquisition result, including deliberate empty
+            # corrections. Truthiness here left `web.archive.org` behind as a
+            # PDF's publisher after the real PDF correctly derived no publisher.
+            manifest_module.apply_acquired_fields(entry, record)
             # The gap MIRRORS the record rather than only overwriting when
             # non-empty. Copying it on truthiness meant a gap could be recorded
             # but never cleared: three slide decks kept "we only have a page
@@ -1185,6 +1186,13 @@ def command_import(args):
             continue
 
         text, used = manual_import.join(usable)
+        raw = manual_import.raw_document(usable, used)
+        raw_sha = store.put(raw) if raw else ""
+        if raw:
+            # These bytes came from the maintainer's supplied document, not
+            # from whichever failed Wayback replay happened to be tried last.
+            # Keeping that replay's timestamp would publish a false capture.
+            entry.setdefault("health", {})["snapshot"] = ""
         cleaned = manual_import.sanitise.sanitise_text(text)
         url = (entry.get("spellings") or [key])[0]
         # THE MAINTAINER'S JUDGEMENT REACHES THIS PATH TOO. `classify` has
@@ -1225,7 +1233,7 @@ def command_import(args):
                 entry.get("title") or entry.get("cited_title"),
                 (entry.get("spellings") or [key])[0]) or key,
             "authors": entry.get("authors") or [],
-            "publisher": entry.get("publisher") or "",
+            "publisher": manual_import.publisher_for_import(entry),
             "published": entry.get("published") or "",
             "licence": entry.get("licence") or "unknown",
             "kind": entry.get("kind") or "article",
@@ -1238,7 +1246,7 @@ def command_import(args):
             "retrieved_from": (entry.get("spellings") or [key])[0],
             "retrieved_utc": manifest_utc(),
             "content_sha256": content_sha,
-            "raw_sha256": entry.get("raw_sha256") or "",
+            "raw_sha256": raw_sha,
             "cited_by": entry.get("cited_by") or [],
             "depth": "full",
             "depth_reason": "default",
@@ -1253,17 +1261,21 @@ def command_import(args):
             entry["title"] = record["title"]
             if renamed_from and renamed_from != record["slug"]:
                 print("  renamed    %s -> %s" % (renamed_from, record["slug"]))
-        entry["content_sha256"] = content_sha
+        manifest_module.apply_acquired_fields(entry, record)
 
         text_out = render_module.render(record, cleaned.text, "full")
         path = archive_dir / entry["grade"] / (record["slug"] + ".md")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text_out, encoding="utf-8", newline="\n")
         manifest.record(key, "import", result="stored", sha256=content_sha,
+                        raw_sha256=raw_sha,
                         files_joined=len(used), chars=len(cleaned.text),
                         grade=entry["grade"])
+        if raw and ((entry.get("steps") or {}).get("wayback")):
+            manifest.record(key, "wayback", result="superseded",
+                            reason="hand-imported document replaced the replay bytes")
         manifest.record(key, "acquire", result="stored", retrieved_kind="manual-import",
-                        content_sha256=content_sha)
+                        raw_sha256=raw_sha, content_sha256=content_sha)
         imported += 1
         filed.add(key)
         print("  imported   %-58s %6d chars, %d file(s) joined -> %s/"

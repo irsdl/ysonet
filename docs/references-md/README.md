@@ -521,7 +521,7 @@ Two more lists complete the picture: [needs-work.md](needs-work.md) is everythin
 | [https://www.synacktiv.com/ressources/advisories/Sitecore_CSRF_deserialize_RCE.pdf](research/https-www-synacktiv-com-ressources-advisories-sitecore-csrf-deserialize-rce-pdf.md) | whitepaper |  |  | metadata | 1 |
 | [Jonathan Birch Second Breakfast Implicit and Mutation Based Serialization Vulnerabilities in .NET](research/jonathan-birch-second-breakfast-implicit-mutation-based-serialization-net.md) | whitepaper |  |  | metadata | 2 |
 | [Jonathan Birch Second Breakfast Implicit and Mutation Based Serialization Vulnerabilities in .NET whitepaper](research/jonathan-birch-second-breakfast-implicit-mutation-based-whitepaper.md) | whitepaper |  |  | metadata | 2 |
-| [Nullcon Goa 2018 slides](research/nullcon-goa-2018-slides.md) | whitepaper | web.archive.org |  | full | 1 |
+| [Nullcon Goa 2018 slides](research/nullcon-goa-2018-slides.md) | whitepaper |  |  | full | 1 |
 | [ProxyLogon Is Just the Tip of the Iceberg: A New Attack Surface on Microsoft Exchange Server (Orange Tsai, Black Hat USA 2021 - slides)](research/proxylogon-just-tip-iceberg-new-attack-surface-microsoft-exchange-server-orange.md) | whitepaper |  |  | full | 1 |
 | [RCEvil.net (BSides Iowa)](research/rcevil-net-bsides-iowa.md) | whitepaper |  |  | full | 2 |
 | [Security boot camp for .NET developers (Confoo)](research/2018-security-boot-camp-net-developers-confoo.md) | whitepaper |  | 2018 | full | 1 |

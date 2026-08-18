@@ -283,13 +283,13 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 |  | LosFormatter | 2,800 | 2,252 | 548 | 19.6% |
 |  | NetDataContractSerializer | 3,865 | 3,556 | 309 | 8% |
 |  | SoapFormatter | 4,513 | 3,840 | 673 | 14.9% |
-| TypeConfuseDelegateLegacyWorkflow | BinaryFormatter | 4,384 | 3,628 | 756 | 17.2% |
-|  | LosFormatter | 4,392 | 3,632 | 760 | 17.3% |
-|  | SoapFormatter | 6,041 | 5,103 | 938 | 15.5% |
 | TypeConfuseDelegateMono | BinaryFormatter | 2,632 | 2,152 | 480 | 18.2% |
 |  | LosFormatter | 2,640 | 2,160 | 480 | 18.2% |
 |  | NetDataContractSerializer | 3,262 | 3,020 | 242 | 7.4% |
-| TypeConfuseDelegateNet40Workflow | BinaryFormatter | 3,828 | 3,168 | 660 | 17.2% |
+| TypeConfuseDelegateNetFx35 | BinaryFormatter | 4,384 | 3,628 | 756 | 17.2% |
+|  | LosFormatter | 4,392 | 3,632 | 760 | 17.3% |
+|  | SoapFormatter | 6,041 | 5,103 | 938 | 15.5% |
+| TypeConfuseDelegateNetFx40 | BinaryFormatter | 3,828 | 3,168 | 660 | 17.2% |
 |  | LosFormatter | 3,832 | 3,172 | 660 | 17.2% |
 |  | SoapFormatter | 5,717 | 4,858 | 859 | 15% |
 | WbemClassObjectUnmarshal | BinaryFormatter | 408 | 404 | 4 | 1% |

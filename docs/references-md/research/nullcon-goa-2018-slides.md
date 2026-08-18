@@ -5,15 +5,13 @@ resource: "https://web.archive.org/web/20260227084925/https://nullcon.net/websit
 tags: [whitepaper, ysonet-reference]
 generated:
   by: ysonet-refs/1
-  at: "2026-08-04T16:19:48+00:00"
+  at: "2026-08-14T14:56:05+00:00"
 status: stable
-stale_after: 2027-08-04
+stale_after: 2027-08-14
 sources:
   - id: original
     resource: "https://web.archive.org/web/20260227084925/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf"
     title: Nullcon Goa 2018 slides
-  - id: capture
-    resource: "https://web.archive.org/web/20200401093927/https://web.archive.org/web/20260227084925/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf"
 also_at: []
 authors: []
 canonical_url: ""
@@ -29,12 +27,14 @@ licence: unknown
 original_url: "https://web.archive.org/web/20260227084925/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf"
 published: ""
 publisher: ""
+publisher_english: ""
 raw_sha256: b7920bb074742d9a67ca851d6d7a7eb637f58038203dfc1c5255391c51dfb703
 retrieved_from: "https://web.archive.org/web/20260227084925/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf"
 retrieved_kind: stored
-retrieved_utc: "2026-08-04T16:19:48+00:00"
+retrieved_utc: "2026-08-14T14:56:05+00:00"
 slug: nullcon-goa-2018-slides
-snapshot: 20200401093927
+snapshot: ""
+title_english: ""
 ---
 
 # Nullcon Goa 2018 slides
@@ -43,8 +43,7 @@ snapshot: 20200401093927
 
 - Published: date not stated
 - Original: <https://web.archive.org/web/20260227084925/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf>
-- Preserved from: https://web.archive.org/web/20260227084925/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf (stored) on 2026-08-04
-- Capture timestamp: 20200401093927
+- Preserved from: https://web.archive.org/web/20260227084925/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf (stored) on 2026-08-14
 - Licence: unknown
 
 Rights remain with the original author and publisher. This is a research

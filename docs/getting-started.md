@@ -51,10 +51,10 @@ msbuild ysonet.sln -p:Configuration=Release
 ```
 
 Release builds also compile the deliberately vulnerable, one-shot
-`ysonet.Clr2TestHost.exe` used by CLR2 local tests. Enable the Windows optional feature
-".NET Framework 3.5 (includes .NET 2.0 and 3.0)" first; the build fails instead of
-silently publishing an archive without that host. Debug builds warn and continue when
-the feature is absent.
+`ysonet.Clr2TestHost.exe` used by CLR2 local tests plus explicit x86 and x64 variants.
+Enable the Windows optional feature ".NET Framework 3.5 (includes .NET 2.0 and 3.0)"
+first; the build fails instead of silently publishing an archive without any of the
+hosts. Debug builds warn and continue when the feature is absent.
 
 The Release build string-encrypts `ysonet.exe` to reduce false antivirus detections. Payloads are not affected. To build without it, add `-p:ObfuscateRelease=false` to the `msbuild` command. Debug builds are never obfuscated.
 

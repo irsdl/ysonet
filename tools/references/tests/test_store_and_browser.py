@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 from refslib import browser as browser_module
+from refslib import manifest as manifest_module
 from refslib.store import Store
 from refslib.wsclient import WebSocket, WebSocketError
 
@@ -53,6 +54,15 @@ class TestStore(unittest.TestCase):
         self.store.put(b"x")
         leftovers = [name for name in self.store.digests() if name.endswith(".tmp")]
         self.assertEqual(leftovers, [])
+
+
+class TestAcquiredMetadata(unittest.TestCase):
+    def test_an_empty_publisher_clears_stale_wayback_attribution(self):
+        entry = {"publisher": "web.archive.org", "content_sha256": "old"}
+        manifest_module.apply_acquired_fields(
+            entry, {"publisher": "", "content_sha256": "new"})
+        self.assertEqual(entry["publisher"], "")
+        self.assertEqual(entry["content_sha256"], "new")
 
 
 class TestBrowserSafety(unittest.TestCase):

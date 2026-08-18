@@ -75,9 +75,25 @@ namespace ysonet.Tests
         // parameters is still erased when unimplemented, so a clean clone is unchanged.
         static partial void RunPrivateTests(TestRunOptions options);
 
+        // A focused entry point owned by a mounted private test area, dispatched from the
+        // top of Main beside the public probe branches below. Same contract as the hook
+        // above: with no implementation the compiler removes the call, so a clean clone
+        // has no branch here at all and this file names nothing private.
+        //
+        // It takes ref parameters rather than returning a value because a partial method
+        // must return void. The implementation sets handled = true and fills exitCode only
+        // when it recognises its own request; otherwise it touches neither and Main runs
+        // the ordinary suite.
+        static partial void RunPrivateEntryPoint(ref int exitCode, ref bool handled);
+
         private static int Main(string[] args)
         {
             if (Environment.GetEnvironmentVariable("YSONET_DUMPUI") != null) { DumpUi(); return 0; }
+            string tcdPowerShellProbe = Environment.GetEnvironmentVariable(TcdPowerShellProbeVar);
+            if (tcdPowerShellProbe != null)
+                return TypeConfuseDelegatePowerShellProbe(tcdPowerShellProbe);
+            if (Environment.GetEnvironmentVariable(TcdPowerShellFocusedVar) != null)
+                return RunTypeConfuseDelegatePowerShellFocused();
             // Hidden self-spawned probe: deserialize one XAML-container payload and exit.
             // XamlContainersEvadeSortedSetBinder runs it in a child process because firing the
             // XAML wrapper in-process can fail-fast the CLR (see that test).
@@ -89,6 +105,13 @@ namespace ysonet.Tests
             // while this suite is itself holding the real one.
             string lockProbe = Environment.GetEnvironmentVariable(TestLockProbeVar);
             if (lockProbe != null) return TestLockProbe(lockProbe);
+
+            // A private test area may own focused entry points of its own. It reads its own
+            // environment variables, so nothing here knows which ones exist.
+            int privateExitCode = 0;
+            bool privateHandled = false;
+            RunPrivateEntryPoint(ref privateExitCode, ref privateHandled);
+            if (privateHandled) return privateExitCode;
 
             TestRunOptions options = TestRunOptions.Parse(args, Environment.GetEnvironmentVariable,
                 System.Diagnostics.Debugger.IsAttached);
@@ -217,9 +240,10 @@ namespace ysonet.Tests
             Run("RPC endpoint mapper probe always reports evidence", RpcProbeAlwaysReportsEvidence);
             Run("FULL helpers stop before their network action when absent", FullHelpersStopBeforeTheirNetworkActionWhenAbsent);
             Run("OOB protocol matching is exact, label matching case-insensitive", OobProtocolMatchingIsExact);
-            Run("SMB cursor sees only new session records", SmbCursorSeesOnlyNewSessionRecords);
+            Run("OOB callback proof uses DNS without an SMB egress profile", OobCallbackProofUsesDnsOnly);
             Run("A public OOB endpoint never invokes any UNC action", PublicOobNeverInvokesAnyUncAction);
             Run("The OOB tier starts and disposes one session", OobTierStartsOneSession);
+            Run("Every UNC callback row can actually fire", UncCallbackRowsAreWellFormed);
             Run("OOB absence controls share the DNS gate", OobControlsShareTheDnsGate);
             Run("HTTPS probe does not mutate global TLS state", HttpsProbeDoesNotMutateGlobalTlsState);
             Run("Strict and default summaries do not call skipped rows passed", StrictAndDefaultSummariesDoNotCallSkippedRowsPassed);
@@ -297,19 +321,25 @@ namespace ysonet.Tests
             Run("TypeConfuseDelegate variants 2/3 need distinct command and argument strings", TypeConfuseDelegateVariantKeyEdgeCases);
             Run("TypeConfuseDelegate SOAP keeps a direct CLR4 SortedSet/TreeSet graph", TypeConfuseDelegateSoapUsesDirectClr4Graph);
             Run("CLR4 and Mono TCD gadgets do not expose --legacyfx", TypeConfuseDelegateLegacyFxIsRuntimeScoped);
-            Run("The .NET 4.0 TCD generator carries the exact Workflow graph", TypeConfuseDelegateNet40GraphIsVisible);
-            Run("The .NET 4.0 TCD generator rejects incompatible options and local self-test", TypeConfuseDelegateNet40BoundariesAreExplicit);
-            Run("The .NET 4.0 TCD graph is inert on generation and rejected on 4.8.1", TypeConfuseDelegateNet40RejectsCurrentRuntime);
+            Run("The .NET 4.0 TCD generator carries the exact Workflow graph", TypeConfuseDelegateNetFx40GraphIsVisible);
+            Run("The .NET 4.0 TCD generator rejects incompatible options and local self-test", TypeConfuseDelegateNetFx40BoundariesAreExplicit);
+            Run("The .NET 4.0 TCD graph is inert on generation and rejected on 4.8.1", TypeConfuseDelegateNetFx40RejectsCurrentRuntime);
+            Run("The unpublished TCD profile names are retired without aliases", TypeConfuseDelegateProfileNamesAreUnambiguous);
+            Run("The PowerShell TCD gadget has one conditional public contract", TypeConfuseDelegatePowerShellDeclaresItsContract);
+            Run("The PowerShell TCD graph stays explicit in raw and minified BF", TypeConfuseDelegatePowerShellGraphIsVisible);
+            Run("The PowerShell TCD gadget refuses every ambiguous boundary", TypeConfuseDelegatePowerShellBoundariesAreExplicit);
+            Run("The PowerShell TCD local test reads Workflow's effective setting", TypeConfuseDelegatePowerShellSelfTestUsesEffectiveSetting);
+            Run("The PowerShell TCD setting, assembly, BF and Los effects are isolated", TypeConfuseDelegatePowerShellRuntimeContract);
             Run("An outer gadget's --variant does not reach its inner TypeConfuseDelegate", OuterVariantDoesNotReachTheInnerTypeConfuseDelegate);
             Run("Editor offers the TypeConfuseDelegate container labels and emits the number", EditorExposesTypeConfuseDelegateContainerVariants);
             Run("The shared container builder keeps every original TypeConfuseDelegate graph", TypeConfuseDelegateSharedBuilderKeepsTheOriginalGraphs);
             Run("TypeConfuseDelegate places the executable first whatever the two strings sort like", TypeConfuseDelegateFamilyPlacesTheExecutableFirst);
-            Run("The CLR-v2 TypeConfuseDelegate workflow gadget has one exact public contract", TypeConfuseDelegateLegacyWorkflowDeclaresItsContract);
-            Run("The CLR-v2 workflow graph stays explicit in raw and minified BF/Soap/Los payloads", TypeConfuseDelegateLegacyWorkflowGraphIsVisible);
-            Run("The CLR-v2 workflow gadget forces legacy identities on a copy", TypeConfuseDelegateLegacyWorkflowForcesLegacyOnACopy);
-            Run("The CLR-v2 workflow gadget honors command files and refuses equal keys", TypeConfuseDelegateLegacyWorkflowInputBoundaries);
-            Run("The CLR-v2 workflow gadget generates silently and orders its two strings", TypeConfuseDelegateLegacyWorkflowGeneratesSilently);
-            Run("The CLR-v2 workflow graph is inert on generation and rejected on 4.8.1", TypeConfuseDelegateLegacyWorkflowRejectsCurrentRuntime);
+            Run("The CLR-v2 TypeConfuseDelegate workflow gadget has one exact public contract", TypeConfuseDelegateNetFx35DeclaresItsContract);
+            Run("The CLR-v2 workflow graph stays explicit in raw and minified BF/Soap/Los payloads", TypeConfuseDelegateNetFx35GraphIsVisible);
+            Run("The CLR-v2 workflow gadget forces legacy identities on a copy", TypeConfuseDelegateNetFx35ForcesLegacyOnACopy);
+            Run("The CLR-v2 workflow gadget honors command files and refuses equal keys", TypeConfuseDelegateNetFx35InputBoundaries);
+            Run("The CLR-v2 workflow gadget generates silently and orders its two strings", TypeConfuseDelegateNetFx35GeneratesSilently);
+            Run("The CLR-v2 workflow graph is inert on generation and rejected on 4.8.1", TypeConfuseDelegateNetFx35RejectsCurrentRuntime);
             Run("File operations serialize an ordinal comparer and the real file sink", FileOperationsSerializeAnOrdinalComparerAndTheRealSink);
             Run("File operations order arguments ordinally, not by the operator's culture", FileOperationsOrderingIsOrdinalNotCultural);
             Run("File operations accept either direction and refuse only an equal pair", FileOperationsAcceptEitherDirectionAndRefuseAnEqualPair);
@@ -647,6 +677,7 @@ namespace ysonet.Tests
             // registry catalogue rather than a real private module.
             Run("Private policy reads the declaration and fails open", PrivatePolicyReadsTheDeclaration);
             Run("Every listing hides a private module by default and shows it on request", PrivateListingsFilterByDefault);
+            Run("Every listed module is public on every surface", ListedModulesArePublicOnEverySurface);
             Run("--display-private is a global option the wizard excludes", PrivateFlagIsAGlobalOption);
             Run("--prv/--display-private is read from argv for interactive mode", PrivateFlagIsParsedFromArgv);
             Run("Lookup and generation are never filtered by privacy", PrivateLookupIsNeverFiltered);
@@ -678,6 +709,27 @@ namespace ysonet.Tests
                 LegacyFxLeavesNoRewritableIdentity);
             Run("--legacyfx reaches every payload layer, inner and bridged",
                 LegacyFxReachesEveryPayloadLayer);
+
+            // A module runner that exists but is never called compiles clean and leaves
+            // its rows dead behind a green suite, so the registrations below (and any a
+            // mounted private area adds later) are checked rather than trusted.
+            Run("Every module test runner is registered, so its rows really run",
+                EveryModuleTestRunnerIsRegistered);
+
+            // ---- modules that keep their own file ----
+            // Each of these owns a source file of its own rather than a block in here, because
+            // each carries a hand-written matrix that is stricter than what the shared sweeps
+            // assert. They pick their own tier from the run options exactly like a block in this
+            // method would: everything local runs in NORMAL, a wide fire matrix or an outbound
+            // row waits for FULL or the opt-in OOB tier.
+            RunBootstrapperBuilderTests();
+            RunFileSystemInfoTimeSetterTests();
+            RunColorConvertedBitmapExtensionTests(options);
+            RunXamlTypeConverterFetchTests(options);
+            // HashPEFileHandle is a denial-of-service module: no test deserializes it in any
+            // tier. Its wire rows build a payload and so run only under the --dos gate; its
+            // safety and metadata rows always run.
+            RunHashPEFileHandleTests(options);
 
             // ---- LEGACY tier support, checked without needing CLR 2 ----
             // The table, the classifier and the version-evidence rule are pure logic, so they
@@ -1940,6 +1992,74 @@ namespace ysonet.Tests
             AssertTrue(PrivateModulePolicy.TryIsPrivate(privateGadget, out isPrivate, out error),
                 "a readable gadget declaration succeeds");
             AssertTrue(isPrivate && error == null, "and reports private with no error");
+        }
+
+        // The catalogue-wide half of the same contract. The row above proves the FILTER with a
+        // synthetic catalogue; this one proves the RESULT for the modules really compiled in:
+        // everything the default listing shows resolves by name, appears exactly once when the
+        // listing is widened, and reads as public. It enumerates the LIVE catalogue, so every
+        // module is checked by the same row and no module needs a visibility row of its own -
+        // which is also why adding one costs nothing here.
+        //
+        // It is correct in both build modes: a module the default listing does not show is not
+        // examined, so a checkout with a private area mounted asserts exactly the same thing.
+        private static void ListedModulesArePublicOnEverySurface()
+        {
+            var problems = new List<string>();
+
+            string[] gadgets = GadgetRegistry.GetGadgetNames();
+            AssertTrue(gadgets.Length > 0, "the default gadget listing is not empty");
+            string[] widerGadgets = GadgetRegistry.GetGadgetNames(true);
+            foreach (string name in gadgets)
+            {
+                // "Generic" is the abstract base generator, not a gadget: the registry reports
+                // it, every CLI listing drops it, and it cannot be instantiated. Same skip the
+                // other catalogue-wide sweeps make.
+                if (name == "Generic") continue;
+
+                if (!GadgetRegistry.GadgetExists(name))
+                    problems.Add("gadget " + name + " is listed but does not resolve by name");
+
+                int shown = Occurrences(widerGadgets, name);
+                if (shown != 1)
+                    problems.Add("gadget " + name + " appears " + shown
+                        + " time(s) with --display-private, expected exactly 1");
+
+                IGenerator gen = GadgetRegistry.CreateGadgetInstance(name);
+                if (gen == null) { problems.Add("gadget " + name + " does not instantiate"); continue; }
+                if (PrivateModulePolicy.IsPrivate(gen))
+                    problems.Add("gadget " + name + " is in the default listing but reads as private");
+            }
+
+            string[] plugins = PluginRegistry.GetPluginNames();
+            AssertTrue(plugins.Length > 0, "the default plugin listing is not empty");
+            string[] widerPlugins = PluginRegistry.GetPluginNames(true);
+            foreach (string name in plugins)
+            {
+                if (!PluginRegistry.PluginExists(name))
+                    problems.Add("plugin " + name + " is listed but does not resolve by name");
+
+                int shown = Occurrences(widerPlugins, name);
+                if (shown != 1)
+                    problems.Add("plugin " + name + " appears " + shown
+                        + " time(s) with --display-private, expected exactly 1");
+
+                IPlugin plugin = PluginRegistry.CreatePluginInstance(name);
+                if (plugin == null) { problems.Add("plugin " + name + " does not instantiate"); continue; }
+                if (PrivateModulePolicy.IsPrivate(plugin))
+                    problems.Add("plugin " + name + " is in the default listing but reads as private");
+            }
+
+            AssertTrue(problems.Count == 0, "listed modules that are not fully public ("
+                + problems.Count + "):\n  " + string.Join("\n  ", problems.ToArray()));
+        }
+
+        private static int Occurrences(string[] names, string name)
+        {
+            int count = 0;
+            foreach (string candidate in names)
+                if (string.Equals(candidate, name, StringComparison.Ordinal)) count++;
+            return count;
         }
 
         private static void PrivateListingsFilterByDefault()
@@ -4514,9 +4634,10 @@ namespace ysonet.Tests
             string[] unsupported =
             {
                 "TypeConfuseDelegate",
+                "TypeConfuseDelegatePowerShell",
                 "TypeConfuseDelegateFileOperations",
                 "TypeConfuseDelegateMono",
-                "TypeConfuseDelegateNet40Workflow",
+                "TypeConfuseDelegateNetFx40",
             };
 
             foreach (string name in unsupported)
@@ -4550,12 +4671,12 @@ namespace ysonet.Tests
                         + refused.ErrorMessage);
             }
 
-            IGenerator legacyWorkflow = Gadget("TypeConfuseDelegateLegacyWorkflow");
-            AssertTrue(legacyWorkflow.SupportsLegacyFx(),
+            IGenerator netFx35 = Gadget("TypeConfuseDelegateNetFx35");
+            AssertTrue(netFx35.SupportsLegacyFx(),
                 "the purpose-built CLR2 TCD retains legacy generation context");
             List<EditableField> legacyFields = new ModuleEditor(
                 null, null, true, null, null).BuildFieldsForTest(
-                    "TypeConfuseDelegateLegacyWorkflow");
+                    "TypeConfuseDelegateNetFx35");
             EditableField legacyField = FindEditable(legacyFields, "legacyfx");
             AssertTrue(legacyField != null && legacyField.IsOn && legacyField.Locked,
                 "the CLR2 TCD still shows its required fixed-on context");
@@ -4567,10 +4688,43 @@ namespace ysonet.Tests
                 "supported gadgets continue to offer legacyfx interactively");
         }
 
-        private const string TcdNet40WorkflowGadget =
-            "TypeConfuseDelegateNet40Workflow";
+        private static void TypeConfuseDelegateProfileNamesAreUnambiguous()
+        {
+            string[] names = GadgetRegistry.GetGadgetNames();
+            foreach (string expected in new[]
+                {
+                    "TypeConfuseDelegateNetFx35",
+                    "TypeConfuseDelegateNetFx40",
+                    "TypeConfuseDelegatePowerShell",
+                })
+            {
+                int matches = 0;
+                foreach (string name in names)
+                    if (String.Equals(name, expected,
+                        StringComparison.OrdinalIgnoreCase))
+                        matches++;
+                AssertEqual(1, matches,
+                    expected + " is the only public name for its profile");
+            }
 
-        private static RunResult GenerateTcdNet40(string formatter, bool minify,
+            foreach (string retired in new[]
+                {
+                    "TypeConfuseDelegateLegacyWorkflow",
+                    "TypeConfuseDelegateNet40Workflow",
+                    "TypeConfuseDelegateEqualityComparer",
+                })
+            {
+                foreach (string name in names)
+                    AssertTrue(!String.Equals(name, retired,
+                            StringComparison.OrdinalIgnoreCase),
+                        retired + " is not retained as a confusing compatibility alias");
+            }
+        }
+
+        private const string TcdNetFx40Gadget =
+            "TypeConfuseDelegateNetFx40";
+
+        private static RunResult GenerateTcdNetFx40(string formatter, bool minify,
             InputArgs inputArgs)
         {
             if (inputArgs == null)
@@ -4582,7 +4736,7 @@ namespace ysonet.Tests
             inputArgs.Minify = minify;
             return PayloadRunner.GenerateGadget(new GenerationRequest
             {
-                GadgetName = TcdNet40WorkflowGadget,
+                GadgetName = TcdNetFx40Gadget,
                 FormatterName = formatter,
                 OutputFormat = "",
                 InputArgs = inputArgs,
@@ -4593,9 +4747,9 @@ namespace ysonet.Tests
         // List<object> -> Workflow ObjectSerializedRef -> Array.FunctorComparer<string>
         // -> SortedSet<string> chain in every advertised formatter cell. Both raw and
         // minified forms stay readable enough to audit; no ysonet authoring proxy survives.
-        private static void TypeConfuseDelegateNet40GraphIsVisible()
+        private static void TypeConfuseDelegateNetFx40GraphIsVisible()
         {
-            IGenerator gadget = Gadget(TcdNet40WorkflowGadget);
+            IGenerator gadget = Gadget(TcdNetFx40Gadget);
             AssertEqual(0, gadget.Variants().Count,
                 "the exact runtime graph has no unrelated root-container axis");
             AssertEqual(0, OptionField.FromOptionSet(gadget.Options()).Count,
@@ -4633,7 +4787,7 @@ namespace ysonet.Tests
                     ia.Minify = minify;
                     RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
                     {
-                        GadgetName = TcdNet40WorkflowGadget,
+                        GadgetName = TcdNetFx40Gadget,
                         FormatterName = formatter,
                         OutputFormat = "",
                         InputArgs = ia,
@@ -4664,6 +4818,8 @@ namespace ysonet.Tests
                         label + " never falls back to the .NET 4.5+ comparer");
                     AssertTrue(!wire.Contains("Version=2.0.0.0"),
                         label + " never falls back to CLR-v2 identities");
+                    AssertTrue(!wire.Contains("TypeConfuseDelegateNetFx40Generator"),
+                        label + " contains no renamed generation-only class");
 
                     if (formatter.Equals(Formatters.SoapFormatter,
                         StringComparison.OrdinalIgnoreCase))
@@ -4723,7 +4879,7 @@ namespace ysonet.Tests
                 ia.Cmd = "znet40.exe alpha";
                 ia.IsRawCmd = true;
                 ia.UseSimpleType = true;
-                RunResult r = GenerateTcdNet40(formatter, true, ia);
+                RunResult r = GenerateTcdNetFx40(formatter, true, ia);
                 string wire = SearchableWire(r, formatter);
                 AssertTrue(r.Success
                         && wire.Contains("ObjectSerializedRef")
@@ -4741,7 +4897,7 @@ namespace ysonet.Tests
                 InputArgs aliasesInCommand = new InputArgs();
                 aliasesInCommand.Cmd = "zYsonetTcdNet40.exe " + aliasText;
                 aliasesInCommand.IsRawCmd = true;
-                RunResult aliasRun = GenerateTcdNet40(
+                RunResult aliasRun = GenerateTcdNetFx40(
                     Formatters.SoapFormatter, minify, aliasesInCommand);
                 string label = "the .NET 4.0 SOAP operator alias text"
                     + (minify ? " --minify" : " raw");
@@ -4760,26 +4916,26 @@ namespace ysonet.Tests
             // while the capture exposes the exact private target contract without invoking
             // Process.Start or asking the installed framework to reconstruct its later,
             // one-field FunctorComparer shape.
-            Net40WorkflowComparerCapture.Reset();
-            RunResult capturedPayload = GenerateTcdNet40(
+            NetFx40ComparerCapture.Reset();
+            RunResult capturedPayload = GenerateTcdNetFx40(
                 Formatters.BinaryFormatter, false, null);
             AssertTrue(capturedPayload.Success,
                 "the capture payload generates: " + capturedPayload.ErrorMessage);
             var formatterWithCapture =
                 new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-            formatterWithCapture.Binder = new Net40WorkflowCaptureBinder();
+            formatterWithCapture.Binder = new NetFx40CaptureBinder();
             using (var stream = new MemoryStream(Bytes(capturedPayload.Raw)))
                 formatterWithCapture.Deserialize(stream);
 
-            AssertTrue(Net40WorkflowComparerCapture.TargetType != null
-                    && Net40WorkflowComparerCapture.TargetType.FullName
+            AssertTrue(NetFx40ComparerCapture.TargetType != null
+                    && NetFx40ComparerCapture.TargetType.FullName
                         == "System.Array+FunctorComparer`1[[System.String, mscorlib, "
                             + "Version=4.0.0.0, Culture=neutral, "
                             + "PublicKeyToken=b77a5c561934e089]]",
                 "ObjectSerializedRef targets Array.FunctorComparer<string>: "
-                    + (Net40WorkflowComparerCapture.TargetType == null
-                        ? "<null>" : Net40WorkflowComparerCapture.TargetType.FullName));
-            object[] memberDatas = Net40WorkflowComparerCapture.MemberDatas;
+                    + (NetFx40ComparerCapture.TargetType == null
+                        ? "<null>" : NetFx40ComparerCapture.TargetType.FullName));
+            object[] memberDatas = NetFx40ComparerCapture.MemberDatas;
             AssertTrue(memberDatas != null && memberDatas.Length == 2,
                 "the .NET 4.0 comparer receives exactly two member values");
             Delegate comparison = memberDatas == null || memberDatas.Length == 0
@@ -4801,13 +4957,13 @@ namespace ysonet.Tests
         }
 
         [Serializable]
-        private sealed class Net40WorkflowComparerCapture :
+        private sealed class NetFx40ComparerCapture :
             IComparer<string>, System.Runtime.Serialization.ISerializable
         {
             internal static Type TargetType;
             internal static object[] MemberDatas;
 
-            private Net40WorkflowComparerCapture(
+            private NetFx40ComparerCapture(
                 System.Runtime.Serialization.SerializationInfo info,
                 System.Runtime.Serialization.StreamingContext context)
             {
@@ -4835,7 +4991,7 @@ namespace ysonet.Tests
             }
         }
 
-        private sealed class Net40WorkflowCaptureBinder :
+        private sealed class NetFx40CaptureBinder :
             System.Runtime.Serialization.SerializationBinder
         {
             public override Type BindToType(string assemblyName, string typeName)
@@ -4843,18 +4999,18 @@ namespace ysonet.Tests
                 if (typeName != null && typeName.EndsWith(
                         "ActivitySurrogateSelector+ObjectSurrogate+ObjectSerializedRef",
                         StringComparison.Ordinal))
-                    return typeof(Net40WorkflowComparerCapture);
+                    return typeof(NetFx40ComparerCapture);
                 return null;
             }
         }
 
-        private static void TypeConfuseDelegateNet40BoundariesAreExplicit()
+        private static void TypeConfuseDelegateNetFx40BoundariesAreExplicit()
         {
-            RunResult ndcs = GenerateTcdNet40(
+            RunResult ndcs = GenerateTcdNetFx40(
                 Formatters.NetDataContractSerializer, false, null);
             AssertTrue(!ndcs.Success
                     && (ndcs.ErrorMessage ?? "").Contains(
-                        TcdNet40WorkflowGadget),
+                        TcdNetFx40Gadget),
                 "the .NET 4.0 generator refuses NDCS through its formatter contract: "
                     + ndcs.ErrorMessage);
 
@@ -4866,7 +5022,7 @@ namespace ysonet.Tests
             localTest.Test = true;
             RunResult tested = PayloadRunner.GenerateGadget(new GenerationRequest
             {
-                GadgetName = TcdNet40WorkflowGadget,
+                GadgetName = TcdNetFx40Gadget,
                 FormatterName = Formatters.BinaryFormatter,
                 OutputFormat = "",
                 InputArgs = localTest,
@@ -4883,7 +5039,7 @@ namespace ysonet.Tests
             legacy.Test = false;
             RunResult legacyRun = PayloadRunner.GenerateGadget(new GenerationRequest
             {
-                GadgetName = TcdNet40WorkflowGadget,
+                GadgetName = TcdNetFx40Gadget,
                 FormatterName = Formatters.BinaryFormatter,
                 OutputFormat = "",
                 InputArgs = legacy,
@@ -4897,7 +5053,7 @@ namespace ysonet.Tests
             InputArgs duplicate = new InputArgs();
             duplicate.Cmd = "dup.exe dup.exe";
             duplicate.IsRawCmd = true;
-            RunResult duplicateRun = GenerateTcdNet40(
+            RunResult duplicateRun = GenerateTcdNetFx40(
                 Formatters.BinaryFormatter, false, duplicate);
             AssertTrue(!duplicateRun.Success
                     && (duplicateRun.ErrorMessage ?? "").IndexOf("distinct",
@@ -4914,7 +5070,7 @@ namespace ysonet.Tests
                 InputArgs fromFile = new InputArgs();
                 fromFile.Cmd = commandFile;
                 fromFile.IsRawCmd = true;
-                RunResult fileRun = GenerateTcdNet40(
+                RunResult fileRun = GenerateTcdNetFx40(
                     Formatters.BinaryFormatter, false, fromFile);
                 string wire = SearchableWire(fileRun,
                     Formatters.BinaryFormatter);
@@ -4941,7 +5097,7 @@ namespace ysonet.Tests
                 swapped.Cmd = "notepad.exe zzz.txt";
                 swapped.IsRawCmd = true;
                 swapped.IsDebugMode = true;
-                debugRun = GenerateTcdNet40(
+                debugRun = GenerateTcdNetFx40(
                     Formatters.BinaryFormatter, false, swapped);
             }
             finally
@@ -4967,7 +5123,7 @@ namespace ysonet.Tests
         // neither is mislabeled as the positive .NET 4.0 effect. On the installed 4.8.1
         // implementation, Workflow sees one target field and our exact 4.0 two-value array,
         // then rejects the reconstruction before the confused comparison can run.
-        private static void TypeConfuseDelegateNet40RejectsCurrentRuntime()
+        private static void TypeConfuseDelegateNetFx40RejectsCurrentRuntime()
         {
             string marker = TestArtifactPath("ysonet_tcdnet40_current_runtime");
             SafeDeleteDir(marker);
@@ -4975,7 +5131,7 @@ namespace ysonet.Tests
             {
                 InputArgs ia = new InputArgs();
                 ia.Cmd = "mkdir \"" + marker + "\"";
-                RunResult r = GenerateTcdNet40(
+                RunResult r = GenerateTcdNetFx40(
                     Formatters.BinaryFormatter, false, ia);
                 AssertTrue(r.Success,
                     "the current-runtime negative payload generates: "
@@ -5210,10 +5366,10 @@ namespace ysonet.Tests
                 new object[] { "TypeConfuseDelegate", Formatters.SoapFormatter, false, false, new[] { "--variant", "1" } },
                 new object[] { "TypeConfuseDelegate", Formatters.SoapFormatter, false, false, new[] { "--variant", "3" } },
                 new object[] { "TypeConfuseDelegateMono", Formatters.BinaryFormatter, false, false, new string[0] },
-                new object[] { "TypeConfuseDelegateNet40Workflow", Formatters.BinaryFormatter, false, false, new string[0] },
-                new object[] { "TypeConfuseDelegateNet40Workflow", Formatters.SoapFormatter, false, false, new string[0] },
-                new object[] { "TypeConfuseDelegateLegacyWorkflow", Formatters.BinaryFormatter, false, false, new string[0] },
-                new object[] { "TypeConfuseDelegateLegacyWorkflow", Formatters.SoapFormatter, false, false, new string[0] },
+                new object[] { "TypeConfuseDelegateNetFx40", Formatters.BinaryFormatter, false, false, new string[0] },
+                new object[] { "TypeConfuseDelegateNetFx40", Formatters.SoapFormatter, false, false, new string[0] },
+                new object[] { "TypeConfuseDelegateNetFx35", Formatters.BinaryFormatter, false, false, new string[0] },
+                new object[] { "TypeConfuseDelegateNetFx35", Formatters.SoapFormatter, false, false, new string[0] },
                 // The two carriers whose variant 2 hosts the same inner chain.
                 new object[] { "DataTable", Formatters.BinaryFormatter, false, false, new[] { "--variant", "2" } },
                 new object[] { "DataTable", Formatters.SoapFormatter, false, false, new[] { "--variant", "2" } },
@@ -5322,12 +5478,12 @@ namespace ysonet.Tests
             return Bytes(r.Raw);
         }
 
-        // ---- TypeConfuseDelegateLegacyWorkflow --------------------------------
+        // ---- TypeConfuseDelegateNetFx35 --------------------------------
 
-        private const string TcdLegacyWorkflowGadget =
-            "TypeConfuseDelegateLegacyWorkflow";
+        private const string TcdNetFx35Gadget =
+            "TypeConfuseDelegateNetFx35";
 
-        private static RunResult GenerateTcdLegacyWorkflow(string formatter, bool minify,
+        private static RunResult GenerateTcdNetFx35(string formatter, bool minify,
             InputArgs inputArgs)
         {
             if (inputArgs == null)
@@ -5339,7 +5495,7 @@ namespace ysonet.Tests
             inputArgs.Minify = minify;
             return PayloadRunner.GenerateGadget(new GenerationRequest
             {
-                GadgetName = TcdLegacyWorkflowGadget,
+                GadgetName = TcdNetFx35Gadget,
                 FormatterName = formatter,
                 OutputFormat = "",
                 InputArgs = inputArgs,
@@ -5348,16 +5504,16 @@ namespace ysonet.Tests
 
         // One discoverable name, one graph, and only the three formatter cells whose raw AND
         // minified payloads produced the command effect in the CLR-2 LEGACY lane.
-        private static void TypeConfuseDelegateLegacyWorkflowDeclaresItsContract()
+        private static void TypeConfuseDelegateNetFx35DeclaresItsContract()
         {
             int found = 0;
             foreach (string name in GadgetRegistry.GetGadgetNames())
-                if (string.Equals(name, TcdLegacyWorkflowGadget,
+                if (string.Equals(name, TcdNetFx35Gadget,
                     StringComparison.OrdinalIgnoreCase))
                     found++;
             AssertEqual(1, found, "the public registry exposes the gadget exactly once");
 
-            IGenerator g = Gadget(TcdLegacyWorkflowGadget);
+            IGenerator g = Gadget(TcdNetFx35Gadget);
             AssertEqual(CommandInputType.ShellCommand, g.CommandInput(),
                 "-c is a shell command executed through Process.Start");
             AssertEqual(0, g.Variants().Count, "the CLR-v2 chain has one payload shape");
@@ -5379,7 +5535,7 @@ namespace ysonet.Tests
             AssertTrue(g.IsSupported(Formatters.SoapFormatter),
                 "the direct SOAP graph is advertised after its own CLR-v2 effect proof");
 
-            AssertCap(TcdLegacyWorkflowGadget, null,
+            AssertCap(TcdNetFx35Gadget, null,
                 new[] { PayloadKind.CodeExecution },
                 new[] { PayloadInput.Command },
                 new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },
@@ -5397,7 +5553,7 @@ namespace ysonet.Tests
                 "the SOAP contract says that Workflow remains an internal layer");
 
             var editor = new ModuleEditor(null, null, true, null, null);
-            List<EditableField> fields = editor.BuildFieldsForTest(TcdLegacyWorkflowGadget);
+            List<EditableField> fields = editor.BuildFieldsForTest(TcdNetFx35Gadget);
             EditableField formatter = FindEditable(fields, "formatter");
             AssertTrue(formatter != null && formatter.Choices != null
                     && formatter.Choices.Contains(Formatters.SoapFormatter),
@@ -5429,7 +5585,7 @@ namespace ysonet.Tests
         // wire. The inner String arguments of Func<> are especially load-bearing: the holder
         // stores its delegate TYPE and ASSEMBLY separately, and stripping the inner mscorlib
         // identity makes CLR 2 look for System.String in System.Core 3.5.
-        private static void TypeConfuseDelegateLegacyWorkflowGraphIsVisible()
+        private static void TypeConfuseDelegateNetFx35GraphIsVisible()
         {
             foreach (string formatter in new[]
                 {
@@ -5443,7 +5599,7 @@ namespace ysonet.Tests
                     InputArgs ia = new InputArgs();
                     ia.Cmd = "zlegacy.exe alpha";
                     ia.IsRawCmd = true;
-                    RunResult r = GenerateTcdLegacyWorkflow(formatter, minify, ia);
+                    RunResult r = GenerateTcdNetFx35(formatter, minify, ia);
                     string label = formatter + (minify ? " --minify" : " raw");
                     AssertTrue(r.Success, label + " generates: " + r.ErrorMessage);
 
@@ -5524,13 +5680,15 @@ namespace ysonet.Tests
                         label + " never falls back to the CLR-4-only comparer");
                     AssertTrue(!wire.Contains("Version=4.0.0.0"),
                         label + " names no CLR-4 framework identity");
+                    AssertTrue(!wire.Contains("TypeConfuseDelegateNetFx35Generator"),
+                        label + " contains no renamed generation-only class");
                 }
             }
         }
 
         // The operator does not need to know that --legacyfx is mandatory for this graph. The
         // generator applies it to a deep copy, so callers can safely reuse their InputArgs.
-        private static void TypeConfuseDelegateLegacyWorkflowForcesLegacyOnACopy()
+        private static void TypeConfuseDelegateNetFx35ForcesLegacyOnACopy()
         {
             foreach (string formatter in new[]
                 {
@@ -5549,9 +5707,9 @@ namespace ysonet.Tests
                     InputArgs explicitLegacy = implicitLegacy.DeepCopy();
                     explicitLegacy.LegacyFx = true;
 
-                    RunResult automatic = GenerateTcdLegacyWorkflow(formatter, minify,
+                    RunResult automatic = GenerateTcdNetFx35(formatter, minify,
                         implicitLegacy);
-                    RunResult explicitRun = GenerateTcdLegacyWorkflow(formatter, minify,
+                    RunResult explicitRun = GenerateTcdNetFx35(formatter, minify,
                         explicitLegacy);
                     string label = formatter + (minify ? " --minify" : " raw");
                     AssertTrue(automatic.Success && explicitRun.Success,
@@ -5566,7 +5724,7 @@ namespace ysonet.Tests
             }
         }
 
-        private static void TypeConfuseDelegateLegacyWorkflowInputBoundaries()
+        private static void TypeConfuseDelegateNetFx35InputBoundaries()
         {
             string commandFile = MakeTempFile("ysonet_tcdlegacy_command.txt",
                 "zfilecommand.exe alpha-from-file");
@@ -5575,7 +5733,7 @@ namespace ysonet.Tests
                 InputArgs fromFile = new InputArgs();
                 fromFile.Cmd = commandFile;
                 fromFile.IsRawCmd = true;
-                RunResult r = GenerateTcdLegacyWorkflow(Formatters.BinaryFormatter, false,
+                RunResult r = GenerateTcdNetFx35(Formatters.BinaryFormatter, false,
                     fromFile);
                 AssertTrue(r.Success, "the command-file form generates: " + r.ErrorMessage);
                 string wire = SearchableWire(r, Formatters.BinaryFormatter);
@@ -5592,7 +5750,7 @@ namespace ysonet.Tests
             InputArgs duplicate = new InputArgs();
             duplicate.Cmd = "dup.exe dup.exe";
             duplicate.IsRawCmd = true;
-            RunResult rejected = GenerateTcdLegacyWorkflow(Formatters.BinaryFormatter,
+            RunResult rejected = GenerateTcdNetFx35(Formatters.BinaryFormatter,
                 false, duplicate);
             AssertTrue(!rejected.Success, "equal TreeSet keys are refused");
             AssertTrue((rejected.ErrorMessage ?? "").IndexOf("distinct",
@@ -5609,7 +5767,7 @@ namespace ysonet.Tests
                 InputArgs aliasesInCommand = new InputArgs();
                 aliasesInCommand.Cmd = "zYsonetSoap.exe " + aliasText;
                 aliasesInCommand.IsRawCmd = true;
-                RunResult aliasRun = GenerateTcdLegacyWorkflow(
+                RunResult aliasRun = GenerateTcdNetFx35(
                     Formatters.SoapFormatter, minify, aliasesInCommand);
                 string label = "SOAP operator alias text" + (minify ? " --minify" : " raw");
                 AssertTrue(aliasRun.Success,
@@ -5627,12 +5785,12 @@ namespace ysonet.Tests
         // specific here is that it reaches it SILENTLY: a reversed pair is built correctly
         // rather than reported, so an embedding tool that merges stderr into what it
         // base64-encodes cannot pick up prose about it.
-        private static void TypeConfuseDelegateLegacyWorkflowGeneratesSilently()
+        private static void TypeConfuseDelegateNetFx35GeneratesSilently()
         {
             string debugOut, debugErr, quietOut, quietErr;
-            byte[] debug = GenerateTcdLegacyWorkflowCapturing(
+            byte[] debug = GenerateTcdNetFx35Capturing(
                 "notepad.exe zzz.txt", true, out debugOut, out debugErr);
-            byte[] quiet = GenerateTcdLegacyWorkflowCapturing(
+            byte[] quiet = GenerateTcdNetFx35Capturing(
                 "notepad.exe zzz.txt", false, out quietOut, out quietErr);
 
             // --debugmode still reports what this gadget DOES (the legacy identity rewrite);
@@ -5655,7 +5813,7 @@ namespace ysonet.Tests
                 "the argument string is serialized before the executable");
         }
 
-        private static byte[] GenerateTcdLegacyWorkflowCapturing(string command,
+        private static byte[] GenerateTcdNetFx35Capturing(string command,
             bool debugMode, out string stdout, out string stderr)
         {
             TextWriter savedOut = Console.Out, savedErr = Console.Error;
@@ -5670,7 +5828,7 @@ namespace ysonet.Tests
                 ia.Cmd = command;
                 ia.IsRawCmd = true;
                 ia.IsDebugMode = debugMode;
-                result = GenerateTcdLegacyWorkflow(Formatters.BinaryFormatter, false, ia);
+                result = GenerateTcdNetFx35(Formatters.BinaryFormatter, false, ia);
             }
             finally
             {
@@ -5680,14 +5838,14 @@ namespace ysonet.Tests
             stdout = capturedOut.ToString();
             stderr = capturedErr.ToString();
             AssertTrue(result.Success,
-                "the captured legacy workflow generation succeeds: " + result.ErrorMessage);
+                "the captured NetFx35 Workflow generation succeeds: " + result.ErrorMessage);
             return Bytes(result.Raw);
         }
 
         // Generation itself must be inert. Deserializing those bytes on the suite's current
         // .NET Framework 4.8.1 runtime must fail at Workflow's object reference before the
         // command sink; the real positive belongs to the CLR-2 LEGACY tier.
-        private static void TypeConfuseDelegateLegacyWorkflowRejectsCurrentRuntime()
+        private static void TypeConfuseDelegateNetFx35RejectsCurrentRuntime()
         {
             string marker = TestArtifactPath("ysonet_tcdlegacy_current_runtime");
             SafeDeleteDir(marker);
@@ -5695,7 +5853,7 @@ namespace ysonet.Tests
             {
                 InputArgs ia = new InputArgs();
                 ia.Cmd = "mkdir \"" + marker + "\"";
-                RunResult r = GenerateTcdLegacyWorkflow(Formatters.BinaryFormatter, false, ia);
+                RunResult r = GenerateTcdNetFx35(Formatters.BinaryFormatter, false, ia);
                 AssertTrue(r.Success, "the current-runtime negative payload generates: "
                     + r.ErrorMessage);
                 AssertTrue(!Directory.Exists(marker),
@@ -6738,6 +6896,10 @@ namespace ysonet.Tests
                 "the round-trip paths do not exist, so even a leaked finalizer has nothing to delete");
 
             Type real = Type.GetType(TempFileCollectionGenerator.TempFileCollectionTypeName, true);
+            AssertEqual("System", real.Assembly.GetName().Name,
+                "the payload resolves the in-box System.dll type, not a System.CodeDom package copy");
+            AssertTrue(real.IsSerializable,
+                "the in-box TempFileCollection type is serializable on the target framework");
 
             foreach (string formatter in TempFilesFormatters)
             {
@@ -6866,6 +7028,10 @@ namespace ysonet.Tests
         // and is the kind of text that grows.
         private static void TempFileCollectionInfoPanelStillShowsItsFacts()
         {
+            string info = Gadget(TempFilesGadget).AdditionalInfo();
+            AssertTrue(info.Contains("in-box System.dll") && info.Contains("not the NuGet copy"),
+                "AdditionalInfo identifies the serializable in-box type and excludes the package copy");
+
             var ed = new ModuleEditor(null, null, true, null, null);
             // A pessimistically NARROW info column: the panel is one of four columns, so a
             // realistic terminal gives it more room than this.
@@ -16176,6 +16342,9 @@ namespace ysonet.Tests
         // separating them; there is no per-mode option to show or hide.
         private static void XpsModes()
         {
+            AssertTrue(new XpsPlugin().Description().Contains("PrintQueue.AddJob(path)"),
+                "Xps help names the second victim entry point for the generated file");
+
             var editor = new ModuleEditor(null, null, false, null, null);
             var f = editor.BuildFieldsForTest("Xps");
             EditableField mode = FindEditable(f, "mode");
@@ -17716,6 +17885,7 @@ namespace ysonet.Tests
             {
                 string[] names = GadgetRegistry.GetGadgetNames();
                 AssertTrue(names.Length > 0, "found gadgets to generate");
+                var suppliedOptions = new List<string>();
 
                 foreach (string name in names)
                 {
@@ -17742,6 +17912,15 @@ namespace ysonet.Tests
 
                     InputArgs ia = new InputArgs();
                     ia.Cmd = SampleInputForGadget(g.CommandInput(), csFixture, dllFixture, contentFixture);
+                    // A gadget whose required option has no default cannot be built from -c
+                    // alone. The values come from one declared table, and the names supplied
+                    // are printed below rather than applied silently.
+                    List<string> extra = SweepArgsFor(name);
+                    if (extra.Count > 0)
+                    {
+                        ia.ExtraArguments = extra;
+                        suppliedOptions.Add(name);
+                    }
 
                     GenerationRequest req = new GenerationRequest
                     {
@@ -17755,6 +17934,21 @@ namespace ysonet.Tests
                     AssertTrue(r.Success, "generate " + name + " (-f " + formatter + "): " + r.ErrorMessage);
                     AssertTrue(!RawIsEmpty(r.Raw), "non-empty payload for " + name + " (-f " + formatter + ")");
                 }
+
+                // Which gadgets could not be built from -c alone, by name. A table applied in
+                // silence would read exactly like a catalogue where every gadget needs nothing.
+                Console.Error.WriteLine("  [info] declared sweep arguments supplied for "
+                    + suppliedOptions.Count + " gadget(s): "
+                    + (suppliedOptions.Count == 0 ? "(none)"
+                        : string.Join(", ", suppliedOptions.ToArray())));
+
+                // The table cannot rot in either direction: every entry must name a gadget that
+                // is still listed, and nothing may be listed for a gadget that does not need it.
+                foreach (string declared in SweepExtraArgs.Keys)
+                    AssertTrue(Has(names, declared),
+                        "the declared sweep-argument table names a listed gadget: " + declared);
+                AssertEqual(SweepExtraArgs.Count, suppliedOptions.Count,
+                    "every declared sweep-argument entry was used");
             }
             finally
             {
@@ -17792,6 +17986,37 @@ namespace ysonet.Tests
         private static string ContentFixture()
         {
             return WriteTestArtifact("ysonet_content_fixture.txt", SampleContentFixtureText);
+        }
+
+        // Extra argv for the handful of gadgets whose REQUIRED option has no default, so a
+        // data-driven sweep can still build them. It is a declared table rather than a guess,
+        // and DeclaredSweepArgumentsCoverEveryRequiredOption keeps it honest in both
+        // directions: an entry naming a gadget that no longer exists fails, and a gadget the
+        // sweep cannot build without one fails in the sweep itself rather than being skipped.
+        //
+        // A default in the GADGET would be the wrong fix for these: the values are URIs only
+        // the operator can choose, and a wrong one changes what the target does rather than
+        // merely failing, so refusing is the honest product behaviour.
+        private static readonly Dictionary<string, string[]> SweepExtraArgs =
+            new Dictionary<string, string[]>(StringComparer.Ordinal)
+            {
+                // Both ICC profile URIs are required and have no sensible default: the target
+                // really fetches them, and WPF parses the source one before anything else
+                // happens. Any absolute URI builds a payload; nothing is contacted here.
+                { "ColorConvertedBitmapExtension", new[]
+                    {
+                        "--source-profile", "http://localhost/source.icc",
+                        "--destination-profile", "http://localhost/destination.icc",
+                    }
+                },
+            };
+
+        // The argv a sweep must pass to build this gadget at all. Empty for almost everything.
+        private static List<string> SweepArgsFor(string gadget)
+        {
+            string[] extra;
+            return SweepExtraArgs.TryGetValue(gadget, out extra)
+                ? new List<string>(extra) : new List<string>();
         }
 
         private static string SampleInputForGadget(CommandInputType t, string csFixture,
@@ -20120,7 +20345,10 @@ namespace ysonet.Tests
                                 // normal -c, and the blanket argument was also silently
                                 // switching TextFormattingRunProperties onto its URL form for
                                 // every cell, so its command path was never generated here.
-                                var extra = new List<string>();
+                                // The same declared table the NORMAL smoke sweep uses, for a
+                                // gadget whose REQUIRED option has no default. It is applied
+                                // first so a cell-specific argument below can still win.
+                                var extra = SweepArgsFor(name);
                                 if (variant != null) { extra.Add(variantFlag); extra.Add(variant.Number.ToString()); }
                                 // DataSetXxe variant 2 writes a companion DTD and refuses to
                                 // overwrite one, so every cell needs its OWN destination -
@@ -21080,6 +21308,10 @@ namespace ysonet.Tests
         // string for the byte-taking ones. An unknown tag is a hard error, not a silent no-op.
         private static void DeserializeAs(string deserAs, object raw)
         {
+            // Validated against the SAME list the UNC row guard uses, so a tag that guard
+            // would accept can never be one this method silently rejects. A new tag needs
+            // adding in both places, and leaving either out fails loudly rather than quietly.
+            DeserializerTagIsKnown(deserAs);
             switch (deserAs)
             {
                 case "bf": SerializersHelper.BinaryFormatter_deserialize(Bytes(raw)); break;
@@ -22132,6 +22364,10 @@ namespace ysonet.Tests
             FireGadgetMarker("TypeConfuseDelegate", "BinaryFormatter", 1, true, true, "bf", true, failures, ref fired, ref skipped, trace);
             FireGadgetMarker("TypeConfuseDelegate", "LosFormatter", 1, true, true, "los", true, failures, ref fired, ref skipped, trace);
 
+            // This separate Dictionary/IEqualityComparer gadget needs a fresh child whose
+            // application config enables Workflow's guarded ObjectSerializedRef path.
+            FireTypeConfuseDelegatePowerShell(failures, ref fired, trace);
+
             // ---- FILE SINKS: TypeConfuseDelegateFileOperations. Its effect is not a
             // spawned process but a real file-system change made in-process by the
             // deserializer, so the sink is a test-owned file or directory rather than a
@@ -22429,7 +22665,6 @@ namespace ysonet.Tests
             // fixture is emitted here with a run-unique identity, so the only way it can end up
             // in this AppDomain is the path the payload named.
             FireAssemblyCatalogLoad(failures, ref fired, trace);
-
 
             // ResourceDictionary.Source fetches -c on load AND loads what comes back as WPF
             // markup. Two rows, because they prove different halves.
@@ -24754,10 +24989,10 @@ namespace ysonet.Tests
         // A row whose gadget is not registered yet logs a skip naming it, so this workflow
         // is ready the day a gadget lands.
         //
-        // FileSystemInfo is deliberately NOT in this table. It advertises eight formatters and
+        // FileSystemInfo is deliberately NOT in this table. It advertises seven formatters and
         // two variants, and one of them (DataContractJsonSerializer) carries no type name, so
         // reading it back needs the gadget's own root type - which the shared deserializer-tag
-        // column cannot express. It gets its own check instead, which also covers all sixteen
+        // column cannot express. It gets its own check instead, which also covers all fourteen
         // cells and adds a generation-only control.
         //
         // What a hit proves and what it does not: a DNS query for the run-unique host proves
@@ -24784,14 +25019,25 @@ namespace ysonet.Tests
             // right one here: it needs nothing on the share, while the other two want a real
             // second-stage file there.
             new string[] { "ResXFileRef", "Xaml", "xaml", "--variant 1", "plain" },
+            // BootstrapperBuilder appends "Engine" to -c and asks Directory.Exists about the
+            // result, so the host is resolved by that open. The shape is a BARE host: the
+            // gadget's own Path.Combine turns \\host into the valid share path \\host\Engine,
+            // which is the form its effect was measured on. Measured 2026-08-18 against an
+            // operator-run endpoint: the DNS query arrived, and the WebDAV fallback that
+            // follows a failed SMB connect asked for "OPTIONS /Engine" - the appended segment
+            // is the gadget's own, visible on the wire.
+            new string[] { "BootstrapperBuilder", "Json.NET", "json", "", "barehost" },
+            // FileSystemInfoTimeSetter's setter OPENS the path before it writes the timestamp,
+            // so a UNC value makes that open an SMB session. Plain shape: it needs no short
+            // name and nothing has to exist on the share. Measured the same way on the same
+            // day, and observed locally as five SYNs to port 445 on an operator-owned address.
+            new string[] { "FileSystemInfoTimeSetter", "Xaml", "xaml", "", "plain" },
         };
 
         // ---- OOB tier orchestration --------------------------------------------
         //
-        // ONE session for the whole tier. Three separate clients used to register three
-        // unrelated domains, which cost three registrations and made session-level
-        // evidence useless: interactsh's SMB server writes no full-id, so an unlabeled
-        // record can only be correlated inside the session that produced it.
+        // ONE session for the whole tier. Separate clients would register unrelated
+        // domains, repeat the registration cost, and make one run harder to audit.
 
         // Every OOB check needs a registered endpoint AND proof that a run-unique name
         // actually reaches the authoritative server. Registration alone is an HTTPS
@@ -24910,7 +25156,6 @@ namespace ysonet.Tests
         {
             ProbeEgressHttp(oob, false, TestEnvironment.EgressHttp);
             ProbeEgressHttp(oob, true, TestEnvironment.EgressHttps);
-            ProbeEgressSmb(oob);
         }
 
         private static void ProbeEgressHttp(OobSession oob, bool useTls, string token)
@@ -24930,47 +25175,6 @@ namespace ysonet.Tests
                 "requested and the server recorded no " + token + " within "
                 + (OobEgressWaitMs / 1000) + "s (local: " + local + "). This does not identify"
                 + " which side stopped it.");
-        }
-
-        private static void ProbeEgressSmb(OobSession oob)
-        {
-            // Checked BEFORE a label, a UNC string, or a socket exists. On a public
-            // endpoint nothing below this line runs, so no Windows authentication attempt
-            // can reach a host the operator does not own.
-            if (TestEnvironment.State(TestEnvironment.OwnedOobUncEndpoint) != CapabilityState.Present)
-            {
-                TestEnvironment.SetEgress(TestEnvironment.EgressSmb, EgressState.NotProbed,
-                    "public endpoint; automated UNC is disabled");
-                return;
-            }
-
-            string label = oob.NewLabel("smbprobe");
-            int cursor = oob.CaptureInteractionCursor();
-            if (!RunOwnedUnc(delegate { NormalizeIgnoringErrors(oob.ShortNameUncPath(label)); }))
-            {
-                // The gate refused after all. Report it as not probed rather than adding a
-                // third coverage skip: the two UNC checks own the run's skip records.
-                TestEnvironment.SetEgress(TestEnvironment.EgressSmb, EgressState.NotProbed,
-                    "the owned-endpoint gate refused the UNC touch");
-                return;
-            }
-            if (oob.WaitForSessionProtocolAfter(cursor, "smb", OobEgressWaitMs))
-            {
-                TestEnvironment.SetEgress(TestEnvironment.EgressSmb, EgressState.Observed,
-                    "a new smb interaction arrived after the probe");
-                return;
-            }
-            TestEnvironment.SetEgress(TestEnvironment.EgressSmb, EgressState.NotConclusive,
-                "touched a UNC path and no new smb interaction arrived within "
-                + (OobEgressWaitMs / 1000) + "s. interactsh serves SMB only when self-hosted"
-                + " with -smb (Python 3 and impacket) on real port 445.");
-        }
-
-        // Whether this session already proved SMB is observable. Only then is a missing
-        // SMB record for a payload row meaningful.
-        private static bool SmbProfileObserved
-        {
-            get { return TestEnvironment.Egress(TestEnvironment.EgressSmb).State == EgressState.Observed; }
         }
 
         /// <summary>
@@ -25015,19 +25219,12 @@ namespace ysonet.Tests
         // control that makes the positive result mean something.
         //
         // The tier gates this check on owned-oob-unc-endpoint before calling it, so
-        // reaching here means the operator declared a self-hosted server they own.
+        // reaching here means the operator declared a self-hosted server they own. DNS is
+        // the complete effect proof; a completed SMB session is not required.
         private static void UncShortNameExpansionIsObservedOutOfBand(OobSession oob)
         {
             string label = oob.NewLabel("unc");
             string control = oob.NewLabel("plain");
-
-            // When this session has already proved SMB is observable, a new unlabeled SMB
-            // record is extra evidence that the connection itself was attempted, not just
-            // the name resolved. The cursor is taken immediately before the action and the
-            // wait finishes before the control runs, because SMB records carry no label
-            // and can only be correlated by position in one session's log.
-            bool requireSmb = SmbProfileObserved;
-            int cursor = requireSmb ? oob.CaptureInteractionCursor() : 0;
 
             // Path.GetFullPath is the same framework entry point the gadget reaches:
             // FileSystemInfo's deserialization constructor calls
@@ -25042,12 +25239,6 @@ namespace ysonet.Tests
                 + (OobWaitMs / 1000) + "s: the short-name UNC path did not call out"
                 + " (protocols seen: " + (protocols.Length == 0 ? "none" : protocols) + ")");
             Console.Error.WriteLine("  [oob] short-name UNC observed over: " + protocols);
-
-            if (requireSmb)
-                AssertTrue(oob.WaitForSessionProtocolAfter(cursor, "smb", OobEgressWaitMs),
-                    "this session's egress profile observed SMB, so the short-name expansion"
-                    + " must also produce a new smb interaction, and none arrived within "
-                    + (OobEgressWaitMs / 1000) + "s");
 
             // Control. The same host shape WITHOUT a "~" component must not be looked
             // up at all: mscorlib only calls GetLongPathNameW when a path component
@@ -25080,7 +25271,7 @@ namespace ysonet.Tests
         // worth locking rather than assuming.
         // Its -c is a bare host in an OBJREF, not a UNC path, so no SMB session and no
         // Windows authentication is involved. That is why this check stays available on a
-        // public endpoint while the two UNC checks do not.
+        // public endpoint while the three UNC checks do not.
         private static void WbemDcomCallbackIsObservedOutOfBand(OobSession oob)
         {
             string label = oob.NewLabel("wbem");
@@ -25236,10 +25427,16 @@ namespace ysonet.Tests
             if (RefuseToFireDosGadget(gadget, failures)) return;
             string label = oob.NewLabel(gadget.ToLowerInvariant());
             string uncPath;
-            if (pathShape == "dll") uncPath = oob.UncDllPath(label);
-            else if (pathShape == "dir") uncPath = oob.UncDirPath(label);
-            else if (pathShape == "plain") uncPath = oob.PlainUncPath(label);
-            else uncPath = oob.ShortNameUncPath(label);
+            // One shape table, shared with the row guard, and NO default: a shape this does
+            // not know is a table typo, and silently handing it the short-name path would
+            // turn that typo into a missing callback nobody can explain.
+            uncPath = OobSession.UncPathForShape(pathShape, oob.HostFor(label));
+            if (uncPath == null)
+            {
+                failures.Add("fire " + gadget + " (" + formatter + "): unknown UNC path shape \""
+                    + pathShape + "\"");
+                return;
+            }
             if (trace) { Console.Error.WriteLine("    [fire] " + gadget + " -> " + uncPath); Console.Error.Flush(); }
             try
             {
@@ -25264,8 +25461,6 @@ namespace ysonet.Tests
 
                 // Deserializing is what makes Windows act on the UNC path, so it is an
                 // automated UNC touch and goes through the one choke point.
-                bool requireSmb = SmbProfileObserved;
-                int cursor = requireSmb ? oob.CaptureInteractionCursor() : 0;
                 if (!RunOwnedUnc(delegate { RunSTA(delegate { DeserializeAs(deserAs, r.Raw); }); }))
                 {
                     failures.Add("fire " + gadget + " (" + formatter + "): the owned-endpoint gate"
@@ -25285,20 +25480,101 @@ namespace ysonet.Tests
                         + " (protocols seen: " + (protocols.Length == 0 ? "none" : protocols) + ")");
                     return;
                 }
-                if (requireSmb && !oob.WaitForSessionProtocolAfter(cursor, "smb", OobEgressWaitMs))
-                {
-                    failures.AddCapability(TestEnvironment.OwnedOobUncEndpoint,
-                        gadget + " (" + formatter + ")",
-                        "fire " + gadget + " (" + formatter + "): this session's egress profile"
-                        + " observed SMB, so this path must also produce a new smb interaction,"
-                        + " and none arrived within " + (OobEgressWaitMs / 1000) + "s");
-                    return;
-                }
                 fired++;
                 RuntimeBuild.RecordFired(gadget);
                 Console.Error.WriteLine("  [oob] " + gadget + " (" + formatter + ") observed over: " + protocols);
             }
             catch (Exception ex) { failures.Add("fire " + gadget + " (" + formatter + "): " + ex.Message); }
+        }
+
+        // The UNC row table, checked WITHOUT the tier: every row names a registered gadget, a
+        // formatter that gadget advertises, a deserializer tag the harness knows and a path
+        // shape it can build, and the payload really carries the host it was given.
+        //
+        // It runs in NORMAL because the tier it guards is opt-in, needs an operator-owned
+        // endpoint, and is the worst place to discover a typo: there, a wrong row reads as
+        // "no callback arrived", which looks like a broken gadget rather than a broken table.
+        // Nothing here deserializes and nothing resolves: the host is a reserved .invalid name
+        // and every payload is built with Test=false.
+        private static void UncCallbackRowsAreWellFormed()
+        {
+            const string probeHost = "ysonet-row-check.invalid";
+            var problems = new List<string>();
+
+            foreach (string[] row in UncCallbackRows)
+            {
+                string gadget = row[0], formatter = row[1], deserAs = row[2];
+                string extraArgs = row[3], shape = row[4];
+
+                if (!GadgetIsRegistered(gadget))
+                {
+                    // A row for a module that is not in this build is legitimate (the tier
+                    // skips it by name), so this is not a failure - but it must be visible.
+                    Console.Error.WriteLine("       [oob-rows] " + gadget
+                        + " is not registered in this build; the tier will skip it");
+                    continue;
+                }
+
+                IGenerator gen = GadgetRegistry.CreateGadgetInstance(gadget);
+                bool advertised = false;
+                foreach (string f in gen.SupportedFormatters())
+                    if (string.Equals(f.Split(' ')[0], formatter, StringComparison.OrdinalIgnoreCase))
+                        advertised = true;
+                if (!advertised)
+                    problems.Add(gadget + " does not advertise " + formatter);
+
+                string uncPath = OobSession.UncPathForShape(shape, probeHost);
+                if (uncPath == null)
+                {
+                    problems.Add(gadget + " asks for the unknown path shape \"" + shape + "\"");
+                    continue;
+                }
+
+                InputArgs ia = new InputArgs();
+                ia.Cmd = uncPath;
+                ia.Test = false;   // build only: this row never deserializes anything
+                if (!string.IsNullOrEmpty(extraArgs))
+                    ia.ExtraArguments = new List<string>(
+                        extraArgs.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+
+                RunResult r = PayloadRunner.GenerateGadget(new GenerationRequest
+                {
+                    GadgetName = gadget,
+                    FormatterName = formatter,
+                    OutputFormat = "",
+                    InputArgs = ia,
+                });
+                if (!r.Success) { problems.Add(gadget + " + " + formatter + " does not generate: " + r.ErrorMessage); continue; }
+
+                // The host has to survive into the payload, or the row would fire at nothing.
+                string text = r.Raw is byte[] ? Encoding.UTF8.GetString((byte[])r.Raw) : "" + r.Raw;
+                if (text.IndexOf(probeHost, StringComparison.OrdinalIgnoreCase) < 0)
+                    problems.Add(gadget + " + " + formatter + " (" + shape
+                        + ") does not carry the host into the payload");
+
+                // The tag decides which reader the tier hands the bytes to. An unknown one
+                // throws inside the tier; catch it here instead.
+                try { DeserializerTagIsKnown(deserAs); }
+                catch (Exception ex) { problems.Add(gadget + ": " + ex.Message); }
+            }
+
+            AssertTrue(problems.Count == 0, "UNC callback rows that cannot fire ("
+                + problems.Count + "):\n  " + string.Join("\n  ", problems.ToArray()));
+        }
+
+        // The tag half of the same check. DeserializeAs throws on an unknown tag AFTER a
+        // payload has been built and a UNC touch has been made, so the row guard asks first.
+        private static void DeserializerTagIsKnown(string deserAs)
+        {
+            switch (deserAs)
+            {
+                case "bf": case "los": case "xaml": case "json": case "ndc": case "ndcroot":
+                case "dcs": case "soap": case "jss": case "fastjson": case "yaml":
+                case "ssx": case "ssb": case "mp": case "mplz4":
+                    return;
+                default:
+                    throw new Exception("unknown deserializer tag: " + deserAs);
+            }
         }
 
         // Normalize a UNC path the way FileSystemInfo's deserialization constructor does.
@@ -25456,9 +25732,9 @@ namespace ysonet.Tests
             });
         }
 
-        // Every token appears in the report exactly once, and the three "did not happen"
-        // states stay distinguishable: UNPROBED (the tier never ran), NOT-PROBED (the tier
-        // ran and deliberately did not attempt it), NOT-CONCLUSIVE (attempted, not seen).
+        // Every token appears in the report exactly once, and the two diagnostic outcomes
+        // stay distinguishable: UNPROBED (the tier never ran) and NOT-CONCLUSIVE
+        // (attempted, not seen).
         private static void EnvironmentReportListsEveryTokenOnce()
         {
             WithIsolatedEnvironment(delegate
@@ -25473,11 +25749,10 @@ namespace ysonet.Tests
                     CapabilityState.Absent, "no self-hosted server was declared");
                 TestEnvironment.SetEgress(TestEnvironment.EgressHttp, EgressState.Observed, "injected");
                 TestEnvironment.SetEgress(TestEnvironment.EgressHttps, EgressState.NotConclusive, "injected");
-                TestEnvironment.SetEgress(TestEnvironment.EgressSmb, EgressState.NotProbed, "injected");
 
                 string report = EnvironmentReportText();
-            AssertEqual(9, TestEnvironment.Capabilities.Length, "nine capabilities");
-                AssertEqual(3, TestEnvironment.EgressSignals.Length, "three egress signals");
+                AssertEqual(11, TestEnvironment.Capabilities.Length, "eleven capabilities");
+                AssertEqual(2, TestEnvironment.EgressSignals.Length, "two egress signals");
 
                 var all = new List<string>(TestEnvironment.Capabilities);
                 all.AddRange(TestEnvironment.EgressSignals);
@@ -25485,16 +25760,20 @@ namespace ysonet.Tests
                 {
                     int count = 0;
                     foreach (string line in report.Split('\n'))
-                        if (line.TrimEnd('\r').StartsWith("  " + token.PadRight(30), StringComparison.Ordinal))
+                        if (line.TrimEnd('\r').StartsWith("  "
+                            + token.PadRight(TestEnvironment.ReportTokenWidth),
+                            StringComparison.Ordinal))
                             count++;
                     AssertEqual(1, count, "the report lists " + token + " exactly once");
                 }
 
                 // loopback-tcp was never needed here, so it is the UNPROBED one.
-                AssertTrue(report.Contains("loopback-tcp".PadRight(30) + "UNPROBED"), "unprobed capability");
-                AssertTrue(report.Contains("smb".PadRight(30) + "NOT-PROBED"), "deliberately not attempted");
-                AssertTrue(report.Contains("https".PadRight(30) + "NOT-CONCLUSIVE"), "attempted, not seen");
-                AssertTrue(report.Contains("http".PadRight(30) + "OBSERVED"), "observed");
+                AssertTrue(report.Contains("loopback-tcp".PadRight(
+                    TestEnvironment.ReportTokenWidth) + "UNPROBED"), "unprobed capability");
+                AssertTrue(report.Contains("https".PadRight(
+                    TestEnvironment.ReportTokenWidth) + "NOT-CONCLUSIVE"), "attempted, not seen");
+                AssertTrue(report.Contains("http".PadRight(
+                    TestEnvironment.ReportTokenWidth) + "OBSERVED"), "observed");
             });
         }
 
@@ -25668,41 +25947,16 @@ namespace ysonet.Tests
             finally { SafeDelete(file); }
         }
 
-        // interactsh v1.3.1's SMB server writes protocol "smb" with NO full-id, so it can
-        // only be correlated by position inside one session's log.
-        private static void SmbCursorSeesOnlyNewSessionRecords()
+        // DNS is the effect proof for a UNC callback. A completed SMB session is optional
+        // development evidence, not an automated egress signal or a release gate.
+        private static void OobCallbackProofUsesDnsOnly()
         {
-            string file = WriteTestArtifact("ysonet_oob_smbcursor.jsonl", string.Join("\n", new[]
-            {
-                "{\"protocol\":\"smb\",\"raw-request\":\"earlier\"}",
-                "{\"protocol\":\"dns\",\"full-id\":\"delta.fixture.invalid\"}",
-            }));
-            try
-            {
-                using (OobSession oob = OobSession.ForTest(file, "fixture.invalid"))
-                {
-                    int cursor = oob.CaptureInteractionCursor();
-                    AssertEqual(2, cursor, "both complete records are behind the cursor");
-                    AssertTrue(!oob.WaitForSessionProtocolAfter(cursor, "smb", 0),
-                        "an smb record from BEFORE the cursor must not satisfy a later wait");
-
-                    File.AppendAllText(file, "\n{\"protocol\":\"smb\",\"raw-request\":\"later\"}");
-                    AssertTrue(oob.WaitForSessionProtocolAfter(cursor, "smb", 0),
-                        "an unlabeled smb record after the cursor is observed");
-
-                    AssertEqual("", oob.ProtocolsFor("smb"),
-                        "an unlabeled record is invisible to label matching, which needs a full-id");
-                    AssertEqual("dns", oob.ProtocolsFor("delta"),
-                        "labelled protocols still resolve through full-id");
-
-                    // A half-written trailing line must not move the cursor into the middle
-                    // of a record.
-                    File.AppendAllText(file, "\n{\"protocol\":\"smb\"");
-                    AssertEqual(3, oob.CaptureInteractionCursor(),
-                        "a partial trailing line is not counted as a record");
-                }
-            }
-            finally { SafeDelete(file); }
+            AssertEqual(2, TestEnvironment.EgressSignals.Length,
+                "the OOB egress profile contains only http and https diagnostics");
+            AssertEqual(TestEnvironment.EgressHttp, TestEnvironment.EgressSignals[0],
+                "http is the first diagnostic signal");
+            AssertEqual(TestEnvironment.EgressHttps, TestEnvironment.EgressSignals[1],
+                "https is the second diagnostic signal");
         }
 
         // The credential boundary. Windows sends authentication material when it opens an
@@ -25733,13 +25987,6 @@ namespace ysonet.Tests
                     AssertTrue(OobRowIsEligible(OobBaselineCapabilities, "the Wbem check"),
                         "the non-UNC DCOM check stays eligible: its -c is a bare host, not a UNC path");
 
-                    // Null session on purpose: the gate has to decide before it can touch
-                    // the session, mint a label, or build a path.
-                    ProbeEgressSmb(null);
-                    AssertEqual(EgressState.NotProbed,
-                        TestEnvironment.Egress(TestEnvironment.EgressSmb).State, "smb is not probed");
-                    AssertEqual(1, TestEnvironment.EnvironmentSkipCount,
-                        "the diagnostic adds no third skip record");
                     AssertEqual(uncActions, OobUncActions, "and still no UNC touch");
                 });
             }
@@ -28021,7 +28268,7 @@ namespace ysonet.Tests
             AssertSetEqual(CapVersions("TypeConfuseDelegate", 1),
                 RuntimeVersion.Range(RuntimeVersion.NetFx45, RuntimeVersion.NetFx481),
                 "TypeConfuseDelegate starts at the 4.5-era ComparisonComparer");
-            AssertSetEqual(CapVersions(TcdNet40WorkflowGadget, null),
+            AssertSetEqual(CapVersions(TcdNetFx40Gadget, null),
                 new[] { RuntimeVersion.NetFx40 },
                 "the target-specific TypeConfuseDelegate graph is exactly .NET Framework 4.0");
             AssertSetEqual(CapVersions("DataSet", null),
@@ -28245,7 +28492,7 @@ namespace ysonet.Tests
             AssertTrue(!v2.Formatters.Contains("SoapFormatter"), "SortedDictionary excludes SoapFormatter");
             AssertTrue(v3.Formatters.Contains("SoapFormatter"), "TreeSet keeps SoapFormatter");
 
-            var net40 = FindCap(TcdNet40WorkflowGadget, null);
+            var net40 = FindCap(TcdNetFx40Gadget, null);
             AssertTrue(net40 != null
                     && net40.Formatters.Contains(Formatters.BinaryFormatter)
                     && net40.Formatters.Contains(Formatters.SoapFormatter)
@@ -28312,7 +28559,7 @@ namespace ysonet.Tests
 
             // The target-specific generator swaps the comparer representation as well as the
             // outer root because .NET Framework 4.0 predates ComparisonComparer.
-            AssertCap(TcdNet40WorkflowGadget, null,
+            AssertCap(TcdNetFx40Gadget, null,
                 new[] { PayloadKind.CodeExecution },
                 new[] { PayloadInput.Command },
                 new[] { GadgetRequirement.BuiltIn, GadgetRequirement.NetFramework },
@@ -28559,10 +28806,13 @@ namespace ysonet.Tests
             AssertTrue(outText.Contains("(*) DataSetXxe"),
                 "the disclosing DataSetXxe variant is printed");
 
-            // No-match search: a valid but currently unused vocabulary value. No gadget in
-            // this .NET Framework catalogue records an effect on .NET 10.
+            // No-match search: a valid but currently unused vocabulary value. It has to be
+            // re-picked whenever the catalogue grows into it - .NET 10 was the choice until
+            // two WPF fetch gadgets recorded an effect there - so keep it on a version no
+            // gadget declares, in EITHER build mode, and change it here rather than relaxing
+            // the exit-code assertion.
             var noMatchQ = new GadgetCategoryQuery();
-            noMatchQ.Add(CategoryAxis.Version, RuntimeVersion.Net100);
+            noMatchQ.Add(CategoryAxis.Version, RuntimeVersion.Net90);
             code = CaptureConsole(() => GadgetCategoryCommand.RunHumanSearch(noMatchQ), out outText, out errText);
             AssertEqual(1, code, "a no-match search exits 1");
             AssertTrue(string.IsNullOrEmpty(outText.Trim()), "no-match leaves stdout empty");
@@ -28590,8 +28840,9 @@ namespace ysonet.Tests
             AssertTrue(so.Contains("(*) DataSetXxe"),
                 "information-disclosure search prints the disclosing DataSetXxe variant");
 
-            // A valid vocabulary value no gadget in this catalogue records.
-            TryRunYsonet("--category=version=net-10.0", out exit, out so, out se);
+            // A valid vocabulary value no gadget in this catalogue records. Kept in step with
+            // the in-process probe above, which explains why it is not .NET 10 any more.
+            TryRunYsonet("--category=version=net-9.0", out exit, out so, out se);
             AssertEqual(1, exit, "no-match search exits 1");
 
             TryRunYsonet("--category=bad=x", out exit, out so, out se);
@@ -29116,12 +29367,28 @@ namespace ysonet.Tests
             var model = CategoryFilterModel.Load(applied);
             AssertEqual(1, model.CountForValue(CategoryAxis.Requirement, GadgetRequirement.ExtraAssembly),
                 "InfiniteProgressPage is the network gadget that needs an extra assembly");
-            AssertEqual(0, model.CountForValue(CategoryAxis.Requirement, GadgetRequirement.ModernDotNet),
-                "no network gadget needs modern .NET");
+            // modern-dotnet used to be the impossible one and is not any more: the two WPF
+            // fetch gadgets are network gadgets that record an effect on modern .NET. The row
+            // needs a value the kind really excludes, so it moved to "other" - and this count
+            // is asserted rather than dropped, so the pair cannot silently swap again.
+            AssertEqual(2, model.CountForValue(CategoryAxis.Requirement, GadgetRequirement.ModernDotNet),
+                "the two WPF fetch gadgets are network gadgets that need modern .NET");
 
-            var reqValues = model.ValuesForAxis(CategoryAxis.Requirement);
-            int idx = reqValues.IndexOf(GadgetRequirement.ModernDotNet);
-            AssertTrue(idx >= 0, "modern-dotnet is a catalog value");
+            // Every requirement value the catalogue offers is now REACHABLE under the network
+            // kind, so the disabled-value behaviour needs a different pair to prove. Information
+            // disclosure is the narrow one: its gadgets are all in-box .NET Framework, so wpf is
+            // a real catalog value (four nested-deserialization gadgets declare it) that this
+            // kind excludes. A value must be BOTH in the axis list and impossible, which is what
+            // the two assertions below pin.
+            var disclosure = new GadgetCategoryQuery();
+            disclosure.Add(CategoryAxis.Kind, PayloadKind.InformationDisclosure);
+            var disclosureModel = CategoryFilterModel.Load(disclosure);
+            AssertEqual(0, disclosureModel.CountForValue(CategoryAxis.Requirement, GadgetRequirement.Wpf),
+                "no information-disclosure gadget needs WPF");
+
+            var reqValues = disclosureModel.ValuesForAxis(CategoryAxis.Requirement);
+            int idx = reqValues.IndexOf(GadgetRequirement.Wpf);
+            AssertTrue(idx >= 0, "wpf is a catalog value");
 
             var keys = new ScriptedKeyReader();
             keys.Down().Down().Down().Down();  // focus -> Requirements (row 4)
@@ -29130,9 +29397,10 @@ namespace ysonet.Tests
             keys.Type(" ");                    // Space on a disabled value: no-op
             keys.Enter();                      // apply (draft is still empty)
             keys.Escape();                     // exit
-            var filter = new CategoryFilter(keys, model);
+            var filter = new CategoryFilter(keys, disclosureModel);
             WithSwallowedError(() => filter.Run());
-            AssertEqual(0, applied.Requirements.Count, "an impossible value cannot be selected");
+            AssertEqual(1, disclosure.Requirements.Count + disclosure.Kinds.Count,
+                "an impossible value cannot be selected, so only the applied kind remains");
         }
 
         private static void CategoryFilterDoesNotStack()

@@ -100,7 +100,7 @@ namespace ysonet.Plugins
 
         public string Description()
         {
-            return "Generates a malicious XPS document (CVE-2020-0605) - binary output, use --outputpath to save it as an .xps file";
+            return "Generates a malicious XPS document (CVE-2020-0605) for XpsDocument or PrintQueue.AddJob(path) - binary output, use --outputpath to save it as an .xps file";
         }
 
         public string Credit()

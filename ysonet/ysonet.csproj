@@ -241,6 +241,11 @@
     <Compile Include="Generators\ActivitySurrogateSelectorFromFileGenerator.cs" />
     <Compile Include="Generators\ActivitySurrogateSelectorGenerator.cs" />
     <Compile Include="Generators\AssemblyCatalogLoadGenerator.cs" />
+    <Compile Include="Generators\BootstrapperBuilderGenerator.cs" />
+    <Compile Include="Generators\ColorConvertedBitmapExtensionGenerator.cs" />
+    <Compile Include="Generators\FileSystemInfoTimeSetterGenerator.cs" />
+    <Compile Include="Generators\HashPEFileHandleGenerator.cs" />
+    <Compile Include="Generators\XamlTypeConverterFetchGenerator.cs" />
     <Compile Include="Generators\AssemblyInstallerLoadGenerator.cs" />
     <Compile Include="Generators\Base\IGenerator.cs" />
     <Compile Include="Generators\Base\GenericGenerator.cs" />
@@ -251,9 +256,10 @@
     <Compile Include="Generators\Patched\PSObjectGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateFileOperationsGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateGenerator.cs" />
-    <Compile Include="Generators\TypeConfuseDelegateLegacyWorkflowGenerator.cs" />
     <Compile Include="Generators\TypeConfuseDelegateMonoGenerator.cs" />
-    <Compile Include="Generators\TypeConfuseDelegateNet40WorkflowGenerator.cs" />
+    <Compile Include="Generators\TypeConfuseDelegateNetFx35Generator.cs" />
+    <Compile Include="Generators\TypeConfuseDelegateNetFx40Generator.cs" />
+    <Compile Include="Generators\TypeConfuseDelegatePowerShellGenerator.cs" />
     <Compile Include="Generators\WbemClassObjectUnmarshalGenerator.cs" />
     <Compile Include="Generators\WSManPluginInstanceGenerator.cs" />
     <Compile Include="Generators\WindowsClaimsIdentityGenerator.cs" />
@@ -291,6 +297,7 @@
     <Compile Include="Helpers\Cli\UpdateChecker.cs" />
     <Compile Include="Helpers\Core\DosPolicy.cs" />
     <Compile Include="Helpers\Core\Clr2SelfTest.cs" />
+    <Compile Include="Helpers\Core\Clr2SelfTestDependency.cs" />
     <Compile Include="Helpers\Core\IsolatedSelfTest.cs" />
     <Compile Include="Helpers\Core\LegacyXmlDefaults.cs" />
     <Compile Include="Helpers\Core\PayloadRunner.cs" />
@@ -538,7 +545,7 @@
   <!--
     Build the deliberately isolated CLR2 self-test victim from tracked, readable source.
     It is not a project in this solution: every product project remains on 4.7.2, while
-    this one-shot executable is compiled by the installed CLR2 toolchain and shipped beside
+    these one-shot executables are compiled by the installed CLR2 toolchain and shipped beside
     ysonet.exe. Debug builds warn when .NET 3.5 is absent (the feature cannot run there
     anyway); Release builds fail so a published archive can never silently omit the host.
   -->
@@ -546,26 +553,40 @@
     <Clr2SelfTestSource>$(MSBuildProjectDirectory)\..\tools\clr2-self-test\Clr2SelfTestHost.cs</Clr2SelfTestSource>
     <Clr2SelfTestConfig>$(MSBuildProjectDirectory)\..\tools\clr2-self-test\ysonet.Clr2TestHost.exe.config</Clr2SelfTestConfig>
     <Clr2FrameworkDir>$(SystemRoot)\Microsoft.NET\Framework\v2.0.50727</Clr2FrameworkDir>
+    <Clr2Framework64Dir Condition="Exists('$(SystemRoot)\Microsoft.NET\Framework64\v2.0.50727\mscorlib.dll')">$(SystemRoot)\Microsoft.NET\Framework64\v2.0.50727</Clr2Framework64Dir>
+    <Clr2Framework64Dir Condition="'$(Clr2Framework64Dir)' == ''">$(Clr2FrameworkDir)</Clr2Framework64Dir>
     <Clr2Compiler Condition="Exists('$(SystemRoot)\Microsoft.NET\Framework\v3.5\csc.exe')">$(SystemRoot)\Microsoft.NET\Framework\v3.5\csc.exe</Clr2Compiler>
     <Clr2Compiler Condition="'$(Clr2Compiler)' == '' and Exists('$(Clr2FrameworkDir)\csc.exe')">$(Clr2FrameworkDir)\csc.exe</Clr2Compiler>
     <Clr2SelfTestExe>$(TargetDir)ysonet.Clr2TestHost.exe</Clr2SelfTestExe>
+    <Clr2SelfTestX86Exe>$(TargetDir)ysonet.Clr2TestHost.x86.exe</Clr2SelfTestX86Exe>
+    <Clr2SelfTestX64Exe>$(TargetDir)ysonet.Clr2TestHost.x64.exe</Clr2SelfTestX64Exe>
     <Clr2SelfTestOutputConfig>$(Clr2SelfTestExe).config</Clr2SelfTestOutputConfig>
+    <Clr2SelfTestX86OutputConfig>$(Clr2SelfTestX86Exe).config</Clr2SelfTestX86OutputConfig>
+    <Clr2SelfTestX64OutputConfig>$(Clr2SelfTestX64Exe).config</Clr2SelfTestX64OutputConfig>
   </PropertyGroup>
   <Target Name="BuildClr2SelfTestHost" AfterTargets="Build"
           Inputs="$(Clr2SelfTestSource);$(Clr2SelfTestConfig)"
-          Outputs="$(Clr2SelfTestExe);$(Clr2SelfTestOutputConfig)">
+          Outputs="$(Clr2SelfTestExe);$(Clr2SelfTestOutputConfig);$(Clr2SelfTestX86Exe);$(Clr2SelfTestX86OutputConfig);$(Clr2SelfTestX64Exe);$(Clr2SelfTestX64OutputConfig)">
     <Error Condition="!Exists('$(Clr2SelfTestSource)')" Text="CLR2 self-test source not found: $(Clr2SelfTestSource)" />
     <Error Condition="!Exists('$(Clr2SelfTestConfig)')" Text="CLR2 self-test runtime config not found: $(Clr2SelfTestConfig)" />
     <Warning Condition="'$(Clr2Compiler)' == '' and '$(Configuration)' != 'Release'"
-             Text="CLR2 self-test host was not built because .NET Framework 3.5 / CLR2 is not installed. --testclr2 will be unavailable." />
+             Text="CLR2 self-test hosts were not built because .NET Framework 3.5 / CLR2 is not installed. --testclr2 will be unavailable." />
     <Error Condition="'$(Clr2Compiler)' == '' and '$(Configuration)' == 'Release'"
-           Text="A Release must ship ysonet.Clr2TestHost.exe. Install .NET Framework 3.5 / CLR2 on the build machine." />
+           Text="A Release must ship the default, x86, and x64 CLR2 self-test hosts. Install .NET Framework 3.5 / CLR2 on the build machine." />
     <Exec Condition="'$(Clr2Compiler)' != ''"
           Command="&quot;$(Clr2Compiler)&quot; /nologo /noconfig /nostdlib+ /target:exe /platform:anycpu /optimize+ /warn:4 /out:&quot;$(Clr2SelfTestExe)&quot; /r:&quot;$(Clr2FrameworkDir)\mscorlib.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.Web.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.Runtime.Remoting.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.Runtime.Serialization.Formatters.Soap.dll&quot; &quot;$(Clr2SelfTestSource)&quot;" />
+    <Exec Condition="'$(Clr2Compiler)' != ''"
+          Command="&quot;$(Clr2Compiler)&quot; /nologo /noconfig /nostdlib+ /target:exe /platform:x86 /optimize+ /warn:4 /out:&quot;$(Clr2SelfTestX86Exe)&quot; /r:&quot;$(Clr2FrameworkDir)\mscorlib.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.Web.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.Runtime.Remoting.dll&quot; /r:&quot;$(Clr2FrameworkDir)\System.Runtime.Serialization.Formatters.Soap.dll&quot; &quot;$(Clr2SelfTestSource)&quot;" />
+    <Exec Condition="'$(Clr2Compiler)' != ''"
+          Command="&quot;$(Clr2Compiler)&quot; /nologo /noconfig /nostdlib+ /target:exe /platform:x64 /optimize+ /warn:4 /out:&quot;$(Clr2SelfTestX64Exe)&quot; /r:&quot;$(Clr2Framework64Dir)\mscorlib.dll&quot; /r:&quot;$(Clr2Framework64Dir)\System.dll&quot; /r:&quot;$(Clr2Framework64Dir)\System.Web.dll&quot; /r:&quot;$(Clr2Framework64Dir)\System.Runtime.Remoting.dll&quot; /r:&quot;$(Clr2Framework64Dir)\System.Runtime.Serialization.Formatters.Soap.dll&quot; &quot;$(Clr2SelfTestSource)&quot;" />
     <Copy Condition="'$(Clr2Compiler)' != ''" SourceFiles="$(Clr2SelfTestConfig)"
           DestinationFiles="$(Clr2SelfTestOutputConfig)" OverwriteReadOnlyFiles="true" />
+    <Copy Condition="'$(Clr2Compiler)' != ''" SourceFiles="$(Clr2SelfTestConfig)"
+          DestinationFiles="$(Clr2SelfTestX86OutputConfig)" OverwriteReadOnlyFiles="true" />
+    <Copy Condition="'$(Clr2Compiler)' != ''" SourceFiles="$(Clr2SelfTestConfig)"
+          DestinationFiles="$(Clr2SelfTestX64OutputConfig)" OverwriteReadOnlyFiles="true" />
     <ItemGroup Condition="'$(Clr2Compiler)' != ''">
-      <FileWrites Include="$(Clr2SelfTestExe);$(Clr2SelfTestOutputConfig)" />
+      <FileWrites Include="$(Clr2SelfTestExe);$(Clr2SelfTestOutputConfig);$(Clr2SelfTestX86Exe);$(Clr2SelfTestX86OutputConfig);$(Clr2SelfTestX64Exe);$(Clr2SelfTestX64OutputConfig)" />
     </ItemGroup>
   </Target>
 
@@ -631,9 +652,18 @@
     <Error Condition="!Exists('$(Obfuscar)')"
            Text="Obfuscar not found. Run 'nuget restore ysonet.sln' first, or build with -p:ObfuscateRelease=false to skip string obfuscation." />
     <Message Importance="high" Text="ObfuscateOutput: string-encrypting $(TargetPath)" />
-    <!-- Stage the pristine per-platform exe into the fixed folder obfuscar.xml reads. -->
+    <!--
+      Stage the pristine per-platform exe and every copy-local reference into the
+      fixed folder obfuscar.xml reads. Obfuscar builds an inheritance map even
+      when only string hiding is enabled, so non-GAC references must be available
+      for metadata resolution without becoming modules to obfuscate.
+    -->
     <Copy SourceFiles="$(IntermediateOutputPath)ysonet.exe"
           DestinationFiles="$(MSBuildProjectDirectory)\obj\obfuscate-in\ysonet.exe"
+          OverwriteReadOnlyFiles="true" />
+    <Copy SourceFiles="@(ReferenceCopyLocalPaths)"
+          DestinationFolder="$(MSBuildProjectDirectory)\obj\obfuscate-in"
+          SkipUnchangedFiles="true"
           OverwriteReadOnlyFiles="true" />
     <Exec Command="&quot;$(Obfuscar)&quot; obfuscar.xml" WorkingDirectory="$(MSBuildProjectDirectory)" />
     <Copy SourceFiles="$(MSBuildProjectDirectory)\obj\obfuscated\ysonet.exe"

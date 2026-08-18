@@ -103,6 +103,11 @@ class TestRefusingACaptureThatIsNotThePage(unittest.TestCase):
         """A captured deck is not HTML, and has no visible text to count."""
         self.assertEqual(wayback.unusable(b"\x00" * 40, kind="slides"), "")
 
+    def test_a_whitepaper_capture_that_is_an_html_wrapper_is_refused(self):
+        wrapper = b"<!doctype html><html><body><div id='wm-ipp-base'></div></body></html>"
+        self.assertIn("characters of visible text",
+                      wayback.unusable(wrapper, kind="whitepaper"))
+
 
 class TestUnwrappingTheOriginalUrl(unittest.TestCase):
     """A Wayback replay wraps the real URL. Its HOST is the archive, so anyone

@@ -18,20 +18,18 @@ namespace ysonet.Tests
         Unknown = 3,
     }
 
-    // What the diagnostic egress profile saw. Deliberately separate from CapabilityState,
-    // and Unprobed/NotProbed are deliberately two different things.
+    // What the diagnostic HTTP/HTTPS egress profile saw. Deliberately separate from
+    // CapabilityState because it never gates a payload row.
     internal enum EgressState
     {
         // The OOB tier did not run, so no profile exists.
         Unprobed = 0,
-        // The tier ran but this signal was intentionally not attempted (see the evidence).
-        NotProbed = 1,
         // The server recorded the exact protocol for this run's probe label.
-        Observed = 2,
+        Observed = 1,
         // It was attempted and not observed. That is NOT a diagnosis: it can be local
         // policy, a proxy, name resolution, remote listener configuration, or a transient
         // service failure.
-        NotConclusive = 3,
+        NotConclusive = 2,
     }
 
     internal sealed class CapabilityResult
@@ -114,6 +112,8 @@ namespace ysonet.Tests
     /// </summary>
     internal static class TestEnvironment
     {
+        internal const int ReportTokenWidth = 38;
+
         // ---- capability tokens -------------------------------------------------
         public const string LoopbackTcp = "loopback-tcp";
         public const string LocalRpcEndpointMapper = "local-rpc-endpoint-mapper";
@@ -130,6 +130,11 @@ namespace ysonet.Tests
         // DIRECTLY, by doing exactly that, because a registry read is indirect and the rule is
         // to probe the prerequisite the row really needs. Gates the whole LEGACY tier.
         public const string Clr2Runtime = "clr2-runtime";
+        // Explicit process architectures for the shipped one-shot CLR2 victim. Each probe
+        // runs the actual host and checks its reported IntPtr.Size; a PE header alone is not
+        // evidence that this Windows installation can launch it on CLR2.
+        public const string Clr2X86 = "clr2-x86";
+        public const string Clr2X64 = "clr2-x64";
         // The 3.0/3.5 reference assemblies, which are a separate install from the CLR 2 files
         // and are what the 3.0 and 3.5 lanes compile against. The 2.0 lane never needs them.
         public const string NetFx3xReferenceAssemblies = "netfx3x-reference-assemblies";
@@ -137,21 +142,20 @@ namespace ysonet.Tests
         // serialization shapes before opening a payload. A net40-targeted executable on a
         // 4.5+ machine is not sufficient because those releases replace 4.0 in place.
         public const string NetFx40Target = "netfx40-target";
-
         // Report order, which is also the only list the report iterates.
         public static readonly string[] Capabilities =
         {
             LoopbackTcp, LocalRpcEndpointMapper, ShortName8Dot3,
-            Clr2Runtime, NetFx3xReferenceAssemblies, NetFx40Target,
+            Clr2Runtime, Clr2X86, Clr2X64, NetFx3xReferenceAssemblies,
+            NetFx40Target,
             OobEndpoint, OobDns, OwnedOobUncEndpoint,
         };
 
         // ---- egress signal tokens (diagnostic only, never a gate) --------------
         public const string EgressHttp = "http";
         public const string EgressHttps = "https";
-        public const string EgressSmb = "smb";
 
-        public static readonly string[] EgressSignals = { EgressHttp, EgressHttps, EgressSmb };
+        public static readonly string[] EgressSignals = { EgressHttp, EgressHttps };
 
         // ---- verdict tokens ----------------------------------------------------
         public const string VerdictClean = "clean";
@@ -395,7 +399,8 @@ namespace ysonet.Tests
                 CapabilityResult r;
                 if (!_capabilities.TryGetValue(token, out r))
                     r = new CapabilityResult(token, CapabilityState.Unprobed, "not needed", 0);
-                w.WriteLine("  " + token.PadRight(30) + Describe(r.State).PadRight(10)
+                w.WriteLine("  " + token.PadRight(ReportTokenWidth)
+                    + Describe(r.State).PadRight(10)
                     + r.Evidence + (r.ElapsedMs > 0 ? " [" + r.ElapsedMs + "ms]" : ""));
             }
 
@@ -404,7 +409,8 @@ namespace ysonet.Tests
             foreach (string token in EgressSignals)
             {
                 EgressResult r = Egress(token);
-                w.WriteLine("  " + token.PadRight(30) + Describe(r.State).PadRight(17) + r.Evidence);
+                w.WriteLine("  " + token.PadRight(ReportTokenWidth)
+                    + Describe(r.State).PadRight(17) + r.Evidence);
             }
 
             w.WriteLine();
@@ -468,6 +474,11 @@ namespace ysonet.Tests
                     notes.Add("The 3.0/3.5 reference assemblies are absent, so only the LEGACY 2.0");
                     notes.Add("lane could run. The other two are unverified, not passed.");
                 }
+                if (SkippedFor(Clr2X86) || SkippedFor(Clr2X64))
+                {
+                    notes.Add("At least one explicit CLR2 process architecture was unavailable,");
+                    notes.Add("so its architecture-specific effect cells are unverified.");
+                }
                 if (SkippedFor(NetFx40Target))
                 {
                     notes.Add("No exact .NET Framework 4.0 shared-folder victim was available, so");
@@ -512,7 +523,6 @@ namespace ysonet.Tests
             {
                 case EgressState.Observed: return "OBSERVED";
                 case EgressState.NotConclusive: return "NOT-CONCLUSIVE";
-                case EgressState.NotProbed: return "NOT-PROBED";
                 default: return "UNPROBED";
             }
         }
@@ -525,8 +535,74 @@ namespace ysonet.Tests
             _probes[LocalRpcEndpointMapper] = ProbeLocalRpcEndpointMapper;
             _probes[OwnedOobUncEndpoint] = ProbeOwnedOobUncEndpoint;
             _probes[Clr2Runtime] = ProbeClr2Runtime;
+            _probes[Clr2X86] = delegate
+            {
+                return ProbeClr2Architecture(Clr2X86,
+                    ysonet.Helpers.Core.Clr2SelfTestArchitecture.X86);
+            };
+            _probes[Clr2X64] = delegate
+            {
+                return ProbeClr2Architecture(Clr2X64,
+                    ysonet.Helpers.Core.Clr2SelfTestArchitecture.X64);
+            };
             _probes[NetFx3xReferenceAssemblies] = ProbeNetFx3xReferenceAssemblies;
             _probes[NetFx40Target] = Net40Target.ProbeCapability;
+        }
+
+        // AssemblyName.GetAssemblyName reads the PE metadata without loading the file into
+        // this AppDomain. Keep the implementation general so another exact CLR2 dependency
+        // can register the same kind of capability without adding a gadget-name branch.
+        internal static CapabilityResult ProbeExactAssemblyDependency(string token, string path,
+            string expectedIdentity)
+        {
+            if (!File.Exists(path))
+                return new CapabilityResult(token, CapabilityState.Absent,
+                    "the packaged dependency is missing: " + path, 0);
+
+            string actualIdentity;
+            try
+            {
+                actualIdentity = System.Reflection.AssemblyName.GetAssemblyName(path).FullName;
+            }
+            catch (BadImageFormatException ex)
+            {
+                return new CapabilityResult(token, CapabilityState.Absent,
+                    "the packaged dependency is not a managed assembly: " + path
+                        + " (" + ex.Message + ")", 0);
+            }
+            catch (IOException ex)
+            {
+                return new CapabilityResult(token, CapabilityState.Unknown,
+                    "the packaged dependency identity could not be inspected: " + path
+                        + " (" + ex.Message + ")", 0);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return new CapabilityResult(token, CapabilityState.Unknown,
+                    "the packaged dependency identity could not be inspected: " + path
+                        + " (" + ex.Message + ")", 0);
+            }
+
+            string canonicalExpected;
+            try
+            {
+                canonicalExpected = new System.Reflection.AssemblyName(expectedIdentity).FullName;
+            }
+            catch (Exception ex)
+            {
+                return new CapabilityResult(token, CapabilityState.Unknown,
+                    "the expected dependency identity is invalid: " + expectedIdentity
+                        + " (" + ex.Message + ")", 0);
+            }
+
+            if (!string.Equals(actualIdentity, canonicalExpected, StringComparison.Ordinal))
+                return new CapabilityResult(token, CapabilityState.Absent,
+                    "the packaged dependency identity is " + actualIdentity
+                        + "; expected " + canonicalExpected + ": " + path, 0);
+
+            return new CapabilityResult(token, CapabilityState.Present,
+                "inspected packaged dependency metadata without loading it: "
+                    + actualIdentity + " at " + path, 0);
         }
 
         // Build the LEGACY tier's own child with the in-box legacy compiler and make it say
@@ -548,6 +624,61 @@ namespace ysonet.Tests
             return new CapabilityResult(Clr2Runtime, CapabilityState.Absent,
                 "a CLR-2 pinned child ran on CLR " + clr + " instead, so this machine has no"
                 + " usable CLR 2 (the shim rolls forward when it is absent)", 0);
+        }
+
+        private static CapabilityResult ProbeClr2Architecture(string token,
+            ysonet.Helpers.Core.Clr2SelfTestArchitecture architecture)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                byte[] payload;
+                using (var stream = new MemoryStream())
+                {
+                    new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter()
+                        .Serialize(stream, "architecture-probe");
+                    payload = stream.ToArray();
+                }
+                ysonet.Helpers.Core.Clr2SelfTestResult result =
+                    ysonet.Helpers.Core.Clr2SelfTest.Run(payload,
+                        ysonet.Generators.Formatters.BinaryFormatter, architecture);
+                sw.Stop();
+                return new CapabilityResult(token, CapabilityState.Present,
+                    "the explicit " + architecture.ToString().ToLowerInvariant()
+                        + " host reported CLR " + result.RuntimeVersion + " and "
+                        + result.ProcessBitness + "-bit process", (int)sw.ElapsedMilliseconds);
+            }
+            catch (PlatformNotSupportedException ex)
+            {
+                sw.Stop();
+                return new CapabilityResult(token, CapabilityState.Absent, ex.Message,
+                    (int)sw.ElapsedMilliseconds);
+            }
+            catch (FileNotFoundException ex)
+            {
+                sw.Stop();
+                return new CapabilityResult(token, CapabilityState.Absent, ex.Message,
+                    (int)sw.ElapsedMilliseconds);
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                sw.Stop();
+                return new CapabilityResult(token, CapabilityState.Absent, ex.Message,
+                    (int)sw.ElapsedMilliseconds);
+            }
+            catch (InvalidOperationException ex)
+            {
+                sw.Stop();
+                return new CapabilityResult(token, CapabilityState.Absent, ex.Message,
+                    (int)sw.ElapsedMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                return new CapabilityResult(token, CapabilityState.Unknown,
+                    "unexpected " + ex.GetType().Name + ": " + ex.Message,
+                    (int)sw.ElapsedMilliseconds);
+            }
         }
 
         // The 3.0 and 3.5 lanes compile against the Reference Assemblies folders, which ship

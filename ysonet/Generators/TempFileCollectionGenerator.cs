@@ -12,9 +12,10 @@ namespace ysonet.Generators
      * TempFileCollection: deferred file DELETION on the target, with no process start and no
      * nested formatter.
      *
-     * System.CodeDom.Compiler.TempFileCollection (System.dll, [Serializable]) keeps the files
-     * it is asked to clean up in a private Hashtable that maps each path to a per-file
-     * "keepFile" flag. Its cleanup runs from two places:
+     * The in-box System.dll System.CodeDom.Compiler.TempFileCollection ([Serializable]) keeps
+     * the files it is asked to clean up in a private Hashtable that maps each path to a
+     * per-file "keepFile" flag. The NuGet System.CodeDom copy is not [Serializable] and is not
+     * a target for this payload. The in-box type's cleanup runs from two places:
      *
      *   ~TempFileCollection()      -> Dispose(false) -> Delete() -> File.Delete(path)
      *   IDisposable.Dispose()      -> Dispose(true)  -> Delete() -> File.Delete(path)
@@ -128,9 +129,9 @@ namespace ysonet.Generators
             // its budget: anything longer pushes "Formatters:" off the visible area
             // (TempFileCollectionInfoPanelStillShowsItsFacts). Keep it tight, and put the
             // reasoning in the file comment above rather than here.
-            return "System.CodeDom.Compiler.TempFileCollection deletes the target paths when the "
-                + "deserialized object is disposed or finalized. -t DELETES them on THIS machine. "
-                + "Below 4.0 the three strict readers need --legacyfx.";
+            return "Targets the [Serializable] TempFileCollection in the .NET Framework's in-box "
+                + "System.dll, not the NuGet copy. It deletes target paths on dispose/finalize; "
+                + "-t DELETES them HERE. Below 4.0 strict readers need --legacyfx.";
         }
 
         public override List<string> Labels()

@@ -92,26 +92,45 @@ jobs:
       - name: Build (Release)
         run: msbuild ysonet.sln -p:Configuration=Release -m
 
-      - name: Verify CLR2 self-test host
+      - name: Verify CLR2 self-test hosts and FSharp.Core tool asset
         shell: pwsh
         run: |
-          $host = ".\ysonet\bin\Release\ysonet.Clr2TestHost.exe"
-          $config = "$host.config"
-          if (-not (Test-Path $host)) { throw "Release is missing ysonet.Clr2TestHost.exe." }
-          if (-not (Test-Path $config)) { throw "Release is missing the CLR2 host runtime config." }
-          $probe = (& $host --probe 2>&1 | Out-String)
-          if ($LASTEXITCODE -ne 0) { throw "CLR2 host probe failed: $probe" }
-          if ($probe -notmatch '(?m)^clr=2\.0\.50727') { throw "CLR2 host did not report CLR 2.0.50727: $probe" }
-          Write-Host $probe.Trim()
+          $hosts = @(
+            @{ Path = ".\ysonet\bin\Release\ysonet.Clr2TestHost.exe"; Bits = "(32|64)" },
+            @{ Path = ".\ysonet\bin\Release\ysonet.Clr2TestHost.x86.exe"; Bits = "32" },
+            @{ Path = ".\ysonet\bin\Release\ysonet.Clr2TestHost.x64.exe"; Bits = "64" }
+          )
+          foreach ($entry in $hosts) {
+            $hostPath = $entry.Path
+            $configPath = "$hostPath.config"
+            if (-not (Test-Path $hostPath)) { throw "Release is missing $hostPath." }
+            if (-not (Test-Path $configPath)) { throw "Release is missing $configPath." }
+            $probe = (& $hostPath --probe 2>&1 | Out-String)
+            if ($LASTEXITCODE -ne 0) { throw "CLR2 host probe failed for ${hostPath}: $probe" }
+            if ($probe -notmatch '(?m)^clr=2\.0\.50727') { throw "CLR2 host did not report CLR 2.0.50727 for ${hostPath}: $probe" }
+            if ($probe -notmatch "(?m)^bits=$($entry.Bits)\r?$") { throw "CLR2 host reported the wrong process bitness for ${hostPath}: $probe" }
+            Write-Host $probe.Trim()
+          }
+
+          $fsharpAssets = @(
+            @{ Path = ".\ysonet\bin\Release\FSharp.Core.dll"; Identity = "FSharp.Core, Version=4.3.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" }
+          )
+          foreach ($asset in $fsharpAssets) {
+            $assemblyPath = $asset.Path
+            if (-not (Test-Path $assemblyPath)) { throw "Release is missing $assemblyPath." }
+            $identity = [System.Reflection.AssemblyName]::GetAssemblyName((Resolve-Path $assemblyPath).Path).FullName
+            if ($identity -cne $asset.Identity) { throw "FSharp.Core identity mismatch for ${assemblyPath}: expected $($asset.Identity), found $identity." }
+            Write-Host "FSharp.Core asset: $assemblyPath -> $identity"
+          }
 
       - name: Verify CLR4 test host
         shell: pwsh
         run: |
-          $host = ".\ysonet\bin\Release\ysonet.Clr4TestHost.exe"
-          $config = "$host.config"
-          if (-not (Test-Path $host)) { throw "Release is missing ysonet.Clr4TestHost.exe." }
-          if (-not (Test-Path $config)) { throw "Release is missing the CLR4 host runtime config." }
-          $probe = (& $host --probe 2>&1 | Out-String)
+          $hostPath = ".\ysonet\bin\Release\ysonet.Clr4TestHost.exe"
+          $configPath = "$hostPath.config"
+          if (-not (Test-Path $hostPath)) { throw "Release is missing ysonet.Clr4TestHost.exe." }
+          if (-not (Test-Path $configPath)) { throw "Release is missing the CLR4 host runtime config." }
+          $probe = (& $hostPath --probe 2>&1 | Out-String)
           if ($LASTEXITCODE -ne 0) { throw "CLR4 host probe failed: $probe" }
           if ($probe -notmatch '(?m)^clr=4\.') { throw "CLR4 host did not report a CLR 4 runtime: $probe" }
           Write-Host $probe.Trim()

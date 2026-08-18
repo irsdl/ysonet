@@ -29,8 +29,9 @@
   over the real output path. Using a fixed path here (instead of a hard-coded
   obj\Release) is what lets the obfuscation work for any platform, not just AnyCPU.
   The staged exe is never obfuscated in place, so re-running stays idempotent and
-  can never double-obfuscate. String hiding does not need the dependency DLLs, so
-  AssemblySearchPath just points at the same staging folder.
+  can never double-obfuscate. Obfuscar still resolves referenced metadata while
+  constructing its inheritance map, so the MSBuild target also stages every
+  copy-local reference. AssemblySearchPath points at that self-contained folder.
 -->
 <Obfuscator>
   <Var name="InPath" value="obj\obfuscate-in" />

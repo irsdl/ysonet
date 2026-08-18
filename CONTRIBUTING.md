@@ -21,11 +21,12 @@ The projects target .NET Framework 4.7.2. Build with Visual Studio's MSBuild:
 - `nuget restore ysonet.sln`
 - `msbuild ysonet.sln -p:Configuration=Debug`
 
-The product also ships a small one-shot CLR2 self-test victim built from
-`tools/clr2-self-test/`. A Debug build uses the installed .NET Framework 3.5 compiler when
-available and otherwise warns; a Release build requires that Windows optional feature so
-the release cannot silently omit `ysonet.Clr2TestHost.exe` and its runtime config. Never
-commit the generated executable.
+The product also ships one-shot CLR2 self-test victims built from
+`tools/clr2-self-test/`: a backward-compatible default host plus explicit x86 and x64
+executables, all pinned to CLR 2. A Debug build uses the installed .NET Framework 3.5
+compiler when available and otherwise warns; a Release build requires that Windows
+optional feature so the release cannot silently omit any host or runtime config. Never
+commit the generated executables.
 
 The Debug build runs a self-contained test runner as a post-build step. A failed test fails the build. The runner also stands alone at `ysonet\bin\Debug\ysonet.Tests.exe`.
 
@@ -136,7 +137,7 @@ same run is still an ordinary bug.
 
 Every automated UNC touch in the OOB tier needs `YSONET_INTERACTSH_SERVER` pointing at a
 self-hosted server you own, because Windows sends authentication material when it opens
-an SMB session. On the default public endpoint both UNC checks are named skips. That
+an SMB session. On the default public endpoint all three UNC checks are named skips. That
 gates the test harness only; running `ysonet.exe ... -t` yourself is unchanged.
 
 ### Test integrity policy

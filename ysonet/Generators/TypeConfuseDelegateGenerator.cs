@@ -40,7 +40,7 @@ namespace ysonet.Generators
      *
      * All three variants are .NET Framework 4.5+ payloads: Comparer<T>.Create and the
      * ComparisonComparer<T> it returns do not exist in 4.0. The target-specific
-     * TypeConfuseDelegateNet40Workflow is the separate target-specific generator for the
+     * TypeConfuseDelegateNetFx40 is the separate target-specific generator for the
      * different comparer shipped by .NET Framework 4.0.
      *
      * GetXamlGadget is the same technique with XamlReader.Parse in slot 1 instead of
@@ -110,7 +110,8 @@ namespace ysonet.Generators
                 + "and ComparisonComparer<string>, with no Workflow surrogate, outer carrier, "
                 + "or nested BinaryFormatter stream. Variant 2 does not support "
                 + "SoapFormatter. All three variants target .NET Framework 4.5+; use "
-                + "TypeConfuseDelegateNet40Workflow for .NET Framework 4.0. --legacyfx "
+                + "TypeConfuseDelegateNetFx40 for exactly .NET Framework 4.0 or "
+                + "TypeConfuseDelegateNetFx35 for .NET Framework 3.5 / CLR2. --legacyfx "
                 + "is not supported because rewriting assembly versions cannot turn this "
                 + "Comparer<T>.Create graph into a CLR2 graph.";
         }

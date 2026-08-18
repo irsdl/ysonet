@@ -8,7 +8,7 @@ tool, not a product self-test feature.
 Unlike `ysonet.Net40TestHost.exe`, it does NOT require the exact .NET Framework 4.0 shape.
 It runs on whatever 4.x is installed (4.7.2, 4.8, 4.8.1, ...), which is what a normal
 machine has. Use the net40 host only when you specifically need a genuine 4.0 victim (an
-isolated 4.0 VM), for a gadget such as `TypeConfuseDelegateNet40Workflow` that only fires
+isolated 4.0 VM), for a gadget such as `TypeConfuseDelegateNetFx40` that only fires
 on true 4.0.
 
 ## Usage
@@ -35,6 +35,12 @@ Example (fires calc on the installed CLR 4):
 ysonet.exe -g TypeConfuseDelegate -f BinaryFormatter -c calc > bf.b64
 ysonet.Clr4TestHost.exe --deserialize BinaryFormatter bf.b64
 ```
+
+An isolated test may place an exact assembly manifest named `clr2-deps.manifest` beside
+the copied host and the declared files under `clr2-deps`. Before opening the payload, the
+host validates each full identity and resolves only an exact canonical match. Its output
+then records both the declared dependency result and the full loaded-assembly ledger.
+Normal command-line use without a manifest is unchanged.
 
 ## ViewState
 

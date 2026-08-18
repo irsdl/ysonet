@@ -78,6 +78,16 @@ namespace ysonet.Tests
         public bool Minify;
 
         /// <summary>
+        /// Exact non-framework assemblies staged only beside this row's one-shot CLR-2
+        /// victim. The parent validates every file against its declared full identity before
+        /// the child starts; the child repeats that validation before opening the payload.
+        /// </summary>
+        public readonly List<Clr2SelfTestDependency> Dependencies =
+            new List<Clr2SelfTestDependency>();
+        /// <summary>Named environment prerequisites checked before this row runs.</summary>
+        public readonly List<string> RequiredCapabilities = new List<string>();
+
+        /// <summary>
         /// Generate this row's payload with --legacyfx, so the framework identities it names
         /// are the CLR-v2 ones. This is what turns a `payload-names-4x-assembly` negative into
         /// a measurable question rather than a permanent answer.
@@ -152,6 +162,25 @@ namespace ysonet.Tests
         public LegacyClrRow WithRootType(string rootType) { RootType = rootType; return this; }
         public LegacyClrRow WithMinify() { Minify = true; return this; }
         public LegacyClrRow WithLegacyFx() { LegacyFx = true; return this; }
+        public LegacyClrRow WithDependency(Clr2SelfTestDependency dependency)
+        {
+            Dependencies.Add(dependency);
+            return this;
+        }
+        public LegacyClrRow WithDependencies(params Clr2SelfTestDependency[] dependencies)
+        {
+            if (dependencies == null)
+                throw new ArgumentNullException("dependencies");
+            Dependencies.AddRange(dependencies);
+            return this;
+        }
+        public LegacyClrRow RequiresCapability(params string[] capabilities)
+        {
+            if (capabilities == null)
+                throw new ArgumentNullException("capabilities");
+            RequiredCapabilities.AddRange(capabilities);
+            return this;
+        }
         public LegacyClrRow WithAuthenticatedBase64Controls(params string[] rejectedArgs)
         {
             AuthenticationRejectArgs = rejectedArgs;
@@ -330,10 +359,9 @@ namespace ysonet.Tests
 
             // ---- the same cells, generated with --legacyfx --------------------------
             //
-            // Every row above whose reason is `payload-names-4x-assembly` is a question the
-            // identity rewrite can answer, so each one is measured a SECOND time with the
-            // option on. The pair is the deliverable: "this reader refuses the 4.x identity,
-            // and here is what happens when the payload names the 2.0 one instead".
+            // Rows whose generator still owns a real CLR2 representation are measured a
+            // SECOND time with the option on. A gadget that explicitly refuses --legacyfx is
+            // not a victim row: generation never produces bytes for a CLR2 reader to measure.
             //
             // These are not predictions. Each was run against a real CLR 2.0.50727 child
             // before it was written down, exactly like the rows above.
@@ -349,53 +377,35 @@ namespace ysonet.Tests
                 "the <root type=...> envelope is resolved with Type.GetType, which needs the"
                 + " target's own assembly version").WithLegacyFx(),
 
-            // The command-execution family with the option on, and the most useful pair in the
-            // table. Without --legacyfx these three are classified `payload-names-4x-assembly`,
-            // which reads as "an identity string we wrote is in the way". With the identity
-            // fixed, the reader gets further and names the REAL blocker: the chain's
-            // `System.Func`3` does not exist in mscorlib 2.0.0.0 (Func<> arrived in System.Core
-            // 3.5 and only reached mscorlib in 4.0). So the identity was never the whole story,
-            // and the honest classification changes from ours to the framework's.
-            LegacyClrRow.DoesNotFire("TypeConfuseDelegate", LegacyClrLane.BinaryFormatter,
-                LegacyEffect.Command, LegacyReasonTypeAbsent,
-                "with System at 2.0.0.0 the reader reaches the graph and refuses System.Func`3,"
-                + " which mscorlib 2.0 does not have").WithLegacyFx(),
-            LegacyClrRow.DoesNotFire("TypeConfuseDelegate", LegacyClrLane.LosFormatter,
-                LegacyEffect.Command, LegacyReasonTypeAbsent,
-                "same stream as BinaryFormatter").WithLegacyFx(),
-            LegacyClrRow.DoesNotFire("TypeConfuseDelegate", LegacyClrLane.NetDataContractSerializer,
-                LegacyEffect.Command, LegacyReasonTypeAbsent,
-                "the same graph through the z:Type/z:Assembly pair").WithLegacyFx(),
-
             // The CLR-v2-specific command chain replaces Comparer<T>.Create with Workflow's
             // ObjectSerializedRef reconstruction of Array.FunctorComparer<string>. It authors
             // Func<string,string,Process> in System.Core 3.5 directly and forces the remaining
             // CLR-v2 identities itself, so neither row needs .WithLegacyFx().
-            LegacyClrRow.Fires("TypeConfuseDelegateLegacyWorkflow",
+            LegacyClrRow.Fires("TypeConfuseDelegateNetFx35",
                 LegacyClrLane.BinaryFormatter, LegacyEffect.Command,
                 "the fake delegate holder and Workflow comparer reconstruction reach "
                 + "Process.Start from TreeSet.OnDeserialization")
                 .InLanes(RuntimeVersion.NetFx35),
-            LegacyClrRow.Fires("TypeConfuseDelegateLegacyWorkflow",
+            LegacyClrRow.Fires("TypeConfuseDelegateNetFx35",
                 LegacyClrLane.BinaryFormatter, LegacyEffect.Command,
                 "the minified NRBF graph preserves the holder entries, Workflow member order, "
                 + "and TreeSet trigger")
                 .InLanes(RuntimeVersion.NetFx35).WithMinify(),
-            LegacyClrRow.Fires("TypeConfuseDelegateLegacyWorkflow",
+            LegacyClrRow.Fires("TypeConfuseDelegateNetFx35",
                 LegacyClrLane.SoapFormatter, LegacyEffect.Command,
                 "the direct SOAP document advertises List<object> and TreeSet<string>, with "
                 + "Workflow ObjectSerializedRef confined to the internal comparer")
                 .InLanes(RuntimeVersion.NetFx35),
-            LegacyClrRow.Fires("TypeConfuseDelegateLegacyWorkflow",
+            LegacyClrRow.Fires("TypeConfuseDelegateNetFx35",
                 LegacyClrLane.SoapFormatter, LegacyEffect.Command,
                 "the minified direct SOAP graph keeps its genuine closed-generic identities "
                 + "and reaches Process.Start without an outer carrier")
                 .InLanes(RuntimeVersion.NetFx35).WithMinify(),
-            LegacyClrRow.Fires("TypeConfuseDelegateLegacyWorkflow",
+            LegacyClrRow.Fires("TypeConfuseDelegateNetFx35",
                 LegacyClrLane.LosFormatter, LegacyEffect.Command,
                 "the LosFormatter ObjectState wrapper carries the same CLR-v2 graph")
                 .InLanes(RuntimeVersion.NetFx35),
-            LegacyClrRow.Fires("TypeConfuseDelegateLegacyWorkflow",
+            LegacyClrRow.Fires("TypeConfuseDelegateNetFx35",
                 LegacyClrLane.LosFormatter, LegacyEffect.Command,
                 "the minified LosFormatter form preserves the delegate type's separately "
                 + "qualified mscorlib arguments")
@@ -533,13 +543,7 @@ namespace ysonet.Tests
                 + " this pair is a measured negative, not a claim about every inner stream")
                 .With("--bgc TempFileCollection").WithLegacyFx(),
 
-            // ---- why no BinaryFormatter/SoapFormatter chain executes code on CLR 2 --------
-            //
-            // These two rows exist to answer a question operators keep asking, and that the
-            // ObjRef result makes urgent: ObjRef lands on CLR 2 on every reader it advertises,
-            // so a rogue remoting server can hand a CLR-2 victim any BinaryFormatter payload it
-            // likes - but which one actually RUNS there? The measured answer is none of ours,
-            // and the reason is different for each family, which is why both are recorded.
+            // ---- the PowerShell editor chain remains unavailable on CLR 2 -----------------
             //
             // TextFormattingRunProperties is the gadget the published ObjRef/RogueRemotingServer
             // write-up uses as its second stage. The static pre-filter lists it as a floor
@@ -553,25 +557,6 @@ namespace ysonet.Tests
                 LegacyEffect.Command, LegacyReasonAssemblyAbsent,
                 "its 3.0.0.0 is the PowerShell product version, not a framework one;"
                 + " Microsoft.PowerShell.Editor ships with PowerShell 3.0, which needs .NET 4"),
-
-            // GenericPrincipal is the identity/principal family's row, and the measurement
-            // corrected the guess behind it. GenericPrincipal itself IS a mscorlib 2.0 type, so
-            // it looked like an AxHostState-shaped case where only the inner gadget blocks. It
-            // is not: the reader never gets that far, because the principal's identity MEMBER is
-            // written as System.Security.Claims.ClaimsIdentity, which arrived in mscorlib 4.5.
-            // Rewriting mscorlib to 2.0.0.0 therefore points the reader at a 2.0 mscorlib that
-            // has no such type, and it refuses by name.
-            //
-            // That makes the whole family (ClaimsIdentity, ClaimsPrincipal, GenericIdentity,
-            // WindowsClaimsIdentity, WindowsPrincipal) 4.5-gated at the CARRIER, not merely at
-            // the inner gadget, so one measured row stands for it rather than six near-identical
-            // children. It is also why a bare "the carrier is old enough" argument is not
-            // evidence: the member set is part of the carrier.
-            LegacyClrRow.DoesNotFire("GenericPrincipal", LegacyClrLane.BinaryFormatter,
-                LegacyEffect.Command, LegacyReasonTypeAbsent,
-                "the mscorlib 2.0 carrier writes a System.Security.Claims.ClaimsIdentity member,"
-                + " and that type only reached mscorlib in 4.5")
-                .WithLegacyFx(),
 
             // ---- the ActivitySurrogate chain, measured through the source-file gadget ------
             //
@@ -635,18 +620,11 @@ namespace ysonet.Tests
 
             // ---- ObjectDataProvider variant 2 --------------------------------------------
             //
-            // Variant 2 means something different per formatter, so it is measured per
-            // formatter rather than assumed to share variant 1's answer. On XmlSerializer it
-            // wraps a LosFormatter inner payload, and that inner payload is the SortedSet-based
-            // TypeConfuseDelegate chain - the 4.0-only type this tier already records as
-            // type-absent-on-clr2. On DataContractSerializer it is the XamlReader.Parse shape,
-            // which is what variant 1 uses on XmlSerializer, so it is the interesting one.
-            LegacyClrRow.DoesNotFire("ObjectDataProvider", LegacyClrLane.XmlSerializer,
-                LegacyEffect.Command, LegacyReasonTypeAbsent,
-                "variant 2 carries a LosFormatter inner payload built on SortedSet`1, which"
-                + " does not exist before 4.0")
-                .InLanes(RuntimeVersion.NetFx35).With("--var 2").WithLegacyFx(),
-            // Variant 2 fails on DataContractSerializer exactly as variant 1 does, with the same
+            // XmlSerializer variant 2 is deliberately absent: it asks its hardcoded inner
+            // TypeConfuseDelegate for a legacy graph that the inner gadget explicitly refuses,
+            // so there are no bytes for a victim reader to measure. Variant 2 on
+            // DataContractSerializer does not use that inner graph and remains reachable.
+            // It fails exactly as variant 1 does, with the same
             // bare NullReferenceException after every assembly binds. So the blocker is the 3.0
             // DataContractSerializer's handling of the ExpandedWrapper graph itself, not the
             // shape carried inside it - the variant that works on XmlSerializer does not rescue
@@ -793,7 +771,7 @@ namespace ysonet.Tests
                     input.Test = true;
                     RunResult result = PayloadRunner.GenerateGadget(new GenerationRequest
                     {
-                        GadgetName = "TypeConfuseDelegateLegacyWorkflow",
+                        GadgetName = "TypeConfuseDelegateNetFx35",
                         FormatterName = formatter,
                         OutputFormat = "",
                         InputArgs = input,
@@ -873,6 +851,8 @@ namespace ysonet.Tests
         {
             string label = row.Describe(lane);
             if (!row.IsPlugin && RefuseToFireDosGadget(row.Gadget, failures)) return;
+            foreach (string capability in row.RequiredCapabilities)
+                if (!TestEnvironment.CanRun(capability, label)) return;
 
             // The loopback rows need a listener this machine can actually accept on. An
             // absent capability is a named skip; Unknown runs the row and records that its
@@ -1053,7 +1033,7 @@ namespace ysonet.Tests
 
                 string output = LegacyClrChild.Run(rowChild, row.Reader, payloadFile,
                     row.RootType, row.Effect == LegacyEffect.LoopbackConnection,
-                    LegacyChildTimeoutMs);
+                    LegacyChildTimeoutMs, row.Dependencies);
 
                 // The guard that makes every other assertion mean something. A machine
                 // without CLR 2 rolls the child forward, and a 4.x fire recorded as 2.0
@@ -1065,6 +1045,19 @@ namespace ysonet.Tests
                         + "', not " + LegacyClrLane.Clr2VersionPrefix
                         + ", so this result is not CLR-2 evidence. Child output: " + OneLine(output));
                     return;
+                }
+                foreach (Clr2SelfTestDependency dependency in row.Dependencies)
+                {
+                    string exactLoad = "dependencyLoaded="
+                        + dependency.ExpectedAssemblyFullName + "|";
+                    if (output.IndexOf(exactLoad + "local", StringComparison.Ordinal) < 0
+                        && output.IndexOf(exactLoad + "gac", StringComparison.Ordinal) < 0)
+                    {
+                        failures.Add(label + ": the child did not report loading the exact "
+                            + "dependency: " + dependency.ExpectedAssemblyFullName
+                            + ". Child output: " + OneLine(output));
+                        return;
+                    }
                 }
 
                 // ---- did the effect happen? ----
@@ -1190,7 +1183,7 @@ namespace ysonet.Tests
             SafeDelete(payloadFile);
             File.WriteAllBytes(payloadFile, payload);
             string output = LegacyClrChild.Run(child, row.Reader, payloadFile, row.RootType,
-                false, LegacyChildTimeoutMs);
+                false, LegacyChildTimeoutMs, row.Dependencies);
             if (!LegacyReportsClr2(output))
             {
                 failures.Add(label + " " + control + " control: the child did not report CLR "
@@ -1262,7 +1255,7 @@ namespace ysonet.Tests
                 && clr.StartsWith(LegacyClrLane.Clr2VersionPrefix, StringComparison.Ordinal);
         }
 
-        /// <summary>Every "loaded=name|version|gac" line, as "name version" pairs.</summary>
+        /// <summary>Every "loaded=name|version|origin|full-name" line, as name/version pairs.</summary>
         private static string LegacyLoadedSummary(string output)
         {
             var parts = new List<string>();

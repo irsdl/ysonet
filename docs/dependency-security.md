@@ -88,7 +88,9 @@ behaviour (`$types` in fastJSON, the type-carrying pickle format in FsPickler, t
 type attributes in SharpSerializer) is what the payloads rely on. Newer releases change
 that surface. A scanner will report these only as "outdated", not as vulnerable.
 
-`FSharp.Core 3.1.2.5` is not a choice of ours. It is the version FsPickler 4.6 binds to.
+`FSharp.Core 3.1.2.5` is not a choice of ours. FsPickler 4.6 binds to the package's net40
+asset, assembly version 4.3.1.0, which is copied beside `ysonet.exe`. This is one pinned
+NuGet package required by that serializer.
 
 ### Microsoft.IdentityModel 7.0.0
 

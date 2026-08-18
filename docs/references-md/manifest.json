@@ -1,6 +1,6 @@
 {
  "schema": 2,
- "updated": "2026-08-11T19:46:12+00:00",
+ "updated": "2026-08-14T14:56:05+00:00",
  "urls": {
   "https://0xdf.gitlab.io/2021/05/01/htb-sharp.html": {
    "also_at": [],
@@ -33078,6 +33078,7 @@
   },
   "https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf": {
    "also_at": [],
+   "authors": [],
    "cited_by": [
     "docs/dotnet-deserialization-research.md:147"
    ],
@@ -33085,7 +33086,7 @@
    "content_gap": "",
    "content_sha256": "004c5591843c2db9c7a7e1e502b85201614a8f277e63078f90acbd3bcd44a4da",
    "decision": {
-    "at": "2026-08-04",
+    "at": "2026-08-14",
     "by": "rule:default",
     "class": "research",
     "outcome": "archive",
@@ -33100,7 +33101,7 @@
     "final_url": "https://web.archive.org/web/20260227084925/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf",
     "http": 200,
     "redirect_chain": [],
-    "snapshot": "20200401093927",
+    "snapshot": "",
     "source": "probe",
     "status": "archived-citation",
     "text_length": 0,
@@ -33109,7 +33110,8 @@
    "kind": "whitepaper",
    "language": "en",
    "licence": "unknown",
-   "publisher": "web.archive.org",
+   "published": "",
+   "publisher": "",
    "raw_sha256": "b7920bb074742d9a67ca851d6d7a7eb637f58038203dfc1c5255391c51dfb703",
    "slug": "nullcon-goa-2018-slides",
    "spellings": [
@@ -33123,7 +33125,7 @@
      "reason": "",
      "result": "stored",
      "slug": "nullcon-goa-2018-slides",
-     "utc": "2026-08-04T16:19:48+00:00"
+     "utc": "2026-08-14T14:56:05+00:00"
     },
     "check": {
      "evidence": "cited URL is a Wayback replay of https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf",
@@ -33137,20 +33139,26 @@
      "title": "",
      "utc": "2026-08-03T17:22:35+00:00"
     },
+    "import": {
+     "reason": "re-acquired from the source with --replace-imports",
+     "result": "replaced",
+     "utc": "2026-08-14T14:56:05+00:00"
+    },
     "render": {
-     "chars": 7321,
+     "chars": 7128,
      "depth": "full",
      "file": "docs/references-md/research/nullcon-goa-2018-slides.md",
      "result": "ok",
-     "utc": "2026-08-04T16:19:48+00:00"
+     "utc": "2026-08-14T14:56:05+00:00"
     },
     "wayback": {
-     "bytes": 447256,
-     "replay_url": "https://web.archive.org/web/20200401093927id_/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf",
+     "bytes": 44514,
+     "replay_url": "https://web.archive.org/web/20250416002154id_/https://nullcon.net/website/archives/pdf/goa-2018/rohit-slides.pdf",
      "result": "stored",
-     "snapshot": "20200401093927",
-     "utc": "2026-08-04T13:08:02+00:00",
-     "was": 65936
+     "snapshot": "20250416002154",
+     "tried": 10,
+     "utc": "2026-08-14T14:40:32+00:00",
+     "was": 0
     }
    },
    "title": "Nullcon Goa 2018 slides"

@@ -49,6 +49,27 @@ namespace ysonet.Helpers
             return result;
         }
 
+        /// <summary>
+        /// Rewrite one exact BinaryLibrary display name while structurally walking the whole
+        /// NRBF stream. Type names and string values are never changed. This is the narrow
+        /// fallback for a writing binder whose formatter does not consult BindToName for a
+        /// generic field's array-element library record.
+        /// </summary>
+        public static byte[] RewriteBinaryFormatterLibraryIdentity(byte[] payload,
+            string fromAssemblyName, string toAssemblyName, out int count)
+        {
+            if (string.IsNullOrEmpty(fromAssemblyName))
+                throw new ArgumentException("A source assembly identity is required.",
+                    "fromAssemblyName");
+            if (string.IsNullOrEmpty(toAssemblyName))
+                throw new ArgumentException("A target assembly identity is required.",
+                    "toAssemblyName");
+            var rewriter = new NrbfRewriter(payload, fromAssemblyName, toAssemblyName);
+            byte[] result = rewriter.Run();
+            count = rewriter.Replacements;
+            return result;
+        }
+
         // [MS-NRBF] 2.1.2.1 RecordTypeEnumeration
         private const byte RecSerializedStreamHeader = 0;
         private const byte RecClassWithId = 1;
@@ -97,6 +118,8 @@ namespace ysonet.Helpers
         {
             private readonly byte[] _input;
             private readonly MemoryStream _output;
+            private readonly string _exactLibraryFrom;
+            private readonly string _exactLibraryTo;
             private int _at;
 
             // MemberTypeInfo per class ObjectId, so a ClassWithId record (which repeats no
@@ -110,6 +133,14 @@ namespace ysonet.Helpers
             {
                 _input = input ?? new byte[0];
                 _output = new MemoryStream(_input.Length + 32);
+            }
+
+            public NrbfRewriter(byte[] input, string exactLibraryFrom,
+                string exactLibraryTo)
+                : this(input)
+            {
+                _exactLibraryFrom = exactLibraryFrom;
+                _exactLibraryTo = exactLibraryTo;
             }
 
             private sealed class MemberSpec
@@ -209,7 +240,7 @@ namespace ysonet.Helpers
 
                     case RecBinaryLibrary:
                         CopyBytes(4);                           // LibraryId
-                        CopyString(true);                       // the assembly display name
+                        CopyLibraryString();                    // the assembly display name
                         return 1;
 
                     case RecObjectNullMultiple256:
@@ -492,6 +523,9 @@ namespace ysonet.Helpers
             // length.
             private void CopyString(bool rewrite)
             {
+                // Exact-library mode is deliberately narrower than --legacyfx: every class
+                // name and value is copied verbatim, even when it looks like an identity.
+                if (_exactLibraryFrom != null) rewrite = false;
                 int prefixStart = _at;
                 int length = Read7BitEncodedInt();
                 Require(length);
@@ -519,6 +553,31 @@ namespace ysonet.Helpers
                 _output.Write(body, 0, body.Length);
                 _at += length;
                 Replacements += changed;
+            }
+
+            private void CopyLibraryString()
+            {
+                if (_exactLibraryFrom == null)
+                {
+                    CopyString(true);
+                    return;
+                }
+
+                int prefixStart = _at;
+                int length = Read7BitEncodedInt();
+                Require(length);
+                string text = new UTF8Encoding(false).GetString(_input, _at, length);
+                if (!string.Equals(text, _exactLibraryFrom, StringComparison.Ordinal))
+                {
+                    CopyPrefixAndBody(prefixStart, length);
+                    return;
+                }
+
+                byte[] body = new UTF8Encoding(false).GetBytes(_exactLibraryTo);
+                Write7BitEncodedInt(body.Length);
+                _output.Write(body, 0, body.Length);
+                _at += length;
+                Replacements++;
             }
 
             // Emit the original prefix bytes verbatim, so a non-canonical length encoding a

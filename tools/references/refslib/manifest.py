@@ -32,6 +32,22 @@ from . import paths
 
 SCHEMA = 2
 
+ACQUIRED_FIELDS = (
+    "raw_sha256", "content_sha256", "licence", "publisher", "published",
+    "authors", "language", "commit",
+)
+
+
+def apply_acquired_fields(entry, record):
+    """Mirror acquisition metadata, including deliberate empty corrections.
+
+    An empty publisher is meaningful when a real document replaces a Wayback
+    wrapper: the replay host is no longer allowed to survive as attribution.
+    """
+    for field in ACQUIRED_FIELDS:
+        if field in record:
+            entry[field] = record[field]
+
 
 def utc_now():
     return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Runtime.Remoting.Channels;
 using System.Runtime.Remoting.Channels.Http;
 using System.Runtime.Remoting.Channels.Ipc;
@@ -25,6 +27,12 @@ internal sealed class Clr4TestHost
     private const string BinaryFormatterName = "BinaryFormatter";
     private const string SoapFormatterName = "SoapFormatter";
     private const string LosFormatterName = "LosFormatter";
+    private const string DependencyDirectoryName = "clr2-deps";
+    private const string DependencyManifestFileName = "clr2-deps.manifest";
+    private static readonly Dictionary<string, string> DependencyPaths =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+    private static readonly Dictionary<string, bool> DependencySimpleNames =
+        new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
     private static int Main(string[] args)
     {
@@ -89,6 +97,18 @@ internal sealed class Clr4TestHost
             return 2;
         }
 
+        try
+        {
+            PrepareDependencies();
+        }
+        catch (Exception ex)
+        {
+            Console.Out.WriteLine("error=dependency validation failed: "
+                + ExceptionChain(ex));
+            Console.Out.WriteLine("done=1");
+            return 4;
+        }
+
         byte[] payload;
         try
         {
@@ -146,6 +166,8 @@ internal sealed class Clr4TestHost
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
+        DumpDependencies();
+        DumpLoaded();
         Console.Out.WriteLine("done=1");
         Console.Out.Flush();
         return 0;
@@ -246,6 +268,109 @@ internal sealed class Clr4TestHost
             }
         }
         return File.ReadAllBytes(payloadFile);
+    }
+
+    // An isolated test may provide the same exact dependency manifest used by the CLR2
+    // victim. Validate every staged file before opening the payload and resolve only a
+    // canonical full assembly identity. Manual host use without a manifest is unchanged.
+    private static void PrepareDependencies()
+    {
+        string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        string manifestPath = Path.Combine(baseDirectory, DependencyManifestFileName);
+        if (!File.Exists(manifestPath)) return;
+
+        string dependencyDirectory = Path.Combine(baseDirectory, DependencyDirectoryName);
+        if (!Directory.Exists(dependencyDirectory))
+            throw new DirectoryNotFoundException("the dependency directory is missing");
+
+        Dictionary<string, bool> declaredFiles =
+            new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        string[] lines = File.ReadAllLines(manifestPath);
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            if (line.Length == 0) continue;
+            string[] parts = line.Split(new char[] { '\t' });
+            if (parts.Length != 2 || parts[0].Length == 0 || parts[1].Length == 0)
+                throw new InvalidDataException("invalid dependency manifest line " + (i + 1));
+            if (parts[1] != Path.GetFileName(parts[1]))
+                throw new InvalidDataException("dependency manifest paths must be file names");
+
+            string expected = new AssemblyName(parts[0]).FullName;
+            if (expected != parts[0])
+                throw new InvalidDataException("dependency identity is not canonical: " + parts[0]);
+            if (DependencyPaths.ContainsKey(expected))
+                throw new InvalidDataException("duplicate dependency identity: " + expected);
+            if (declaredFiles.ContainsKey(parts[1]))
+                throw new InvalidDataException("duplicate dependency file name: " + parts[1]);
+
+            string file = Path.Combine(dependencyDirectory, parts[1]);
+            if (!File.Exists(file))
+                throw new FileNotFoundException("staged dependency is missing", file);
+            AssemblyName inspected = AssemblyName.GetAssemblyName(file);
+            string actual = inspected.FullName;
+            if (actual != expected)
+                throw new FileLoadException("staged dependency identity mismatch: expected "
+                    + expected + ", found " + actual, file);
+            if (DependencySimpleNames.ContainsKey(inspected.Name))
+                throw new InvalidDataException("duplicate dependency simple name: "
+                    + inspected.Name);
+
+            DependencyPaths.Add(expected, file);
+            DependencySimpleNames.Add(inspected.Name, true);
+            declaredFiles.Add(parts[1], true);
+            Console.Out.WriteLine("dependencyStaged=" + expected + "|" + parts[1]);
+        }
+
+        string[] stagedFiles = Directory.GetFiles(dependencyDirectory);
+        for (int i = 0; i < stagedFiles.Length; i++)
+        {
+            string name = Path.GetFileName(stagedFiles[i]);
+            if (!declaredFiles.ContainsKey(name))
+                throw new InvalidDataException("undeclared dependency file: " + name);
+        }
+
+        AppDomain.CurrentDomain.AssemblyResolve += ResolveDependency;
+    }
+
+    private static Assembly ResolveDependency(object sender, ResolveEventArgs args)
+    {
+        string requested;
+        try { requested = new AssemblyName(args.Name).FullName; }
+        catch { return null; }
+        if (requested != args.Name) return null;
+
+        string path;
+        if (!DependencyPaths.TryGetValue(requested, out path)) return null;
+        Assembly loaded = Assembly.LoadFrom(path);
+        if (loaded.FullName != requested)
+            throw new FileLoadException("resolved dependency identity mismatch: requested "
+                + requested + ", loaded " + loaded.FullName, path);
+        return loaded;
+    }
+
+    private static void DumpDependencies()
+    {
+        Assembly[] loaded = AppDomain.CurrentDomain.GetAssemblies();
+        foreach (KeyValuePair<string, string> dependency in DependencyPaths)
+        {
+            Assembly match = null;
+            for (int i = 0; i < loaded.Length; i++)
+                if (loaded[i].FullName == dependency.Key) { match = loaded[i]; break; }
+            if (match == null)
+                Console.Out.WriteLine("dependencyMissing=" + dependency.Key);
+            else
+                Console.Out.WriteLine("dependencyLoaded=" + match.FullName + "|"
+                    + (match.GlobalAssemblyCache ? "gac" : "local"));
+        }
+    }
+
+    private static void DumpLoaded()
+    {
+        Assembly[] loaded = AppDomain.CurrentDomain.GetAssemblies();
+        for (int i = 0; i < loaded.Length; i++)
+            Console.Out.WriteLine("loaded=" + loaded[i].FullName + "|"
+                + (loaded[i].GlobalAssemblyCache ? "gac" : "local"));
     }
 
     private static string Deserialize(string formatter, byte[] payload)

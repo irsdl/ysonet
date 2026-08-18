@@ -15,7 +15,7 @@ and [Versions and dependencies](https://learn.microsoft.com/dotnet/framework/ins
 
 ## Why a normal 4.x machine cannot test a 4.0-only payload
 
-A payload such as `TypeConfuseDelegateNet40Workflow` rebuilds a private type shape that only
+A payload such as `TypeConfuseDelegateNetFx40` rebuilds a private type shape that only
 exists in genuine .NET Framework 4.0. It fires only where the machine's INSTALLED framework
 is really 4.0. Two points trip people up:
 
@@ -74,7 +74,7 @@ Once `--probe` reports `shape=netfx40`, deserialize the payload directly (see
 "Deserializing a single payload by hand" below):
 
 ```text
-ysonet.exe -g TypeConfuseDelegateNet40Workflow -f BinaryFormatter -c calc > bf.b64
+ysonet.exe -g TypeConfuseDelegateNetFx40 -f BinaryFormatter -c calc > bf.b64
 REM copy bf.b64 into the 4.0 VM, then in the VM:
 ysonet.Net40TestHost.exe --deserialize BinaryFormatter bf.b64
 ```

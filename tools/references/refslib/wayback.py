@@ -156,12 +156,14 @@ def unusable(body, kind=""):
     """
     if not body:
         return "empty"
-    if kind in ("whitepaper", "slides", "video", "image"):
-        return ""                                   # not HTML; nothing to read
     from refslib import grade, htmltext
     head = body[:4096].lstrip()
     if head[:5] == b"%PDF-":
         return ""
+    if kind in ("video", "image"):
+        return ""
+    if kind in ("whitepaper", "slides") and not head.startswith(b"<"):
+        return ""                                   # binary media; nothing to read
     title, text, _noscript = htmltext.read(body.decode("utf-8", "replace"))
     visible = ((title or "") + " " + (text or "")).lower()
     for marker in grade.WALL_MARKERS:

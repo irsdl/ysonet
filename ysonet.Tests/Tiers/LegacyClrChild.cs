@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using ysonet.Helpers.Core;
 
 namespace ysonet.Tests
 {
@@ -228,21 +229,84 @@ namespace ysonet.Tests
         internal static string Run(string exePath, string formatter, string payloadFile,
             string rootTypeName, bool remoting, int timeoutMs)
         {
-            var arguments = new StringBuilder();
-            // The formatter token is passed unquoted so the one-argument "--probe" form stays
-            // exactly one argument; every real formatter name is a bare identifier anyway.
-            arguments.Append(formatter);
-            if (payloadFile != null)
-                arguments.Append(" \"").Append(payloadFile).Append('"');
-            if (!string.IsNullOrEmpty(rootTypeName))
-                arguments.Append(" \"--roottype=").Append(rootTypeName).Append('"');
-            if (remoting) arguments.Append(" --remoting");
+            return Run(exePath, formatter, payloadFile, rootTypeName, remoting, timeoutMs,
+                new Clr2SelfTestDependency[0]);
+        }
 
-            string output;
-            int exit;
-            if (!RunProcess(exePath, arguments.ToString(), BinDir, timeoutMs, out output, out exit))
-                throw new Exception("the CLR-2 child did not exit within " + timeoutMs + "ms");
-            return output;
+        /// <summary>
+        /// Run a fresh copy of the child in an isolated application directory, with only the
+        /// exact non-framework dependencies declared by this row. Both sides validate the
+        /// dependency identities: the parent before launch and the child before it reads the
+        /// payload.
+        /// </summary>
+        internal static string Run(string exePath, string formatter, string payloadFile,
+            string rootTypeName, bool remoting, int timeoutMs,
+            IEnumerable<Clr2SelfTestDependency> dependencies)
+        {
+            return RunCore(exePath, formatter, payloadFile, rootTypeName, remoting,
+                timeoutMs, dependencies, null);
+        }
+
+        // Focused dependency-security tests mutate only the already staged one-shot app
+        // directory. Production rows always pass null through the ordinary Run overload.
+        internal static string RunWithStagedDependencyMutationForTest(string exePath,
+            string formatter, string payloadFile, int timeoutMs,
+            IEnumerable<Clr2SelfTestDependency> dependencies,
+            Action<string> mutateApplicationDirectory)
+        {
+            if (mutateApplicationDirectory == null)
+                throw new ArgumentNullException("mutateApplicationDirectory");
+            return RunCore(exePath, formatter, payloadFile, null, false, timeoutMs,
+                dependencies, mutateApplicationDirectory);
+        }
+
+        private static string RunCore(string exePath, string formatter, string payloadFile,
+            string rootTypeName, bool remoting, int timeoutMs,
+            IEnumerable<Clr2SelfTestDependency> dependencies,
+            Action<string> mutateApplicationDirectory)
+        {
+            if (string.IsNullOrEmpty(exePath))
+                throw new ArgumentException("A CLR-2 child path is required.", "exePath");
+            if (!File.Exists(exePath))
+                throw new FileNotFoundException("The compiled CLR-2 child is missing.", exePath);
+            if (!File.Exists(exePath + ".config"))
+                throw new FileNotFoundException("The CLR-2 child runtime config is missing.",
+                    exePath + ".config");
+
+            string absolutePayload = payloadFile == null ? null : Path.GetFullPath(payloadFile);
+            string runDirectory = Path.Combine(Path.GetTempPath(),
+                "ysonet-legacyclr-run-" + Guid.NewGuid().ToString("N"));
+            string isolatedExe = Path.Combine(runDirectory, Path.GetFileName(exePath));
+            Directory.CreateDirectory(runDirectory);
+            try
+            {
+                File.Copy(exePath, isolatedExe, false);
+                File.Copy(exePath + ".config", isolatedExe + ".config", false);
+                Clr2SelfTestDependency.StageAll(dependencies, runDirectory);
+                if (mutateApplicationDirectory != null)
+                    mutateApplicationDirectory(runDirectory);
+
+                var arguments = new StringBuilder();
+                // The formatter token is passed unquoted so the one-argument "--probe" form
+                // stays exactly one argument; every real formatter name is a bare identifier.
+                arguments.Append(formatter);
+                if (absolutePayload != null)
+                    arguments.Append(" \"").Append(absolutePayload).Append('"');
+                if (!string.IsNullOrEmpty(rootTypeName))
+                    arguments.Append(" \"--roottype=").Append(rootTypeName).Append('"');
+                if (remoting) arguments.Append(" --remoting");
+
+                string output;
+                int exit;
+                if (!RunProcess(isolatedExe, arguments.ToString(), runDirectory, timeoutMs,
+                    out output, out exit))
+                    throw new Exception("the CLR-2 child did not exit within " + timeoutMs + "ms");
+                return output;
+            }
+            finally
+            {
+                SafeDeleteDirectory(runDirectory);
+            }
         }
 
         /// <summary>
@@ -312,6 +376,10 @@ namespace ysonet.Tests
                     lock (text) output = text.ToString();
                     return false;
                 }
+                // WaitForExit(timeout) proves process termination but does not guarantee
+                // asynchronous output callbacks have drained. The dependency and loaded-
+                // assembly ledgers are printed at the tail and are part of the verdict.
+                process.WaitForExit();
                 exitCode = process.ExitCode;
             }
             lock (text) output = text.ToString();
@@ -321,6 +389,12 @@ namespace ysonet.Tests
         private static void SafeDelete(string path)
         {
             try { if (path != null && File.Exists(path)) File.Delete(path); } catch { }
+        }
+
+        private static void SafeDeleteDirectory(string path)
+        {
+            try { if (path != null && Directory.Exists(path)) Directory.Delete(path, true); }
+            catch { }
         }
 
         // ---- the child's source ------------------------------------------------
@@ -343,6 +417,7 @@ namespace ysonet.Tests
         {
             var sb = new StringBuilder();
             sb.Append(@"using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -353,6 +428,13 @@ using System.Text;
 // usage: <formatter> <payload file> [--roottype=<assembly qualified name>] [--remoting]
 internal class LegacyClrRunner
 {
+    private const string DependencyDirectoryName = ""clr2-deps"";
+    private const string DependencyManifestFileName = ""clr2-deps.manifest"";
+    private static readonly Dictionary<string, string> DependencyPaths =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+    private static readonly Dictionary<string, bool> DependencySimpleNames =
+        new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
     private static int Main(string[] args)
     {
         // --probe deserializes nothing. It exists so the capability probe and the tier's own
@@ -391,6 +473,17 @@ internal class LegacyClrRunner
         Console.Out.WriteLine(""mscorlibName="" + typeof(object).Assembly.FullName);
         Console.Out.WriteLine(""mscorlibFile="" + FileVersionOf(typeof(object).Assembly));
 
+        try
+        {
+            PrepareDependencies();
+        }
+        catch (Exception ex)
+        {
+            Console.Out.WriteLine(""error=dependency validation failed: "" + Chain(ex));
+            Console.Out.WriteLine(""done=1"");
+            return 4;
+        }
+
         if (remoting) RegisterRemotingChannel();
 
         try
@@ -422,10 +515,111 @@ internal class LegacyClrRunner
         GC.WaitForPendingFinalizers();
         GC.Collect();
 
+        DumpDependencies();
         DumpLoaded();
         Console.Out.WriteLine(""done=1"");
         Console.Out.Flush();
         return 0;
+    }
+
+    // The parent writes an exact manifest into this fresh application directory. Inspect
+    // every staged file before opening the payload, then resolve only a requested canonical
+    // full identity. A simple-name or version fallback would make the dependency evidence
+    // meaningless when another version is installed in the GAC.
+    private static void PrepareDependencies()
+    {
+        string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        string manifestPath = Path.Combine(baseDirectory, DependencyManifestFileName);
+        if (!File.Exists(manifestPath))
+            throw new FileNotFoundException(""the dependency manifest is missing"", manifestPath);
+
+        string dependencyDirectory = Path.Combine(baseDirectory, DependencyDirectoryName);
+        if (!Directory.Exists(dependencyDirectory))
+            throw new DirectoryNotFoundException(""the dependency directory is missing"");
+
+        Dictionary<string, bool> declaredFiles =
+            new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, bool> declaredIdentities =
+            new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        string[] lines = File.ReadAllLines(manifestPath);
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            if (line.Length == 0) continue;
+            string[] parts = line.Split(new char[] { '\t' });
+            if (parts.Length != 2 || parts[0].Length == 0 || parts[1].Length == 0)
+                throw new InvalidDataException(""invalid dependency manifest line "" + (i + 1));
+            if (parts[1] != Path.GetFileName(parts[1]) || parts[1] == ""."" || parts[1] == "".."")
+                throw new InvalidDataException(""dependency manifest paths must be file names"");
+
+            string expected = new AssemblyName(parts[0]).FullName;
+            if (expected != parts[0])
+                throw new InvalidDataException(""dependency identity is not canonical: "" + parts[0]);
+            if (declaredIdentities.ContainsKey(expected))
+                throw new InvalidDataException(""duplicate dependency identity: "" + expected);
+            if (declaredFiles.ContainsKey(parts[1]))
+                throw new InvalidDataException(""duplicate dependency file name: "" + parts[1]);
+
+            string file = Path.Combine(dependencyDirectory, parts[1]);
+            if (!File.Exists(file))
+                throw new FileNotFoundException(""staged dependency is missing"", file);
+            AssemblyName inspected = AssemblyName.GetAssemblyName(file);
+            string actual = inspected.FullName;
+            if (actual != expected)
+                throw new FileLoadException(""staged dependency identity mismatch: expected ""
+                    + expected + "", found "" + actual, file);
+            if (DependencySimpleNames.ContainsKey(inspected.Name))
+                throw new InvalidDataException(""duplicate dependency simple name: ""
+                    + inspected.Name);
+
+            DependencyPaths.Add(expected, file);
+            DependencySimpleNames.Add(inspected.Name, true);
+            declaredIdentities.Add(expected, true);
+            declaredFiles.Add(parts[1], true);
+            Console.Out.WriteLine(""dependencyStaged="" + expected + ""|"" + parts[1]);
+        }
+
+        string[] stagedFiles = Directory.GetFiles(dependencyDirectory);
+        for (int i = 0; i < stagedFiles.Length; i++)
+        {
+            string name = Path.GetFileName(stagedFiles[i]);
+            if (!declaredFiles.ContainsKey(name))
+                throw new InvalidDataException(""undeclared dependency file: "" + name);
+        }
+
+        AppDomain.CurrentDomain.AssemblyResolve += ResolveDependency;
+    }
+
+    private static Assembly ResolveDependency(object sender, ResolveEventArgs args)
+    {
+        string requested;
+        try { requested = new AssemblyName(args.Name).FullName; }
+        catch (Exception) { return null; }
+        if (requested != args.Name) return null;
+
+        string path;
+        if (!DependencyPaths.TryGetValue(requested, out path)) return null;
+        Assembly loaded = Assembly.LoadFrom(path);
+        if (loaded.FullName != requested)
+            throw new FileLoadException(""resolved dependency identity mismatch: requested ""
+                + requested + "", loaded "" + loaded.FullName, path);
+        return loaded;
+    }
+
+    private static void DumpDependencies()
+    {
+        Assembly[] loaded = AppDomain.CurrentDomain.GetAssemblies();
+        foreach (KeyValuePair<string, string> dependency in DependencyPaths)
+        {
+            Assembly match = null;
+            for (int i = 0; i < loaded.Length; i++)
+                if (loaded[i].FullName == dependency.Key) { match = loaded[i]; break; }
+            if (match == null)
+                Console.Out.WriteLine(""dependencyMissing="" + dependency.Key);
+            else
+                Console.Out.WriteLine(""dependencyLoaded="" + match.FullName + ""|""
+                    + (match.GlobalAssemblyCache ? ""gac"" : ""local""));
+        }
     }
 
     // What a 2.0-only claim really rests on. Nothing can BLOCK a GAC load (AssemblyResolve
@@ -438,7 +632,8 @@ internal class LegacyClrRunner
         {
             AssemblyName name = all[i].GetName();
             Console.Out.WriteLine(""loaded="" + name.Name + ""|"" + name.Version + ""|""
-                + (all[i].GlobalAssemblyCache ? ""gac"" : ""local""));
+                + (all[i].GlobalAssemblyCache ? ""gac"" : ""local"") + ""|""
+                + all[i].FullName);
         }
     }
 

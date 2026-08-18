@@ -55,6 +55,30 @@ class TestGroupingKeepsTwoDocumentsApart(unittest.TestCase):
         self.assertEqual(manual_import.kind_of(DECK_URL), "")
 
 
+class TestImportedAttribution(unittest.TestCase):
+    def test_wayback_is_not_carried_forward_as_the_document_publisher(self):
+        self.assertEqual(
+            manual_import.publisher_for_import({"publisher": "web.archive.org"}), "")
+
+    def test_a_stated_document_publisher_is_preserved(self):
+        self.assertEqual(
+            manual_import.publisher_for_import({"publisher": "Example Labs"}),
+            "Example Labs")
+
+    def test_a_single_imported_pdf_keeps_its_exact_bytes(self):
+        with tempfile.NamedTemporaryFile(suffix=".pdf") as handle:
+            handle.write(b"%PDF-1.7\nexact imported bytes")
+            handle.flush()
+            candidate = manual_import.Candidate(handle.name, "document " * 100, True, "")
+            self.assertEqual(
+                manual_import.raw_document([candidate], [candidate.name]),
+                b"%PDF-1.7\nexact imported bytes")
+
+    def test_a_text_conversion_does_not_claim_to_be_the_raw_document(self):
+        candidate = manual_import.Candidate("article.md", "document " * 100, True, "")
+        self.assertEqual(manual_import.raw_document([candidate], [candidate.name]), b"")
+
+
 class TestSimilarNamesAreMerged(unittest.TestCase):
     """A converter renames what it produces, so two attempts at one document
     arrive under names that share most but not all of their words."""
