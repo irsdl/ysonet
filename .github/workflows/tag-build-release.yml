@@ -49,6 +49,20 @@ jobs:
           Write-Host "Version: $v"
           Write-Host "Tag: $tag"
 
+      # The release note must always open with the sponsor thanks (docs/sponsors.md is
+      # the body, and generateReleaseNotes pre-pends it to the generated notes). Fail
+      # here rather than publish a release that thanks nobody.
+      - name: Verify sponsor acknowledgement
+        shell: pwsh
+        run: |
+          $path = "docs/sponsors.md"
+          if (-not (Test-Path $path)) { throw "Release body source is missing: $path" }
+          $text = Get-Content $path -Raw
+          if ($text -notmatch '(?m)^##\s+Sponsors\s*$') { throw "$path lost the '## Sponsors' heading the release body needs." }
+          $names = [regex]::Matches($text, '(?m)^\s*-\s*\[@([A-Za-z0-9-]+)\]') | ForEach-Object { $_.Groups[1].Value }
+          if ($names.Count -lt 1) { throw "$path lists no sponsors, so the release note would thank nobody." }
+          Write-Host "Sponsor acknowledgement: $($names -join ', ')"
+
       - name: Check if tag already exists
         id: tagcheck
         shell: bash
@@ -171,10 +185,49 @@ jobs:
           New-Item -ItemType Directory -Path dist | Out-Null
           Compress-Archive -Path ".\ysonet\bin\Release\*" -DestinationPath "dist\ysonet-${{ steps.v.outputs.value }}.zip" -Force
 
+      # The release body is assembled from tracked files: the sponsor thanks first,
+      # then this version's highlights when they were written. GitHub pre-pends all of
+      # it to the "What's Changed" list it generates.
+      - name: Assemble release body
+        shell: pwsh
+        run: |
+          $parts = @((Get-Content "docs/sponsors.md" -Raw))
+          $highlights = "docs/release-notes/${{ steps.v.outputs.value }}.md"
+          if (Test-Path $highlights) {
+            $parts += (Get-Content $highlights -Raw)
+            Write-Host "Release body: docs/sponsors.md + $highlights"
+          } else {
+            Write-Host "::warning::No highlights at $highlights, so this release note carries the sponsors and the generated notes only."
+          }
+          Set-Content -Path "dist/release-body.md" -Value ($parts -join "`n") -Encoding utf8
+
       - name: Publish GitHub Release
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0 (2026-03-14)
         with:
           tag:  ${{ steps.v.outputs.tag }}
           name: "YSoNet ${{ steps.v.outputs.value }}"
           generateReleaseNotes: true
+          bodyFile: dist/release-body.md
           artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip"
+
+      # A body is only PRE-PENDED to the generated notes, so an action or API change
+      # could drop it silently. Read the published release back and fail loudly.
+      - name: Verify the published release note thanks the sponsors
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.v.outputs.tag }}"
+          $body = (gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq ".body") -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw "Could not read the published release $tag." }
+          if ($body -notmatch '##\s+Sponsors') { throw "The published release note for $tag has no sponsor section." }
+          $names = [regex]::Matches((Get-Content 'docs/sponsors.md' -Raw), '(?m)^\s*-\s*\[@([A-Za-z0-9-]+)\]') | ForEach-Object { $_.Groups[1].Value }
+          foreach ($n in $names) {
+            if ($body -notmatch [regex]::Escape($n)) { throw "The published release note for $tag does not mention $n." }
+          }
+          Write-Host "Published release note thanks: $($names -join ', ')"
+          $highlights = "docs/release-notes/${{ steps.v.outputs.value }}.md"
+          if (Test-Path $highlights) {
+            if ($body -notmatch '##\s+Highlights') { throw "$highlights exists but the published release note for $tag has no Highlights section." }
+            Write-Host "Published release note carries the highlights from $highlights"
+          }

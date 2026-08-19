@@ -48,6 +48,7 @@ The full documentation lives in [docs/](docs/README.md):
 - [References](docs/references.md) - the background reading, talks, and sources this project draws on.
 - [.NET Deserialization Research](docs/dotnet-deserialization-research.md) - the wider reading list: tools, uses in the wild, and CTF write-ups.
 - [Credits](docs/credits.md) - who built the tool and found the gadgets and plugins.
+- [Sponsors](docs/sponsors.md) - the people funding the work.
 
 ## Quick start (interactive mode)
 

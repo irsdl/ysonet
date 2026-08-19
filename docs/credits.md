@@ -20,6 +20,8 @@ Special thanks to all contributors:
 
 Various other people have also donated their time and contributed to this project. See the [contributors graph](https://github.com/irsdl/ysonet/graphs/contributors).
 
+The project is also funded by its [sponsors](sponsors.md), who are thanked at the top of every release note.
+
 ## Gadget and plugin credits
 
 The list below is a snapshot. For the current version, run `ysonet.exe --credit`.

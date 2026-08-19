@@ -28,6 +28,8 @@ Sites: [ysonet.net](https://ysonet.net) or [ysonet.com](https://ysonet.com) (bot
   instructions.
 - [.NET Deserialization Research](dotnet-deserialization-research.md) - the wider reading list: background material, talks, related tools, uses in the wild, and CTF write-ups.
 - [Credits](credits.md) - who built the tool and found the gadgets and plugins.
+- [Sponsors](sponsors.md) - the people funding the work. Every release note opens with this page.
+- [Release notes](release-notes/) - the hand-written highlights for each release, added above the commit list GitHub generates.
 - [Architecture](ARCHITECTURE.md) - full code map of the project, for contributors and agents.
 
 ## A note on the generated lists
