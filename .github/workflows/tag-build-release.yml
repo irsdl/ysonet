@@ -49,9 +49,9 @@ jobs:
           Write-Host "Version: $v"
           Write-Host "Tag: $tag"
 
-      # The release note must always open with the sponsor thanks (docs/sponsors.md is
-      # the body, and generateReleaseNotes pre-pends it to the generated notes). Fail
-      # here rather than publish a release that thanks nobody.
+      # Every release body opens with the standing sponsor page. It carries no names -
+      # those are credited per release in docs/release-notes/<version>.md - so this only
+      # proves the page is there and still has the heading the body needs.
       - name: Verify sponsor acknowledgement
         shell: pwsh
         run: |
@@ -59,9 +59,7 @@ jobs:
           if (-not (Test-Path $path)) { throw "Release body source is missing: $path" }
           $text = Get-Content $path -Raw
           if ($text -notmatch '(?m)^##\s+Sponsors\s*$') { throw "$path lost the '## Sponsors' heading the release body needs." }
-          $names = [regex]::Matches($text, '(?m)^\s*-\s*\[@([A-Za-z0-9-]+)\]') | ForEach-Object { $_.Groups[1].Value }
-          if ($names.Count -lt 1) { throw "$path lists no sponsors, so the release note would thank nobody." }
-          Write-Host "Sponsor acknowledgement: $($names -join ', ')"
+          Write-Host "Sponsor acknowledgement present: $path"
 
       - name: Check if tag already exists
         id: tagcheck
@@ -221,13 +219,24 @@ jobs:
           $body = (gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq ".body") -join "`n"
           if ($LASTEXITCODE -ne 0) { throw "Could not read the published release $tag." }
           if ($body -notmatch '##\s+Sponsors') { throw "The published release note for $tag has no sponsor section." }
-          $names = [regex]::Matches((Get-Content 'docs/sponsors.md' -Raw), '(?m)^\s*-\s*\[@([A-Za-z0-9-]+)\]') | ForEach-Object { $_.Groups[1].Value }
-          foreach ($n in $names) {
-            if ($body -notmatch [regex]::Escape($n)) { throw "The published release note for $tag does not mention $n." }
-          }
-          Write-Host "Published release note thanks: $($names -join ', ')"
           $highlights = "docs/release-notes/${{ steps.v.outputs.value }}.md"
-          if (Test-Path $highlights) {
-            if ($body -notmatch '##\s+Highlights') { throw "$highlights exists but the published release note for $tag has no Highlights section." }
-            Write-Host "Published release note carries the highlights from $highlights"
+          if (-not (Test-Path $highlights)) {
+            Write-Host "No highlights for this version, so it credits no sponsor by name."
+            exit 0
           }
+          if ($body -notmatch '##\s+Highlights') { throw "$highlights exists but the published release note for $tag has no Highlights section." }
+          # Names are credited in the release their support paid for, so they are read
+          # from THIS version notes rather than from the standing sponsors page. A
+          # release that credits nobody new lists no handle here and passes.
+          $text = Get-Content $highlights -Raw
+          $section = [regex]::Match($text, '(?ms)^##\s+New sponsors\s*$(.*?)(?=^##\s|\z)')
+          $names = @()
+          if ($section.Success) {
+            $names = [regex]::Matches($section.Groups[1].Value, '\[@([A-Za-z0-9-]+)\]') | ForEach-Object { $_.Groups[1].Value }
+          }
+          foreach ($n in $names) {
+            if ($body -notmatch [regex]::Escape($n)) { throw "The published release note for $tag does not mention the sponsor $n." }
+          }
+          if ($names.Count -gt 0) { Write-Host "Published release note thanks: $($names -join ', ')" }
+          else { Write-Host "This release credits no new sponsor by name." }
+          Write-Host "Published release note carries the highlights from $highlights"
