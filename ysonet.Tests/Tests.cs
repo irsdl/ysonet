@@ -282,6 +282,7 @@ namespace ysonet.Tests
             Run("Completion profile block installs idempotently and uninstalls", CompletionProfileBlock);
             Run("Completion shell classifier recognizes shells", CompletionShellClassifier);
             Run("Completion policy classifier flags signing-required policies", CompletionPolicyClassifier);
+            Run("The minification snapshot doc covers every gadget cell and minify-capable plugin", MinificationSnapshotDocCoversEveryModule);
             Run("Menu navigates with arrows and Enter", MenuNavigation);
             Run("Menu digit shortcut and Escape cancel", MenuDigitAndCancel);
             Run("Picker selects by typing and cancels on Esc", PickerShowSelectAndCancel);
@@ -1827,6 +1828,255 @@ namespace ysonet.Tests
                     + " (set YSONET_REPO_ROOT when the output folder is outside the repository)");
             }
             return File.ReadAllText(found);
+        }
+
+        // ================= docs/minification-savings.md coverage =================
+        //
+        // That page is a hand-made snapshot: prose plus two pasted tables, produced by one
+        // measuring pass per release. Nothing regenerates it, so a gadget added after the
+        // last pass simply has no row. The page claimed "253 combinations (56 gadgets)" for
+        // a whole release while the catalogue had more, and that was found by READING it,
+        // because no check compared it with the live catalogue.
+        //
+        // This row deliberately does not check the BYTE COUNTS. Those come from running the
+        // tool twice for every cell, which is a measuring pass, not something a build can
+        // redo. It checks REPRESENTATION:
+        //
+        //   - every gadget x formatter cell a bulk pass can measure has a row,
+        //   - every plugin that exposes --minify has at least one row,
+        //   - every name in either table is still a real module,
+        //   - every module the page leaves out is named in the page's own exclusion list,
+        //     and every DoS gadget is one of those (a bulk pass never builds one),
+        //   - the summary sentences agree with the tables printed under them.
+        //
+        // The exclusions are read from the page rather than repeated here, so the page stays
+        // the single place that declares what it does not measure.
+        private static readonly string MinifySnapshotDoc =
+            Path.Combine("docs", "minification-savings.md");
+
+        private static void MinificationSnapshotDocCoversEveryModule()
+        {
+            const string rowName = "minification snapshot doc coverage";
+            if (!TestEnvironment.CanRun(TestEnvironment.RepoCheckout, rowName))
+                return;
+
+            string root = TestEnvironment.WorkspaceRoot();
+            AssertTrue(root != null,
+                "the checkout was probed as usable, so its root has to resolve here");
+
+            string path = Path.Combine(root, MinifySnapshotDoc);
+            AssertTrue(File.Exists(path), MinifySnapshotDoc + " is tracked, so it must exist");
+            string doc = File.ReadAllText(path);
+
+            var excluded = new HashSet<string>(MinifyDocDeclaredExclusions(doc), StringComparer.OrdinalIgnoreCase);
+            AssertTrue(excluded.Count > 0,
+                "the page must keep its \"deliberately not in the tables\" list, with each module "
+                + "written as **`Name`**, because that list is what this check reads");
+
+            var liveGadgets = new HashSet<string>(GadgetRegistry.GetGadgetNames(), StringComparer.OrdinalIgnoreCase);
+            var livePlugins = new HashSet<string>(PluginRegistry.GetPluginNames(), StringComparer.OrdinalIgnoreCase);
+            foreach (string name in excluded)
+                AssertTrue(liveGadgets.Contains(name) || livePlugins.Contains(name),
+                    MinifySnapshotDoc + " says it leaves out \"" + name + "\", which is not a gadget "
+                    + "or plugin any more, so that note is stale");
+
+            // ---- gadgets: one row per gadget x formatter -------------------------
+            var docCells = new List<string>();
+            var docGadgets = new List<string>();
+            foreach (KeyValuePair<string, string> pair in
+                MinifyDocRows(doc, "Gadget", "Formatter", "Gadgets"))
+            {
+                string cell = pair.Key + " -f " + pair.Value;
+                AssertTrue(!docCells.Contains(cell), "the Gadgets table lists " + cell + " twice");
+                docCells.Add(cell);
+                if (!docGadgets.Contains(pair.Key)) docGadgets.Add(pair.Key);
+                AssertTrue(liveGadgets.Contains(pair.Key),
+                    "the Gadgets table has a row for \"" + pair.Key + "\", which is not a gadget "
+                    + "any more (renamed or removed)");
+                AssertTrue(!excluded.Contains(pair.Key),
+                    "the page both measures \"" + pair.Key + "\" and says it leaves it out");
+            }
+
+            var expectedCells = new List<string>();
+            var dosGadgets = new List<string>();
+            foreach (string name in GadgetRegistry.GetGadgetNames())
+            {
+                // "Generic" is the base generator, not a real gadget.
+                if (name == "Generic") continue;
+                // A denial-of-service gadget needs --i-understand-dos and is never built by a
+                // bulk pass, so the page cannot carry a measured row for it.
+                if (DosPolicy.IsDosGadget(name)) { dosGadgets.Add(name); continue; }
+                if (excluded.Contains(name)) continue;
+
+                IGenerator g = GadgetRegistry.CreateGadgetInstance(name);
+                foreach (string formatter in g.SupportedFormatters())
+                {
+                    // "YamlDotNet < 5.0.0 (2)" is one formatter with an annotation; the page
+                    // names formatters plainly, and so does -f.
+                    string cell = name + " -f " + formatter.Split(' ')[0];
+                    if (!expectedCells.Contains(cell)) expectedCells.Add(cell);
+                }
+            }
+
+            foreach (string name in dosGadgets)
+                AssertTrue(excluded.Contains(name),
+                    "denial-of-service gadget " + name + " cannot be measured in bulk, so "
+                    + MinifySnapshotDoc + " has to name it in its exclusion list");
+
+            var missingCells = new List<string>();
+            foreach (string cell in expectedCells)
+                if (!docCells.Contains(cell)) missingCells.Add(cell);
+            AssertTrue(missingCells.Count == 0,
+                MinifySnapshotDoc + " has no row for " + missingCells.Count + " gadget/formatter "
+                + "cell(s), so the snapshot is stale. Measure them and add the rows, or name the "
+                + "module in the page's exclusion list:\n  "
+                + string.Join("\n  ", missingCells.ToArray()));
+
+            var staleCells = new List<string>();
+            foreach (string cell in docCells)
+                if (!expectedCells.Contains(cell)) staleCells.Add(cell);
+            AssertTrue(staleCells.Count == 0,
+                MinifySnapshotDoc + " measures " + staleCells.Count + " gadget/formatter cell(s) "
+                + "that the catalogue no longer offers:\n  "
+                + string.Join("\n  ", staleCells.ToArray()));
+
+            // ---- plugins: at least one row per minify-capable plugin --------------
+            var docPluginRows = MinifyDocRows(doc, "Plugin", "Mode", "Plugins");
+            var docPlugins = new List<string>();
+            foreach (KeyValuePair<string, string> pair in docPluginRows)
+            {
+                if (!docPlugins.Contains(pair.Key)) docPlugins.Add(pair.Key);
+                AssertTrue(livePlugins.Contains(pair.Key),
+                    "the Plugins table has a row for \"" + pair.Key + "\", which is not a plugin "
+                    + "any more (renamed or removed)");
+                AssertTrue(!excluded.Contains(pair.Key),
+                    "the page both measures \"" + pair.Key + "\" and says it leaves it out");
+                AssertTrue(PluginOffersMinify(pair.Key),
+                    "the Plugins table measures --minify for \"" + pair.Key + "\", which no longer "
+                    + "offers that option");
+            }
+
+            var missingPlugins = new List<string>();
+            foreach (string name in PluginRegistry.GetPluginNames())
+            {
+                if (excluded.Contains(name)) continue;
+                if (!PluginOffersMinify(name)) continue;
+                if (!docPlugins.Contains(name)) missingPlugins.Add(name);
+            }
+            AssertTrue(missingPlugins.Count == 0,
+                MinifySnapshotDoc + " has no row for " + missingPlugins.Count + " plugin(s) that "
+                + "expose --minify. Measure their modes and add the rows, or name the plugin in "
+                + "the page's exclusion list:\n  "
+                + string.Join("\n  ", missingPlugins.ToArray()));
+
+            // ---- the summary sentences describe the tables above -----------------
+            // This is the half that went stale unnoticed: the counts were from an older pass
+            // while the tables had moved on.
+            int[] gadgetSummary = MinifySummaryCounts(doc,
+                "across ([0-9,]+) gadget x formatter combinations \\(([0-9,]+) gadgets\\)", "Gadgets");
+            AssertEqual(docCells.Count, gadgetSummary[0],
+                "the Gadgets summary must count the cells the Gadgets table really lists");
+            AssertEqual(docGadgets.Count, gadgetSummary[1],
+                "the Gadgets summary must count the gadgets the Gadgets table really lists");
+
+            int[] pluginSummary = MinifySummaryCounts(doc,
+                "across ([0-9,]+) minify-capable plugin modes \\(([0-9,]+) plugins\\)", "Plugins");
+            AssertEqual(docPluginRows.Count, pluginSummary[0],
+                "the Plugins summary must count the modes the Plugins table really lists");
+            AssertEqual(docPlugins.Count, pluginSummary[1],
+                "the Plugins summary must count the plugins the Plugins table really lists");
+        }
+
+        private static bool PluginOffersMinify(string pluginName)
+        {
+            IPlugin plugin = PluginRegistry.CreatePluginInstance(pluginName);
+            if (plugin == null) return false;
+            return FindField(OptionField.FromOptionSet(plugin.Options()), "minify") != null;
+        }
+
+        // The modules the page says it deliberately does not measure, taken from its own
+        // prose so the list lives in ONE place. Each is written as **`Name`**, and only the
+        // block that declares them is read, not the rest of the page.
+        private static List<string> MinifyDocDeclaredExclusions(string doc)
+        {
+            var names = new List<string>();
+            int start = doc.IndexOf("deliberately not in the tables", StringComparison.Ordinal);
+            if (start < 0) return names;
+
+            int end = doc.IndexOf("\n## ", start, StringComparison.Ordinal);
+            string block = end < 0 ? doc.Substring(start) : doc.Substring(start, end - start);
+
+            foreach (System.Text.RegularExpressions.Match m in
+                System.Text.RegularExpressions.Regex.Matches(block, "\\*\\*`([^`]+)`\\*\\*"))
+            {
+                string name = m.Groups[1].Value;
+                if (!names.Contains(name)) names.Add(name);
+            }
+            return names;
+        }
+
+        // The rows of the markdown table whose header starts with the two given columns, as
+        // (first column, second column) pairs. Both tables leave the first column blank on a
+        // continuation row, meaning "same as above", so the last name is carried down.
+        private static List<KeyValuePair<string, string>> MinifyDocRows(
+            string doc, string firstHeader, string secondHeader, string what)
+        {
+            var rows = new List<KeyValuePair<string, string>>();
+            string[] lines = doc.Replace("\r\n", "\n").Split('\n');
+
+            bool inTable = false;
+            string carried = null;
+            foreach (string raw in lines)
+            {
+                string line = raw.Trim();
+                if (!inTable)
+                {
+                    inTable = line.StartsWith("| " + firstHeader + " | " + secondHeader + " |",
+                        StringComparison.Ordinal);
+                    continue;
+                }
+                if (!line.StartsWith("|", StringComparison.Ordinal)) break;
+
+                string[] cells = line.Trim('|').Split('|');
+                AssertTrue(cells.Length >= 2,
+                    "a row of the " + what + " table has fewer than two columns: " + line);
+
+                string first = cells[0].Trim();
+                string second = cells[1].Trim();
+                // The |---|--:| separator under the header.
+                if (first.StartsWith("---", StringComparison.Ordinal)) continue;
+
+                if (first.Length > 0) carried = first;
+                AssertTrue(carried != null,
+                    "the first row of the " + what + " table leaves its name column empty, so "
+                    + "there is nothing for the rows under it to inherit: " + line);
+                rows.Add(new KeyValuePair<string, string>(carried, second));
+            }
+
+            AssertTrue(rows.Count > 0,
+                "the " + what + " table was not found in " + MinifySnapshotDoc
+                + " (its header row must start \"| " + firstHeader + " | " + secondHeader + " |\")");
+            return rows;
+        }
+
+        // The two numbers a summary sentence claims, for example "across 272 gadget x
+        // formatter combinations (60 gadgets)". Whitespace is flattened first, so re-wrapping
+        // the paragraph cannot break the check.
+        private static int[] MinifySummaryCounts(string doc, string pattern, string what)
+        {
+            string flat = System.Text.RegularExpressions.Regex.Replace(doc, "\\s+", " ");
+            System.Text.RegularExpressions.Match m =
+                System.Text.RegularExpressions.Regex.Match(flat, pattern);
+            AssertTrue(m.Success,
+                "the " + what + " summary sentence in " + MinifySnapshotDoc + " no longer matches \""
+                + pattern + "\", so its counts cannot be compared with the table. Keep the sentence "
+                + "in that shape, or update this check together with it.");
+
+            return new int[]
+            {
+                int.Parse(m.Groups[1].Value.Replace(",", "")),
+                int.Parse(m.Groups[2].Value.Replace(",", "")),
+            };
         }
 
         // ================= Private module visibility =================
@@ -19652,25 +19902,12 @@ namespace ysonet.Tests
             if (!string.IsNullOrEmpty(sysDrive)) yield return Path.Combine(sysDrive, "temp");
         }
 
-        // Walk up from the test exe to the folder holding ysonet.sln. No hardcoded path.
+        // The folder holding ysonet.sln, or null off-checkout. One implementation, in the
+        // runner, because the OOB tier and the tracked-file checks all need the same answer
+        // and three copies of the walk could disagree.
         private static string FindWorkspaceRoot()
         {
-            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-            while (dir != null)
-            {
-                if (File.Exists(Path.Combine(dir.FullName, "ysonet.sln"))) return dir.FullName;
-                dir = dir.Parent;
-            }
-
-            // Walking up fails when the build writes its output outside the repository.
-            // Callers still expect either a real root or null, never a half answer, so
-            // the variable is only honoured when it really points at a workspace.
-            string root = Environment.GetEnvironmentVariable("YSONET_REPO_ROOT");
-            if (!string.IsNullOrEmpty(root) && File.Exists(Path.Combine(root, "ysonet.sln")))
-            {
-                return root;
-            }
-            return null;
+            return TestEnvironment.WorkspaceRoot();
         }
 
         // This run's directory under each root, in the same order. Kept parameterised by run
@@ -25751,7 +25988,7 @@ namespace ysonet.Tests
                 TestEnvironment.SetEgress(TestEnvironment.EgressHttps, EgressState.NotConclusive, "injected");
 
                 string report = EnvironmentReportText();
-                AssertEqual(11, TestEnvironment.Capabilities.Length, "eleven capabilities");
+                AssertEqual(12, TestEnvironment.Capabilities.Length, "twelve capabilities");
                 AssertEqual(2, TestEnvironment.EgressSignals.Length, "two egress signals");
 
                 var all = new List<string>(TestEnvironment.Capabilities);

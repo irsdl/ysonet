@@ -445,23 +445,13 @@ namespace ysonet.Tests
         // configuration this solution supports. There the walk never meets ysonet.sln, the
         // client is reported "not found", and every OOB row logs a skip that reads like a
         // missing install - so the tier silently covers nothing on a machine that has the
-        // client sitting in tools\interactsh\bin. YSONET_REPO_ROOT is the same fallback
-        // Tests.FindWorkspaceRoot uses, and it is only honoured when it really points at a
-        // workspace, so a stale value cannot produce a half answer.
+        // client sitting in the tools folder. TestEnvironment.WorkspaceRoot owns both
+        // halves of that answer for the whole suite, and its YSONET_REPO_ROOT fallback is
+        // only honoured when the variable really points at a workspace, so a stale value
+        // cannot produce a half answer.
         private static string FindRepoRoot()
         {
-            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-            while (dir != null)
-            {
-                if (File.Exists(Path.Combine(dir.FullName, "ysonet.sln"))) return dir.FullName;
-                dir = dir.Parent;
-            }
-
-            string root = Environment.GetEnvironmentVariable("YSONET_REPO_ROOT");
-            if (!string.IsNullOrEmpty(root) && File.Exists(Path.Combine(root, "ysonet.sln")))
-                return root;
-
-            return null;
+            return TestEnvironment.WorkspaceRoot();
         }
 
         // The client keeps both files open, so read them shared and tolerate a partial

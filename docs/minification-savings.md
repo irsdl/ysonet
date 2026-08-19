@@ -34,42 +34,74 @@ functional. It does not change which command runs. Depending on the format it:
   the stable result.
 
 The `-c` value follows what the gadget accepts, and the same short value is used
-everywhere so a reader can reproduce a row:
+everywhere so a reader can reproduce a row. The pass runs from the tool's own
+directory, so the file fixtures are plain relative names:
 
 | Accepted input | Value used |
 |---|---|
 | Command (or an ignored input) | `calc.exe` |
 | Remote URL | `http://localhost/x` |
-| Target path | `C:\Windows\Temp\x.txt`, or a directory where the gadget's `-c` names one |
-| Local file / source code file | a two-line `.cs` fixture in the working directory |
+| Target path | `C:\Windows\Temp\x.txt` |
+| Local file / source code file | `x.cs`, a one-line fixture beside the tool |
 | Assembly file | the bundled `E.dll` |
 | UNC path | `\\ysonet-nonexistent-host\s\x.dll` (never resolved, target data only) |
 | Host name or IP | `127.0.0.1` |
 
-Two gadgets need a compound `-c`, so the sizes below include both fields:
-`TypeConfuseDelegateFileOperations` takes `<target path>;<local content file>`, and
-the content has to sort ordinally below the target path.
+A gadget that accepts several of those gets the first one in that order, except where
+the gadget's own contract needs something else. Those exceptions are all visible in
+the tool's own error messages, and each one is a real rule rather than a preference:
 
-Three modules are deliberately not in the tables:
+- **`BootstrapperBuilder` and `FileSystemProxyCurrentDirectory`** take a DIRECTORY, so
+  both use `C:\Windows\Temp`.
+- **`AssemblyInstallerLoad`** refuses a bare file name on purpose - it would be resolved
+  against whatever directory the target process happens to be in - so it uses
+  `C:\Windows\Temp\x.dll`.
+- **`DataSetXxe` and `XmlDocumentSurrogateXxe`** are measured on their default variant,
+  which takes the URL the external entity points at, so both use `http://localhost/x`
+  even though each also accepts a target path for its other variant.
+- **`TypeConfuseDelegateFileOperations`** takes a compound `-c` of
+  `<target path>;<local content file>`, and the content has to sort ordinally below the
+  target path, so it uses `zz_target.txt;aa_content.txt`. The content fixture is a single
+  whitespace-free word: with whitespace in it, the gadget REFUSES `--minify` on
+  NetDataContractSerializer rather than let the XML minifier rewrite text content it must
+  deliver byte for byte.
 
-- **`WSManPluginInstance`** (13 gadget/formatter cells) is a denial-of-service gadget.
-  Building one needs `--i-understand-dos`, and this snapshot does not build DoS
-  payloads.
+Four modules are deliberately not in the tables:
+
+- **`WSManPluginInstance`** (13 gadget/formatter cells) and **`HashPEFileHandle`**
+  (2 cells) are denial-of-service gadgets. Building one needs `--i-understand-dos`, and
+  this snapshot does not build DoS payloads.
 - **`ActivatorUrl`** has no `--minify` option: it makes a live remoting call and
   returns a status string rather than emitting a payload.
 - **`Clipboard`** does expose `--minify`, but generating writes the OS clipboard on an
   STA thread, which is not something a bulk measuring pass should do. Measure it
   by hand if you need the number.
 
+## What keeps this page honest
+
+The numbers come from a measuring pass, but the COVERAGE does not depend on anyone
+remembering this page. A test in `ysonet.Tests` reads it on every Debug build and
+compares it with the live catalogue: every gadget and formatter the tool offers needs a
+row here, every plugin that exposes `--minify` needs at least one, and the two summary
+counts below have to match the tables further down. A module with no row must be named
+in the list just above, which is where the test reads the exclusions from.
+
+Three shapes on this page are therefore load-bearing. Keep them when editing: the
+exclusion bullets name their module as **`Name`**, each table starts with its
+`| Gadget | Formatter |` or `| Plugin | Mode |` header row and leaves the first column
+blank to mean "same as the row above", and the two summary sentences below keep the
+form "across N gadget x formatter combinations (M gadgets)" and "across N
+minify-capable plugin modes (M plugins)".
+
 ## Summary
 
-- **Gadgets:** across 253 gadget x formatter combinations (56 gadgets), `--minify`
-  shrinks 224 of them. The average cut is about **18.7%** (median 16.8%), up to
-  **90.9%**. Twenty-nine combinations do not shrink, and one of those twenty-nine
+- **Gadgets:** across 272 gadget x formatter combinations (60 gadgets), `--minify`
+  shrinks 238 of them. The average cut is about **18%** (median 15.7%), up to
+  **90.9%**. Thirty-four combinations do not shrink, and one of those thirty-four
   actually grows by 8 bytes
   (see [Where it does little](#where-minification-does-little)).
 - **Plugins:** across 27 minify-capable plugin modes (12 plugins), the average cut is
-  about **21%** (median 20.7%), ranging from 0% up to **56.9%**.
+  about **20.6%** (median 18%), ranging from 0% up to **57.1%**.
 
 ## Highlights
 
@@ -82,11 +114,11 @@ Three modules are deliberately not in the tables:
   53%, TextFormattingRunProperties Soap 52.4%.
 - **XAML carriers shrink well when the document has structure to strip:** PictureBox
   Xaml 48.9%, InfiniteProgressPage Xaml 47.1%, ObjectDataProvider Xaml 42.6%. A XAML
-  payload that is already one element does not (ResourceDictionary Xaml is 115 bytes
-  and 0%).
+  payload that is already one element does not (ResourceDictionary Xaml is 118 bytes
+  and 0%, XamlTypeConverterFetch Xaml is 114 bytes and 0%).
 - **Plugins that wrap a smaller inner gadget shrink a lot:** Altserialization
-  SessionStateItemCollection 56.9%, ViewState with TypeConfuseDelegate 55.9%,
-  ApplicationTrust 44.2%, SharePoint CVE-2024-38018 40.1%.
+  SessionStateItemCollection 57.1%, ViewState with TypeConfuseDelegate 55.5%,
+  ApplicationTrust 44.6%, SharePoint CVE-2024-38018 39.3%.
 
 ## Gadgets
 
@@ -104,21 +136,33 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 | ActivitySurrogateSelectorFromFile | BinaryFormatter | 14,520 | 13,380 | 1,140 | 7.9% |
 |  | LosFormatter | 14,524 | 13,388 | 1,136 | 7.8% |
 |  | SoapFormatter | 15,035 | 13,854 | 1,181 | 7.9% |
-| AssemblyCatalogLoad | Xaml | 346 | 328 | 18 | 5.2% |
-| AssemblyInstallerLoad | FastJson | 457 | 347 | 110 | 24.1% |
-|  | JavaScriptSerializer | 400 | 322 | 78 | 19.5% |
-|  | Json.NET | 398 | 320 | 78 | 19.6% |
-|  | MessagePackTypeless | 412 | 412 | 0 | 0% |
-|  | MessagePackTypelessLz4 | 308 | 308 | 0 | 0% |
-|  | SharpSerializerBinary | 576 | 576 | 0 | 0% |
-|  | SharpSerializerXml | 823 | 653 | 170 | 20.7% |
-|  | Xaml | 292 | 289 | 3 | 1% |
-|  | YamlDotNet | 356 | 308 | 48 | 13.5% |
+| AssemblyCatalogLoad | Xaml | 344 | 326 | 18 | 5.2% |
+| AssemblyInstallerLoad | FastJson | 473 | 363 | 110 | 23.3% |
+|  | JavaScriptSerializer | 416 | 338 | 78 | 18.8% |
+|  | Json.NET | 414 | 336 | 78 | 18.8% |
+|  | MessagePackTypeless | 432 | 432 | 0 | 0% |
+|  | MessagePackTypelessLz4 | 320 | 320 | 0 | 0% |
+|  | SharpSerializerBinary | 592 | 592 | 0 | 0% |
+|  | SharpSerializerXml | 837 | 667 | 170 | 20.3% |
+|  | Xaml | 306 | 303 | 3 | 1% |
+|  | YamlDotNet | 372 | 324 | 48 | 12.9% |
 | AxHostState | BinaryFormatter | 1,444 | 972 | 472 | 32.7% |
 |  | LosFormatter | 1,448 | 976 | 472 | 32.6% |
 |  | NetDataContractSerializer | 1,688 | 1,103 | 585 | 34.7% |
 |  | SoapFormatter | 1,959 | 1,190 | 769 | 39.3% |
-| BaseActivationFactory | Json.NET | 200 | 174 | 26 | 13% |
+| BaseActivationFactory | Json.NET | 197 | 171 | 26 | 13.2% |
+| BootstrapperBuilder | DataContractJsonSerializer | 35 | 28 | 7 | 20% |
+|  | DataContractSerializer | 399 | 342 | 57 | 14.3% |
+|  | FastJson | 249 | 214 | 35 | 14.1% |
+|  | JavaScriptSerializer | 212 | 196 | 16 | 7.5% |
+|  | Json.NET | 211 | 195 | 16 | 7.6% |
+|  | MessagePackTypeless | 252 | 252 | 0 | 0% |
+|  | MessagePackTypelessLz4 | 228 | 228 | 0 | 0% |
+|  | NetDataContractSerializer | 462 | 406 | 56 | 12.1% |
+|  | SharpSerializerBinary | 272 | 272 | 0 | 0% |
+|  | SharpSerializerXml | 368 | 347 | 21 | 5.7% |
+|  | Xaml | 150 | 149 | 1 | 0.7% |
+|  | YamlDotNet | 195 | 188 | 7 | 3.6% |
 | ClaimsIdentity | BinaryFormatter | 1,704 | 1,080 | 624 | 36.6% |
 |  | DataContractJsonSerializer | 1,209 | 741 | 468 | 38.7% |
 |  | DataContractSerializer | 1,524 | 992 | 532 | 34.9% |
@@ -131,13 +175,14 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 |  | LosFormatter | 4,136 | 3,400 | 736 | 17.8% |
 |  | NetDataContractSerializer | 3,360 | 2,750 | 610 | 18.2% |
 |  | SoapFormatter | 3,617 | 2,703 | 914 | 25.3% |
+| ColorConvertedBitmapExtension | Xaml | 414 | 414 | 0 | 0% |
 | DataSet | BinaryFormatter | 1,848 | 1,376 | 472 | 25.5% |
 |  | LosFormatter | 1,852 | 1,380 | 472 | 25.5% |
 |  | SoapFormatter | 2,575 | 1,633 | 942 | 36.6% |
 | DataSetOldBehaviour | BinaryFormatter | 4,348 | 2,972 | 1,376 | 31.6% |
 |  | LosFormatter | 4,356 | 2,980 | 1,376 | 31.6% |
-| DataSetOldBehaviourFromFile | BinaryFormatter | 63,596 | 62,460 | 1,136 | 1.8% |
-|  | LosFormatter | 63,584 | 62,452 | 1,132 | 1.8% |
+| DataSetOldBehaviourFromFile | BinaryFormatter | 63,576 | 62,444 | 1,132 | 1.8% |
+|  | LosFormatter | 63,588 | 62,456 | 1,132 | 1.8% |
 | DataSetTypeSpoof | BinaryFormatter | 1,980 | 1,484 | 496 | 25.1% |
 |  | LosFormatter | 1,984 | 1,488 | 496 | 25% |
 |  | SoapFormatter | 2,741 | 1,971 | 770 | 28.1% |
@@ -174,6 +219,7 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 |  | LosFormatter | 164 | 164 | 0 | 0% |
 |  | NetDataContractSerializer | 580 | 525 | 55 | 9.5% |
 |  | SoapFormatter | 636 | 275 | 361 | 56.8% |
+| FileSystemInfoTimeSetter | Xaml | 414 | 379 | 35 | 8.5% |
 | FileSystemProxyCurrentDirectory | DataContractJsonSerializer | 47 | 40 | 7 | 14.9% |
 |  | DataContractSerializer | 328 | 324 | 4 | 1.2% |
 |  | Json.NET | 202 | 186 | 16 | 7.9% |
@@ -198,11 +244,11 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 |  | LosFormatter | 4,800 | 4,064 | 736 | 15.3% |
 |  | NetDataContractSerializer | 3,493 | 2,925 | 568 | 16.3% |
 |  | SoapFormatter | 3,768 | 2,894 | 874 | 23.2% |
-| GetterCompilerResults | Json.NET | 422 | 326 | 96 | 22.7% |
+| GetterCompilerResults | Json.NET | 419 | 323 | 96 | 22.9% |
 | GetterSecurityException | Json.NET | 3,713 | 2,915 | 798 | 21.5% |
 | GetterSettingsPropertyValue | Json.NET | 3,522 | 2,769 | 753 | 21.4% |
-|  | MessagePackTypeless | 3,428 | 2,872 | 556 | 16.2% |
-|  | MessagePackTypelessLz4 | 1,336 | 1,344 | -8 | -0.6% |
+|  | MessagePackTypeless | 3,492 | 2,936 | 556 | 15.9% |
+|  | MessagePackTypelessLz4 | 1,400 | 1,408 | -8 | -0.6% |
 |  | Xaml | 35,562 | 3,236 | 32,326 | 90.9% |
 | InfiniteProgressPage | FastJson | 269 | 227 | 42 | 15.6% |
 |  | JavaScriptSerializer | 229 | 209 | 20 | 8.7% |
@@ -237,7 +283,7 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 |  | LosFormatter | 3,844 | 2,560 | 1,284 | 33.4% |
 |  | NetDataContractSerializer | 4,249 | 2,283 | 1,966 | 46.3% |
 |  | SoapFormatter | 4,483 | 2,106 | 2,377 | 53% |
-| ResourceDictionary | Xaml | 115 | 115 | 0 | 0% |
+| ResourceDictionary | Xaml | 118 | 118 | 0 | 0% |
 | ResourceSet | BinaryFormatter | 2,648 | 2,648 | 0 | 0% |
 |  | LosFormatter | 2,656 | 2,656 | 0 | 0% |
 |  | NetDataContractSerializer | 3,233 | 3,212 | 21 | 0.6% |
@@ -279,10 +325,10 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 |  | LosFormatter | 3,000 | 2,444 | 556 | 18.5% |
 |  | NetDataContractSerializer | 4,024 | 3,709 | 315 | 7.8% |
 |  | SoapFormatter | 4,678 | 3,999 | 679 | 14.5% |
-| TypeConfuseDelegateFileOperations | BinaryFormatter | 2,792 | 2,244 | 548 | 19.6% |
-|  | LosFormatter | 2,800 | 2,252 | 548 | 19.6% |
-|  | NetDataContractSerializer | 3,865 | 3,556 | 309 | 8% |
-|  | SoapFormatter | 4,513 | 3,840 | 673 | 14.9% |
+| TypeConfuseDelegateFileOperations | BinaryFormatter | 2,760 | 2,212 | 548 | 19.9% |
+|  | LosFormatter | 2,768 | 2,220 | 548 | 19.8% |
+|  | NetDataContractSerializer | 3,841 | 3,532 | 309 | 8% |
+|  | SoapFormatter | 4,489 | 3,816 | 673 | 15% |
 | TypeConfuseDelegateMono | BinaryFormatter | 2,632 | 2,152 | 480 | 18.2% |
 |  | LosFormatter | 2,640 | 2,160 | 480 | 18.2% |
 |  | NetDataContractSerializer | 3,262 | 3,020 | 242 | 7.4% |
@@ -292,13 +338,15 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 | TypeConfuseDelegateNetFx40 | BinaryFormatter | 3,828 | 3,168 | 660 | 17.2% |
 |  | LosFormatter | 3,832 | 3,172 | 660 | 17.2% |
 |  | SoapFormatter | 5,717 | 4,858 | 859 | 15% |
-| WbemClassObjectUnmarshal | BinaryFormatter | 408 | 404 | 4 | 1% |
-|  | DataContractSerializer | 587 | 583 | 4 | 0.7% |
-|  | FsPickler | 1,124 | 689 | 435 | 38.7% |
-|  | Json.NET | 317 | 301 | 16 | 5% |
-|  | LosFormatter | 416 | 412 | 4 | 1% |
-|  | NetDataContractSerializer | 785 | 669 | 116 | 14.8% |
-|  | SoapFormatter | 927 | 626 | 301 | 32.5% |
+| TypeConfuseDelegatePowerShell | BinaryFormatter | 6,448 | 5,004 | 1,444 | 22.4% |
+|  | LosFormatter | 6,452 | 5,008 | 1,444 | 22.4% |
+| WbemClassObjectUnmarshal | BinaryFormatter | 396 | 392 | 4 | 1% |
+|  | DataContractSerializer | 571 | 567 | 4 | 0.7% |
+|  | FsPickler | 1,108 | 673 | 435 | 39.3% |
+|  | Json.NET | 301 | 285 | 16 | 5.3% |
+|  | LosFormatter | 400 | 396 | 4 | 1% |
+|  | NetDataContractSerializer | 769 | 653 | 116 | 15.1% |
+|  | SoapFormatter | 911 | 610 | 301 | 33% |
 | WindowsClaimsIdentity | BinaryFormatter | 1,880 | 1,168 | 712 | 37.9% |
 |  | DataContractSerializer | 1,699 | 1,202 | 497 | 29.3% |
 |  | Json.NET | 1,427 | 894 | 533 | 37.4% |
@@ -326,11 +374,15 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 |  | SharpSerializerBinary | 1,020 | 1,020 | 0 | 0% |
 |  | SharpSerializerXml | 979 | 953 | 26 | 2.7% |
 |  | Xaml | 849 | 849 | 0 | 0% |
-| XamlAssemblyLoadFromFile | BinaryFormatter | 8,080 | 6,720 | 1,360 | 16.8% |
-|  | LosFormatter | 8,084 | 6,736 | 1,348 | 16.7% |
-|  | NetDataContractSerializer | 8,477 | 6,966 | 1,511 | 17.8% |
-|  | SoapFormatter | 8,895 | 7,254 | 1,641 | 18.4% |
-| XamlImageInfo | Json.NET | 409 | 371 | 38 | 9.3% |
+| XamlAssemblyLoadFromFile | BinaryFormatter | 8,056 | 6,704 | 1,352 | 16.8% |
+|  | LosFormatter | 8,068 | 6,708 | 1,360 | 16.9% |
+|  | NetDataContractSerializer | 8,469 | 6,950 | 1,519 | 17.9% |
+|  | SoapFormatter | 8,879 | 7,234 | 1,645 | 18.5% |
+| XamlImageInfo | Json.NET | 403 | 365 | 38 | 9.4% |
+| XamlTypeConverterFetch | JavaScriptSerializer | 178 | 162 | 16 | 9% |
+|  | Json.NET | 177 | 161 | 16 | 9% |
+|  | Xaml | 114 | 114 | 0 | 0% |
+|  | YamlDotNet | 161 | 154 | 7 | 4.3% |
 | XmlDocumentSurrogateXxe | BinaryFormatter | 416 | 412 | 4 | 1% |
 |  | DataContractJsonSerializer | 92 | 92 | 0 | 0% |
 |  | DataContractSerializer | 512 | 496 | 16 | 3.1% |
@@ -352,23 +404,30 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 Some payloads are already compact, or are dominated by binary or opaque data the
 text minifier cannot touch:
 
-- **Binary and compact serializers usually have nothing to strip.** Every
-  SharpSerializerBinary cell is 0%, and so is every MessagePackTypeless and
-  MessagePackTypelessLz4 cell except the two GetterSettingsPropertyValue ones. The
-  two ObjRef and two ResourceSet
+- **Binary and compact serializers usually have nothing to strip.** Thirty-three cells
+  come out byte for byte identical, and twenty-two of those are SharpSerializerBinary,
+  MessagePackTypeless or MessagePackTypelessLz4. The FileSystemInfo, ObjRef and ResourceSet
   BinaryFormatter/LosFormatter cells are 0% for the same reason: the graph carries no
   text the minifier can shorten.
 - **The exception shows what the flag really reaches.**
-  GetterSettingsPropertyValue with MessagePackTypeless saves 16.2%, because its
+  GetterSettingsPropertyValue with MessagePackTypeless saves 15.9%, because its
   payload carries an inner BinaryFormatter blob and `--minify` shrinks that blob
   before MessagePack wraps it. With the Lz4 variant the same case gets 8 bytes
-  *bigger* (1,336 -> 1,344, -0.6%, reproducibly): the smaller inner payload happens to
+  *bigger* (1,400 -> 1,408, -0.6%, reproducibly): the smaller inner payload happens to
   compress slightly worse. That is the only cell in the table where `--minify` costs
   bytes.
 - **A payload that is already one element cannot shrink.** ResourceDictionary Xaml is
-  115 bytes at 0% and WorkflowDesigner Xaml is 849 bytes at 0%; AssemblyInstallerLoad
-  Xaml, DataViewManagerXxe Xaml and XmlDocumentXxe Xaml each save 1 to 3 bytes. For
-  these the `-c` value is most of the payload.
+  118 bytes at 0%, XamlTypeConverterFetch Xaml is 114 bytes at 0% and WorkflowDesigner
+  Xaml is 849 bytes at 0%; AssemblyInstallerLoad Xaml, DataViewManagerXxe Xaml and
+  XmlDocumentXxe Xaml each save 1 to 3 bytes. For these the `-c` value is most of the
+  payload.
+- **A gadget may REFUSE `--minify` rather than risk the payload.**
+  TypeConfuseDelegateFileOperations with NetDataContractSerializer refuses when the
+  content it must deliver contains whitespace, because the XML minifier rewrites
+  whitespace inside text content and the target would receive different bytes. The row
+  in the table above uses whitespace-free content, so it minifies; with whitespace, the
+  honest answer from the tool is a refusal and an explanation, not a smaller payload
+  that writes the wrong file.
 - **Assembly-embedding gadgets** are dominated by the embedded compiled assembly
   (base64), which `--minify` does not compress. DataSetOldBehaviourFromFile, for
   example, is only 1.8% smaller with `--minify`. For these, use `--compressed`, which
@@ -376,44 +435,46 @@ text minifier cannot touch:
 
   | DataSetOldBehaviourFromFile (LosFormatter) | Bytes | vs default |
   |---|--:|--:|
-  | default | 63,600 | - |
-  | `--minify` | 62,468 | 1.8% |
-  | `--compressed` | 8,084 | 87.3% |
-  | `--compressed --minify` | 6,572 | 89.7% |
+  | default | 63,580 | - |
+  | `--minify` | 62,460 | 1.8% |
+  | `--compressed` | 8,056 | 87.3% |
+  | `--compressed --minify` | 6,556 | 89.7% |
 
 ## Plugins
 
-Every plugin mode that exposes a `--minify` option, minify off vs on.
+Every plugin mode that exposes a `--minify` option, minify off vs on. Each row is
+built the way the suite's own plugin matrix builds it, with the minimum options that
+mode needs.
 
 | Plugin | Mode | Without `--minify` | With `--minify` | Saved | Saved % |
 |---|---|--:|--:|--:|--:|
-| Altserialization | HttpStaticObjectsCollection | 905 | 554 | 351 | 38.8% |
-|  | SessionStateItemCollection | 2,268 | 978 | 1,290 | 56.9% |
-| ApplicationTrust | (default) | 2,121 | 1,183 | 938 | 44.2% |
-| DotNetNuke | read_file | 828 | 794 | 34 | 4.1% |
-|  | write_file | 886 | 848 | 38 | 4.3% |
-|  | run_command | 2,105 | 1,618 | 487 | 23.1% |
+| Altserialization | HttpStaticObjectsCollection | 895 | 544 | 351 | 39.2% |
+|  | SessionStateItemCollection | 2,258 | 968 | 1,290 | 57.1% |
+| ApplicationTrust | (default) | 2,101 | 1,163 | 938 | 44.6% |
+| DotNetNuke | read_file | 817 | 783 | 34 | 4.2% |
+|  | write_file | 875 | 837 | 38 | 4.3% |
+|  | run_command | 2,093 | 1,606 | 487 | 23.3% |
 | GetterCallGadgets | PropertyGrid | 193 | 153 | 40 | 20.7% |
 | MachineKeySessionSecurityTokenHandler | (default) | 976 | 700 | 276 | 28.3% |
-| Resx | indirect_resx_file | 2,631 | 2,304 | 327 | 12.4% |
+| Resx | indirect_resx_file | 2,617 | 2,290 | 327 | 12.5% |
 |  | CompiledDotResources | 1,284 | 933 | 351 | 27.3% |
-|  | BinaryFormatter | 3,699 | 2,909 | 790 | 21.4% |
+|  | BinaryFormatter | 3,683 | 2,893 | 790 | 21.4% |
 |  | SoapFormatter | 22,540 | 20,642 | 1,898 | 8.4% |
 | SessionSecurityTokenHandler | (default) | 1,216 | 936 | 280 | 23% |
-| SharePoint | CVE-2026-50522 | 1,249 | 1,045 | 204 | 16.3% |
-|  | CVE-2025-53770 | 2,698 | 2,170 | 528 | 19.6% |
-|  | CVE-2025-49704 | 2,692 | 2,160 | 532 | 19.8% |
-|  | CVE-2024-38018 | 4,285 | 2,565 | 1,720 | 40.1% |
-|  | CVE-2020-1147 | 4,931 | 3,211 | 1,720 | 34.9% |
-|  | CVE-2019-0604 | 5,084 | 5,084 | 0 | 0% |
-|  | CVE-2018-8421 | 1,599 | 1,599 | 0 | 0% |
+| SharePoint | CVE-2026-50522 | 1,862 | 1,658 | 204 | 11% |
+|  | CVE-2025-53770 | 2,941 | 2,437 | 504 | 17.1% |
+|  | CVE-2025-49704 | 2,954 | 2,422 | 532 | 18% |
+|  | CVE-2024-38018 | 4,376 | 2,656 | 1,720 | 39.3% |
+|  | CVE-2020-1147 | 5,311 | 3,591 | 1,720 | 32.4% |
+|  | CVE-2019-0604 | 6,485 | 6,485 | 0 | 0% |
+|  | CVE-2018-8421 | 1,757 | 1,757 | 0 | 0% |
 | ThirdPartyGadgets | GetterActiveMQObjectMessage | 4,074 | 3,670 | 404 | 9.9% |
-| TransactionManagerReenlist | (default) | 903 | 552 | 351 | 38.9% |
-| ViewState | TypeConfuseDelegate | 3,274 | 1,444 | 1,830 | 55.9% |
-| Xps | fdseq | 2,147 | 2,067 | 80 | 3.7% |
-|  | fdoc | 2,148 | 2,067 | 81 | 3.8% |
-|  | fpage | 2,151 | 2,073 | 78 | 3.6% |
-|  | all | 2,714 | 2,475 | 239 | 8.8% |
+| TransactionManagerReenlist | (default) | 893 | 542 | 351 | 39.3% |
+| ViewState | TypeConfuseDelegate | 3,246 | 1,444 | 1,802 | 55.5% |
+| Xps | fdseq | 2,143 | 2,061 | 82 | 3.8% |
+|  | fdoc | 2,144 | 2,062 | 82 | 3.8% |
+|  | fpage | 2,148 | 2,068 | 80 | 3.7% |
+|  | all | 2,703 | 2,459 | 244 | 9% |
 
 Notes on the plugin rows:
 
@@ -425,13 +486,16 @@ Notes on the plugin rows:
 - SharePoint `--minify` reaches the BinaryFormatter and LosFormatter gadget CVEs.
   CVE-2019-0604 and CVE-2018-8421 carry a XAML or URL payload the flag does not
   touch, so both are 0%.
+- Resx CompiledDotResources is the one row measured on the FILE it writes rather than
+  on standard output: that mode emits the payload through `-of` and prints a status
+  line, so measuring the console would report the status message and wrongly show 0%.
 - Xps output is a deflate-compressed OPC package. `--minify` does reach the inner
   ObjectDataProvider XAML, but a smaller inner document does not have to make a much
   smaller ZIP, which is why the saving is a few percent.
-- The three key-taking plugins (MachineKeySessionSecurityTokenHandler and ViewState
-  here, plus SessionSecurityTokenHandler which needs none) used the harmless demo
-  keys printed by `ysonet.exe -p ViewState --examples`. GetterCallGadgets read a
-  `{}` inner-gadget file.
+- The key-taking plugins (MachineKeySessionSecurityTokenHandler and ViewState here,
+  plus SessionSecurityTokenHandler which needs none) used the harmless demo keys
+  printed by `ysonet.exe -p ViewState --examples`. GetterCallGadgets read a `{}`
+  inner-gadget file.
 
 ## Reproduce
 

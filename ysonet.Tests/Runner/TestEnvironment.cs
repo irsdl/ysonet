@@ -142,10 +142,15 @@ namespace ysonet.Tests
         // serialization shapes before opening a payload. A net40-targeted executable on a
         // 4.5+ machine is not sufficient because those releases replace 4.0 in place.
         public const string NetFx40Target = "netfx40-target";
+        // The repository checkout this binary was built from, reachable from the test
+        // executable. A build can be configured to write its output OUTSIDE the repository,
+        // and then a check that reads a TRACKED file (a doc, a completion script) has
+        // nothing to read. Probed directly, by locating the folder that holds ysonet.sln.
+        public const string RepoCheckout = "repo-checkout";
         // Report order, which is also the only list the report iterates.
         public static readonly string[] Capabilities =
         {
-            LoopbackTcp, LocalRpcEndpointMapper, ShortName8Dot3,
+            LoopbackTcp, LocalRpcEndpointMapper, ShortName8Dot3, RepoCheckout,
             Clr2Runtime, Clr2X86, Clr2X64, NetFx3xReferenceAssemblies,
             NetFx40Target,
             OobEndpoint, OobDns, OwnedOobUncEndpoint,
@@ -167,6 +172,10 @@ namespace ysonet.Tests
         // The harness cannot prove ownership; this is why the docs say never to point it
         // at a third-party service.
         public const string OwnedEndpointVar = "YSONET_INTERACTSH_SERVER";
+
+        // Names the checkout when the build output sits outside it, which is a layout this
+        // solution supports.
+        public const string RepoRootVar = "YSONET_REPO_ROOT";
 
         private static readonly Dictionary<string, CapabilityResult> _capabilities =
             new Dictionary<string, CapabilityResult>(StringComparer.Ordinal);
@@ -464,6 +473,12 @@ namespace ysonet.Tests
                     notes.Add("expansion cells did not run. That is an NTFS setting per volume, and");
                     notes.Add("a test run deliberately does not change it.");
                 }
+                if (SkippedFor(RepoCheckout))
+                {
+                    notes.Add("This build's output is not inside a checkout, so the checks that read");
+                    notes.Add("a tracked file did not run. Point YSONET_REPO_ROOT at the folder that");
+                    notes.Add("holds ysonet.sln to cover them.");
+                }
                 if (SkippedFor(Clr2Runtime))
                 {
                     notes.Add("This machine has no usable CLR 2, so no LEGACY lane ran. Install the");
@@ -532,6 +547,7 @@ namespace ysonet.Tests
         private static void RegisterDefaultProbes()
         {
             _probes[LoopbackTcp] = ProbeLoopbackTcp;
+            _probes[RepoCheckout] = ProbeRepoCheckout;
             _probes[LocalRpcEndpointMapper] = ProbeLocalRpcEndpointMapper;
             _probes[OwnedOobUncEndpoint] = ProbeOwnedOobUncEndpoint;
             _probes[Clr2Runtime] = ProbeClr2Runtime;
@@ -699,6 +715,62 @@ namespace ysonet.Tests
                     "every 3.0/3.5 reference assembly the lanes compile against was found", 0);
             return new CapabilityResult(NetFx3xReferenceAssemblies, CapabilityState.Absent,
                 string.Join("; ", missingLanes.ToArray()), 0);
+        }
+
+        // ---- the checkout ------------------------------------------------------
+
+        // Cached separately from the capability state, because it is a fact about this
+        // machine's layout rather than a per-run decision: an isolated-environment test
+        // wipes the capability table and must not force a second filesystem walk.
+        private static bool _workspaceRootResolved;
+        private static string _workspaceRoot;
+
+        /// <summary>
+        /// The folder that holds ysonet.sln, or null when the build output is not inside a
+        /// checkout and YSONET_REPO_ROOT does not name one. It is the single place this
+        /// suite works out where its tracked files are: a caller that needs one asks for the
+        /// RepoCheckout capability first, so an off-checkout run names a skip instead of
+        /// reporting a missing file as a defect.
+        /// </summary>
+        public static string WorkspaceRoot()
+        {
+            if (_workspaceRootResolved) return _workspaceRoot;
+
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "ysonet.sln")))
+                {
+                    _workspaceRoot = dir.FullName;
+                    break;
+                }
+                dir = dir.Parent;
+            }
+
+            // Walking up fails when the build writes its output outside the repository.
+            // Callers expect either a real root or null, never a half answer, so the
+            // variable is only honoured when it really points at a workspace.
+            if (_workspaceRoot == null)
+            {
+                string root = Environment.GetEnvironmentVariable("YSONET_REPO_ROOT");
+                if (!string.IsNullOrEmpty(root) && File.Exists(Path.Combine(root, "ysonet.sln")))
+                    _workspaceRoot = root;
+            }
+
+            _workspaceRootResolved = true;
+            return _workspaceRoot;
+        }
+
+        private static CapabilityResult ProbeRepoCheckout()
+        {
+            string root = WorkspaceRoot();
+            if (root != null)
+                return new CapabilityResult(RepoCheckout, CapabilityState.Present,
+                    "ysonet.sln found at the checkout root", 0);
+
+            return new CapabilityResult(RepoCheckout, CapabilityState.Absent,
+                "no ysonet.sln above " + AppDomain.CurrentDomain.BaseDirectory
+                + " and " + RepoRootVar + " does not name a checkout", 0);
         }
 
         // Bind an ephemeral loopback port through the SAME listener the payload rows use,

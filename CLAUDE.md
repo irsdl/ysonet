@@ -222,6 +222,7 @@ Coverage norm when you add things:
   net40-targeted executable on the current machine. Add a `Net40Cell` only for a source
   whose real effect is expected on that exact victim; a missing target is a named skip.
 - A new PLUGIN MODE is NOT auto-covered: add a row to the curated table in `PluginFullMatrixGenerates` (a coverage guard fails the build if a whole new plugin is neither in the matrix nor excluded).
+- `docs/minification-savings.md` is measured by hand and is checked by a NORMAL row: a new gadget, a new formatter on an existing gadget, or a new plugin that exposes `--minify` fails the build until it has a measured row on that page, or is named in that page's own "deliberately not in the tables" list. The row compares representation and the page's own summary counts against the live catalogue; it never checks the byte numbers, which only a measuring pass can produce.
 
 AI instruction: when the user says "run full tests" (or "run the full suite"), set `YSONET_FULL_TESTS=1` and build Debug (or run `ysonet.Tests.exe --full`), then report the Passed/Failed summary. A normal request needs only the default Debug build.
 

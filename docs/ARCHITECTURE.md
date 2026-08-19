@@ -1907,7 +1907,7 @@ a named `netfx40-target` skip, never a pass.
 
 `ysonet.Tests/Runner/TestEnvironment.cs` is how a run says that a machine or network capability
 was missing WITHOUT weakening an assertion or letting an unexecuted row count as a pass.
-Thirteen capabilities, each probed LAZILY the first time a check needs it, so NORMAL adds no
+Twelve capabilities, each probed LAZILY the first time a check needs it, so NORMAL adds no
 probe and sends nothing off the machine:
 
 | Token | Evidence | Gates |
@@ -1923,6 +1923,7 @@ probe and sends nothing off the machine:
 | `oob-endpoint` | one client session registered a payload domain | every OOB check |
 | `oob-dns` | a run-unique label is recorded as exactly `dns` | every OOB check |
 | `owned-oob-unc-endpoint` | `YSONET_INTERACTSH_SERVER` is set | the three UNC checks |
+| `repo-checkout` | walk up from the test binary to the folder holding `ysonet.sln`, then fall back to `YSONET_REPO_ROOT` when it really names one | `MinificationSnapshotDocCoversEveryModule`, which reads the tracked `docs/minification-savings.md`. A build can write its output outside the repository, and there a tracked file is absent for a reason that is not a defect. `TestEnvironment.WorkspaceRoot` is the one implementation of that walk for the whole suite |
 
 Four states and one inclusion rule. `Present` runs the row. `Absent` records a NAMED skip
 and does not run it, in strict mode exactly as in the default. `Unknown` (the probe could
@@ -2040,6 +2041,12 @@ gate.
   generation matrix; add a new gadget's runtime EFFECT to the execution matrix
   (`PayloadsFireIntoTestSinks`, pick its sink) and a new PLUGIN MODE to the curated
   `PluginFullMatrixGenerates` table (its coverage guard fails the build otherwise).
+- **The minification snapshot**: `docs/minification-savings.md` is measured by hand, so a
+  NORMAL row (`MinificationSnapshotDocCoversEveryModule`) compares its two tables with the
+  live catalogue. A new gadget, a new formatter on an existing gadget, or a new plugin that
+  exposes `--minify` fails the build until it has a measured row there, or is named in that
+  page's own "deliberately not in the tables" list. The row checks representation and the
+  page's own summary counts, never the byte numbers.
 
 ## 10. Conventions and gotchas
 - Writing style (docs/comments/help): clear, minimal, simple words, plain ASCII only
