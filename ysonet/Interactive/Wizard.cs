@@ -185,7 +185,7 @@ namespace ysonet.Interactive
         private void PrintBanner()
         {
             string ver = ProductVersion();
-            string title = "=== YSoNet interactive mode - beta"
+            string title = "=== YSoNet interactive mode - beta -"
                 + (string.IsNullOrEmpty(ver) ? "" : (" " + ver)) + " ===";
             WriteLine("");
             ConsoleStyle.WriteLine(title, ConsoleStyle.Banner);
