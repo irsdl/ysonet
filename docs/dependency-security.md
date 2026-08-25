@@ -55,7 +55,8 @@ release ships `ysonet.exe` plus these DLLs side by side.
 ## NuGet packages
 
 "Pinned" is what this repo uses. "Latest" is the newest release on nuget.org as checked
-on 2026-07-26, shown so a reviewer can see the gap is known and intentional.
+on 2026-08-25, shown so a reviewer can see the gap is known and intentional. Tool-side
+updates use the newest stable release that is at least one month old.
 
 | Package | Pinned | Latest | Side | Known advisory | Decision |
 |---|---|---|---|---|---|
@@ -65,11 +66,11 @@ on 2026-07-26, shown so a reviewer can see the gap is known and intentional.
 | FSharp.Core | 3.1.2.5 | 9.x | Gadget | None published | Keep. Required by FsPickler 4.6. |
 | SharpSerializer | 3.0.1 | 4.0.2 | Gadget | None published | Keep |
 | Microsoft.IdentityModel | 7.0.0 | 7.0.0 | Gadget | None for this package id | Keep. Already the final release. |
-| MessagePack (+ .Annotations) | 2.5.301 | 3.x | Tool | CVE-2024-48924 (< 2.5.187), CVE-2026-48109 (< 2.5.301), both fixed by this version | Bumped 2026-07-26 from 2.5.94. Payload bytes unchanged. Staying on 2.5.x. |
+| MessagePack (+ .Annotations) | 2.5.302 | 3.x | Tool | CVE-2024-48924 (< 2.5.187), CVE-2026-48109 (< 2.5.301), plus the fix restored from 2.5.205 by the upstream merge release | Updated to upstream's recommended combined-fix 2.5.x release. |
 | Newtonsoft.Json | 13.0.4 | 13.0.x | Both | CVE-2024-21907 affects < 13.0.1, so **not** this version | Current. Nothing to do. |
 | NDesk.Options | 0.2.1 | 0.2.1 | Tool | None published | Current. Only release ever made. |
 | Obfuscar | 2.2.50 | - | Build | None published | Build-time only, never shipped. |
-| Microsoft.NET.StringTools, System.Buffers, System.Memory, System.Numerics.Vectors, System.Threading.Tasks.Extensions, System.Runtime.CompilerServices.Unsafe, System.Collections.Immutable, Microsoft.Bcl.AsyncInterfaces, System.Reflection.Emit(.Lightweight) | see `packages.config` | - | Tool | None | Ordinary dependencies. Upgraded under the freshness policy. |
+| Microsoft.NET.StringTools, System.Buffers, System.Memory, System.Numerics.Vectors, System.Threading.Tasks.Extensions, System.Runtime.CompilerServices.Unsafe, System.Collections.Immutable, Microsoft.Bcl.AsyncInterfaces, System.Reflection.Emit(.Lightweight) | see `packages.config` | - | Tool | None | Ordinary dependencies. Freshness reviewed and eligible updates applied 2026-08-25. |
 
 ### YamlDotNet 4.3.2
 
@@ -108,7 +109,7 @@ and does carry advisories such as CVE-2024-21643. Tools that match on the name p
 report "7.0.0 is behind 8.x" or attach an advisory from a sibling package. Neither
 applies here. There is nothing to upgrade to.
 
-### MessagePack 2.5.301
+### MessagePack 2.5.302
 
 This is the one old pin that was bumped rather than kept. It used to be 2.5.94, which two
 advisories cover:
@@ -123,15 +124,20 @@ Both are deserialization-side denial of service, and neither was reachable in no
 YSoNet uses MessagePack to *build* payloads and never deserializes MessagePack data from
 an untrusted source. But unlike YamlDotNet 4.3.2, the old version was not the point of the
 gadget, so the pin was tool side and the alerts had no answer beyond "not reachable". It
-was moved to 2.5.301 on 2026-07-26, the lowest version that clears both.
+was moved to 2.5.301 on 2026-07-26, the lowest version known then to clear both.
+
+Upstream later found that 2.5.301 did not include the security fix carried by 2.5.205.
+Release 2.5.302 merges the 2.5.205 and 2.5.301 security lines, and upstream recommends
+2.5.302 as the combined-fix release. YSoNet moved to 2.5.302 on 2026-08-25.
 
 The bump stays inside the 2.5.x line, which keeps the same wire format, the same
 `TypelessContractlessStandardResolver` behaviour, and the same `2.5.0.0` assembly version
-(so the `<Reference>` identity and the binding redirects are unchanged). Every generated
-MessagePack payload was compared before and after, plain and Lz4, across all four gadgets
-that support the formatter and every variant: byte for byte identical. 2.5.301 also adds a
-native `net472` build, so the reference now uses `lib\net472` instead of the
-`netstandard2.0` asset.
+(so the `<Reference>` identity and the binding redirects are unchanged). The earlier
+2.5.94 to 2.5.301 change was compared across every MessagePack payload that
+existed then and was byte for byte identical. Release 2.5.302 keeps the same wire and
+assembly version. The current catalogue is covered by the generation and runtime-effect
+matrices before release. The native `net472` build introduced in 2.5.301 remains the
+referenced asset.
 
 Do not move to 3.x. That is a major version with different dependencies and target
 changes, and it buys nothing for payload generation.

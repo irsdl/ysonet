@@ -257,7 +257,8 @@ namespace ysonet.Generators
                         + "rewrite either string (the XML minifier trims trailing whitespace, "
                         + "drops a carriage return, and collapses \"; \"); SOAP is also refused "
                         + "without --minify if its XML writer loses a value. BinaryFormatter and "
-                        + "LosFormatter minify the same input safely.",
+                        + "LosFormatter minify the same input safely. Minification may therefore "
+                        + "be refused when content has characters that must survive exactly.",
                     v =>
                     {
                         int parsed;

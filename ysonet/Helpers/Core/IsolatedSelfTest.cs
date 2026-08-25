@@ -40,6 +40,10 @@ namespace ysonet.Helpers.Core
         // unchanged and no user can reach this by mistyping a flag.
         public const string PayloadFileVar = "YSONET_SELFTEST_PAYLOAD";
         public const string FormatterVar = "YSONET_SELFTEST_FORMATTER";
+        // The focused architecture harness asks the otherwise-silent child to prove which
+        // CLR it entered. It is internal and has no command-line surface.
+        internal const string ReportArchitectureVar =
+            "YSONET_SELFTEST_REPORT_ARCHITECTURE";
 
         // The root type a DataContractJsonSerializer payload has to be read back as. That
         // format writes no type name into the document at all, so without this the child
@@ -175,6 +179,9 @@ namespace ysonet.Helpers.Core
             string file = Environment.GetEnvironmentVariable(PayloadFileVar);
             string formatter = Environment.GetEnvironmentVariable(FormatterVar);
             string rootTypeName = Environment.GetEnvironmentVariable(RootTypeVar);
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable(
+                ReportArchitectureVar)))
+                Console.WriteLine("bits=" + (IntPtr.Size * 8));
             try
             {
                 byte[] payload = File.ReadAllBytes(file);

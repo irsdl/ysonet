@@ -38,8 +38,9 @@ Options:
                                CLR2 process (BF, LosFormatter, and SoapFormatter).
       --outputpath=VALUE     The output file path. It will be ignored if
                                empty.
-      --minify               Whether to minify the payloads where applicable.
-                               Default: false
+      --minify               Minify payloads where applicable. A gadget may refuse
+                               --minify when it would rewrite operator data whose
+                               characters or bytes must survive exactly. Default: false
       --ust, --usesimpletype This is to remove additional info only when
                                minifying and FormatterAssemblyStyle=Simple
                                (always `true` with `--minify` for binary
@@ -269,6 +270,14 @@ Building that object is the whole attack. Its finalizer frees a `GCHandle` that 
 `GetEntryDelegate` ever allocates, and a deserializer never calls that, so the handle is
 still the default one. Freeing it throws on the finalizer thread, and an exception there
 terminates the process.
+
+BinaryFormatter, SoapFormatter and LosFormatter cannot name that non-`[Serializable]`
+type as their root. For those three, the gadget serializes
+`System.Security.Policy.HashMembershipCondition` instead. Its serialization constructor
+passes the `HashAlgorithm` string through `CryptoConfig`, which constructs the fixed WSMan
+type before a later cast rejects it; the failed cast does not unregister the constructed
+object's finalizer. This is a carrier difference only—the effect and `--assembly` option are
+the same as for the direct-construction formats.
 
 Two things to plan around:
 

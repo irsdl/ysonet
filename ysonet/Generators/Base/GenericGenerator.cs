@@ -45,6 +45,18 @@ namespace ysonet.Generators
         }
         public object BridgedPayload { get; set; }
 
+        // A compressed outer payload can occasionally be larger after its inner payload
+        // was minified. A bridge consumer that wants to compare the two finished compressed
+        // forms opts in here; PayloadRunner then carries an unminified copy of the upstream
+        // chain beside the ordinary BridgedPayload. The default keeps every other chain on
+        // the single-generation path.
+        public object UnminifiedBridgedPayload { get; set; }
+
+        public virtual bool NeedsUnminifiedBridgedPayload(string formatter, InputArgs inputArgs)
+        {
+            return false;
+        }
+
         public virtual string AdditionalInfo()
         {
             // This is when we have nothing more to add to keep the help section cleaner

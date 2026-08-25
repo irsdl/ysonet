@@ -2,6 +2,20 @@
 
 Entry format: date - what - why.
 
+2026-08-25 - The eligible TOOL-SIDE dependency set moved to MessagePack and
+MessagePack.Annotations 2.5.302, Microsoft.Bcl.AsyncInterfaces 10.0.10,
+Microsoft.NET.StringTools 18.8.2, System.Buffers 4.6.1,
+System.Collections.Immutable 10.0.10, System.Memory 4.6.3,
+System.Numerics.Vectors 4.6.1, System.Runtime.CompilerServices.Unsafe 6.1.2, and
+System.Threading.Tasks.Extensions 4.6.3. Their exact assembly identities and binding
+redirects were verified after restore; the product compiled, the NORMAL and LEGACY
+catalogues passed, and the public Release artifact passed its host, dependency,
+obfuscation, and PDB gates. No gadget-side pin moved. MessagePack 2.5.302 is the upstream
+combined-fix 2.5.x release, while remaining on the same wire and assembly version. The
+workflow checkout action also moved to its current eligible pinned release. - Records the
+freshness decision and its compatibility evidence so later reviews can distinguish the
+ordinary tool graph from intentionally old gadget dependencies.
+
 2026-07-26 - `docs/dependency-security.md` is now the single public triage record for
 every pinned NuGet package and every bundled DLL: version, gadget side vs tool side,
 advisory ID, and the decision. `SECURITY.md`, `README.md`, `docs/README.md`,

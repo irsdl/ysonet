@@ -16,6 +16,8 @@ namespace ysonet.Generators
         List<string> SupportedFormatters();
         string SupportedBridgedFormatter();
         object BridgedPayload { get; set; }
+        object UnminifiedBridgedPayload { get; set; }
+        bool NeedsUnminifiedBridgedPayload(string formatter, InputArgs inputArgs);
         object Generate(string formatter, InputArgs inputArgs);
         object GenerateWithInit(string formatter, InputArgs inputArgs);
         object GenerateWithNoTest(string formatter, InputArgs inputArgs);

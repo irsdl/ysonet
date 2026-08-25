@@ -70,7 +70,7 @@ WindowsClaimsIdentity (BinaryFormatter (4), DataContractSerializer (3), Json.NET
 WindowsIdentity (BinaryFormatter (3), DataContractSerializer (3), Json.NET (3), LosFormatter (3), NetDataContractSerializer (3), SoapFormatter (3))
 WindowsPrincipal (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, Json.NET, LosFormatter, NetDataContractSerializer, SoapFormatter)
 WorkflowDesigner (FastJson, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, SharpSerializerBinary, SharpSerializerXml, Xaml)
-WSManPluginInstance (DataContractJsonSerializer, DataContractSerializer, FastJson, JavaScriptSerializer, Json.NET, MessagePackTypeless, MessagePackTypelessLz4, NetDataContractSerializer, SharpSerializerBinary, SharpSerializerXml, Xaml, XmlSerializer, YamlDotNet < 5.0.0)
+WSManPluginInstance (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, FastJson, JavaScriptSerializer, Json.NET, LosFormatter, MessagePackTypeless, MessagePackTypelessLz4, NetDataContractSerializer, SharpSerializerBinary, SharpSerializerXml, SoapFormatter, Xaml, XmlSerializer, YamlDotNet < 5.0.0)
 XamlAssemblyLoadFromFile (BinaryFormatter (2), LosFormatter (2), NetDataContractSerializer (2), SoapFormatter (2))
 XamlImageInfo (Json.NET (2))
 XamlTypeConverterFetch (JavaScriptSerializer, Json.NET, Xaml, YamlDotNet < 5.0.0)

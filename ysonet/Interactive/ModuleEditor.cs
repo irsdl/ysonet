@@ -887,7 +887,7 @@ namespace ysonet.Interactive
 
             if (_isGadget)
             {
-                _minify = Flag("minify", "Minify the payload where applicable.");
+                _minify = Flag("minify", "Minify the payload where applicable. A gadget may refuse when operator data must survive exactly.");
                 _useSimpleType = Flag("usesimpletype", "Use simple type when minifying.");
                 // A GLOBAL generation toggle, like minify: it changes what every layer of the
                 // payload SAYS, so it is a field here rather than one gadget's option. Exact

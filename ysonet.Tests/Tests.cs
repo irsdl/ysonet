@@ -554,6 +554,8 @@ namespace ysonet.Tests
             Run("Byte-array encoder emits the compact bare <Byte> tag", ByteArrayEncoderEmitsBareTag);
             Run("GetterSettingsPropertyValue Xaml uses the compact byte array", GspvXamlUsesCompactByteArray);
             Run("GetterSettingsPropertyValue Xaml is minified with --minify", GspvXamlMinifies);
+            Run("GetterSettingsPropertyValue Lz4 keeps the smaller finished container", GspvLz4MinifyNeverExpands);
+            Run("Minify help warns that exact operator data can be refused", MinifyHelpWarnsAboutExactData);
             Run("DataSetOldBehaviourFromFile --compressed shrinks via a GZip payload chain", DataSetFromFileCompressedIsSmaller);
             Run("Non-RCE payloads are first-class gadgets with accurate inputs and facets", NonRcePayloadsAreGadgets);
             Run("Non-RCE gadget payloads are minified with --minify", NonRcePayloadsMinify);
@@ -613,7 +615,7 @@ namespace ysonet.Tests
             Run("The acknowledgement field is offered only for a DoS selection", DosAcknowledgementFieldFollowsSelections);
             Run("Every registered DoS gadget is contained (refused, warned, out of bulk)", DosGadgetsAreContained);
             Run("WSManPluginInstance declares denial of service, no input and a library gate", WSManPluginInstanceDeclaresItsFacets);
-            Run("WSManPluginInstance refuses the four formatters that cannot build its target", WSManPluginInstanceCannotUseTheRuntimeFormatters);
+            Run("WSManPluginInstance runtime formatters use the serializable type-confusion carrier", WSManPluginInstanceRuntimeFormattersUseSerializableCarrier);
             Run("WSManPluginInstance names the target type in every advertised formatter", WSManPluginInstanceCarriesTheTargetTypeInEveryFormatter);
             Run("WSManPluginInstance takes --assembly as typed and keeps the type fixed", WSManPluginInstanceAssemblyOptionIsTakenAsTyped);
             Run("WSManPluginInstance routes -t to a child process for every formatter", WSManPluginInstanceSelfTestIsIsolatedForEveryFormatter);
@@ -10652,11 +10654,12 @@ namespace ysonet.Tests
 
         // Every formatter the gadget advertises. Each one was proven by watching a CHILD
         // ysonet process die with the target's own
-        // "InvalidOperationException: Handle is not initialized." - 26 cells (13 formatters x
+        // "InvalidOperationException: Handle is not initialized." - 32 cells (16 formatters x
         // minify) on Windows 11 26200 / .NET Framework 4.8.09221 against Windows PowerShell
         // 5.1's System.Management.Automation 3.0.0.0.
         private static readonly string[] WsmanFormatters =
         {
+            "BinaryFormatter", "SoapFormatter", "LosFormatter",
             "Json.NET", "Xaml", "FastJson", "JavaScriptSerializer", "YamlDotNet",
             "SharpSerializerXml", "SharpSerializerBinary",
             "MessagePackTypeless", "MessagePackTypelessLz4",
@@ -10733,19 +10736,15 @@ namespace ysonet.Tests
             AssertTrue(!g.Labels().Contains(GadgetTags.Hosted),
                 "it serializes a framework type of its own rather than hosting another gadget");
 
-            // The formatter list, and the four exclusions by name. Naming them is the point: a
-            // later edit that quietly advertises one would be claiming a cell that cannot fire.
+            // The formatter list and the one exclusion by name. Naming it is the point: a
+            // later edit that quietly advertises it would be claiming a cell that cannot fire.
             List<string> formatters = g.SupportedFormatters();
             AssertEqual(WsmanFormatters.Length, formatters.Count,
                 "the advertised formatter count matches what the effect gate proved");
             foreach (string f in WsmanFormatters)
                 AssertTrue(g.IsSupported(f), f + " is advertised");
-            foreach (string f in new[]
-                {
-                    Formatters.BinaryFormatter, Formatters.SoapFormatter, Formatters.LosFormatter,
-                    Formatters.FsPickler,
-                })
-                AssertTrue(!g.IsSupported(f), f + " must not be advertised");
+            AssertTrue(!g.IsSupported(Formatters.FsPickler),
+                "FsPickler must not be advertised");
 
             // No token carries a variant annotation, because there are no variants.
             foreach (string token in formatters)
@@ -10753,28 +10752,67 @@ namespace ysonet.Tests
                     "\"" + token + "\" carries no variant count, because the gadget has none");
         }
 
-        // Two independent reasons four formatters are impossible, both asserted rather than
-        // argued, because "we did not try it" and "it cannot work" look identical in a list.
-        private static void WSManPluginInstanceCannotUseTheRuntimeFormatters()
+        // The three runtime formatters cannot instantiate the non-[Serializable] target
+        // directly. They instead serialize HashMembershipCondition, whose serialization
+        // constructor asks CryptoConfig to construct the type named by HashAlgorithm before
+        // casting it. The suite inspects that graph but never reads it; the effect proof stays
+        // in the product's opt-in isolated child self-test.
+        private static void WSManPluginInstanceRuntimeFormattersUseSerializableCarrier()
         {
             var g = GadgetRegistry.CreateGadgetInstance(WsmanGadget) as GenericGenerator;
 
-            // 1. The gadget refuses all four rather than emitting a document nothing can read.
-            foreach (string f in new[]
+            foreach (string formatter in new[]
                 {
                     Formatters.BinaryFormatter, Formatters.SoapFormatter, Formatters.LosFormatter,
-                    Formatters.FsPickler,
                 })
             {
-                RunResult refused = GenerateWsman(f, false);
-                AssertTrue(!refused.Success, f + " is refused, not emitted");
+                AssertTrue(g.IsSupported(formatter), formatter + " is advertised through the carrier");
+                foreach (bool minify in new[] { false, true })
+                {
+                    string cell = formatter + (minify ? " --minify" : "");
+                    RunResult generated = GenerateWsman(formatter, minify);
+                    AssertTrue(generated.Success, cell + " generates: " + generated.ErrorMessage);
+                    string text = PayloadTextForSearch(generated.Raw, formatter);
+                    if (string.Equals(formatter, Formatters.SoapFormatter,
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        // SoapFormatter splits a CLR name between the element's local name and
+                        // its clr/ns namespace rather than spelling the dotted name in one place.
+                        AssertTrue(text.Contains(":HashMembershipCondition")
+                                && text.Contains("/System.Security.Policy"),
+                            cell + " serializes HashMembershipCondition as the root");
+                    }
+                    else
+                    {
+                        AssertTrue(text.Contains(
+                                typeof(System.Security.Policy.HashMembershipCondition).FullName),
+                            cell + " serializes HashMembershipCondition as the root");
+                    }
+                    AssertTrue(text.Contains("HashValue"),
+                        cell + " carries the byte-array member read before activation");
+                    AssertTrue(text.Contains("HashAlgorithm"),
+                        cell + " carries the string member CryptoConfig resolves");
+                    AssertTrue(text.Contains(WSManPluginInstanceGenerator.TargetClrName),
+                        cell + " places the fixed WSMan type name in HashAlgorithm");
+                    AssertTrue(!text.Contains("HashMembershipConditionMarshal"),
+                        cell + " leaks no generator-side marshal type name");
+                }
             }
 
-            // 2. WHY, for the three runtime formatters: they all read through mscorlib's
-            // ObjectReader, which calls CheckSerializable before it creates anything, and the
-            // target carries no [Serializable] attribute. Proven on the real type when this
-            // machine has it, because the claim is about the shipped assembly and not about a
-            // local stand-in.
+            Type carrier = typeof(System.Security.Policy.HashMembershipCondition);
+            AssertTrue(carrier.IsSerializable,
+                "HashMembershipCondition passes ObjectReader's serializability gate");
+            System.Reflection.ConstructorInfo carrierCtor = carrier.GetConstructor(
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                null,
+                new[] { typeof(System.Runtime.Serialization.SerializationInfo),
+                    typeof(System.Runtime.Serialization.StreamingContext) },
+                null);
+            AssertTrue(carrierCtor != null,
+                "and has the serialization constructor the three runtime formatters invoke");
+
+            // The direct root remains impossible. That is why the carrier is part of these
+            // three payloads rather than merely an alternate spelling of the direct graph.
             Type target = WsmanTargetTypeOrNull();
             if (target == null)
             {
@@ -10785,12 +10823,10 @@ namespace ysonet.Tests
             else
             {
                 AssertTrue(!target.IsSerializable,
-                    "the target is not [Serializable], which is exactly what ObjectReader."
-                        + "CheckSerializable rejects: BinaryFormatter, SoapFormatter and "
-                        + "LosFormatter can never build it, whatever the document says");
+                    "the target is not [Serializable], so ObjectReader rejects it as a direct root");
             }
 
-            // 3. And why FsPickler is out for a DIFFERENT reason: it refuses the TYPE during
+            // FsPickler is still out for a DIFFERENT reason: it refuses the TYPE during
             // pickler resolution, so no document shape helps. The document below is the shape
             // DataSetXxe's working FsPickler payload uses with the type swapped; it lives here
             // rather than in the gadget because a gadget carries only payloads it ships.
@@ -10838,7 +10874,7 @@ namespace ysonet.Tests
                     AssertTrue(r.Success, cell + " generates: " + r.ErrorMessage);
                     AssertTrue(!RawIsEmpty(r.Raw), cell + " is non-empty");
 
-                    string payloadText = PayloadTextForSearch(r.Raw);
+                    string payloadText = PayloadTextForSearch(r.Raw, formatter);
 
                     if (formatter == "DataContractJsonSerializer")
                     {
@@ -10886,16 +10922,19 @@ namespace ysonet.Tests
             }
         }
 
-        // The payload as searchable text. LosFormatter is not in this gadget's list, so there is
-        // no base64 wrapper to unwrap; what varies is bytes versus a string. Two formats still
-        // do not spell the type name in one piece, so the caller handles them: Xaml splits it
-        // across the element and its xmlns, and MessagePackTypelessLz4 compresses it away.
-        private static string PayloadTextForSearch(object raw)
+        // The payload as searchable text. LosFormatter is base64 text around an
+        // ObjectStateFormatter record, so unwrap that one layer before inspecting its embedded
+        // BinaryFormatter graph. Two other formats still do not spell the type name in one
+        // piece, so the caller handles them: Xaml splits it across the element and its xmlns,
+        // and MessagePackTypelessLz4 compresses it away.
+        private static string PayloadTextForSearch(object raw, string formatter = null)
         {
             byte[] bytes = raw as byte[];
-            if (bytes != null)
-                return Encoding.UTF8.GetString(bytes);
-            return (raw as string) ?? "";
+            string text = bytes != null ? Encoding.UTF8.GetString(bytes) : (raw as string) ?? "";
+            if (string.Equals(formatter, Formatters.LosFormatter,
+                StringComparison.OrdinalIgnoreCase))
+                return Encoding.UTF8.GetString(Convert.FromBase64String(text));
+            return text;
         }
 
         // The assembly option is taken EXACTLY as typed, because only the target can say whether
@@ -10996,7 +11035,7 @@ namespace ysonet.Tests
             AssertTrue(target.IsPublic && target.IsSealed,
                 "the target is public and sealed, so a payload can name it directly");
             AssertTrue(!target.IsSerializable,
-                "and it is not [Serializable], which is what rules the runtime formatters out");
+                "and it is not [Serializable], which is why the runtime formatters need the carrier");
 
             System.Reflection.ConstructorInfo ctor = target.GetConstructor(Type.EmptyTypes);
             AssertTrue(ctor != null && ctor.IsPublic,
@@ -11047,8 +11086,8 @@ namespace ysonet.Tests
         // The interactive info panel's contract, asserted for one gadget.
         //
         // The panel renders only BodyRows lines, and one block in it has NO upper bound: the
-        // formatter list. WSManPluginInstance advertises 13 formatters, which is 11 of the 15
-        // visible rows at this width on its own, so a panel that printed the long list first
+        // formatter list. WSManPluginInstance advertises 16 formatters, more than the panel can
+        // show at this width on its own, so a panel that printed the long list first
         // could not show anything after it however short AdditionalInfo() was. The panel
         // therefore prints the one-line facts a user needs while BROWSING first, and lets the
         // formatter list be the thing that scrolls. Nothing is lost: --list formatters,
@@ -11094,7 +11133,7 @@ namespace ysonet.Tests
 
         // AdditionalInfo() is the FIRST block of the interactive info panel and the panel only
         // renders BodyRows lines, so a long one silently pushes the remaining facts off the
-        // visible area. This gadget has 13 formatters, the longest list in the catalogue, so it
+        // visible area. This gadget has 16 formatters, the longest list in the catalogue, so it
         // is the one that decides whether the panel's ORDER is right rather than merely whether
         // one gadget's info text is short enough.
         private static void WSManPluginInstanceInfoPanelStillShowsItsFacts()
@@ -18114,6 +18153,81 @@ namespace ysonet.Tests
             return r.Raw as string;
         }
 
+        private static void GspvLz4MinifyNeverExpands()
+        {
+            RunResult plainRaw = GenerateGspvMessagePack(
+                Formatters.MessagePackTypeless, false, null);
+            RunResult plainMin = GenerateGspvMessagePack(
+                Formatters.MessagePackTypeless, true, null);
+            AssertTrue(RawLength(plainMin.Raw) < RawLength(plainRaw.Raw),
+                "the uncompressed MessagePack sibling proves --minify still reaches the inner BinaryFormatter payload");
+
+            RunResult lz4Raw = GenerateGspvMessagePack(
+                Formatters.MessagePackTypelessLz4, false, null);
+            RunResult lz4Min = GenerateGspvMessagePack(
+                Formatters.MessagePackTypelessLz4, true, null);
+            AssertTrue(RawLength(lz4Min.Raw) <= RawLength(lz4Raw.Raw),
+                "direct Lz4 --minify never expands the finished payload (raw="
+                    + RawLength(lz4Raw.Raw) + " min=" + RawLength(lz4Min.Raw) + ")");
+            AssertTrue(BytesEqual(Bytes(lz4Raw.Raw), Bytes(lz4Min.Raw)),
+                "the current +8-byte regression chooses the raw-inner Lz4 candidate");
+
+            RunResult bridgedRaw = GenerateGspvMessagePack(
+                Formatters.MessagePackTypelessLz4, false, "TypeConfuseDelegate");
+            RunResult bridgedMin = GenerateGspvMessagePack(
+                Formatters.MessagePackTypelessLz4, true, "TypeConfuseDelegate");
+            AssertTrue(RawLength(bridgedMin.Raw) <= RawLength(bridgedRaw.Raw),
+                "an explicit --bgc chain carries the unminified candidate too (raw="
+                    + RawLength(bridgedRaw.Raw) + " min=" + RawLength(bridgedMin.Raw) + ")");
+            AssertTrue(BytesEqual(Bytes(bridgedRaw.Raw), Bytes(bridgedMin.Raw)),
+                "the explicit bridge selects the same smaller Lz4 container");
+        }
+
+        private static RunResult GenerateGspvMessagePack(
+            string formatter, bool minify, string bridgedChain)
+        {
+            InputArgs ia = CalcInput();
+            ia.Minify = minify;
+            RunResult result = PayloadRunner.GenerateGadget(new GenerationRequest
+            {
+                GadgetName = "GetterSettingsPropertyValue",
+                FormatterName = formatter,
+                BridgedGadgetChain = bridgedChain,
+                OutputFormat = "",
+                InputArgs = ia,
+            });
+            AssertTrue(result.Success, "gspv " + formatter
+                + (bridgedChain == null ? "" : " with --bgc " + bridgedChain)
+                + " generates: " + result.ErrorMessage);
+            return result;
+        }
+
+        private static void MinifyHelpWarnsAboutExactData()
+        {
+            OptionField global = FindField(
+                OptionField.FromOptionSet(ysonet.Program.options), "minify");
+            AssertTrue(global != null
+                    && (global.Description ?? "").Contains("may refuse")
+                    && (global.Description ?? "").Contains("survive exactly"),
+                "global --minify help warns about exact operator data");
+
+            OptionField fileOperations = FindField(OptionField.FromOptionSet(
+                Gadget("TypeConfuseDelegateFileOperations").Options()), "variant");
+            AssertTrue(fileOperations != null
+                    && (fileOperations.Description ?? "").Contains("may therefore be refused")
+                    && (fileOperations.Description ?? "").Contains("survive exactly"),
+                "the file-operation gadget repeats the data-dependent refusal in its own help");
+
+            EditableField interactive = FindEditable(
+                new ModuleEditor(null, null, true, null, null)
+                    .BuildFieldsForTest("TypeConfuseDelegateFileOperations"),
+                "minify");
+            AssertTrue(interactive != null
+                    && (interactive.Help ?? "").Contains("may refuse")
+                    && (interactive.Help ?? "").Contains("survive exactly"),
+                "interactive --minify help carries the same warning");
+        }
+
         // Every gadget must actually produce a non-empty payload from valid inputs,
         // not merely declare that it supports a formatter. Data-driven, so a newly
         // added gadget is covered automatically. For each gadget it picks a sample
@@ -20558,6 +20672,7 @@ namespace ysonet.Tests
                         for (int vi = 0; vi < variantCount; vi++)
                         {
                             GadgetVariant variant = (variants == null || variants.Count == 0) ? null : variants[vi];
+                            object unminifiedPayload = null;
 
                             for (int m = 0; m < 2; m++)
                             {
@@ -20670,15 +20785,30 @@ namespace ysonet.Tests
                                 {
                                     if (!r.Success) failures.Add(cellDesc + " -> " + r.ErrorMessage);
                                     else if (RawIsEmpty(r.Raw)) failures.Add(cellDesc + " -> empty payload");
-                                    else if (minify && !wellFormedExempt.Contains(name + "|" + formatter))
+                                    else
                                     {
-                                        // A minified payload whose output is XML must stay well-formed
-                                        // XML - the minifier must never break it. Non-XML outputs
-                                        // (binary/base64/JSON/YAML) are skipped by the helper; the
-                                        // documented intentional-fragment cells are exempt above.
-                                        string xmlErr = XmlWellFormednessError(r.Raw);
-                                        if (xmlErr != null)
-                                            failures.Add(cellDesc + " -> minified XML is not well-formed: " + xmlErr);
+                                        if (!minify)
+                                        {
+                                            unminifiedPayload = r.Raw;
+                                        }
+                                        else if (unminifiedPayload != null
+                                            && RawLength(r.Raw) > RawLength(unminifiedPayload))
+                                        {
+                                            failures.Add(cellDesc + " -> --minify enlarged the payload (raw="
+                                                + RawLength(unminifiedPayload) + " min="
+                                                + RawLength(r.Raw) + ")");
+                                        }
+
+                                        if (minify && !wellFormedExempt.Contains(name + "|" + formatter))
+                                        {
+                                            // A minified payload whose output is XML must stay well-formed
+                                            // XML - the minifier must never break it. Non-XML outputs
+                                            // (binary/base64/JSON/YAML) are skipped by the helper; the
+                                            // documented intentional-fragment cells are exempt above.
+                                            string xmlErr = XmlWellFormednessError(r.Raw);
+                                            if (xmlErr != null)
+                                                failures.Add(cellDesc + " -> minified XML is not well-formed: " + xmlErr);
+                                        }
                                     }
                                 }
 
@@ -21401,7 +21531,10 @@ namespace ysonet.Tests
 
                         // Minify PROPAGATION: for a cell marked .Shrinks(), the minified payload
                         // must be strictly smaller than the minify-off one this loop already made.
-                        // Identical size means the --minify flag never reached the wrapped gadget.
+                        // Do not apply a general size comparison to the other plugin rows: the
+                        // ViewState crypto and Xps ZIP envelopes are nondeterministic, and some
+                        // modes carry caller-supplied bytes that --minify intentionally leaves
+                        // untouched. Their two passes prove only that both modes still generate.
                         if (!minify)
                         {
                             rawPayload = r.Raw;
@@ -27771,9 +27904,13 @@ namespace ysonet.Tests
                 AssertTrue(FireBackend.Description.Contains("not found"),
                     "a missing sink says so: " + FireBackend.Description);
 
-                // 3) An unlaunchable file: Process.Start refuses it.
-                string notAProgram = Path.Combine(scratch, "ysonet_not_a_program.exe");
-                File.WriteAllText(notAProgram, "this is not a portable executable");
+                // 3) An unlaunchable file: Process.Start refuses it. Use an existing
+                // managed DLL instead of writing a fake .exe: endpoint scanners can hold a
+                // newly created invalid executable inside Process.Start for minutes, which
+                // tests the scanner rather than this fallback.
+                string notAProgram = new Uri(typeof(OptionSet).Assembly.CodeBase).LocalPath;
+                AssertTrue(File.Exists(notAProgram),
+                    "the unlaunchable managed-DLL fixture exists: " + notAProgram);
                 FireBackend.Select(true, artifacts, MarkerPath, notAProgram);
                 AssertTrue(!FireBackend.UsesSink, "an unlaunchable sink selects the legacy marker");
                 AssertTrue(FireBackend.Description.StartsWith("legacy-cmd ("),

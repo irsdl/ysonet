@@ -96,7 +96,29 @@ namespace ysonet.Helpers.Core
                     dosGadgets.Add(name);
             }
 
+            // Most bridge chains need one payload per layer. A compressed final consumer
+            // may opt in to a second, unminified upstream candidate so it can compare the
+            // two finished containers and never return a larger --minify result. Keep that
+            // extra generation off every other path.
+            bool carryUnminifiedBridge = false;
+            if (inputArgs.Minify && gadgetsChain.Count > 1)
+            {
+                IGenerator finalConsumer = GadgetRegistry.CreateGadgetInstance(
+                    gadgetsChain[gadgetsChain.Count - 1]);
+                carryUnminifiedBridge = finalConsumer != null
+                    && finalConsumer.NeedsUnminifiedBridgedPayload(
+                        req.FormatterName, inputArgs);
+            }
+
             object raw = null;
+            object unminifiedRaw = null;
+            InputArgs unminifiedArgs = null;
+            if (carryUnminifiedBridge)
+            {
+                unminifiedArgs = inputArgs.DeepCopy();
+                unminifiedArgs.Minify = false;
+                unminifiedArgs.Test = false;
+            }
 
             for (int i = 0; i < gadgetsChain.Count; i++)
             {
@@ -145,7 +167,11 @@ namespace ysonet.Helpers.Core
                     return RunResult.Fail("Formatter " + current_formatter_name + " not supported by " + generator.Name() + ". Supported formatters are: " + string.Join(" , ", generator.SupportedFormatters().OrderBy(s => s, StringComparer.OrdinalIgnoreCase)));
 
                 if (i > 0)
+                {
                     generator.BridgedPayload = raw;
+                    if (carryUnminifiedBridge && i == gadgetsChain.Count - 1)
+                        generator.UnminifiedBridgedPayload = unminifiedRaw;
+                }
 
                 try
                 {
@@ -154,6 +180,19 @@ namespace ysonet.Helpers.Core
                     else
                         // no local test when only building the bridges
                         raw = generator.GenerateWithNoTest(current_formatter_name, inputArgs);
+
+                    if (carryUnminifiedBridge && i < gadgetsChain.Count - 1)
+                    {
+                        IGenerator unminifiedGenerator =
+                            GadgetRegistry.CreateGadgetInstance(current_gadget_name);
+                        if (unminifiedGenerator == null)
+                            return RunResult.Fail("Gadget " + current_gadget_name
+                                + " not supported while building its unminified bridge candidate!");
+                        if (i > 0)
+                            unminifiedGenerator.BridgedPayload = unminifiedRaw;
+                        unminifiedRaw = unminifiedGenerator.GenerateWithNoTest(
+                            current_formatter_name, unminifiedArgs);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -162,6 +201,10 @@ namespace ysonet.Helpers.Core
 
                 if (raw == null)
                     return RunResult.Fail("Payload generation returned nothing for gadget " + generator.Name() + ".");
+                if (carryUnminifiedBridge && i < gadgetsChain.Count - 1
+                    && unminifiedRaw == null)
+                    return RunResult.Fail("Unminified bridge generation returned nothing for gadget "
+                        + generator.Name() + ".");
             }
 
             string effectiveFormat = ResolveOutputFormat(req.OutputFormat, req.FormatterName);

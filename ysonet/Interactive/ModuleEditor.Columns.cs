@@ -1006,7 +1006,7 @@ namespace ysonet.Interactive
             {
                 // SHORT FACTS FIRST, LONG LISTS LAST, and the order matters more than it
                 // looks: only BodyRows lines are rendered, and the formatter list is the one
-                // block with no upper bound. WSManPluginInstance advertises 13 formatters,
+                // block with no upper bound. WSManPluginInstance advertises 16 formatters,
                 // which is 11 of the 15 visible rows at the narrow column width on its own -
                 // enough to push "Command input:" and the category summary off the panel
                 // whatever AdditionalInfo() says. So the one-line facts a user needs while

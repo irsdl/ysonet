@@ -11,8 +11,12 @@ the live tool as the source of truth.
 
 ## What `--minify` does
 
-`--minify` rewrites the serialized payload to be smaller while keeping it valid and
-functional. It does not change which command runs. Depending on the format it:
+`--minify` attempts to reduce the serialized payload while keeping it valid and
+functional. It does not change which command runs. GetterSettingsPropertyValue's compressed
+MessagePack path keeps the unminified-inner form when that produces the smaller finished
+container, and a gadget may refuse minification when it would rewrite operator data that
+must survive exactly.
+Depending on the format it:
 
 - dedupes and drops unused XML namespaces and strips whitespace (Soap, Net/DataContract, XmlSerializer, XAML),
 - shortens type and assembly-qualified names, dropping `Version`/`Culture`/`PublicKeyToken` where the short form still resolves,
@@ -68,7 +72,7 @@ the tool's own error messages, and each one is a real rule rather than a prefere
 
 Four modules are deliberately not in the tables:
 
-- **`WSManPluginInstance`** (13 gadget/formatter cells) and **`HashPEFileHandle`**
+- **`WSManPluginInstance`** (16 gadget/formatter cells) and **`HashPEFileHandle`**
   (2 cells) are denial-of-service gadgets. Building one needs `--i-understand-dos`, and
   this snapshot does not build DoS payloads.
 - **`ActivatorUrl`** has no `--minify` option: it makes a live remoting call and
@@ -97,8 +101,7 @@ minify-capable plugin modes (M plugins)".
 
 - **Gadgets:** across 272 gadget x formatter combinations (60 gadgets), `--minify`
   shrinks 238 of them. The average cut is about **18%** (median 15.7%), up to
-  **90.9%**. Thirty-four combinations do not shrink, and one of those thirty-four
-  actually grows by 8 bytes
+  **90.9%**. Thirty-four combinations do not shrink; none becomes larger
   (see [Where it does little](#where-minification-does-little)).
 - **Plugins:** across 27 minify-capable plugin modes (12 plugins), the average cut is
   about **20.6%** (median 18%), ranging from 0% up to **57.1%**.
@@ -248,7 +251,7 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 | GetterSecurityException | Json.NET | 3,713 | 2,915 | 798 | 21.5% |
 | GetterSettingsPropertyValue | Json.NET | 3,522 | 2,769 | 753 | 21.4% |
 |  | MessagePackTypeless | 3,492 | 2,936 | 556 | 15.9% |
-|  | MessagePackTypelessLz4 | 1,400 | 1,408 | -8 | -0.6% |
+|  | MessagePackTypelessLz4 | 1,400 | 1,400 | 0 | 0% |
 |  | Xaml | 35,562 | 3,236 | 32,326 | 90.9% |
 | InfiniteProgressPage | FastJson | 269 | 227 | 42 | 15.6% |
 |  | JavaScriptSerializer | 229 | 209 | 20 | 8.7% |
@@ -404,18 +407,18 @@ Every gadget and every formatter in this snapshot, minify off vs on.
 Some payloads are already compact, or are dominated by binary or opaque data the
 text minifier cannot touch:
 
-- **Binary and compact serializers usually have nothing to strip.** Thirty-three cells
-  come out byte for byte identical, and twenty-two of those are SharpSerializerBinary,
+- **Binary and compact serializers usually have nothing to strip.** Thirty-four cells
+  come out byte for byte identical, and twenty-three of those are SharpSerializerBinary,
   MessagePackTypeless or MessagePackTypelessLz4. The FileSystemInfo, ObjRef and ResourceSet
   BinaryFormatter/LosFormatter cells are 0% for the same reason: the graph carries no
   text the minifier can shorten.
-- **The exception shows what the flag really reaches.**
+- **A compressed outer format still receives the minified inner payload.**
   GetterSettingsPropertyValue with MessagePackTypeless saves 15.9%, because its
   payload carries an inner BinaryFormatter blob and `--minify` shrinks that blob
-  before MessagePack wraps it. With the Lz4 variant the same case gets 8 bytes
-  *bigger* (1,400 -> 1,408, -0.6%, reproducibly): the smaller inner payload happens to
-  compress slightly worse. That is the only cell in the table where `--minify` costs
-  bytes.
+  before MessagePack wraps it. With the Lz4 variant the minified inner blob compresses
+  8 bytes worse on this input. The generator compares both complete Lz4 containers and
+  keeps the 1,400-byte unminified-inner form, so the finished payload stays at 0%
+  instead of growing to 1,408 bytes.
 - **A payload that is already one element cannot shrink.** ResourceDictionary Xaml is
   118 bytes at 0%, XamlTypeConverterFetch Xaml is 114 bytes at 0% and WorkflowDesigner
   Xaml is 849 bytes at 0%; AssemblyInstallerLoad Xaml, DataViewManagerXxe Xaml and
