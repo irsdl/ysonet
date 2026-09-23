@@ -291,7 +291,9 @@ For a .NET Framework gadget, include the compatibility run that earns the
 planned `WithVersions` token or range.
 
 ## 8. Docs and public surfaces
-Name architecture, catalog, help, completion, and other updates.
+Name architecture, catalog, help, completion, and other updates. When public CLI,
+interactive, gadget, plugin, option, variant, mode, facet, or runtime help changes,
+include regeneration and review of `.claude/skills/ysonet-payloads/`.
 
 ## 9. Verification
 List exact focused checks and trigger first, then smoke and optional Release
@@ -328,6 +330,7 @@ Each answered question with the user's choice and the date, kept as a record.
 - [ ] Material choices were settled; smaller assumptions are explicit.
 - [ ] One recommendation and the rejected alternative are justified.
 - [ ] Source, csproj, public surfaces, docs, tests, and rollback are covered.
+- [ ] Public-interface changes include the shipped `ysonet-payloads` skill.
 - [ ] Gadget/plugin verification runs focused tests and trigger evidence first.
 - [ ] Every .NET Framework gadget plan names a verified working version and its
       intended `WithVersions` declaration; a latest-version failure names the

@@ -7,7 +7,7 @@ behaviour.
 RESPONSIBILITY BOUNDARY. `.claude/skills/ysonet-curate-research-links/` is
 exclusively responsible for curating, adding, checking and repairing links in
 `docs/dotnet-deserialization-research.md` and `docs/references.md`. This tool
-READS those documents and writes the archive under `docs/references-md/`, its
+READS those documents and writes the archive under `docs/archived-references/`, its
 manifests, and the external content store. It never writes a curated document,
 never writes the curation ledger, and imports nothing from `.claude/skills/`.
 The flow is one way:
@@ -22,6 +22,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -40,7 +41,7 @@ from refslib import harvest as harvest_module          # noqa: E402
 from refslib import inventory as inventory_module      # noqa: E402
 from refslib import ledger as ledger_module            # noqa: E402
 from refslib import manifest as manifest_module        # noqa: E402
-from refslib import paths                             # noqa: E402
+from refslib import layout, reading, paths                             # noqa: E402
 from refslib import slugs as slugs_module              # noqa: E402
 from refslib.exclusions import Classifier             # noqa: E402
 
@@ -228,15 +229,13 @@ def command_check_browser(args):
     manifest = check_module.open_manifest(root, config)
     ladder = browser_module.Ladder()
     if not ladder.available():
-        sys.stderr.write("no browser found. Set %s to a Chrome or Edge executable.\n"
-                         % browser_module.BROWSER_ENV)
+        sys.stderr.write("Docker browser unavailable; no host-browser fallback.\n")
         return 2
     store = Store(paths.store_root())
 
     print("Browser ladder. Scope: walled or script-rendered rows, plus any row whose")
     print("acquisition reported that the bytes it had did not hold the document.")
-    print("Page JavaScript runs on this machine for these sources; a throwaway")
-    print("profile is used per URL and the browser is closed over CDP.\n")
+    print("Page JavaScript runs in a disposable Docker worker through the public-web broker.\n")
 
     def progress(number, total, url, result):
         state = ("ok via " + result.rung) if result.ok else ("unconfirmed: " + (result.error or "")[:50])
@@ -262,7 +261,7 @@ def command_acquire(args):
     manifest = check_module.open_manifest(root, config)
     store = Store(paths.store_root())
     fetcher = check_module.fetcher_module.Fetcher(per_host_gap=args.gap, timeout=args.timeout)
-    archive_dir = root / (config.get("archive_dir") or "docs/references-md")
+    archive_dir = root / (config.get("archive_dir") or "docs/archived-references")
 
     if args.prune_files:
         prune_orphans(root, config, manifest)
@@ -273,15 +272,17 @@ def command_acquire(args):
     if args.kind:
         wanted = set(args.kind.split(","))
         entries = [(key, entry) for key, entry in entries if (entry.get("kind") or "") in wanted]
-    if not args.force:
+    if getattr(args, "incomplete", False):
+        entries = [(key, entry) for key, entry in entries if not entry.get("slug")
+                   or entry.get("depth") != "full" or entry.get("content_gap")]
+    elif not args.force:
         entries = [(key, entry) for key, entry in entries if not entry.get("slug")]
     if args.limit is not None:
         entries = entries[:args.limit]
 
     taken = {entry.get("slug") for entry in manifest.data["urls"].values() if entry.get("slug")}
     counts = {"stored": 0, "link-only": 0, "skipped": 0, "failed": 0}
-    print("Acquiring %d reference(s). Binary media is not downloaded "
-          "(config.json -> media_policy).\n" % len(entries))
+    print("Acquiring %d reference(s), preserving PDF and document bytes.\n" % len(entries))
 
     decisions = paths.decisions()
     # The browser is built once and only USED when a route asks for it, which
@@ -294,6 +295,7 @@ def command_acquire(args):
             ladder = None
 
     for number, (key, entry) in enumerate(entries, start=1):
+        acquisition_entry = entry
         # THE MAINTAINER'S DECISION IS READ BEFORE ANYTHING IS FETCHED. "We keep
         # no document for this URL" should not cost a request, and the recorded
         # reason is what the next run reads instead of trying again.
@@ -308,10 +310,39 @@ def command_acquire(args):
                   % (number, "excluded", key[:52], (judged.get("reason") or "")[:60]))
             continue
 
-        result = acquire_module.acquire(key, entry, store, fetcher, config,
-                                        taken_slugs=taken, refetch=args.refetch,
-                                        replace_imports=args.replace_imports,
-                                        ladder=ladder)
+        # A forced offline repair must never quietly fall back to a fetch.
+        if args.force and not args.refetch:
+            from refslib import github
+            raw = acquire_module.retry_raw_sha256(entry, store)
+            if not raw or entry.get("kind") in ("repo", "code") or github.route((entry.get("spellings") or [key])[0]):
+                manifest.record(key, "acquire-attempt", result="pending",
+                                reason="Offline re-extraction lacks usable raw bytes; use render for publication or an explicit --refetch.")
+                counts["failed"] += 1
+                continue
+            if raw != entry.get("raw_sha256"):
+                acquisition_entry = dict(entry, raw_sha256=raw)
+        try:
+            result = acquire_module.acquire(key, acquisition_entry, store, fetcher, config,
+                                            taken_slugs=taken, refetch=args.refetch,
+                                            replace_imports=args.replace_imports,
+                                            ladder=ladder)
+        except Exception as error:
+            result = acquire_module.Acquired(key, "failed", reason=str(error)[:240])
+        if result.ok and entry.get("depth_reason") != "original-summary":
+            previous, incoming = entry.get("content_sha256"), result.record.get("content_sha256")
+            if store.has(previous) and store.has(incoming):
+                loss = reading.refresh_gap(store.get_text(previous), store.get_text(incoming))
+                if loss:
+                    slide_images = []
+                    if entry.get("kind") == "slides":
+                        slide_images = reading.slide_image_urls(store.get_text(incoming))
+                        if len(slide_images) >= 3:
+                            entry["slide_images"] = slide_images
+                    manifest.record(key, "acquire-attempt", result="review", reason=loss,
+                                    raw_sha256=result.record.get("raw_sha256", ""),
+                                    slide_images=len(slide_images))
+                    counts["review"] = counts.get("review", 0) + 1
+                    continue
         counts[result.status] = counts.get(result.status, 0) + 1
         if result.ok:
             record = dict(result.record)
@@ -374,7 +405,7 @@ def command_acquire(args):
                 if entry.get(field):
                     record[field] = entry[field]
             try:
-                text = render_module.render(record, content, record["depth"])
+                text = reading.english_render(record, content, record["depth"])
             except render_module.MissingAttribution as error:
                 counts["failed"] += 1
                 counts[result.status] -= 1
@@ -384,9 +415,10 @@ def command_acquire(args):
             # The GRADE decides the folder, so one definition governs both and
             # a file never has to be moved by hand: a thin file that gains real
             # content on a later run simply moves up.
-            path = archive_dir / entry["grade"] / (record["slug"] + ".md")
+            path = layout.path(root, config, entry)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8", newline="\n")
+            from refslib.preservation import write_bytes
+            write_bytes(path, text.encode("utf-8"))
             manifest.record(key, "render", result="ok", depth=record["depth"],
                             file=paths.rel(path, root), chars=len(text))
             print("  [%3d] %-10s %-52s %s" % (number, result.status, record["slug"][:52],
@@ -400,31 +432,15 @@ def command_acquire(args):
             # just failed on. A 126,805-byte Wayback capture was overwritten by
             # the 2,245-byte anti-scraper wall that the failing attempt read,
             # and the good capture had to be fetched again to get it back.
-            if result.raw_sha256:
-                held = entry.get("raw_sha256")
-                bigger = (not held or not store.has(held)
-                          or len(store.get(result.raw_sha256)) > len(store.get(held)))
-                # Keep the MORE COMPLETE bytes, not simply the newest or the
-                # oldest. Newest lost a 126,805-byte capture to the 2,245-byte
-                # wall a failing attempt read; never-replace then kept a
-                # 2,097,152-byte truncated PDF instead of the whole 3 MB one
-                # that the very next attempt had just downloaded.
-                if bigger:
+            held_document = bool(entry.get("content_sha256") and entry.get("grade"))
+            if not held_document:
+                if result.raw_sha256:
                     entry["raw_sha256"] = result.raw_sha256
-            # A rule-driven refusal is a DECISION, not just a failed fetch, and
-            # it belongs on the excluded list with its reason. An entry that
-            # merely failed keeps no claim on a file either.
-            entry["decision"] = (dict(result.decision, at=manifest_utc()[:10])
-                                 if result.decision else None)
-            # A TRANSIENT FAILURE MUST NOT DESTROY A DOCUMENT WE ALREADY HAVE.
-            # The GitHub API's unauthenticated limit is 60 requests an hour, and
-            # hitting it made ten references "fail"; the next index run then
-            # swept their files as orphans. Withdraw the document only when a
-            # RULE refused it - a broken capture, a consent gate - because that
-            # is the case where what we hold is known to be wrong.
-            if result.decision:
-                entry["grade"] = None
-            manifest.record(key, "acquire", result=result.status, reason=result.reason,
+                if result.decision:
+                    entry["decision"] = dict(result.decision, at=manifest_utc()[:10])
+            # A broken new fetch says nothing about the good copy already held.
+            manifest.record(key, "acquire-attempt" if held_document else "acquire",
+                            result=result.status, reason=result.reason,
                             raw_sha256=result.raw_sha256)
             print("  [%3d] %-10s %-52s %s" % (number, result.status, key[:52], result.reason[:60]))
 
@@ -444,7 +460,7 @@ def command_acquire(args):
         print("probe measured, so nothing was published for them. Nothing is lost; they")
         print("are re-runnable once the extractor handles their page shape.")
     print("Files: %s" % paths.rel(archive_dir, root))
-    return 0
+    return 1 if any(counts.get(status) for status in ("failed", "review", "needs-browser")) else 0
 
 
 def manifest_utc():
@@ -462,6 +478,7 @@ def command_translate(args):
     """
     from refslib import translate as translate_module
     from refslib.store import Store
+    import hashlib
 
     root = paths.repo_root()
     config = paths.config()
@@ -470,7 +487,11 @@ def command_translate(args):
 
     def content_of(entry):
         sha = entry.get("content_sha256")
-        return store.get_text(sha) if sha and store.has(sha) else ""
+        body = store.get_text(sha) if sha and store.has(sha) else ""
+        url = entry.get("original_url") or (entry.get("spellings") or [""])[0]
+        if "github.com/" in url and ".md" in url.lower():
+            body = reading.reading_content(dict(entry, original_url=url), body)
+        return body
 
     foreign, done, unreadable = [], [], []
     for key, entry in manifest.data["urls"].items():
@@ -555,9 +576,17 @@ def command_translate(args):
                 text, entry.get("language") or "",
                 metadata={field: entry.get(field) or ""
                           for field in translate_module.METADATA_FIELDS})
+            previous = ""
+            if store.has(entry.get("translation_sha256")):
+                previous = store.get_text(entry["translation_sha256"])
+            reusable = translate_module.reusable_segments(
+                prepared, previous,
+                metadata={field: entry.get(field + "_english") or ""
+                          for field in translate_module.METADATA_FIELDS})
             work.mkdir(parents=True, exist_ok=True)
             (work / "placeholders.json").write_text(
-                json.dumps({"placeholders": prepared.placeholders,
+                json.dumps({"source_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                            "placeholders": prepared.placeholders,
                             "comments": prepared.comments,
                             "metadata": prepared.metadata,
                             "original": prepared.original}, indent=1, ensure_ascii=False),
@@ -582,20 +611,50 @@ def command_translate(args):
                         encoding="utf-8")
             for stale in work.glob("chunk-*.txt"):
                 stale.unlink()
+            pieces = []
+            piece_translations = []
+            for chunk in prepared.chunks:
+                body = "\n\n".join("[%d] %s" % (identifier, segment)
+                                   for identifier, segment in chunk)
+                if body in done:
+                    pieces.append(chunk)
+                    piece_translations.append(done[body])
+                    continue
+                current = []
+                reusable_run = None
+                for item in chunk:
+                    available = item[0] in reusable
+                    if current and available != reusable_run:
+                        pieces.append(current)
+                        piece_translations.append(
+                            "\n\n".join("[%d] %s" % (identifier, reusable[identifier])
+                                        for identifier, _segment in current)
+                            if reusable_run else "")
+                        current = []
+                    current.append(item)
+                    reusable_run = available
+                if current:
+                    pieces.append(current)
+                    piece_translations.append(
+                        "\n\n".join("[%d] %s" % (identifier, reusable[identifier])
+                                    for identifier, _segment in current)
+                        if reusable_run else "")
+
             reused = 0
-            for number, chunk in enumerate(prepared.chunks, start=1):
+            for number, (chunk, prior) in enumerate(
+                    zip(pieces, piece_translations), start=1):
                 body = "\n\n".join("[%d] %s" % (identifier, segment)
                                    for identifier, segment in chunk)
                 (work / ("chunk-%02d.txt" % number)).write_text(
                     body, encoding="utf-8", newline="\n")
-                if body in done:
+                if prior:
                     (work / ("chunk-%02d.en.txt" % number)).write_text(
-                        done[body], encoding="utf-8", newline="\n")
+                        prior, encoding="utf-8", newline="\n")
                     reused += 1
-            total_chunks += len(prepared.chunks)
+            total_chunks += len(pieces)
             total_reused += reused
             print("  %-56s %2d chunk(s) %4d segment(s) %4d already English%s"
-                  % ((entry.get("slug") or "reference")[:56], len(prepared.chunks),
+                  % ((entry.get("slug") or "reference")[:56], len(pieces),
                      prepared.segments, prepared.skipped,
                      "  %d unchanged, translation kept" % reused if reused else ""))
         if not total_chunks:
@@ -638,6 +697,10 @@ def command_translate(args):
             waiting += 1
             continue
         saved = json.loads((work / "placeholders.json").read_text(encoding="utf-8"))
+        if saved.get("source_sha256") != hashlib.sha256(_text.encode("utf-8")).hexdigest():
+            refused += 1
+            print("  REFUSED %-48s translation preparation is not bound to this source; prepare again" % slug[:48])
+            continue
         placeholders = saved.get("placeholders", saved)
         comments = {int(number): value
                     for number, value in (saved.get("comments") or {}).items()}
@@ -654,9 +717,18 @@ def command_translate(args):
         numbered = {int(match.group(1)): match.group(2).strip()
                     for match in re.finditer(r"^\[(\d+)\]\s*(.*?)(?=\n\[\d+\]|\Z)",
                                              raw, re.MULTILINE | re.DOTALL)}
+        expected_ids = set()
+        for chunk in work.glob("chunk-*.txt"):
+            if not chunk.name.endswith(".en.txt"):
+                expected_ids.update(int(value) for value in re.findall(r"^\[(\d+)\]", chunk.read_text(encoding="utf-8"), re.M))
+        returned_ids = [int(value) for value in re.findall(r"^\[(\d+)\]", raw, re.M)]
+        if set(returned_ids) != expected_ids or len(returned_ids) != len(expected_ids):
+            refused += 1
+            print("  REFUSED %-48s missing, duplicate or unexpected translation segments" % slug[:48])
+            continue
         held = translate_module.apply_comments(placeholders, comments, numbered)
         not_prose = set(comments) | set(fields)
-        body = translate_module.rebuild(numbered, original, not_prose)
+        body = translate_module.rebuild(numbered, original, sorted(not_prose))
 
         # CHECKED AGAINST THE TEXT IT ACTUALLY LANDS IN. A placeholder living
         # only in the title is not missing from the body, it was never in it:
@@ -674,7 +746,7 @@ def command_translate(args):
             lost += translate_module.missing_placeholders(
                 rendered, translate_module.standing_alone(
                     held, {identifier: original.get(identifier, "")}))
-        if lost and not args.force:
+        if lost:
             refused += 1
             print("  REFUSED %-48s %d placeholder(s) did not come back, e.g. %s"
                   % (slug[:48], len(lost), ", ".join(lost[:3])))
@@ -692,6 +764,7 @@ def command_translate(args):
                 continue
             entry[field + "_english"] = translate_module.restore(rendered, held)
         manifest.record(key, "translate", result="stored", sha256=digest,
+                        content_sha256=entry.get("content_sha256"),
                         chars=len(english), segments=len(translated),
                         lost_placeholders=len(lost))
         stored += 1
@@ -706,15 +779,48 @@ def command_translate(args):
         print("\nEach lost placeholder stands for code or a payload, so applying")
         print("would corrupt the document. Fix those translations and run again.")
     if stored:
-        print("\nThe ORIGINAL is untouched: the rendered file carries both, because")
-        print("a reader has to be able to check the translator.")
-        print("Run 'refs.py acquire --force' to re-render.")
+        print("Run 'refs.py render' to publish English copies offline.")
     return 1 if refused else 0
-    return 0
+
+
+def _record_lookup_failure(manifest, key, reason):
+    """Record an unreachable CDX index without erasing a stored capture.
+
+    ``Manifest.record`` replaces a step's current row. A failed retry is a fact
+    about the index request, not evidence that the previously stored capture
+    disappeared, so retain its snapshot and replay provenance and annotate the
+    failed attempt in place.
+    """
+    held = manifest.last(key, "wayback") or {}
+    if held.get("result") == "stored":
+        kept = held.get("snapshot") or "already stored"
+        fields = {name: value for name, value in held.items() if name != "utc"}
+        fields["lookup_failed_utc"] = manifest_module.utc_now()
+        fields["lookup_failed_reason"] = reason
+        manifest.record(key, "wayback", **fields)
+        return kept
+    manifest.record(key, "wayback", result="lookup-failed", reason=reason)
+    return ""
+
+
+def _held_capture_is_readable(entry):
+    """Whether held bytes are known-good enough to set a replacement floor."""
+    steps = entry.get("steps") or {}
+    acquire = steps.get("acquire") or {}
+    attempt = steps.get("acquire-attempt") or {}
+    return bool(
+        entry.get("raw_sha256")
+        and entry.get("content_sha256")
+        and acquire.get("result") in ("stored", "link-only")
+        and not entry.get("content_gap")
+        and attempt.get("result") not in ("failed", "review", "needs-browser")
+    )
 
 
 def command_wayback(args):
     """Look for a better Wayback capture of a reference we could not read."""
+    from refslib import acquire as acquire_module
+    from refslib import toolbox
     from refslib import wayback as wayback_module
     from refslib.store import Store
 
@@ -727,24 +833,49 @@ def command_wayback(args):
     def wanted(key, entry):
         if args.only and args.only.lower() not in key.lower():
             return False
-        if args.force:
+        # Naming one identity is an explicit recovery request. Requiring an
+        # additional --force made the documented dead-source command silently
+        # select zero rows when a short or wrong capture had once been stored.
+        if args.only or args.force:
             return True
         step = (entry.get("steps") or {}).get("acquire") or {}
-        return step.get("result") in ("failed", "review", "needs-browser")
+        return (step.get("result") in ("failed", "review", "needs-browser")
+                or bool(entry.get("content_gap")))
 
     targets = [(key, entry) for key, entry in manifest.data["urls"].items()
                if wanted(key, entry)]
+    if args.replay_url and len(targets) != 1:
+        raise paths.SetupError("--replay-url requires --only to select exactly one reference")
     print("Looking for a better capture of %d reference(s).\n" % len(targets))
     print("Not every capture of a URL is the same page: one was pinned to a 9,046-byte")
     print("\"404\" while a 380,504-byte capture of the same URL is the PDF. The bytes")
     print("this selects go through the same extraction and guards as any other fetch.\n")
 
-    improved = 0
+    improved = lookup_failed = 0
+    taken = {item.get("slug") for item in manifest.data["urls"].values()
+             if item.get("slug")}
     for key, entry in targets:
         url = (entry.get("spellings") or [key])[0]
         original = wayback_module.original_url(url)
         current = len(store.get(entry["raw_sha256"])) if (
             entry.get("raw_sha256") and store.has(entry["raw_sha256"])) else 0
+        steps = entry.get("steps") or {}
+        held_readable = _held_capture_is_readable(entry)
+        repairing_identity = not held_readable
+        held_snapshot = (entry.get("health") or {}).get("snapshot") or \
+            (steps.get("wayback") or {}).get("snapshot") or ""
+        near = wayback_module.publication_date(original)
+        if not near:
+            published = entry.get("published") or ""
+            match = re.match(r"((?:19|20)\d{2})(?:-(\d{2})-(\d{2}))?", published)
+            if match:
+                near = (match.group(1) + (match.group(2) or "07")
+                        + (match.group(3) or "01"))
+        skips = set()
+        if not args.force:
+            skips.add(wayback_module.cited_timestamp(url))
+            if current:
+                skips.add(held_snapshot)
         # WALK THE CAPTURES, DO NOT BET ON ONE. A citation can be pinned to a
         # capture that is a bot wall rather than the page: this URL was cited as
         # its 2024 replay, a slider CAPTCHA extracting to 99 characters, while
@@ -752,36 +883,127 @@ def command_wayback(args):
         # candidate turned "the archive has no readable copy" into a fact.
         chosen = body = None
         tried = 0
-        try:
-            candidates = list(wayback_module.ranked(
-                original, fetcher,
-                # --force also reconsiders the capture already recorded, which
-                # is what you want after its bytes were lost or replaced.
-                skip_timestamp=("" if args.force
-                                else (entry.get("health") or {}).get("snapshot") or "")))
-        except wayback_module.LookupFailed as error:
-            # NOT "there is no capture". Reported apart from it, because the
-            # difference is a fact about the source versus a fact about us.
-            print("  ASK FAILED %-58s %s" % (original[:58], error))
-            manifest.record(key, "wayback", result="lookup-failed", reason=str(error))
-            continue
+        lookup_route = "isolated standard client"
+        if args.replay_url:
+            try:
+                pinned = wayback_module.from_replay_url(args.replay_url)
+            except ValueError as error:
+                raise paths.SetupError(str(error))
+            if not wayback_module.same_target(original, pinned.original):
+                raise paths.SetupError(
+                    "the replay captures a different resource: %s" % pinned.original)
+            candidates = [pinned]
+            lookup_route = "operator-selected replay"
+        else:
+            class CurlFetcher(object):
+                def get(self, request_url, max_bytes=0):
+                    return check_module.fetcher_module.curl_get(
+                        request_url, timeout=args.timeout,
+                        max_bytes=max_bytes or 2 * 1024 * 1024)
+
+            class ToolboxFetcher(object):
+                def get(self, request_url, max_bytes=0):
+                    payload = toolbox.fetch_public(request_url)
+                    return check_module.fetcher_module.Response(
+                        request_url, 200, {}, payload, [])
+
+            candidates = None
+            lookup_errors = []
+            for route, client in (
+                    ("isolated standard client", fetcher),
+                    ("isolated curl fallback", CurlFetcher()),
+                    ("isolated toolbox fallback", ToolboxFetcher())):
+                try:
+                    candidates = list(wayback_module.ranked(
+                        original, client, skip_timestamp=skips, near=near))
+                    lookup_route = route
+                    if route != "isolated standard client":
+                        print("    CDX answered through %s" % route)
+                    break
+                except wayback_module.LookupFailed as error:
+                    lookup_errors.append("%s: %s" % (route, error))
+            if candidates is None:
+                lookup_failed += 1
+                reason = "; ".join(lookup_errors)
+                # NOT "there is no capture". Reported apart from it, because
+                # the difference is a fact about the source versus a fact about us.
+                print("  ASK FAILED %-58s %s" % (original[:58], reason))
+                kept = _record_lookup_failure(manifest, key, reason)
+                manifest.save()
+                if kept:
+                    print("    kept the capture already recorded (%s)" % kept)
+                continue
         for candidate in candidates:
             tried += 1
-            response = fetcher.get(candidate.replay_url, max_bytes=16 * 1024 * 1024)
-            if not (200 <= response.status < 300) or not response.body:
-                print("    skip %s  http %s" % (candidate.timestamp, response.status))
+            response = None
+            why = ""
+            replay_route = "isolated standard client"
+            fetch_errors = []
+            for route, request in (
+                    ("isolated standard client",
+                     lambda: fetcher.get(candidate.replay_url,
+                                         max_bytes=16 * 1024 * 1024)),
+                    ("isolated curl fallback",
+                     lambda: check_module.fetcher_module.curl_get(
+                         candidate.replay_url, timeout=args.timeout,
+                         max_bytes=16 * 1024 * 1024)),
+                    ("isolated toolbox fallback",
+                     lambda: check_module.fetcher_module.Response(
+                         candidate.replay_url, 200, {},
+                         toolbox.fetch_public(candidate.replay_url), []))):
+                try:
+                    attempt = request()
+                except Exception as error:
+                    fetch_errors.append("%s: %s" % (route, error))
+                    continue
+                attempt_why = ""
+                if 200 <= attempt.status < 300 and attempt.body:
+                    attempt_why = wayback_module.unusable(
+                        attempt.body, entry.get("kind") or "")
+                response, why = attempt, attempt_why
+                if 200 <= attempt.status < 300 and attempt.body and not attempt_why:
+                    replay_route = route
+                    if route != "isolated standard client":
+                        print("    retry %s  %s" % (candidate.timestamp, route))
+                    break
+            if response is None or not (200 <= response.status < 300) or not response.body:
+                detail = "http %s" % response.status if response else \
+                    (fetch_errors[-1] if fetch_errors else "fetch failed")
+                print("    skip %s  %s" % (candidate.timestamp, detail))
             # Like with like: the FETCHED capture against the bytes already
             # held. The index length cannot answer this - it is a compressed
-            # size - so it is only ever used to order the candidates.
-            elif len(response.body) <= current:
+            # size - so it is only ever used to order the candidates. Only a
+            # readable held document sets a floor: a wall or wrong page is not
+            # made authoritative by being large.
+            elif held_readable and not args.replay_url and len(response.body) <= current:
                 print("    skip %s  %d bytes, no bigger than the %d held"
                       % (candidate.timestamp, len(response.body), current))
             else:
-                why = wayback_module.unusable(response.body, entry.get("kind") or "")
+                why = why or wayback_module.unusable(
+                    response.body, entry.get("kind") or "")
+                if not why and (repairing_identity or args.replay_url):
+                    # Size cannot repair a wrong document: a corporate home
+                    # page can be much larger than the cited article. Validate
+                    # each candidate with the same isolated extraction and
+                    # identity checks as acquisition before replacing raw_sha.
+                    digest = store.put(response.body)
+                    probe = dict(entry)
+                    probe["raw_sha256"] = digest
+                    probe.pop("browser_dom_sha256", None)
+                    health = dict(entry.get("health") or {})
+                    health.update({"status": "ok", "final_url": candidate.replay_url,
+                                   "snapshot": candidate.timestamp})
+                    probe["health"] = health
+                    checked = acquire_module.acquire(
+                        key, probe, store, fetcher, config, taken_slugs=taken,
+                        refetch=False, replace_imports=True, ladder=None)
+                    if not checked.ok:
+                        why = "source validation: " + (checked.reason or checked.status)
                 if why:
                     print("    skip %s  %s" % (candidate.timestamp, why))
                 else:
                     chosen, body = candidate, response.body
+                    chosen_replay_route = replay_route
                     break
             if tried >= args.tries:
                 break
@@ -798,10 +1020,15 @@ def command_wayback(args):
         # the browser captured: a 2,245-byte anti-scraper challenge outranked a
         # 126,805-byte capture of the same page and kept failing extraction.
         entry.pop("browser_dom_sha256", None)
-        entry.setdefault("health", {})["snapshot"] = candidate.timestamp
+        entry.setdefault("health", {}).update({
+            "status": "ok", "final_url": candidate.replay_url,
+            "snapshot": candidate.timestamp,
+        })
         manifest.record(key, "wayback", result="stored", snapshot=candidate.timestamp,
                         bytes=len(body_bytes), was=current, tried=tried,
-                        replay_url=candidate.replay_url)
+                        replay_url=candidate.replay_url,
+                        lookup_route=lookup_route, replay_route=chosen_replay_route)
+        manifest.save()
         improved += 1
         print("  captured   %-58s %7d -> %7d bytes (%s, %d tried)"
               % (original[:58], current, len(body_bytes), candidate.timestamp, tried))
@@ -809,6 +1036,63 @@ def command_wayback(args):
     manifest.save()
     print("\n%d reference(s) now hold a better capture." % improved)
     print("Run 'refs.py acquire --force' to extract from them, offline.")
+    return 1 if lookup_failed else 0
+
+
+def command_historical_urls(args):
+    """List historical paths for a failed source with pinned Docker waymore.
+
+    Results are discovery leads, never automatically accepted captures. A
+    maintainer must still verify identity and content before selecting a replay
+    or reacquiring a moved source.
+    """
+    from refslib import toolbox
+
+    if not args.only:
+        raise paths.SetupError("historical-urls requires --only")
+    if not 1 <= args.limit_requests <= 500:
+        raise paths.SetupError("--limit-requests must be between 1 and 500")
+    if args.limit_results < 0:
+        raise paths.SetupError("--limit-results must be zero or greater")
+    root = paths.repo_root()
+    config = paths.config()
+    manifest = check_module.open_manifest(root, config)
+    matches = [(key, entry) for key, entry in manifest.data["urls"].items()
+               if args.only.lower() in key.lower()]
+    if not matches:
+        raise paths.SetupError("--only matched no manifest identity: " + args.only)
+
+    domains = set()
+    for key, entry in matches:
+        # Search the CITED identity and its observed spellings. A canonical URL,
+        # mirror or paper can be an explicitly recorded fallback from another
+        # host; crawling that broad host (for example a source-code CDN) returns
+        # thousands of unrelated paths and hides the removed article we need.
+        candidates = [key]
+        candidates.extend(entry.get("spellings") or [])
+        for candidate in candidates:
+            host = (urlsplit(candidate).hostname or "").lower()
+            if host:
+                domains.add(host)
+    if not domains:
+        raise paths.SetupError("the selected reference has no HTTP(S) host")
+
+    print("Querying historical paths for: %s\n" % ", ".join(sorted(domains)))
+    print("Results are leads only. Verify title, author, date, and content before use.\n")
+    try:
+        results = toolbox.waymore_urls(
+            domains, log=lambda line: print("  " + line),
+            limit_requests=args.limit_requests)
+    except toolbox.Unavailable as error:
+        print("historical path lookup failed: %s" % error)
+        return 1
+    shown = results[:args.limit_results] if args.limit_results else results
+    for result in shown:
+        print(result)
+    if len(shown) != len(results):
+        print("\n%d more result(s) omitted; increase --limit-results to inspect them."
+              % (len(results) - len(shown)))
+    print("\n%d historical URL(s) found." % len(results))
     return 0
 
 
@@ -840,13 +1124,15 @@ def command_pdf_pages(args):
     if entry.get("raw_sha256") and store.has(entry["raw_sha256"]):
         body = store.get(entry["raw_sha256"])
     if body[:5] != b"%PDF-":
-        fetcher = check_module.fetcher_module.Fetcher(per_host_gap=1.0, timeout=60)
-        response = fetcher.get(url, max_bytes=64 * 1024 * 1024)
-        body = response.body or b""
-        if body[:5] == b"%PDF-":
-            entry["raw_sha256"] = store.put(body)
+        paper = (entry.get("paper") or {}).get("sha256")
+        if store.has(paper):
+            body = store.get(paper)
     if body[:5] != b"%PDF-":
-        print("That reference is not a PDF, or the PDF could not be fetched.")
+        published = layout.path(root, config, entry, "pdf")
+        if published.is_file():
+            body = published.read_bytes()
+    if body[:5] != b"%PDF-":
+        print("No stored PDF. Run papers for this URL before offline page rendering.")
         return 1
 
     into = Path(args.into) if args.into else Path(paths.tool_dir()) / "cache" / "pdf-pages" / (
@@ -857,8 +1143,8 @@ def command_pdf_pages(args):
                                                last=args.last,
                                                log=lambda line: print("  " + line))
     except toolbox_module.Unavailable as error:
-        print("SKIPPED: %s" % error)
-        return 0
+        print("UNVERIFIED: %s" % error)
+        return 1
 
     manifest.record(key, "pdf-pages", result="rendered", pages=len(pages))
     manifest.save()
@@ -1024,6 +1310,24 @@ def prune_orphans(root, config, manifest):
     return len(stale)
 
 
+def command_record_summaries(args):
+    """Store reviewed metadata and original summaries without fetching source text."""
+    from refslib.summaries import record_summaries
+    from refslib.store import Store
+
+    root, config = paths.repo_root(), paths.config()
+    references = harvest_module.run(root=root, config=config,
+                                    classifier=Classifier.load()).references
+    manifest = check_module.open_manifest(root, config)
+    records = json.loads(Path(args.input).read_text(encoding="utf-8"))
+    outputs = record_summaries(records, references, manifest,
+                               Store(paths.store_root()), root, config)
+    for path in outputs:
+        print("Summary record: " + path)
+    print("Full source text remains unarchived. Run index and verify.")
+    return 0
+
+
 def command_index(args):
     """Generate the folder index. Offline, and the only discovery route."""
     from refslib import indexer
@@ -1031,15 +1335,20 @@ def command_index(args):
     root = paths.repo_root()
     config = paths.config()
     manifest = check_module.open_manifest(root, config)
-    archive_dir = root / (config.get("archive_dir") or "docs/references-md")
+    archive_dir = root / (config.get("archive_dir") or "docs/archived-references")
     archive_dir.mkdir(parents=True, exist_ok=True)
     if args.prune_files:
         prune_orphans(root, config, manifest)
+    from refslib import preservation
+    from refslib.store import Store
+    preservation.write_reports(root, config, manifest, Store(paths.store_root()))
     text = indexer.build_index(manifest, config)
     (archive_dir / "README.md").write_text(text, encoding="utf-8", newline="\n")
     print("Wrote %s (%d bytes)." % (paths.rel(archive_dir / "README.md", root), len(text)))
 
-    unresolved = indexer.build_unresolved(manifest)
+    unresolved = ("# Archive work queues\n\nSee [document gaps](document-gaps.md), "
+                  "[review gaps](review-gaps.md), and [store gaps](store-gaps.md).\n"
+                  if config.get("layout_version") == 2 else indexer.build_unresolved(manifest))
     (archive_dir / "needs-work.md").write_text(unresolved, encoding="utf-8", newline="\n")
     print("Wrote %s - the list to read when something needs fetching another way."
           % paths.rel(archive_dir / "needs-work.md", root))
@@ -1130,7 +1439,7 @@ def command_import(args):
     config = paths.config()
     manifest = check_module.open_manifest(root, config)
     store = Store(paths.store_root())
-    archive_dir = root / (config.get("archive_dir") or "docs/references-md")
+    archive_dir = root / (config.get("archive_dir") or "docs/archived-references")
 
     # Only references that still need content are eligible, so an import cannot
     # silently overwrite a good copy. --redo also reopens what a PREVIOUS import
@@ -1263,10 +1572,11 @@ def command_import(args):
                 print("  renamed    %s -> %s" % (renamed_from, record["slug"]))
         manifest_module.apply_acquired_fields(entry, record)
 
-        text_out = render_module.render(record, cleaned.text, "full")
-        path = archive_dir / entry["grade"] / (record["slug"] + ".md")
+        text_out = reading.english_render(record, cleaned.text, "full")
+        path = layout.path(root, config, entry)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text_out, encoding="utf-8", newline="\n")
+        from refslib.preservation import write_bytes
+        write_bytes(path, text_out.encode("utf-8"))
         manifest.record(key, "import", result="stored", sha256=content_sha,
                         raw_sha256=raw_sha,
                         files_joined=len(used), chars=len(cleaned.text),
@@ -1314,7 +1624,9 @@ def command_verify(args):
     store = Store(paths.store_root())
     before = verify_module.curated_fingerprints(root, config)
 
-    findings = verify_module.run(root, config, manifest, store, curated_hashes=before)
+    findings = verify_module.run(
+        root, config, manifest, store, curated_hashes=before,
+        workspace_cache=paths.store_is_workspace_cache())
     failures = [item for item in findings if item.level == "fail"]
     warnings = [item for item in findings if item.level == "warn"]
 
@@ -1400,6 +1712,11 @@ def build_parser():
     )
     subparsers = parser.add_subparsers(dest="command")
 
+    from refslib import preservation
+    preservation.add_commands(subparsers)
+    from refslib import assets
+    assets.add_commands(subparsers)
+
     harvest_parser = subparsers.add_parser(
         "harvest", help="find every cited URL in tracked files (read-only)")
     harvest_parser.add_argument("--report", action="store_true",
@@ -1417,6 +1734,11 @@ def build_parser():
                                   help="accepted and ignored: this command never writes")
     inventory_parser.add_argument("--show-entries", action="store_true")
     inventory_parser.set_defaults(handler=command_inventory)
+
+    summary_parser = subparsers.add_parser(
+        "record-summaries", help="preserve reviewed metadata and original summaries (offline)")
+    summary_parser.add_argument("input", help="JSON array of reviewed source summaries")
+    summary_parser.set_defaults(handler=command_record_summaries)
 
     check_parser = subparsers.add_parser(
         "check", help="probe each reference and record its health (network)")
@@ -1457,6 +1779,7 @@ def build_parser():
                                 help="only references whose identity contains this text")
     acquire_parser.add_argument("--kind", default=None,
                                 help="only these kinds (comma separated)")
+    acquire_parser.add_argument("--incomplete", action="store_true", help="select missing or incomplete documents, including summary records")
     acquire_parser.add_argument("--force", action="store_true",
                                 help="re-acquire references that already have a file")
     acquire_parser.add_argument("--prune-files", action="store_true",
@@ -1528,11 +1851,29 @@ def build_parser():
                                 help="only rows whose URL contains this substring")
     wayback_parser.add_argument("--force", action="store_true",
                                 help="consider every reference, not only the failed ones")
+    wayback_parser.add_argument(
+        "--replay-url", default="",
+        help="use this exact Wayback replay for the one row selected by --only; "
+             "the raw id_ form is fetched and still validated")
     wayback_parser.add_argument("--tries", type=int, default=5,
                                 help="captures to try per reference before giving up")
     wayback_parser.add_argument("--gap", type=float, default=1.0)
     wayback_parser.add_argument("--timeout", type=float, default=40.0)
     wayback_parser.set_defaults(handler=command_wayback)
+
+    historical_parser = subparsers.add_parser(
+        "historical-urls",
+        help="list migrated and historical paths with pinned waymore in Docker")
+    historical_parser.add_argument(
+        "--only", default="",
+        help="REQUIRED: references whose manifest identity contains this text")
+    historical_parser.add_argument(
+        "--limit-requests", type=int, default=50,
+        help="bound waymore provider requests (default: 50)")
+    historical_parser.add_argument(
+        "--limit-results", type=int, default=500,
+        help="print at most this many URLs; 0 prints all (default: 500)")
+    historical_parser.set_defaults(handler=command_historical_urls)
 
     pdf_parser = subparsers.add_parser(
         "pdf-pages", help="render a PDF whose text cannot be read into page images")
@@ -1575,16 +1916,27 @@ def build_parser():
 
 
 def main(argv=None):
+    from refslib import isolation, browser, container_browser
+    isolation.install()
+    browser.Ladder = container_browser.Ladder
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "handler", None):
         parser.print_help()
         return 2
+    from refslib import verify
+    root, config = paths.repo_root(), paths.config()
+    before = verify.curated_fingerprints(root, config)
     try:
-        return args.handler(args)
+        result = args.handler(args)
     except paths.SetupError as error:
         sys.stderr.write("setup error: %s\n" % error)
         return 2
+    if verify.curated_fingerprints(root, config) != before:
+        sys.stderr.write("Archive boundary failure: a curated document changed during the run.\n")
+        return 1
+    return result
+
 
 
 if __name__ == "__main__":

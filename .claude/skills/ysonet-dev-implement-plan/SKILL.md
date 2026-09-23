@@ -228,7 +228,9 @@ Apply the plan's documentation work and any newly discovered required updates:
   `Last reviewed` value consistent with the current `VERSION`;
 - update catalog, usage, credit, and reference pages;
 - update normal CLI, interactive UI, help, completion, and listings together;
-  and
+- after compiling Debug, regenerate `.claude/skills/ysonet-payloads/references/full-help.md`
+  with the updater named in `CLAUDE.md`, review its diff, and update the skill's
+  maintained guidance when behavior or operator decisions changed; and
 - keep private `dev-kitchen/`, `CLAUDE.md`, and `.claude/` notes out of public
   architecture prose.
 
@@ -360,6 +362,7 @@ out in the final handoff.
 - [ ] Plan claims were re-verified against current code.
 - [ ] Material deviations were approved and recorded; minor corrections preserve intent.
 - [ ] Every implementation, csproj, public-surface, and documentation step is complete.
+- [ ] The shipped `ysonet-payloads` skill matches the final built public surface.
 - [ ] Gadget work considered every plausible serializer and implemented the
       maximum verified formatter set even when the plan omitted that work.
 - [ ] New or changed gadgets followed the complete create-gadget skill.

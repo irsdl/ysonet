@@ -1,4 +1,4 @@
----
+﻿---
 name: ysonet-dev-consistency-check
 description: Runs a whole-repo consistency audit of ysonet before a release or after a change. Checks that docs match the code, docs/ARCHITECTURE.md is current, both CLIs expose every gadget and plugin, each gadget and plugin has all required parts, tests exist for everything following the existing test patterns, no test opens a real application and every fired command goes through the test sink, all skills and agent files match the Anthropic skill standard, the git-tracked memory under .claude/memory/ is still true and indexed, no ignored, private, or machine-specific content leaked into tracked files, and the full test suite passes with zero errors. Use when the user asks to check consistency, audit the repo, verify docs and tests are in sync, check for private or local data leaking into the public repo, or confirm the tool is release-ready. Read-only until the user approves fixes.
 ---
@@ -35,10 +35,9 @@ entry as a claim to verify rather than as fact.
 
 ## Fast path: run the bundled scripts first
 
-Two deterministic PowerShell scripts live beside this skill. Run them ONCE at the
-start to collect the mechanical facts in one compact report, instead of many
-Grep/Read calls. They are read-only and advisory; you still confirm semantic
-claims and run the full suite yourself. Both auto-detect the repo root.
+Three deterministic PowerShell scripts live beside this skill. Run them once to collect
+the mechanical facts in one compact report. They are read-only and advisory; you still confirm semantic
+claims and run the full suite yourself. All three auto-detect the repo root.
 
 - Inventory and cross-reference (checks 1-5): run
   `powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/scripts/inventory.ps1"`.
@@ -55,6 +54,9 @@ claims and run the full suite yourself. Both auto-detect the repo root.
   `powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/scripts/check-skills.ps1"`.
   It validates every `.claude/skills/*/SKILL.md` against the hard limits in
   `references/anthropic-skill-standards.md` and flags style issues.
+- Shipped user-skill snapshot (checks 1, 3, and 6): after building Debug, run
+  `powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/scripts/update-ysonet-payloads-skill.ps1" -Check`.
+  It compares the tracked snapshot with public `--fullhelp`; omit `-Check` to refresh it.
 
 Treat every flag as a lead to verify, not a final verdict. A warning can be a
 deliberate example (an anti-pattern shown on purpose); confirm before reporting
@@ -81,6 +83,15 @@ not assert from memory.
   not noise.
 - Check that gadget names, plugin names, option flags, example commands, and
   counts in the docs still exist and still behave as written.
+- Three public snapshots are already compared with the live catalogue by NORMAL
+  rows, so a green build proves them and re-checking them by hand is wasted
+  effort: the shipped skill's `references/full-help.md`, both tables of
+  `minification-savings.md`, and the two generated blocks of
+  `gadgets-and-plugins.md` (its gadget lines and its plugin lines). Review the
+  PROSE around those blocks instead. If one of those rows fails, that failure is
+  the finding.
+- Treat `.claude/skills/ysonet-payloads/` as shipped user documentation: its generated
+  help must match public `--fullhelp`, and its maintained guidance must match behavior.
 - Flag stale flags, renamed gadgets, dropped or added options, and example
   commands that would now fail.
 - A PRIVATE module is expected to be absent from every public doc. A gadget with
@@ -419,9 +430,10 @@ summary says what passed, the verdict says whether this machine could run
 everything.
 
 Report the `Fire backend:` header line too. `test-sink (...)` is expected;
-`legacy-cmd (...)` means every command fire row used the weaker marker backend
-for the reason in the brackets, so name that reason and do not call it equivalent
-coverage. An application window appearing during the run is a check-5 finding.
+`test-sink unavailable (...)` is a hard failure and the suite must stop after one
+ordinary failed check naming that reason. If later rows ran anyway, command-effect
+coverage was allowed to disappear and the run is invalid. An application window
+appearing during the run is a check-5 finding.
 
 - Never call an `environment-limited` run complete coverage or release-ready.
   Name the skipped checks and the capability each one needed.
@@ -480,6 +492,7 @@ say which gadgets, plugins, docs, and surfaces were checked, not just "all good"
 - [ ] Every new runtime-gated gadget names a verified working target version,
       and a latest-version failure does not overstate `WithVersions` (check 4).
 - [ ] Skills/agents checked against `references/anthropic-skill-standards.md`.
+- [ ] The shipped `ysonet-payloads` skill matches public help and behavior.
 - [ ] `.claude/memory/` audited: index complete, entries verified against the
       code, no stale "still outstanding" clause; no entry changed without the
       user's approval (check 7).

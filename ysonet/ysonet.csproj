@@ -462,6 +462,20 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <!--
+      Ship the public user skill beside the binary at the standard Claude Code
+      discovery path. The folder itself follows the portable Agent Skills format,
+      so another compatible client can import the same directory. Keep one source
+      under .claude/skills; do not create a second generated prompt or CLAUDE.md in
+      bin, which would drift from the skill and inject maintainer instructions into
+      an operator's session.
+    -->
+    <Content Include="..\.claude\skills\ysonet-payloads\**\*.*">
+      <Link>.claude\skills\ysonet-payloads\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.5.2">
       <Visible>False</Visible>
       <ProductName>Microsoft .NET Framework 4.5.2 %28x86 and x64%29</ProductName>
@@ -621,6 +635,25 @@
     <ItemGroup Condition="'$(Clr4Compiler)' != ''">
       <FileWrites Include="$(Clr4TestHostExe);$(Clr4TestHostOutputConfig)" />
     </ItemGroup>
+  </Target>
+
+  <!--
+    A build output is a supported distribution layout, not an incidental copy. Fail
+    locally and in CI if the skill or one of its routed references did not reach it.
+    GitHub packages the whole Release output, so this same gate protects artifacts.
+  -->
+  <PropertyGroup>
+    <YsonetSkillOutputDir>$(TargetDir).claude\skills\ysonet-payloads</YsonetSkillOutputDir>
+  </PropertyGroup>
+  <Target Name="ValidateShippedYsonetSkill" AfterTargets="Build">
+    <Error Condition="!Exists('$(YsonetSkillOutputDir)\SKILL.md')"
+           Text="The build output is missing the YSoNet Agent Skill entry point: $(YsonetSkillOutputDir)\SKILL.md" />
+    <Error Condition="!Exists('$(YsonetSkillOutputDir)\references\cli-and-interactive.md')"
+           Text="The build output is missing the YSoNet command-line and interactive reference." />
+    <Error Condition="!Exists('$(YsonetSkillOutputDir)\references\selection-guide.md')"
+           Text="The build output is missing the YSoNet payload-selection reference." />
+    <Error Condition="!Exists('$(YsonetSkillOutputDir)\references\full-help.md')"
+           Text="The build output is missing the YSoNet full-help reference." />
   </Target>
 
   <!--

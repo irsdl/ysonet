@@ -1,0 +1,126 @@
+"""Native conversion jobs executed only inside the source worker.
+
+No writable host mounts. Files live in the capped /tmp tmpfs and only bounded
+JSON/bytes results leave the worker. This module never executes source commands.
+"""
+from pathlib import Path
+import os
+import re
+import stat
+import subprocess
+
+from . import toolbox
+
+MAX_BYTES = 64 * 1024 * 1024
+WAYMORE_PROVIDERS = "commoncrawl,otx,urlscan"
+WAYMORE_MAX_REQUESTS = 500
+
+
+def read_result(path, limit=MAX_BYTES):
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    info = os.fstat(descriptor)
+    if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+        os.close(descriptor)
+        raise ValueError("invalid or oversized conversion output")
+    with os.fdopen(descriptor, "rb") as handle:
+        data = handle.read(limit + 1)
+        if len(data) > limit:
+            raise ValueError("conversion output limit")
+        return data
+
+
+def run(arguments, timeout=90, required=True):
+    result = subprocess.run(arguments, capture_output=True, timeout=timeout)
+    if len(result.stdout) > MAX_BYTES or len(result.stderr) > MAX_BYTES:
+        raise ValueError("conversion stream limit")
+    if required and result.returncode:
+        raise toolbox.Unavailable("native conversion failed: " + arguments[0])
+    return result
+
+
+def curl_bytes(url, insecure=False):
+    arguments = ["curl"] + list(toolbox.CURL_ARGS)
+    arguments += ["--proto", "=http,https", "--proto-redir", "=http,https"]
+    if insecure:
+        arguments.append("--insecure")
+    result = run(arguments + [url])
+    if not result.stdout:
+        raise toolbox.Unavailable("curl returned no bytes")
+    return result.stdout
+
+
+def print_pdf(markup):
+    Path("/tmp/document.html").write_text(markup, encoding="utf-8")
+    run(["chromium-browser"] + list(toolbox.BROWSER_PDF_ARGS) + [
+        "--user-data-dir=/tmp/browser-profile", "--print-to-pdf=/tmp/document.pdf",
+        "file:///tmp/document.html"], timeout=150)
+    result = read_result("/tmp/document.pdf")
+    if not result.startswith(b"%PDF-"):
+        raise ValueError("browser did not produce a PDF")
+    return result
+
+
+def pdf_info(data, text=True):
+    Path("/tmp/source.pdf").write_bytes(data)
+    info = run(["pdfinfo", "/tmp/source.pdf"])
+    match = re.search(rb"^Pages:\s+(\d+)", info.stdout, re.M)
+    count = int(match.group(1)) if match else 0
+    if not text:
+        return count
+    result = run(["pdftotext", "-layout", "-enc", "UTF-8", "/tmp/source.pdf", "-"])
+    return count, result.stdout.decode("utf-8", "replace")
+
+
+def pdf_text(data):
+    from . import extract_doc
+    _, text = pdf_info(data)
+    if not text.strip():
+        raise toolbox.Unavailable("pdftotext produced no text")
+    return extract_doc.repair_lost_words(text)[0]
+
+
+def pdf_images(data, first, last):
+    if type(first) is not int or type(last) is not int or not 1 <= first <= last <= 500 or last - first >= 5:
+        raise ValueError("PDF images require a bounded range of at most five pages")
+    Path("/tmp/source.pdf").write_bytes(data)
+    run(["pdftoppm"] + list(toolbox.PDFTOPPM_ARGS) + [
+        "-f", str(first), "-l", str(last), "/tmp/source.pdf", "/tmp/page"])
+    found = []
+    for path in sorted(Path("/tmp").glob("page-*.png")):
+        match = re.fullmatch(r"page-(\d+)\.png", path.name)
+        if not match or not first <= int(match.group(1)) <= last:
+            raise ValueError("unexpected rendered page identity")
+        data = read_result(path, 20 * 1024 * 1024)
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("renderer did not produce PNG bytes")
+        found.append((int(match.group(1)), data))
+    if len(found) != last - first + 1:
+        raise toolbox.Unavailable("PDF image range is incomplete")
+    return found
+
+
+def captions(urls):
+    if len(urls) > 100:
+        raise ValueError("caption batch limit")
+    Path("/tmp/captions").mkdir()
+    arguments = ["yt-dlp"] + ["/tmp/captions" if arg == "/out" else arg for arg in toolbox.YT_DLP_ARGS]
+    run(arguments + urls, timeout=840, required=False)
+    # The legacy collector is now called only in the disposable worker.
+    return toolbox._collect(urls, "/tmp/captions")
+
+
+def waymore(domains, limit_requests=50):
+    if len(domains) > 100 or any(not re.fullmatch(r"[a-z0-9.-]+", d) for d in domains):
+        raise ValueError("invalid domain batch")
+    if type(limit_requests) is not int or not 1 <= limit_requests <= WAYMORE_MAX_REQUESTS:
+        raise ValueError("waymore request limit must be between 1 and %d"
+                         % WAYMORE_MAX_REQUESTS)
+    Path("/tmp/targets.txt").write_text("\n".join(domains) + "\n", encoding="ascii")
+    try:
+        run(["waymore", "-i", "/tmp/targets.txt", "-mode", "U", "--providers", WAYMORE_PROVIDERS,
+             "-lcc", "5", "-r", "0", "-oU", "/tmp/urls.txt", "-ow", "-lr", str(limit_requests)],
+            timeout=840, required=False)
+    except subprocess.TimeoutExpired:
+        pass
+    body = read_result("/tmp/urls.txt", 8 * 1024 * 1024).decode("utf-8", "replace")
+    return sorted(set(line.strip() for line in body.splitlines() if line.strip().startswith(("https://", "http://"))))

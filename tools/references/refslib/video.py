@@ -26,7 +26,7 @@ AUTHOR = re.compile(r'"author"\s*:\s*"((?:[^"\\]|\\.)*)"')
 TIMED_TEXT = re.compile(r"<text[^>]*>(.*?)</text>", re.DOTALL)
 
 
-def to_markdown(markup, url, fetcher, ladder=None, transcript=""):
+def to_markdown(markup, url, fetcher, ladder=None, transcript="", fallback=None):
     """Convert one video page into Markdown: metadata, description, transcript.
 
     `fetcher` is injected so tests stay offline and so the caption fetch goes
@@ -43,6 +43,17 @@ def to_markdown(markup, url, fetcher, ladder=None, transcript=""):
     then costs no request at all.
     """
     facts = read_metadata(markup, url)
+    # A container-retrieved transcript is a complete acquisition in its own
+    # right.  The watch-page bytes may later be absent from a different object
+    # store, so retain the citation metadata already recorded in the manifest
+    # instead of forcing a fresh YouTube request merely to rebuild a heading.
+    fallback = fallback or {}
+    fallback_authors = fallback.get("authors") or []
+    facts["title"] = facts["title"] or fallback.get("title") or ""
+    facts["author"] = (facts["author"] or
+                       (fallback_authors[0] if fallback_authors else ""))
+    facts["published"] = facts["published"] or fallback.get("published") or ""
+    facts["description"] = facts["description"] or fallback.get("description") or ""
     track = caption_track(markup)
 
     out = ["# " + (facts["title"] or url), ""]

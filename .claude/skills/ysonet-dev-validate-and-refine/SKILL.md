@@ -240,6 +240,8 @@ For a plan, verify at least:
 - file- and symbol-specific implementation sequence in dependency order;
 - compatibility, migration, security, data, and public behavior;
 - CLI, interactive UI, help, completion, docs, packaging, and generated files;
+- regeneration and semantic review of the shipped `ysonet-payloads` skill when
+  any public YSoNet surface changes;
 - focused positive, negative, boundary, regression, and matrix tests;
 - exact verification commands, working directories, and expected evidence;
 - risks, mitigations, checkpoints, escape hatch, and recoverable rollback;
@@ -321,6 +323,7 @@ question or state the exact evidence/access blocker and keep the work open.
 - [ ] Every vague point entered the uncertainty loop.
 - [ ] Each user answer was applied and re-audited for follow-on uncertainty.
 - [ ] The plan or document is complete for its stated purpose.
+- [ ] Public-interface plans keep the shipped `ysonet-payloads` skill current.
 - [ ] The revised document passed a fresh zero-trust review.
 - [ ] Required validators and applicable diff/format checks passed.
 - [ ] Remaining uncertainty is None.

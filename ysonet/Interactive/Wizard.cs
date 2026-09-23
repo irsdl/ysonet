@@ -116,8 +116,13 @@ namespace ysonet.Interactive
 
         public int Run()
         {
+            using (ConsoleQuickEdit.Enable())
+                return RunSession();
+        }
+
+        private int RunSession()
+        {
             InteractiveConfig.ApplySavedTheme();
-            ConsoleQuickEdit.Enable(); // so mouse-select + right-click copy works
 
             var topItems = new List<string>
             {

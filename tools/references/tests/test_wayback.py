@@ -75,6 +75,61 @@ class TestRanking(unittest.TestCase):
         self.assertIn("id_/", first.replay_url)
 
 
+class TestDateProximity(unittest.TestCase):
+    def test_the_capture_nearest_the_articles_date_comes_first(self):
+        order = [item.timestamp for item in
+                 wayback.ranked("https://xz.aliyun.com/t/3019", FakeFetcher(ROWS),
+                                near="20190601")]
+        self.assertEqual(order[0], "20190823215737")
+
+    def test_within_the_same_season_the_larger_capture_wins(self):
+        rows = [["20130601000000", "https://x.test/a", "2000", "200"],
+                ["20130801000000", "https://x.test/a", "9000", "200"]]
+        order = [item.timestamp for item in
+                 wayback.ranked("https://x.test/a", FakeFetcher(rows), near="20130529")]
+        self.assertEqual(order[0], "20130801000000")
+
+    def test_several_timestamps_can_be_skipped_at_once(self):
+        order = [item.timestamp for item in
+                 wayback.ranked("https://xz.aliyun.com/t/3019", FakeFetcher(ROWS),
+                                skip_timestamp={"20221220002259", "20240113211930"})]
+        self.assertNotIn("20221220002259", order)
+        self.assertNotIn("20240113211930", order)
+
+
+class TestPublicationDate(unittest.TestCase):
+    def test_full_compact_dashed_and_month_only_dates(self):
+        cases = {
+            "https://x.test/2013/05/29/article": "20130529",
+            "https://x.test/20070216/article": "20070216",
+            "https://x.test/entry/2012-04-24-article": "20120424",
+            "https://x.test/2012/03/article": "20120315",
+        }
+        for url, expected in cases.items():
+            self.assertEqual(wayback.publication_date(url), expected)
+
+    def test_an_impossible_or_absent_date_answers_nothing(self):
+        self.assertEqual(wayback.publication_date("https://x.test/2013/02/31/a"), "")
+        self.assertEqual(wayback.publication_date("https://x.test/article"), "")
+
+
+class TestExactReplay(unittest.TestCase):
+    def test_a_toolbar_replay_becomes_a_raw_capture(self):
+        snapshot = wayback.from_replay_url(
+            "https://web.archive.org/web/20121024020823/http://www.x.test/paper.pdf")
+        self.assertEqual(snapshot.timestamp, "20121024020823")
+        self.assertEqual(snapshot.original, "http://www.x.test/paper.pdf")
+        self.assertIn("20121024020823id_/", snapshot.replay_url)
+
+    def test_http_https_and_www_drift_still_identify_the_same_document(self):
+        self.assertTrue(wayback.same_target(
+            "https://x.test/paper.pdf", "http://www.x.test/paper.pdf"))
+
+    def test_a_different_path_is_refused(self):
+        self.assertFalse(wayback.same_target(
+            "https://x.test/paper.pdf", "http://www.x.test/slides.pdf"))
+
+
 class TestRefusingACaptureThatIsNotThePage(unittest.TestCase):
     ARTICLE = ("<html><head><title>Why so Serials</title></head><body><p>"
                + "The gadget chain reaches the sink during read. " * 20
@@ -90,6 +145,12 @@ class TestRefusingACaptureThatIsNotThePage(unittest.TestCase):
         shell = b"<html><body><div id='app'></div></body></html>"
         self.assertIn("characters of visible text", wayback.unusable(shell))
 
+    def test_a_large_parked_domain_page_is_refused(self):
+        parked = ("<html><head><title>Example.com is for sale | HugeDomains"
+                  "</title></head><body>" + ("premium domain listing " * 1000)
+                  + "</body></html>").encode("utf-8")
+        self.assertIn("parked-domain", wayback.unusable(parked))
+
     def test_an_article_is_accepted(self):
         self.assertEqual(wayback.unusable(self.ARTICLE), "")
 
@@ -99,13 +160,13 @@ class TestRefusingACaptureThatIsNotThePage(unittest.TestCase):
     def test_a_pdf_is_never_read_as_html(self):
         self.assertEqual(wayback.unusable(b"%PDF-1.4\n" + b"\x00" * 500), "")
 
-    def test_a_binary_kind_is_not_second_guessed(self):
-        """A captured deck is not HTML, and has no visible text to count."""
-        self.assertEqual(wayback.unusable(b"\x00" * 40, kind="slides"), "")
+    def test_a_binary_kind_must_still_be_the_named_document_format(self):
+        """An arbitrary binary or HTML 404 must not become a cited deck."""
+        self.assertIn("not a PDF", wayback.unusable(b"\x00" * 40, kind="slides"))
 
     def test_a_whitepaper_capture_that_is_an_html_wrapper_is_refused(self):
         wrapper = b"<!doctype html><html><body><div id='wm-ipp-base'></div></body></html>"
-        self.assertIn("characters of visible text",
+        self.assertIn("not a PDF",
                       wayback.unusable(wrapper, kind="whitepaper"))
 
 

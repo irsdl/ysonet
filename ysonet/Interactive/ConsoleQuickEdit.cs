@@ -3,12 +3,12 @@ using System.Runtime.InteropServices;
 
 namespace ysonet.Interactive
 {
-    // Makes sure the console's QuickEdit mode is on, so a user can select text with
-    // the mouse and copy it with a right-click (or Enter) the normal Windows way.
+    // Enables QuickEdit for one session and restores the original mode on exit.
+    // Users can select text with the mouse and copy it with a right-click (or Enter) the normal Windows way.
     // Some shells start with QuickEdit off; without it, selection/right-click does
     // nothing. Best effort and Windows-only: any failure (no console, non-Windows,
     // redirected input) is ignored.
-    internal static class ConsoleQuickEdit
+    internal sealed class ConsoleQuickEdit : IDisposable
     {
         private const int STD_INPUT_HANDLE = -10;
         private const uint ENABLE_EXTENDED_FLAGS = 0x0080;
@@ -23,24 +23,49 @@ namespace ysonet.Interactive
         [DllImport("kernel32.dll")]
         private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
-        public static void Enable()
+        private Action _restore;
+
+        private ConsoleQuickEdit(Action restore = null)
+        {
+            _restore = restore;
+        }
+
+        public static IDisposable Enable()
         {
             try
             {
                 if (Console.IsInputRedirected)
-                    return;
+                    return new ConsoleQuickEdit();
                 IntPtr handle = GetStdHandle(STD_INPUT_HANDLE);
                 uint mode;
                 if (!GetConsoleMode(handle, out mode))
-                    return;
-                // ENABLE_EXTENDED_FLAGS must be set for the QuickEdit bit to take.
-                mode |= ENABLE_EXTENDED_FLAGS | ENABLE_QUICK_EDIT_MODE;
-                SetConsoleMode(handle, mode);
+                    return new ConsoleQuickEdit();
+                return Enable(mode, value => SetConsoleMode(handle, value));
             }
             catch
             {
                 // no real console / not Windows: selection-copy is up to the terminal
+                return new ConsoleQuickEdit();
             }
+        }
+
+        // The native handle is captured by the caller. The setter seam lets tests
+        // prove that every original flag survives normal and exceptional exits.
+        internal static IDisposable Enable(uint originalMode, Func<uint, bool> setMode)
+        {
+            uint enabled = originalMode | ENABLE_EXTENDED_FLAGS | ENABLE_QUICK_EDIT_MODE;
+            if (enabled == originalMode || !setMode(enabled))
+                return new ConsoleQuickEdit();
+            return new ConsoleQuickEdit(() => setMode(originalMode));
+        }
+
+        public void Dispose()
+        {
+            Action restore = _restore;
+            _restore = null;
+            if (restore == null) return;
+            try { restore(); }
+            catch { /* the console may have closed before the session ended */ }
         }
     }
 }

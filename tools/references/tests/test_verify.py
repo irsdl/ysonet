@@ -125,12 +125,36 @@ class TestManifestAndStore(unittest.TestCase):
         self.manifest = manifest_module.Manifest(self.root / "manifest.json")
 
     def test_a_missing_store_object_fails(self):
+        (self.root / "store" / "objects").mkdir(parents=True)
         entry = self.manifest.entry("https://example.org/a")
         entry["cited_by"] = ["docs/list.md:1"]
         entry["raw_sha256"] = "0" * 64
         self.manifest.record("https://example.org/a", "check", status="ok")
         findings = verify._check_store(self.manifest, self.store)
         self.assertTrue(any("missing store object" in item.what for item in findings))
+
+    def test_an_absent_store_is_one_setup_failure(self):
+        for suffix in ("a", "b"):
+            entry = self.manifest.entry("https://example.org/" + suffix)
+            entry["cited_by"] = ["docs/list.md:1"]
+            entry["raw_sha256"] = suffix * 64
+        findings = verify._check_store(self.manifest, self.store)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].level, "fail")
+        self.assertIn("content store unavailable", findings[0].what)
+        self.assertNotIn("missing store object", findings[0].what)
+
+    def test_an_incomplete_workspace_cache_is_one_setup_failure(self):
+        (self.root / "store" / "objects").mkdir(parents=True)
+        for suffix in ("a", "b"):
+            entry = self.manifest.entry("https://example.org/" + suffix)
+            entry["cited_by"] = ["docs/list.md:1"]
+            entry["raw_sha256"] = suffix * 64
+        findings = verify._check_store(
+            self.manifest, self.store, workspace_cache=True)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].what, "content store unavailable")
+        self.assertIn("workspace cache is incomplete", findings[0].detail)
 
     def test_a_tampered_store_object_fails(self):
         digest = self.store.put(b"real bytes")
@@ -268,6 +292,17 @@ class TestUntranslatedDocumentsAreReported(unittest.TestCase):
                   language="en")
         findings = verify._check_translations(self.manifest, self.store)
         self.assertTrue(any("untranslated" in item.what for item in findings))
+
+    def test_an_incomplete_workspace_cache_does_not_report_a_partial_backlog(self):
+        self._add("https://example.cn/a", self.CHINESE, slug="cn-post")
+        missing = self.manifest.entry("https://example.org/missing")
+        missing["raw_sha256"] = "0" * 64
+        findings = verify.run(
+            self.root, {"archive_dir": "archive"}, self.manifest, self.store,
+            workspace_cache=True)
+        self.assertTrue(any(item.what == verify.STORE_UNAVAILABLE
+                            for item in findings))
+        self.assertFalse(any("untranslated" in item.what for item in findings))
 
 
 class TestOrphansFollowTheLastAcquire(unittest.TestCase):

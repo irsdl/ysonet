@@ -1,24 +1,14 @@
-"""GitHub repositories as pinned, non-executed reference packages.
+"""Clean repository reading copies from pinned documentation blobs.
 
-A repository citation is a package, not a README. The archive preserves its
-educational material - the prose that explains the technique - bound to an exact
-commit, and keeps the code itself in a private mirror rather than flattening it
-into Markdown.
-
-REPOSITORY CONTENT IS HOSTILE INPUT. Clone and fetch are allowed; nothing else
-is. There is no checkout, no submodule recursion, no Git LFS smudge, no hook
-execution, no package install, no build, and nothing in the repository is ever
-run. Files are read as blobs from a pinned commit through Git's object database,
-with path, type and size limits.
-
-Git itself is run with isolated config, credential helpers disabled, prompts
-disabled, hooks disabled and HTTPS-only transport, because a repository can ask
-Git to do a surprising amount on its behalf if you let it.
+Production acquisition uses GitHub's public API in the isolated source worker.
+It resolves one revision, verifies blob identities, and retains technical prose.
+No host Git, mirror, checkout, hooks, submodules, LFS, builds or repository code
+execution. The injected Git interface below exists only for synthetic fixtures.
 """
 
 import os
 import re
-import subprocess
+from urllib.parse import quote, unquote, urlsplit
 
 GITHUB_REPO = re.compile(
     r"^https://(?:www\.)?github\.com/(?P<owner>[\w.-]+)/(?P<name>[\w.-]+?)(?:\.git)?/?$",
@@ -30,6 +20,7 @@ DOC_DIRECTORIES = ("docs/", "doc/", "documentation/", "examples/", "example/",
 DOC_SUFFIXES = (".md", ".markdown", ".rst", ".txt", ".adoc")
 ROOT_DOCUMENTS = ("readme", "license", "licence", "copying", "notice", "security",
                   "contributing", "changelog", "usage", "install")
+READER_DOCUMENTS = ("readme", "usage", "install", "architecture", "design")
 
 # Generated trees carry no teaching and enormous file counts.
 REJECTED_SEGMENTS = ("node_modules/", "vendor/", "packages/", "bin/", "obj/",
@@ -110,6 +101,11 @@ def acquire(url, store_root, run=None):
     `run` is injectable so the tests can drive this without a network or a git
     binary.
     """
+    if run is None:
+        # No host git subprocess, credential environment or bare mirror. The
+        # injectable git path below is retained for trusted fixture tests only.
+        from . import isolation
+        return isolation.call("repository", url)
     parsed = parse(url)
     if parsed is None:
         raise RepoError("not a canonical GitHub repository URL: " + str(url))
@@ -184,36 +180,172 @@ def _is_educational(path):
 
 
 def _run_git(arguments):
-    environment = dict(os.environ)
-    environment.update(SAFE_GIT_ENV)
-    completed = subprocess.run(["git"] + SAFE_GIT_FLAGS + list(arguments),
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                               env=environment, timeout=CLONE_TIMEOUT)
-    if completed.returncode != 0:
-        raise RepoError("git %s failed: %s" % (arguments[0],
-                        completed.stderr.decode("utf-8", "replace").strip()[:200]))
-    return completed.stdout.decode("utf-8", "replace")
+    raise RepoError("host repository execution is disabled; use the isolated public API reader")
+
+
+def target(url):
+    """Root or pinned tree citation, including a selected documentation folder."""
+    parts = urlsplit(str(url or ""))
+    if parts.scheme != "https" or parts.netloc.lower() not in ("github.com", "www.github.com"):
+        return None
+    path = [unquote(p) for p in parts.path.strip("/").split("/")]
+    if len(path) < 2 or not all(re.fullmatch(r"[\w.-]+", p) and p not in (".", "..") for p in path[:2]):
+        return None
+    owner, name = path[:2]
+    if len(path) == 2:
+        return owner, name.removesuffix(".git"), "HEAD", ""
+    if len(path) < 4 or path[2] != "tree":
+        return None
+    if any(not p or p in (".", "..") or any(c in p for c in "\\\x00\r\n/") for p in path[3:]):
+        return None
+    return owner, name, path[3], "/".join(path[4:])
+
+
+def _reader_document(path):
+    if any(ord(c) < 32 for c in path) or "\\" in path or ".." in path.split("/"):
+        return False
+    lowered = path.lower()
+    name = lowered.rsplit("/", 1)[-1]
+    stem = name.rsplit(".", 1)[0]
+    if stem in ("agents", "claude", "skill", "security", "contributing", "license", "licence", "copying", "notice", "changelog"):
+        return False
+    if "/" not in path:
+        return any(stem == n or stem.startswith(n + "-") for n in READER_DOCUMENTS) and (lowered.endswith(DOC_SUFFIXES) or "." not in name)
+    return _is_educational(path)
+
+
+def acquire_public(url):
+    """Documentation blobs from GitHub's public API, called inside the worker.
+
+    Resolve the cited revision once, then address the tree and blobs by SHA.
+    API supplied download URLs are never followed; no checkout or code archive.
+    """
+    from . import github
+    from .fetcher import Fetcher
+    import base64
+    parsed = target(url)
+    if not parsed:
+        raise RepoError("unsupported GitHub repository citation")
+    owner, name, ref, prefix = parsed
+    base = github.API + "/repos/" + owner + "/" + name
+    fetcher = Fetcher()
+    commit = github._json(base + "/commits/" + quote(ref, safe=""), fetcher)
+    sha = commit.get("sha", "")
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise RepoError("GitHub did not return a pinned commit")
+    tree = github._json(base + "/git/trees/" + sha + "?recursive=1", fetcher)
+    if tree.get("truncated"):
+        raise RepoError("repository tree is truncated; select a bounded documentation source")
+    materials = []
+    rows = sorted(tree.get("tree", []), key=lambda row: (not row.get("path", "").lower().startswith("readme"), row.get("path", "")))
+    selected = []
+    for row in rows:
+        path = row.get("path", "")
+        relative = path[len(prefix) + 1:] if prefix and path.startswith(prefix + "/") else path
+        if prefix and not path.startswith(prefix + "/"):
+            continue
+        if row.get("type") != "blob" or row.get("mode") not in ("100644", "100755"):
+            continue
+        if not _reader_document(relative) or not isinstance(row.get("size"), int) or row["size"] > MAX_BLOB_BYTES:
+            continue
+        blob = row.get("sha", "")
+        if not re.fullmatch(r"[0-9a-f]{40}", blob):
+            raise RepoError("invalid documentation blob identity")
+        selected.append(row)
+    for row in selected[:MAX_DOCUMENTS]:
+        blob = github._json(base + "/git/blobs/" + row["sha"], fetcher)
+        if blob.get("encoding") != "base64":
+            raise RepoError("unexpected documentation encoding")
+        raw = base64.b64decode("".join(blob.get("content", "").split()), validate=True)
+        import hashlib
+        actual = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        if len(raw) != row["size"] or actual != row["sha"] or len(raw) > MAX_BLOB_BYTES:
+            raise RepoError("documentation bytes do not match the pinned Git blob")
+        if b"\0" in raw:
+            continue
+        try:
+            body = raw.decode("utf-8")
+        except UnicodeError:
+            raise RepoError("documentation is not UTF-8 text")
+        materials.append(Material(row["path"], row["sha"], body, len(raw)))
+    return RepoPackage(owner, name, sha, materials, "", len(selected) > MAX_DOCUMENTS)
 
 
 def to_markdown(package, url):
     """The overview document for one repository package."""
     lines = [
-        "This reference is a source-code repository. The archive preserves its",
-        "documentation at an exact commit; the code itself stays in a private",
-        "mirror and is never checked out, built or run.",
-        "",
-        "- Repository: <%s>" % url,
-        "- Commit: `%s`" % package.commit,
-        "- Documents preserved: %d%s" % (len(package.materials),
-                                         " (capped)" if package.truncated else ""),
+        "> **Repository reading copy.** Created from documentation in",
+        "> [%s](%s), pinned to commit [%s](https://github.com/%s/tree/%s)."
+        % (package.full_name, url, package.commit[:12], package.full_name, package.commit),
+        "> GitHub navigation and file listings are omitted. This is selected documentation;",
+        "> repository code is never checked out, built or run.",
         "",
     ]
+    if package.truncated:
+        lines += ["> The documentation selection reached its %d-file limit; see the repository for more." % MAX_DOCUMENTS, ""]
     for material in package.materials:
         lines.append("## `%s`" % material.path)
         lines.append("")
-        lines.append("_Blob `%s`, %d bytes, at commit `%s`._"
-                     % (material.blob[:12], material.size, package.commit[:12]))
+        lines.append("[View original document](https://github.com/%s/blob/%s/%s)"
+                     % (package.full_name, package.commit, quote(material.path, safe="/")))
         lines.append("")
-        lines.append(material.text.strip())
+        lines.append(document_links(material.text.strip(), package.full_name, package.commit, material.path))
         lines.append("")
     return "\n".join(lines)
+
+
+def document_links(text, full_name, commit, path):
+    """Resolve ordinary relative documentation links without touching code."""
+    from urllib.parse import urljoin
+    parent = path.rsplit("/", 1)[0] + "/" if "/" in path else ""
+    base = "https://github.com/%s/blob/%s/%s" % (full_name, commit, quote(parent, safe="/"))
+    raw = "https://raw.githubusercontent.com/%s/%s/%s" % (full_name, commit, quote(parent, safe="/"))
+    fence = ""
+    result = []
+    for line in text.splitlines(keepends=True):
+        opening = re.match(r"^\s*(`{3,}|~{3,})", line)
+        was_fenced = bool(fence)
+        if fence:
+            if re.match(r"^\s*" + re.escape(fence[0]) + r"{%d,}\s*$" % len(fence), line):
+                fence = ""
+        elif opening:
+            fence = opening.group(1)
+        if not was_fenced and not fence and not line.startswith(("    ", "\t")):
+            def replace(match):
+                target = match.group(3)
+                if urlsplit(target).scheme or target.startswith(("#", "//", "data:")):
+                    return match.group(0)
+                return "%s[%s](%s)" % (match.group(1), match.group(2), urljoin(raw if match.group(1) else base, target))
+            pieces = re.split(r"(`+.*?`+)", line)
+            line = "".join(piece if n % 2 else re.sub(r"(!?)\[([^\]\n]*)\]\(([^\s()]+)\)", replace, piece)
+                           for n, piece in enumerate(pieces))
+            # One trailing prose space has no Markdown meaning. Preserve hard
+            # breaks (two spaces) and every character inside code listings.
+            if line.endswith(" \n") and not line.endswith("  \n"):
+                line = line[:-2] + "\n"
+        result.append(line)
+    return "".join(result)
+
+
+def clean_legacy_markdown(text, url, commit):
+    """Refresh archive-owned wrappers and relative links without changing prose."""
+    parsed = target(url)
+    if not parsed or not re.fullmatch(r"[a-f0-9]{40}", commit or ""):
+        return text
+    prefix = ("This reference is a source-code repository. The archive preserves its\n"
+              "documentation at an exact commit; the code itself stays in a private\n"
+              "mirror and is never checked out, built or run.")
+    if not text.startswith(prefix):
+        return text
+    text = ("> Repository reading copy: selected documentation at the recorded commit.\n"
+            "> Source code is never checked out, built or run.\n" + text[len(prefix):])
+    headings = list(re.finditer(r"(?m)^## `([^`\n]+)`\n\n_Blob `[a-f0-9]+`, \d+ bytes, at commit `[a-f0-9]+`\._\n", text))
+    if not headings:
+        return text
+    result = [text[:headings[0].start()]]
+    full_name = parsed[0] + "/" + parsed[1]
+    for index, heading in enumerate(headings):
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        result.append(heading.group(0))
+        result.append(document_links(text[heading.end():end], full_name, commit, heading.group(1)))
+    return "".join(result)

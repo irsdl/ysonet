@@ -51,6 +51,8 @@ namespace ysonet.Generators
         private string xaml_url = "";
         private bool hasRootDCS = false;
 
+        public const string HasRootDcsOptionName = "hasRootDCS";
+
         public override string AdditionalInfo()
         {
             return "This normally generates the shortest payload";
@@ -81,7 +83,7 @@ namespace ysonet.Generators
             OptionSet options = new OptionSet()
             {
                 {"xamlurl=", "This is to create a very short payload when the affected box can read the target XAML URL e.g. \"http://example.local/x\" (can be a UNC path on a shared drive or a path on the local system). It carries the ResourceDictionary gadget instead of ObjectDataProvider, so the target FETCHES and loads that URL rather than running a command, and the command parameter is ignored. The shorter the better!", v => xaml_url = v },
-                {"hasRootDCS", "To include a root element with the DataContractSerializer payload.", v => hasRootDCS = v != null },
+                {HasRootDcsOptionName, "Include a root element with the DataContractSerializer payload. This option applies only to DataContractSerializer; other formatters are refused.", v => hasRootDCS = v != null },
             };
 
             return options;
@@ -89,6 +91,8 @@ namespace ysonet.Generators
 
         public override object Generate(string formatter, InputArgs inputArgs)
         {
+            GuardHasRootDcsFormatter(formatter);
+
             // commented for future reference (research purposes)
             /*
             Boolean hasArgs;
@@ -307,6 +311,16 @@ namespace ysonet.Generators
                 throw new Exception("Formatter not supported");
             }
 
+        }
+
+        private void GuardHasRootDcsFormatter(string formatter)
+        {
+            if (!hasRootDCS || IsFormatter(formatter, Formatters.DataContractSerializer))
+                return;
+
+            throw new ArgumentException(Name() + " cannot build --" + HasRootDcsOptionName
+                + " with " + formatter + ". Use DataContractSerializer or omit --"
+                + HasRootDcsOptionName + ".");
         }
 
         /* this can be used easily by the plugins as well */

@@ -33,15 +33,23 @@ TAG_BLOCK = (0xE0000, 0xE007F)
 
 # Elements whose content is machinery or is deliberately not shown.
 DROPPED_ELEMENTS = ("script", "style", "template", "iframe", "object", "embed",
-                    "applet", "noframes", "svg", "canvas", "form")
+                    "applet", "noframes", "svg", "canvas")
+
+# ASP.NET and several older publishing engines wrap the ENTIRE rendered page in
+# one form. The element itself is active machinery, but its child article is
+# ordinary visible content. Remove the tags while retaining their children;
+# scripts, event handlers and javascript: targets are still stripped below.
+UNWRAPPED_ELEMENTS = ("form",)
 
 # One opening tag, with quoted attribute values allowed to contain ">".
 OPENING_TAG = re.compile(r"<([a-zA-Z][\w:-]*)((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>")
 ATTRIBUTE = re.compile(r"([^\s=/>]+)(?:\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s\"'>]+)))?")
 
+CSS_ZERO = r"0+(?:\.0+)?(?:px|em|rem|%|pt)?(?:\s*!important)?(?=\s*(?:;|$))"
 HIDDEN_STYLE = re.compile(
-    r"display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0|opacity\s*:\s*0"
-    r"|(?:left|top|text-indent)\s*:\s*-\s*\d{3,}", re.IGNORECASE)
+    r"display\s*:\s*none|visibility\s*:\s*hidden"
+    r"|(?:font-size|opacity)\s*:\s*" + CSS_ZERO
+    + r"|(?:left|top|text-indent)\s*:\s*-\s*\d{3,}", re.IGNORECASE)
 
 # `hidden` is only hiding when it is the ELEMENT'S OWN attribute. Scanning the
 # whole tag for the word instead deleted the article on every Drupal site in the
@@ -70,6 +78,35 @@ INJECTION_MARKERS = (
 )
 
 
+# The opening of a listing, then a comment that is the whole of its contents.
+_COMMENTED_LISTING = re.compile(
+    r"(<pre\b[^>]*>\s*(?:<code\b[^>]*>\s*)?)<!--(.*?)-->",
+    re.IGNORECASE | re.DOTALL)
+
+
+# One real tag: `<` immediately followed by a name, through to its `>`, with
+# quoted attribute values allowed to contain `>`. An escaped `&lt;body ...&gt;`
+# never matches, because it does not open with `<`.
+_TAG = re.compile(r"<[a-zA-Z][a-zA-Z0-9:-]*(?:\"[^\"]*\"|'[^']*'|[^>\"'])*>")
+_HANDLER_ATTRIBUTE = re.compile(
+    r"\son[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", re.IGNORECASE)
+_JAVASCRIPT_TARGET = re.compile(
+    r"(href|src)\s*=\s*([\"'])\s*javascript:[^\"']*\2", re.IGNORECASE)
+
+
+def _strip_inline_script(match):
+    """Remove handlers and javascript: targets from ONE tag."""
+    tag = match.group(0)
+    tag = _HANDLER_ATTRIBUTE.sub(" ", tag)
+    return _JAVASCRIPT_TARGET.sub(r"\1=\2#\2", tag)
+
+
+def _uncomment_listing(match):
+    body = match.group(2)
+    escaped = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return match.group(1) + escaped
+
+
 class Sanitised(object):
     def __init__(self, text, removed=None, markers=None):
         self.text = text
@@ -85,16 +122,67 @@ def sanitise_html(markup):
     removed = []
     text = markup or ""
 
+    # A LISTING ESCAPED AS A COMMENT IS STILL THE LISTING, and it is recovered
+    # before the general rule below removes it. Webflow's code widget stores a
+    # block's contents inside an HTML comment - `<pre><code
+    # class="language-http"><!--GET / HTTP/1.1 ... --></code></pre>` - so
+    # stripping comments emptied every code block on such a page. One 2021 Top
+    # 10 article lost all 47 of its request/response listings that way, leaving
+    # prose that said "the following results" above 47 blank boxes.
+    #
+    # This does NOT reopen the hiding place: the comment body is HTML-ESCAPED on
+    # the way out, so whatever was in there becomes TEXT inside the listing it
+    # was already inside, and can never become live markup. It is also confined
+    # to `<pre>`, where a comment is not page furniture, an editor's note or a
+    # conditional-comment hack. Everything else still goes.
+    before = text
+    text = _COMMENTED_LISTING.sub(_uncomment_listing, text)
+    if text != before:
+        removed.append("commented-listing")
+
     before = text
     text = re.sub(r"<!--.*?-->", " ", text, flags=re.DOTALL)
     if text != before:
         removed.append("html-comment")
 
+    for element in UNWRAPPED_ELEMENTS:
+        before = text
+        text = re.sub(r"<%s\b[^>]*>" % element, " ", text, flags=re.IGNORECASE)
+        text = re.sub(r"</%s\s*>" % element, " ", text, flags=re.IGNORECASE)
+        if text != before:
+            removed.append(element)
+
     for element in DROPPED_ELEMENTS:
+        if element == "embed":
+            # HTML embed is a void element: it has no closing tag or children.
+            # Treating a site's embedded logo as an unclosed container discarded
+            # the entire article following it (including on Lexfo's blog).
+            before = text
+            text = _TAG.sub(
+                lambda match: " " if re.match(r"<embed(?=[\s/>])", match.group(0), re.I)
+                else match.group(0), text)
+            text = re.sub(r"</embed\s*>", " ", text, flags=re.IGNORECASE)
+            if text != before:
+                removed.append(element)
+            continue
         pattern = re.compile(r"<%s\b.*?</%s\s*>" % (element, element), re.IGNORECASE | re.DOTALL)
         before = text
         text = pattern.sub(" ", text)
-        # A self-closing or unclosed one still has to go.
+        # AN UNCLOSED ONE TAKES THE REST OF THE DOCUMENT WITH IT, which is what a
+        # browser does too: after `<script>` with no `</script>`, everything to
+        # the end IS script. Removing only the tag and keeping the body is how
+        # 735,283 characters of JavaScript and stylesheet were published as one
+        # article's prose, after a 4.4 MB page was truncated mid-script.
+        #
+        # It cannot cost an article anything a browser would have shown: the
+        # text after an unclosed script is not rendered as prose by anything.
+        opener = re.compile(r"<%s\b[^>]*>" % element, re.IGNORECASE)
+        match = opener.search(text)
+        if match and not re.search(r"</%s\s*>" % element, text[match.end():],
+                                   re.IGNORECASE):
+            text = text[:match.start()] + " "
+            removed.append("unclosed-" + element)
+        # A self-closing one still has to go.
         text = re.sub(r"<%s\b[^>]*/?>" % element, " ", text, flags=re.IGNORECASE)
         if text != before:
             removed.append(element)
@@ -105,10 +193,16 @@ def sanitise_html(markup):
         removed.append("hidden-element")
 
     # Event handlers and javascript: targets survive tag stripping otherwise.
+    #
+    # INSIDE A TAG ONLY. Applied to the whole document these patterns cannot
+    # tell a live attribute from an ESCAPED one, and an escaped one is the
+    # research: `&lt;body onload=&quot;alert('XSS');&quot;&gt;`, quoted inside a
+    # <pre> by the author, became `&lt;body >` - the vector the article exists
+    # to show, with its handler torn off and the remains left dangling after the
+    # code fence. Escaped text is inert by construction; it renders as
+    # characters and can never act. Only what is really a tag needs stripping.
     before = text
-    text = re.sub(r"\son[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", " ", text, flags=re.IGNORECASE)
-    text = re.sub(r"(href|src)\s*=\s*([\"'])\s*javascript:[^\"']*\2", r"\1=\2#\2",
-                  text, flags=re.IGNORECASE)
+    text = _TAG.sub(_strip_inline_script, text)
     if text != before:
         removed.append("inline-script-attribute")
 

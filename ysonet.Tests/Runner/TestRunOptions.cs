@@ -87,9 +87,6 @@ namespace ysonet.Tests
         public bool StatusEnabled = true;
         public string StatusPath;
 
-        // False when YSONET_TEST_SINK=off forces the legacy "cmd /c echo" fire marker.
-        public bool SinkAllowed = true;
-
         // Set in the process the hidden-desktop parent relaunched. Such a process must not
         // relaunch again and must not create a second job; it inherited both.
         public bool IsIsolationChild;
@@ -107,7 +104,6 @@ namespace ysonet.Tests
         public const string WerVar = "YSONET_WER_CONTAINMENT";
         public const string TestLockVar = "YSONET_TEST_LOCK";
         public const string StatusVar = "YSONET_TEST_STATUS_FILE";
-        public const string SinkVar = "YSONET_TEST_SINK";
         public const string FullVar = "YSONET_FULL_TESTS";
         public const string DosVar = "YSONET_DOS_TESTS";
         public const string OobVar = "YSONET_OOB_TESTS";
@@ -179,17 +175,6 @@ namespace ysonet.Tests
                 if (Is(statusValue, "off")) { o.StatusEnabled = false; o.StatusPath = null; }
                 else if (Is(statusValue, "auto")) { o.StatusEnabled = true; o.StatusPath = null; }
                 else { o.StatusEnabled = true; o.StatusPath = statusValue; }
-            }
-
-            // ---- Fire-marker backend ----
-            // Environment only, by design: it is an escape hatch for one release, not a
-            // switch worth teaching. Unset means "probe the sink, fall back if it cannot run".
-            string sinkValue = env(SinkVar);
-            if (!Blank(sinkValue))
-            {
-                if (Is(sinkValue, "off")) o.SinkAllowed = false;
-                else if (Is(sinkValue, "auto") || Is(sinkValue, "on")) o.SinkAllowed = true;
-                else return Fail(o, SinkVar, sinkValue, "off, auto, on");
             }
 
             o.Ui = ResolveAuto(o.RequestedUi, env, debuggerAttached, out o.UiReason);

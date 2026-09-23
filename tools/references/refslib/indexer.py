@@ -1,6 +1,6 @@
 """The generated index, and the citation report.
 
-`docs/references-md/README.md` is how a reader finds anything in a folder of
+`docs/archived-references/README.md` is how a reader finds anything in a folder of
 hundreds of files, and it is the ONLY discovery route: the maintainer settled on
 2026-08-03 that the curated reading lists never point at the archive, so
 discovery runs one way, from here outward.
@@ -57,7 +57,7 @@ def build_index(manifest, config):
             continue
         rows.append({
             "slug": entry["slug"],
-            "title": entry.get("title") or key,
+            "title": entry.get("title_english") or entry.get("title") or key,
             "kind": entry.get("kind") or "article",
             "publisher": entry.get("publisher") or "",
             "published": (entry.get("published") or "")[:4],
@@ -71,22 +71,24 @@ def build_index(manifest, config):
     lines = [BANNER, ""]
     research = [row for row in rows if row["grade"] == "research"]
     records = [row for row in rows if row["grade"] != "research"]
-    lines.append("%d reference(s) archived: **%d in `research/`**, documents that carry "
+    lines.append("%d reference reading copies published (completeness and review are reported separately): **%d in `research/`**, documents that carry "
                  "technique, and %d in `records/`, real content that is a record ABOUT a "
                  "product rather than research - a CVE database row, a vendor advisory, "
                  "release notes, a registry page, a stub. Depth mix: %s."
                  % (len(rows), len(research), len(records), _mix(rows, "depth")))
     lines.append("")
     lines.append("Two more lists complete the picture: "
-                 "[needs-work.md](needs-work.md) is everything we WANT and do not have, "
+                 "[document-gaps.md](document-gaps.md) is everything we WANT and do not have, "
+                 "[review-gaps.md](review-gaps.md) tracks semantic review, "
+                 "[store-gaps.md](store-gaps.md) tracks source bytes, "
                  "and [excluded.md](excluded.md) is everything the archive deliberately "
                  "keeps no document for, with the reason.")
     lines.append("")
-    lines.append("| Reference | Kind | Publisher | Year | Depth | Cited |")
-    lines.append("|---|---|---|---|---|---|")
+    lines.append("| Reference | PDF | Kind | Publisher | Year | Depth | Cited |")
+    lines.append("|---|---|---|---|---|---|---|")
     for row in rows:
-        lines.append("| [%s](%s/%s.md) | %s | %s | %s | %s | %d |"
-                     % (_cell(row["title"]), row["grade"], row["slug"], row["kind"],
+        lines.append("| [%s](md/%s/%s.md) | [PDF](pdf/%s/%s.pdf) | %s | %s | %s | %s | %d |"
+                     % (_cell(row["title"]), row["grade"], row["slug"], row["grade"], row["slug"], row["kind"],
                         _cell(row["publisher"]), row["published"], row["depth"],
                         row["cited_by"]))
     lines.append("")
@@ -137,6 +139,10 @@ or fix the route and re-run.
 # What a human can actually do about each failure shape. The reason alone tells
 # you what happened; this tells you what to try.
 REMEDIES = (
+    ("original summary", "The summary is retained locally. Full-text preservation "
+                         "requires a permitted source copy; do not count the summary as full text."),
+    ("no published file or classification", "Locate the durable content store and recover "
+                                             "the previously imported document before re-rendering."),
     ("image-only", "Needs OCR. The PDF holds pictures of words, so no converter "
                    "will help: run OCR yourself, or archive the metadata only."),
     ("caption track", "The talk has no captions to transcribe. Only a human "
@@ -254,7 +260,7 @@ Three causes, and they are not the same:
 
 - **broken capture** - what came back was not the document: a browser error
   page, a bot wall, a consent gate, a not-found page. This is FIXABLE, so it is
-  also on [needs-work.md](needs-work.md).
+  also on [document-gaps.md](document-gaps.md).
 - **out of scope** - the URL is cited only by this repository's own tooling, so
   it was never a research citation.
 - **maintainer decision** - the page adds nothing over a source already

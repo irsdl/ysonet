@@ -394,6 +394,10 @@ class TestCommentsInCode(unittest.TestCase):
         found = translate.comments_in("//\u53cd\u5e8f\u5217\u5316\u306e\u8aac\u660e\ncode();")
         self.assertEqual(len(found), 1)
 
+    def test_a_short_cjk_label_is_still_prose(self):
+        """Two CJK letters can be a complete label, such as `Output`."""
+        self.assertEqual(translate.comments_in("// \u8f93\u51fa\ncode();"), ["// \u8f93\u51fa"])
+
     def test_a_real_url_fragment_is_still_skipped(self):
         self.assertEqual(translate.comments_in("//example.org/some/path\ncode();"), [])
 
@@ -403,6 +407,35 @@ class TestCommentsInCode(unittest.TestCase):
 
     def test_a_marker_too_short_to_be_a_sentence_is_left_alone(self):
         self.assertEqual(translate.comments_in("// x\ncode();"), [])
+
+    def test_a_previous_translation_reuses_only_matching_english_segments(self):
+        source = ("\u6f0f\u6d1e\u5206\u6790\u8bf4\u660e\u3002\n\n```csharp\n"
+                  "// \u6784\u5efa\u5e8f\u5217\u5316\u5668\n// \u8f93\u51fa\nrun();\n```")
+        english = ("The vulnerability analysis is explained.\n\n```csharp\n"
+                   "// Build the serializer\n// \u8f93\u51fa\nrun();\n```")
+        prepared = translate.prepare(source, language="zh")
+        reused = translate.reusable_segments(prepared, english)
+        comments = {identifier: original for identifier, (_token, original)
+                    in prepared.comments.items()}
+        long_comment = next(identifier for identifier, body in comments.items()
+                            if "\u6784\u5efa" in body)
+        short_comment = next(identifier for identifier, body in comments.items()
+                             if "\u8f93\u51fa" in body)
+        self.assertEqual(reused[1], "The vulnerability analysis is explained.")
+        self.assertEqual(reused[long_comment], "// Build the serializer")
+        self.assertNotIn(short_comment, reused)
+
+    def test_a_previous_translation_with_different_paragraphs_is_not_reused(self):
+        prepared = translate.prepare("\u7b2c\u4e00\u6bb5\u3002\n\n\u7b2c\u4e8c\u6bb5\u3002", language="zh")
+        self.assertEqual(translate.reusable_segments(prepared, "One combined paragraph."), {})
+
+    def test_reuse_remaps_old_placeholder_numbers_only_for_identical_values(self):
+        prepared = translate.Prepared(
+            [[(1, "\u8bf4\u660e {{PH_9}}")]], {"{{PH_9}}": "`A`"}, "zh",
+            original={1: "\u8bf4\u660e {{PH_9}}"})
+        self.assertEqual(translate.reusable_segments(prepared, "Use `A`."),
+                         {1: "Use {{PH_9}}."})
+        self.assertEqual(translate.reusable_segments(prepared, "Use `B`."), {})
 
 
 class TestTheRecordsOwnProseIsTranslatedToo(unittest.TestCase):
@@ -417,6 +450,12 @@ class TestTheRecordsOwnProseIsTranslatedToo(unittest.TestCase):
             self.BODY, language="zh-cn",
             metadata={"title": ".NET高级代码审计-反序列化 Gadget之详解XAML"})
         self.assertEqual(list(prepared.metadata.values()), ["title"])
+
+    def test_one_cjk_word_in_a_compact_title_is_handed_over(self):
+        prepared = translate.prepare(
+            "This API page is already written in English.", language="en",
+            metadata={"title": "MachineKeySessionSecurityTokenHandler \u7c7b"})
+        self.assertIn("title", prepared.metadata.values())
 
     def test_an_english_title_on_a_foreign_page_is_left_alone(self):
         prepared = translate.prepare(

@@ -93,6 +93,10 @@ Update the plugin table and counts/details in `docs/ARCHITECTURE.md`,
 `docs/gadgets-and-plugins.md`, and any credit, reference, help, or usage page
 that lists the target or mode.
 
+Plan a post-build refresh of `.claude/skills/ysonet-payloads/references/full-help.md`
+with the bundled updater, plus maintained CLI or selection-guide edits when the
+plugin introduces a new mode or operator decision.
+
 ## Tests
 
 Plugin coverage has two separate gates:

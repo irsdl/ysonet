@@ -27,9 +27,9 @@ taken whole rather than shredded by the inline rules inside it:
   `{{PH_1}}` cannot collide with ours.
 
 THE ORIGINAL IS NEVER OVERWRITTEN. A translation is stored beside it and the
-rendered file carries both, because a reader has to be able to check the
-translator, and because a machine translation of a security write-up is evidence
-about the original rather than a replacement for it.
+published reading copy is English. Original text remains in the source store,
+and original PDFs remain byte-identical, so reviewers can compare the translation
+against its source.
 """
 
 import re
@@ -226,7 +226,9 @@ def comments_in(code):
             if overlaps(match.start(), match.end()):
                 continue
             body = match.group(0)
-            if len(re.findall(r"[^\W\d_]", body)) < MIN_COMMENT_LETTERS:
+            letters = len(re.findall(r"[^\W\d_]", body))
+            foreign_letters = len(TRANSLATABLE_SCRIPT.findall(body))
+            if letters < MIN_COMMENT_LETTERS and foreign_letters < MIN_FOREIGN_LETTERS:
                 continue
             if body.startswith(("//", "#")):
                 if len(body) > MAX_LINE_COMMENT:
@@ -356,7 +358,10 @@ def prepare(text, language="", metadata=None):
         if not value:
             continue
         masked_value, placeholders = protect(value, placeholders)
-        if not _segment_is_foreign(masked_value, False):
+        # Metadata is compact: one CJK character can be a complete word (for
+        # example `class` in a Microsoft API title), not a stray body glyph.
+        if (not TRANSLATABLE_SCRIPT.search(masked_value)
+                and not _segment_is_foreign(masked_value, False)):
             continue
         number += 1
         fields[number] = field
@@ -394,6 +399,9 @@ def _segment_is_foreign(body, default):
     mostly-English table untranslated, and the Chinese titles in a list of
     otherwise English links, because each block averaged out as English.
     """
+    # A standalone shrug is a pictogram, not an untranslated Japanese sentence.
+    if re.fullmatch(r"\s*¯\\?_\(ツ\)_/¯\s*", body):
+        return False
     # Another writing system settles it outright, however little of it there is.
     # Code, URLs and identifiers are already masked, so anything left is prose.
     if len(TRANSLATABLE_SCRIPT.findall(body)) >= MIN_FOREIGN_LETTERS:
@@ -440,6 +448,75 @@ def apply_comments(placeholders, comments, translated):
             continue
         out[token] = out[token].replace(original, english, 1)
     return out
+
+
+def reusable_segments(prepared, english, metadata=None):
+    """Previously translated segments that still match this preparation.
+
+    A masking-rule improvement can expose one new comment and renumber the work
+    files without changing the document's paragraph structure.  The published
+    English body is still useful, but only when its segment ids, prose/comment
+    roles and placeholder signatures agree exactly.  Any structural mismatch
+    refuses reuse for the whole body; a foreign candidate is never called
+    translated merely because it came from the old English object.
+    """
+    if not english:
+        return {}
+    previous = prepare(english, "en")
+    source_body = sorted(set(prepared.original) - set(prepared.comments)
+                         - set(prepared.metadata))
+    previous_body = sorted(set(previous.original) - set(previous.comments)
+                           - set(previous.metadata))
+    if source_body != previous_body:
+        return {}
+    if sorted(prepared.comments) != sorted(previous.comments):
+        return {}
+
+    wanted = {identifier for chunk in prepared.chunks
+              for identifier, _body in chunk}
+    reused = {}
+    for identifier in sorted(wanted - set(prepared.metadata)):
+        candidate = previous.original.get(identifier)
+        if candidate is None or _segment_is_foreign(candidate, False):
+            continue
+        source_tokens = re.findall(r"\{\{PH_\d+\}\}",
+                                   prepared.original.get(identifier, ""))
+        candidate_tokens = re.findall(r"\{\{PH_\d+\}\}", candidate)
+        source_values = [prepared.placeholders.get(token) for token in source_tokens]
+        if None in source_values:
+            continue
+        unmasked = restore(candidate, previous.placeholders)
+        sentinels = []
+        for position, (token, value) in enumerate(zip(source_tokens, source_values)):
+            if value not in unmasked:
+                unmasked = ""
+                break
+            sentinel = "\x00YSONET_REUSE_%d\x00" % position
+            unmasked = unmasked.replace(value, sentinel, 1)
+            sentinels.append((sentinel, token))
+        if not unmasked:
+            continue
+        remasked = unmasked
+        for sentinel, token in sentinels:
+            remasked = remasked.replace(sentinel, token)
+        reused[identifier] = remasked
+
+    translated_metadata = metadata or {}
+    for identifier, field in prepared.metadata.items():
+        candidate = (translated_metadata.get(field) or "").strip()
+        if not candidate or _segment_is_foreign(candidate, False):
+            continue
+        expected = re.findall(r"\{\{PH_\d+\}\}",
+                              prepared.original.get(identifier, ""))
+        for token in expected:
+            original = prepared.placeholders.get(token, "")
+            if not original or original not in candidate:
+                candidate = ""
+                break
+            candidate = candidate.replace(original, token, 1)
+        if candidate and re.findall(r"\{\{PH_\d+\}\}", candidate) == expected:
+            reused[identifier] = candidate
+    return reused
 
 
 def protect(text, placeholders=None):

@@ -7,7 +7,7 @@ using System.Text;
 namespace ysonet.TestSink
 {
     /// <summary>
-    /// The windowless sink a TEST payload runs instead of "cmd /c echo x &gt; marker".
+    /// The required windowless process a command-effect TEST payload runs.
     ///
     /// Why it exists: a fire row only needs proof that the payload reached a process start
     /// with the exact string it was given. Using a shell for that starts a console process

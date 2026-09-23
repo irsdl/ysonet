@@ -6,6 +6,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace ysonet.Helpers
 {
@@ -46,7 +47,6 @@ namespace ysonet.Helpers
         public static int Run(string[] args)
         {
             string sub = args.Length >= 2 ? (args[1] ?? "").Trim().ToLowerInvariant() : "";
-            string arg2 = args.Length >= 3 ? (args[2] ?? "").Trim().ToLowerInvariant() : "";
 
             switch (sub)
             {
@@ -133,7 +133,7 @@ namespace ysonet.Helpers
                 Console.Error.WriteLine("and we will not change your machine policy.");
                 Console.Error.WriteLine();
                 Console.Error.WriteLine("Enable completion for THIS session instead (no file, no policy change):");
-                Console.Error.WriteLine("    " + CurrentExePath() + " completion powershell | Out-String | Invoke-Expression");
+                Console.Error.WriteLine("    " + PowerShellSessionCommand(CurrentExePath()));
                 Console.Error.WriteLine();
                 Console.Error.WriteLine("To persist, run this from a PowerShell 7 window:  ysonet completion install");
                 return 1;
@@ -143,8 +143,8 @@ namespace ysonet.Helpers
 
             if (policy == null)
             {
-                Console.Error.WriteLine("Not installing: PowerShell 7+ (pwsh) was not found.");
-                Console.Error.WriteLine("Persistent completion install supports PowerShell 7+ only.");
+                Console.Error.WriteLine("Not installing: could not read the PowerShell 7+ (pwsh) execution policy.");
+                Console.Error.WriteLine("Check that pwsh starts successfully; the policy probe may have failed or timed out.");
                 Console.Error.WriteLine();
                 PrintPerSessionHint();
                 return 1;
@@ -163,10 +163,14 @@ namespace ysonet.Helpers
                 return 1;
             }
 
-            string profilePath = ProfilePathFor(ShellKind.PowerShellCore);
-            string exePath = CurrentExePath();
+            return InstallProfile(ProfilePathFor(ShellKind.PowerShellCore), CurrentExePath());
+        }
 
-            string existing = File.Exists(profilePath) ? File.ReadAllText(profilePath) : "";
+        internal static int InstallProfile(string profilePath, string exePath)
+        {
+            string existing;
+            if (!TryReadProfile(profilePath, out existing))
+                return -1;
             string updated = AddOrUpdateBlock(existing, exePath);
 
             try
@@ -174,7 +178,7 @@ namespace ysonet.Helpers
                 string dir = Path.GetDirectoryName(profilePath);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                     Directory.CreateDirectory(dir);
-                File.WriteAllText(profilePath, updated);
+                WriteProfile(profilePath, updated);
                 // A profile under OneDrive-redirected Documents can carry a
                 // mark-of-the-web, which makes RemoteSigned reject it as an
                 // unsigned internet script. Clear it so the profile can load.
@@ -182,7 +186,7 @@ namespace ysonet.Helpers
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("Could not write the profile: " + ex.Message);
+                Console.Error.WriteLine("Could not write profile " + profilePath + ": " + ex.Message);
                 return -1;
             }
 
@@ -196,7 +200,7 @@ namespace ysonet.Helpers
         private static void PrintPerSessionHint()
         {
             Console.Error.WriteLine("Enable it for the current session in any PowerShell (no file, no policy change):");
-            Console.Error.WriteLine("    " + CurrentExePath() + " completion powershell | Out-String | Invoke-Expression");
+            Console.Error.WriteLine("    " + PowerShellSessionCommand(CurrentExePath()));
         }
 
         private static int Uninstall(string explicitShell)
@@ -208,20 +212,32 @@ namespace ysonet.Helpers
                 ? new[] { edition }
                 : new[] { ShellKind.WindowsPowerShell, ShellKind.PowerShellCore };
 
-            bool removedAny = false;
+            var paths = new List<string>();
             foreach (ShellKind ed in editions)
-            {
-                string profilePath = ProfilePathFor(ed);
-                if (!File.Exists(profilePath))
-                    continue;
+                paths.Add(ProfilePathFor(ed));
+            return UninstallProfiles(paths);
+        }
 
-                string existing = File.ReadAllText(profilePath);
+        internal static int UninstallProfiles(IEnumerable<string> paths)
+        {
+            bool removedAny = false;
+            bool failed = false;
+            foreach (string profilePath in paths)
+            {
+                string existing;
+                if (!TryReadProfile(profilePath, out existing))
+                {
+                    failed = true;
+                    continue;
+                }
                 if (existing.IndexOf(BeginMarker, StringComparison.Ordinal) < 0)
                     continue;
 
                 try
                 {
                     string remaining = RemoveBlock(existing);
+                    if (remaining == existing)
+                        throw new InvalidDataException("The completion block is incomplete; the profile was left unchanged.");
                     if (string.IsNullOrWhiteSpace(remaining))
                     {
                         // Our block was the whole profile: delete the file rather
@@ -232,7 +248,7 @@ namespace ysonet.Helpers
                     }
                     else
                     {
-                        File.WriteAllText(profilePath, remaining);
+                        WriteProfile(profilePath, remaining);
                         Console.Error.WriteLine("Removed ysonet completion from:");
                     }
                     Console.Error.WriteLine("    " + profilePath);
@@ -240,15 +256,16 @@ namespace ysonet.Helpers
                 }
                 catch (Exception ex)
                 {
+                    failed = true;
                     Console.Error.WriteLine("Could not update " + profilePath + ": " + ex.Message);
                 }
             }
 
-            if (!removedAny)
+            if (!removedAny && !failed)
                 Console.Error.WriteLine("Nothing to remove: no ysonet completion block found in a PowerShell profile.");
-            else
+            if (removedAny)
                 Console.Error.WriteLine("Open a new PowerShell window for the change to take effect.");
-            return 0;
+            return failed ? -1 : 0;
         }
 
         private static int Status()
@@ -261,35 +278,74 @@ namespace ysonet.Helpers
             Console.Error.WriteLine("Persistent install: PowerShell 7+ (pwsh) only. Per-session works in any PowerShell.");
             Console.Error.WriteLine();
 
+            bool failed = false;
             foreach (ShellKind ed in new[] { ShellKind.WindowsPowerShell, ShellKind.PowerShellCore })
             {
-                string profilePath = ProfilePathFor(ed);
-                bool installed = File.Exists(profilePath) &&
-                    File.ReadAllText(profilePath).IndexOf(BeginMarker, StringComparison.Ordinal) >= 0;
-                string policy = GetEffectivePolicy(ed);
-
-                string note;
-                if (ed == ShellKind.WindowsPowerShell)
-                {
-                    // Install is not offered here; just explain why.
-                    note = policy == null ? "install not supported (use the per-session line)"
-                        : PolicyBlocksUnsignedProfile(policy)
-                            ? "policy " + policy + " - install not supported (use the per-session line)"
-                            : "policy " + policy + " - install not supported here (use pwsh, or the per-session line)";
-                }
-                else
-                {
-                    note = policy == null ? "pwsh not found"
-                        : PolicyBlocksUnsignedProfile(policy)
-                            ? "policy " + policy + " - profile auto-load BLOCKED (use the per-session line)"
-                            : "policy " + policy + " - profile can load";
-                }
-
-                Console.Error.WriteLine((ed == ShellKind.WindowsPowerShell ? "Windows PowerShell 5.1" : "PowerShell 7+") +
-                    ": " + (installed ? "installed" : "not installed") + ", " + note);
-                Console.Error.WriteLine("    " + profilePath);
+                failed |= ReportProfileStatus(ed, ProfilePathFor(ed), GetEffectivePolicy(ed)) != 0;
             }
-            return 0;
+            return failed ? -1 : 0;
+        }
+
+        internal static int ReportProfileStatus(ShellKind ed, string profilePath, string policy)
+        {
+            string profile;
+            bool readable = TryReadProfile(profilePath, out profile);
+            bool installed = readable && profile.IndexOf(BeginMarker, StringComparison.Ordinal) >= 0;
+
+            string note;
+            if (ed == ShellKind.WindowsPowerShell)
+            {
+                // Install is not offered here; just explain why.
+                note = policy == null ? "install not supported (use the per-session line)"
+                    : PolicyBlocksUnsignedProfile(policy)
+                        ? "policy " + policy + " - install not supported (use the per-session line)"
+                        : "policy " + policy + " - install not supported here (use pwsh, or the per-session line)";
+            }
+            else
+            {
+                note = policy == null ? "policy unavailable (host missing, failed, or timed out)"
+                    : PolicyBlocksUnsignedProfile(policy)
+                        ? "policy " + policy + " - profile auto-load BLOCKED (use the per-session line)"
+                        : "policy " + policy + " - profile can load";
+            }
+
+            Console.Error.WriteLine((ed == ShellKind.WindowsPowerShell ? "Windows PowerShell 5.1" : "PowerShell 7+") +
+                ": " + (!readable ? "unknown (profile unreadable)" : installed ? "installed" : "not installed") + ", " + note);
+            Console.Error.WriteLine("    " + profilePath);
+            return readable ? 0 : -1;
+        }
+
+        // A missing profile is normal. Other read failures must not be mistaken
+        // for absence, or an install could overwrite settings it never read.
+        internal static bool TryReadProfile(string path, out string text)
+        {
+            text = "";
+            try
+            {
+                text = File.ReadAllText(path);
+                return true;
+            }
+            catch (FileNotFoundException) { return true; }
+            catch (DirectoryNotFoundException) { return true; }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Could not read profile " + path + ": " + ex.Message);
+                return false;
+            }
+        }
+
+        // Acquire write access without FileMode.Create: some runtimes truncate
+        // before rejecting a sharing violation. Shorten only after writing and
+        // flushing the replacement, so a locked profile is left untouched.
+        private static void WriteProfile(string path, string text)
+        {
+            using (var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+            {
+                writer.Write(text);
+                writer.Flush();
+                stream.SetLength(stream.Position);
+            }
         }
 
         private static void PrintHelp()
@@ -298,7 +354,7 @@ namespace ysonet.Helpers
             Console.Error.WriteLine("Manage shell tab completion for ysonet.");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Recommended - enable for THIS session only (no reload, no file, no policy change):");
-            Console.Error.WriteLine("  " + exe + " completion powershell | Out-String | Invoke-Expression");
+            Console.Error.WriteLine("  " + PowerShellSessionCommand(exe));
             Console.Error.WriteLine("It lasts until you close the window. Nothing is written to disk.");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Usage: ysonet completion <command>");
@@ -318,9 +374,15 @@ namespace ysonet.Helpers
 
         // ---- profile block editing (pure, unit-tested) -------------------------
 
+        // One quoting rule for printed hints and the installed profile loader.
+        internal static string PowerShellSessionCommand(string exePath)
+        {
+            return "& '" + (exePath ?? "").Replace("'", "''") +
+                "' completion powershell | Out-String | Invoke-Expression";
+        }
+
         // Build the managed block that a PowerShell profile sources at startup.
-        // It exports the exe path (so value completion works without ysonet on
-        // PATH) and evaluates the emitted script.
+        // It exports the exe path so completion works without ysonet on PATH.
         public static string BuildBlock(string exePath)
         {
             string p = (exePath ?? "").Replace("'", "''");
@@ -328,7 +390,7 @@ namespace ysonet.Helpers
             sb.AppendLine(BeginMarker);
             sb.AppendLine("# Managed by 'ysonet completion install'. Remove with 'ysonet completion uninstall'.");
             sb.AppendLine("$env:YSONET_EXE = '" + p + "'");
-            sb.AppendLine("& '" + p + "' completion powershell | Out-String | Invoke-Expression");
+            sb.AppendLine(PowerShellSessionCommand(exePath));
             sb.Append(EndMarker);
             return sb.ToString();
         }
@@ -568,33 +630,63 @@ namespace ysonet.Helpers
 
         private static string RunPolicyProbe(string host)
         {
-            try
+            return RunPolicyProbe(new ProcessStartInfo(host,
+                "-NoProfile -NonInteractive -Command \"Get-ExecutionPolicy\""), 15000);
+        }
+
+        // Both pipes must drain while the child runs. One deadline covers its
+        // lifetime and EOF (a descendant may inherit a pipe after the host exits).
+        internal static string RunPolicyProbe(ProcessStartInfo startInfo, int timeoutMilliseconds)
+        {
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
+            startInfo.UseShellExecute = false;
+            startInfo.CreateNoWindow = true;
+            using (var proc = new Process { StartInfo = startInfo })
             {
-                var psi = new ProcessStartInfo(host, "-NoProfile -NonInteractive -Command \"Get-ExecutionPolicy\"")
+                bool started = false;
+                try
                 {
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using (Process proc = Process.Start(psi))
-                {
-                    // Read fully, then wait, so a slow cold start still completes.
-                    string output = proc.StandardOutput.ReadToEnd();
-                    proc.StandardError.ReadToEnd();
-                    if (!proc.WaitForExit(15000))
-                    {
-                        try { proc.Kill(); } catch { }
+                    var timer = Stopwatch.StartNew();
+                    started = proc.Start();
+                    if (!started) return null;
+                    Task<string> output = proc.StandardOutput.ReadToEndAsync();
+                    Task<string> error = proc.StandardError.ReadToEndAsync();
+                    // A timeout can leave reads pending until the pipes close.
+                    // Observe any later faults without waiting past the deadline.
+                    ObserveReadFailure(output);
+                    ObserveReadFailure(error);
+                    if (!proc.WaitForExit(RemainingTime(timer, timeoutMilliseconds)) ||
+                        !Task.WaitAll(new Task[] { output, error }, RemainingTime(timer, timeoutMilliseconds)))
                         return null;
+                    if (proc.ExitCode != 0) return null;
+                    string policy = output.Result.Trim();
+                    return policy.Length == 0 ? null : policy;
+                }
+                catch
+                {
+                    return null;
+                }
+                finally
+                {
+                    if (started)
+                    {
+                        try { if (!proc.HasExited) proc.Kill(); }
+                        catch { /* the host may have exited between the check and kill */ }
                     }
-                    output = (output ?? "").Trim();
-                    return output.Length == 0 ? null : output;
                 }
             }
-            catch
-            {
-                return null;
-            }
+        }
+
+        private static int RemainingTime(Stopwatch timer, int timeoutMilliseconds)
+        {
+            return (int)Math.Max(0L, timeoutMilliseconds - timer.ElapsedMilliseconds);
+        }
+
+        private static void ObserveReadFailure(Task task)
+        {
+            task.ContinueWith(t => { var observed = t.Exception; },
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
         }
 
         // Any of the tokens after the subcommand equals `token`.

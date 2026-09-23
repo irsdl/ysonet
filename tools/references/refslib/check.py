@@ -113,7 +113,7 @@ def run_browser(manifest, store, ladder, statuses=("blocked", "js-rendered"),
             return False
         if (entry.get("health") or {}).get("status") in statuses:
             return True
-        step = (entry.get("steps") or {}).get("acquire") or {}
+        step = (entry.get("steps") or {}).get("acquire-attempt") or (entry.get("steps") or {}).get("acquire") or {}
         # A page whose plain-fetch bytes extracted to almost nothing is a
         # JavaScript-built page, whatever its status said. It belongs here.
         if step.get("result") == "needs-browser":
@@ -211,7 +211,7 @@ def open_manifest(root, config):
     A migration must not silently drop the old append-only rows: they move to
     `history.jsonl` on the next save, which is where history lives now.
     """
-    archive_dir = config.get("archive_dir") or "docs/references-md"
+    archive_dir = config.get("archive_dir") or "docs/archived-references"
     manifest = manifest_module.Manifest.load(root / archive_dir / "manifest.json")
     carried = manifest_module.drain_migrated(manifest.data)
     if carried:

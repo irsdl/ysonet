@@ -52,6 +52,14 @@ mark-of-the-web on the profile it writes, so `RemoteSigned` accepts it.
 In Windows PowerShell 5.1, use the current-session one-liner above instead. It is
 not a file, so no execution policy applies and it works there too.
 
+If a profile cannot be read or changed, the command prints its path and exits
+nonzero. `status` reports an unreadable profile as unknown. If uninstall checks
+both editions, it continues after a failure but still returns nonzero.
+
+Each PowerShell policy probe has a 15-second timeout. A failed or timed-out probe
+does not authorize an install. Printed setup commands quote the executable path,
+including spaces and apostrophes.
+
 ## Available scripts
 
 - `ysonet.ps1` - PowerShell (Windows PowerShell 5.1 and PowerShell 7+ on

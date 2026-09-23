@@ -395,6 +395,16 @@ Update:
 - `docs/gadgets-and-plugins.md`; and
 - credits or reference documentation when the new technique adds entries there.
 
+After the current Debug binary contains the finished gadget, refresh the shipped
+user skill and review the generated module section:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .claude/skills/ysonet-dev-consistency-check/scripts/update-ysonet-payloads-skill.ps1
+```
+
+Also update the skill's maintained selection or CLI guidance when the gadget adds
+a new decision rule, input type, effect, formatter behavior, or global workflow.
+
 Do not document an unregistered draft as supported.
 
 ### 12. Verify in a loop
@@ -471,6 +481,7 @@ Report any environment-specific skip or blocker honestly.
 - [ ] The old-style csproj entry is present only for the finished source.
 - [ ] Focused generation, deserialization, behavior, and runtime-effect coverage passed first.
 - [ ] Public catalogs and help surfaces include the finished gadget.
+- [ ] The shipped `ysonet-payloads` snapshot and maintained guidance are current.
 - [ ] Reflection and interactive smokes passed before the repository regression gate.
 - [ ] Debug tests passed and the final tested source state ends with a green FULL run.
 - [ ] No test was weakened, no fake placeholder was registered, and no version,

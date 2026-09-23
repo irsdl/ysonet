@@ -1,189 +1,165 @@
-# tools/references - the reference archive tool
+# Reference archive tools
 
-Dev-only tooling. It is not part of `ysonet.sln`, it is never shipped, and it
-changes no product behaviour. `ysonet.exe` output is identical with or without
-it.
+Developer tooling for complete English Markdown and PDF reading copies of cited
+sources. It is not part of the product build. The curated lists are read-only
+inputs; these tools never edit them or import curation-skill code. See
+[the archive workflow](../../.claude/skills/ysonet-archive-references/SKILL.md)
+and [source handling](../../.claude/source-security.md).
 
-It builds a local Markdown archive of the sources this repository cites, so a
-technique survives the article that described it going offline.
+## Setup
 
-## Responsibility boundary (read this first)
+Python 3.10+ and Docker are required. The first source operation builds the
+versioned toolbox if absent. The host controller uses Python's standard library;
+Poppler, Chromium and image decoding run only in Docker. The base image is pinned
+by digest; the image-decoder wheel is versioned and hash checked. Distribution
+packages come from that base's package repository and are not individually
+locked. See `dependency-policy.json` and `refslib/toolbox.py` for the exact limits.
 
-`.claude/skills/ysonet-curate-research-links/` is **exclusively** responsible
-for curating, adding, checking and repairing links in:
-
-- `docs/dotnet-deserialization-research.md`
-- `docs/references.md`
-
-This tool does none of that. It **reads** those documents and **writes** the
-archive. The flow is one way:
-
-```text
-curated reference documents -> archive inventory -> acquisition -> Markdown archive
-```
-
-What that means in practice:
-
-- The archive never edits a curated document. There is no `link` command and no
-  `titles` command, and `inventory` opens both files read-only. Everything the
-  archive learns about a citation is REPORTED; the maintainer decides whether
-  the reading list changes, and the curation skill is what applies it.
-- Updating the reading list and synchronising the archive are two separate
-  commands run at two separate moments. Adding a link stays useful when this
-  tool has never been installed.
-- Nothing here imports from `.claude/skills/`. The archive has its own URL
-  extraction, health classification and recovery search. That means two URL
-  classifiers exist in this repository, which is the deliberate cost of
-  independence: neither side can break the other.
-- The curation ledger is read as an OPTIONAL hint that can save a probe. It is
-  never written, never required, and a missing or changed ledger just means
-  "probe it".
-
-## Requirements
-
-Python 3 and the official Git CLI. Nothing else: the tool runs on the standard
-library today, and `dependency-policy.json` is the gate anything else has to
-pass first (official upstream, clear licence, at least one month old, exact
-version and artifact hashes). Nothing fetched by this tool may add to that file.
+Set `YSONET_REFS_STORE` to a durable content store when available. The fallback
+`tools/references/cache/store` is ignored, convenient and vulnerable to cleanup.
+No store path is written into public metadata. Objects are addressed by SHA-256
+and never automatically deleted. PDFs and English Markdown are tracked so a
+reader can use them even if the store is temporarily unavailable.
 
 ## Commands
 
 ```text
-python tools/references/refs.py harvest        # every cited URL in tracked files
-python tools/references/refs.py inventory      # parse the curated lists, read-only
-python tools/references/refs.py check          # probe each URL, record health  [NETWORK]
-python tools/references/refs.py check-browser  # only the walled rows           [NETWORK]
-python tools/references/refs.py ledger-status  # what the optional ledger offers
-python tools/references/refs.py dependencies   # the admission policy
+python tools/references/refs.py harvest
+python tools/references/refs.py inventory
+python tools/references/refs.py check --only <url>
+python tools/references/refs.py check-browser --only <url>
+python tools/references/refs.py acquire --only <url>
+python tools/references/refs.py recover-published
+python tools/references/refs.py translate --prepare --only <url>
+python tools/references/refs.py translate --apply --only <url>
+python tools/references/refs.py render --only <url>
+python tools/references/refs.py papers --only <url>
+python tools/references/refs.py papers --only <url> --from-url <verified-pdf-url>
+python tools/references/refs.py images --only <url>
+python tools/references/refs.py pdf --only <url>
+python tools/references/refs.py pdf-pages --only <url> --into <scratch-directory>
+python tools/references/refs.py historical-urls --only <url> --limit-requests 50
+python tools/references/refs.py wayback --only <url>
+python tools/references/refs.py wayback --only <url> --replay-url <verified-replay-url>
+python tools/references/refs.py index
+python tools/references/refs.py verify
 ```
 
-Useful flags: `harvest --json`, `harvest --show-excluded`, `harvest --show-kept`,
-`inventory --show-entries`, `check --limit N`, `check --only <text>`,
-`check --no-ledger`, `check --force`.
+`--only` is a URL substring. Scope ordinary updates to the changed references.
+Run `--help` for recovery, imports, transcripts, Wayback, dependency and report
+options. Retrieval commands may use the public network. `render`, `pdf`,
+`pdf-pages`, `recover-published`, translation, indexing and verification are
+offline. Offline source processing still requires Docker.
 
-`harvest`, `inventory`, `ledger-status` and `dependencies` are offline. `check`
-and `check-browser` are the only commands that reach the network.
+`historical-urls` is a scoped, read-only recovery aid for dead or moved sources.
+Pinned `waymore` runs in the disposable toolbox worker and queries only Common
+Crawl, OTX and URLScan through the public-web broker. Its results are discovery
+leads, not accepted archive content. Verify a lead's document identity and use
+`wayback --replay-url` to fetch its raw capture through the same guarded pipeline.
+Wayback lookup and replay fetching have isolated client/curl fallbacks; there is
+no host parser, browser, credential or profile fallback.
 
-### harvest
+`translate --prepare` creates numbered, masked prose segments. An agent must
+translate every segment before `--apply`; preparation is not translation.
+`render` then publishes the English copy without fetching or replacing an import.
+The original text remains in the content store; original PDFs remain unchanged.
 
-Walks `git ls-files`, so only TRACKED files are ever opened. Two guards keep
-private material out of the report: a git-ignored path is not tracked and so is
-never listed, and any path whose RESOLVED location is outside the repository is
-skipped, which is what catches a directory junction pointing at another
-repository.
+## Layout and migration
 
-Every URL it drops is printed with the rule that dropped it and that rule's
-reason, so a wrong exclusion is a line in the report rather than a silent
-disappearance. The rules live in the tracked, hand-edited `exclude.json`, and an
-unmatched URL is KEPT: the classifier fails towards review.
+```text
+docs/archived-references/
+  md/research/<slug>.md
+  pdf/research/<slug>.pdf
+  md/records/<slug>.md
+  pdf/records/<slug>.pdf
+  manifest.json
+  history.jsonl
+  README.md
+  document-gaps.md
+  review-gaps.md
+  store-gaps.md
+  excluded.md
+```
 
-### inventory
+The two format trees use the same slug and classification. A record can be
+complete: an advisory or database entry is simply a different source type.
+Shortness alone is not evidence of completeness or damage.
 
-Parses both curated documents and proves the parse by re-emitting it in memory
-and comparing byte for byte, including line endings and a missing final newline.
-A mismatch means the parser misread the file, which would produce a quietly
-wrong inventory. Nothing is written to disk.
+`migrate-layout` moves the former Markdown-only archive without changing its
+source bodies or journal. It refuses collisions and unclaimed files before the
+first move. `recover-published` restores missing extracted text and translations
+from existing reading copies in isolated batches, recording both old hashes and
+the published input hash. Recovered Markdown is never labelled raw source bytes.
 
-### check
+## PDF preference and figures
 
-Classifies the health of every harvested reference and writes the verdict into
-`docs/references-md/manifest.json`. It fetches no article content.
+1. Preserve the original PDF bytes when the cited source is a PDF.
+2. Otherwise preserve a publisher or author PDF of the same document. `papers`
+   finds explicit links; an agent also searches official sources when needed.
+3. Otherwise print the archived English Markdown offline with preserved figures.
 
-The vocabulary is driven by what a sweep of this corpus measured, not by what a
-status code suggests:
+`papers --from-url` is for a PDF whose identity an agent has checked. A paper,
+slide deck, recording and landing page are distinct sources, even with matching
+titles. The source URL, hashes, retrieval route, page count and PDF origin remain
+in the manifest. Each generated PDF is keyed to the Markdown, original/publisher
+bytes, images and renderer version. An unchanged input is not reprinted merely
+to change its timestamp. Failed attempts preserve previous PDFs and provenance.
 
-- **`blocked` is not `gone`.** A bot wall answers 403 to a client that already
-  sends a browser user agent and keeps cookies, and on this corpus every such
-  page was alive. So `blocked` never selects a capture and never produces a
-  repair suggestion: it describes the fetcher, not the page.
-- **`js-rendered` is not empty.** A 200 whose body is built by JavaScript scores
-  worst of all candidates if you let it get as far as scoring, so it is
-  recognised first.
-- **`archived-citation` is not a fetch target.** A citation that already points
-  at a capture pins that timestamp; the tool never captures a capture.
+`images` decodes supported raster images in Docker and re-encodes pixels without
+source metadata or appended data. It refuses active SVG and limits dimensions,
+bytes and counts. This does not promise removal of every hidden signal or make
+an image trusted. Missing figures remain gaps; the generated PDF labels their
+source links instead of fetching them during printing.
 
-A fresh row in the optional curation ledger may skip one probe. It can never
-skip acquisition: a health verdict says a page answered once, which is not
-preserved bytes.
+`images` and `pdf` use at most four workers (`--jobs 1` for a small machine).
+Saved figures are reused on resume. Use `images --retry-missing` to retry prior
+failures; `--force` refreshes successful figures too. The manifest is updated by
+one controller, so do not run two manifest-changing commands concurrently.
 
-### check-browser
+Poppler extraction and page rendering include CJK mapping data. If the text layer
+is missing or damaged, render page images and transcribe/OCR all affected pages.
+Keep page identities and technical listings intact; do not invent unreadable text.
+`read_source.py` returns bounded, hashed evidence windows for semantic review.
 
-The escalation ladder, scoped to `blocked` and `js-rendered` rows only:
-headless, then a visible window (some walls fingerprint headless and refuse it),
-then visible with a long re-read budget. It stops at the first rung that returns
-a DOM.
+## Safety and quality
 
-Page JavaScript executes on this machine for those sources, so: one throwaway
-profile per URL, no extensions, no credentials, downloads and external-protocol
-launches disabled, the debugging port on loopback, and the browser closed over
-CDP rather than by killing the launcher. The DOM is stored and then treated
-exactly like any other fetched bytes.
+The toolbox isolates source parsing and rendering from the host. Offline workers
+have no network; fetch/browser workers reach a separate public-destination broker
+through a dedicated socket. They get selected inputs and implementation modules,
+not the checkout, content store, credentials, home or Docker socket. Sources and
+tool results remain untrusted data regardless of hashes or successful conversion.
+Do not run source examples or use a host browser as a fallback.
 
-Set `YSONET_REFS_BROWSER` to choose the executable. A row nothing confirms stays
-UNVERIFIED and still selects no capture.
+Every Markdown copy includes attribution, canonical source, retrieval route and
+date, licence status and an untrusted-content banner. Attribution does not by
+itself grant reproduction rights. `record-summaries <records.json>` remains an
+explicit fallback for sources that cannot be fully preserved; it never replaces
+a full artifact. Summaries remain incomplete, even if printed as PDF.
 
-## What is tracked, and what is not
+A capture is complete only after checking source identity and coverage of prose,
+code, tables, figures, captions and all PDF pages. `full` describes rendering
+depth. It is not a review verdict. Do not weaken a test or mark missing evidence
+passed. Failed refreshes must not replace good artifacts with walls or stubs.
 
-| Path | Tracked? | Why |
-|---|---|---|
-| `docs/references-md/*.md` | yes | the deliverable: full content plus a mandatory attribution block |
-| `docs/references-md/manifest.json` | yes | current state per URL, bounded (one row per step) |
-| `docs/references-md/history.jsonl` | yes | append-only journal, one line per step per run |
-| `tools/references/` code and config | yes | ordinary dev tooling |
-| `tools/references/cache/` | no | the workspace copy of the content store |
-| the content store | no | large, third-party in raw form, and re-derivable |
+The manifest owns current state; `history.jsonl` is append-only. `index` generates:
 
-The manifest is deliberately split. Keeping an append-only log inside a tracked
-JSON file rewrites the whole file on every run, so history moved to JSONL, which
-appends: a run adds lines instead of re-adding 700 KB to git history.
+- `document-gaps.md`: absent/incomplete Markdown, PDF, English text or figures.
+- `review-gaps.md`: semantic review still needed or invalidated by changed output.
+- `store-gaps.md`: missing source objects, independent of published copies.
+- `excluded.md`: deliberate exclusions and their reasons.
 
-Publishing at `full` depth means the tracked Markdown IS the durable copy. If
-the store is lost and the source is offline, the content still exists in git,
-and rendering DOWN to `excerpt` or `metadata` needs only the tracked Markdown.
-The store keeps raw bytes for provenance and for re-rendering back UP, so point
-`YSONET_REFS_STORE` at a durable location: `git clean -xfd` deletes ignored
-paths, and `verify` warns while the store is the workspace cache.
-
-## Attribution is enforced
-
-The archive publishes full content, so every file has to point clearly at the
-original. That makes attribution the mitigation, and the tool treats it as one:
-
-- `render` REFUSES to write a file missing the title, original URL, retrieval
-  route or retrieval date;
-- every file names the author, publisher, publication date, original URL, the
-  route and date it was preserved by, the licence (`unknown` when unknown, never
-  omitted) and a rights line pointing at the original;
-- `refs.py verify` re-checks every published file and FAILS on one whose block
-  has been edited away.
-
-## Configuration
-
-| File | What it holds |
-|---|---|
-| `config.json` | archive folder, curated documents, depth, optional ledger, host aliases |
-| `exclude.json` | which addresses are not documents, one reason per rule |
-| `overrides.json` | canonical sources, author copies, mirrors, per-URL pins |
-| `dependency-policy.json` | the admission gate for anything outside the standard library |
-
-All four are hand-edited. Generated state lives in the archive manifest, so a
-re-run never conflicts with a human decision.
-
-`YSONET_REFS_STORE` points at the durable content-addressed store. Without it
-the store falls back to the git-ignored `cache/` folder here, which is a
-convenience copy and must not be the only copy of an acquired document. No store
-path is ever written into tracked output.
+Do not edit generated reports. Record a source fault in `content_gap`; record a
+completed review with `review.markdown_sha256` after the actual source comparison.
+Do not use a success count, word count or language heuristic as a review.
 
 ## Tests
 
-Offline, standard library `unittest`, no network, nothing written outside a
-temporary directory:
-
 ```text
-python -m unittest discover -s tools/references/tests -t tools/references
+python tools/references/container_tests.py
 ```
 
-`tests/test_boundary.py` is the one that matters most. It parses the tool's own
-source and fails if a module imports from `.claude/skills`, hard-codes a path
-into it, extends `sys.path` towards it, or grows a write path into a curated
-document. The boundary is asserted, not just described here.
+The suite runs offline with a staged fixture checkout and read-only archived
+Markdown. It covers the curation boundary, source isolation, public-address
+validation, extraction, translation, migration paths, original-PDF preference,
+rendering, image sanitization and provenance. The product's .NET test suite is
+unaffected by this developer-only tool.

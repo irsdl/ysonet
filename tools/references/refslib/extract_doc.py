@@ -14,6 +14,7 @@ failure naming the reason.
 """
 
 import re
+import unicodedata
 import zlib
 import zipfile
 import io
@@ -22,9 +23,84 @@ import io
 # it is a caption on an image.
 MIN_PAGE_CHARS = 8
 
+# A stream whose bytes were never text at all. `_inflate` falls back to the raw,
+# undecompressed stream whenever it happens to contain `Tj` or `TJ`, which an
+# embedded font subset or an image does by chance, and the operator scan below
+# then reads those bytes as glyphs. Whole-document `text_quality` cannot catch
+# it, because the document as a whole still reads fine: Forshaw's 38-page
+# whitepaper published with 242,000 characters of decompressed font spread over
+# two "pages" while the other 36 were perfect prose. The test therefore has to
+# run per stream, before a page is kept.
+#
+# Two tiers, because a font stream is not always long. The wide tier catches the
+# multi-kilobyte blob; the narrow one catches the 144-character line of pure
+# noise that opened page 2 of that same whitepaper and was too short for the
+# wide tier to judge. Measured over every paged PDF in the archive: together
+# they drop 135 pages across 82 documents, every one of them binary, and drop
+# nothing from the CJK, Cyrillic and Arabic documents, nothing holding a real
+# word.
+#
+# Do NOT lower the wide ceiling to catch more. The 0.15-0.30 band holds
+# mis-decoded Cyrillic - real prose read through the wrong codepage - and
+# deleting that loses content instead of noise. That is a separate bug with a
+# separate fix.
+BINARY_STREAM_MIN_CHARS = 200
+BINARY_STREAM_SUSPECT_CEILING = 0.30
+BINARY_STREAM_SHORT_MIN_CHARS = 40
+BINARY_STREAM_SHORT_CEILING = 0.50
+
+# A content stream this large is usually an embedded image or a highly unusual
+# conference-paper export.  The lightweight expression scanner below is a good
+# dependency-free route for ordinary PDFs, but its array matching can take
+# minutes on a many-megabyte decoded stream.  Hand the document to the
+# containerised Poppler route instead of letting one source block an entire
+# archive run.
+MAX_LIGHTWEIGHT_STREAM_BYTES = 1024 * 1024
+
+# HOW MUCH OF THE DOCUMENT THIS PARSER ACTUALLY READ. It walks content streams
+# itself and silently skips every one it cannot inflate or decode, so a partial
+# read is indistinguishable from a short paper: a 95-page arXiv paper came back
+# as 2,131 characters of page one, cleared every content floor, graded as
+# research and was archived as the document. Poppler read 336,406 characters
+# from the same file. Two more in the same sweep, at 16 and 14 pages, did the
+# same thing.
+#
+# The page objects say how long the document is, so coverage is checkable. The
+# test is deliberately lopsided - it fires only at a quarter of the pages or
+# worse, and only for documents long enough for that to mean something - because
+# the cost of a false positive is one container call and the cost of a false
+# negative is publishing page one of a paper as the paper. A PDF whose page tree
+# lives in a compressed object stream counts zero pages, and zero never fires.
+PAGE_OBJECT = re.compile(rb"/Type\s*/Page[^s]")
+COVERAGE_MIN_PAGES = 8
+COVERAGE_FACTOR = 4
+
+
+def declared_pages(data):
+    """Pages the file itself claims, counted from its page objects."""
+    return len(PAGE_OBJECT.findall(data or b""))
+
 
 class Unconvertible(Exception):
     """Raised with a reason a human can act on."""
+
+
+class ExternalPdfToolRequired(Unconvertible):
+    """The PDF is valid, but too costly for the lightweight parser."""
+
+
+class NoTextLayer(Unconvertible):
+    """THIS PARSER found no text. That is not the same as there being none.
+
+    The lightweight route reads byte strings straight out of the content
+    streams and skips whatever it cannot inflate or decode, so an ordinary
+    typeset paper can come back with zero pages. Saying "image-only, needs
+    OCR" on that evidence alone was wrong for 36 conference papers in one
+    sweep - all of them just under the 2MB threshold that would have sent
+    them to Poppler, which reads them fine. Poppler is the authority on
+    whether a text layer exists; this exception exists so the caller knows to
+    go and ask it.
+    """
 
 
 # --- the gibberish gate ----------------------------------------------------
@@ -64,7 +140,7 @@ def unreadable_pages(text):
 
     WHY ONLY TWO OF THE THREE SIGNALS. The vowel test is wrong at page scale. A
     PDF routinely emits a title slide with no spaces between text runs -
-    "ProxyLogonis Just the Tip of the IcebergA New Attack Surface" - which is
+    "Desync AttacksJust the Tip of the IcebergA New Attack Surface" - which is
     perfectly readable and has almost no word-shaped runs in it. Judging pages on
     that called 46 readable title slides damaged. The replacement ratio and the
     letter ratio have no such problem: run-together prose is still letters.
@@ -158,6 +234,227 @@ def looks_truncated(data):
             "cut off rather than delivered whole" % len(data))
 
 
+# --- mis-mapped ligatures --------------------------------------------------
+#
+# A TeX or MinionPro-style text face keeps fi/ff/ffi/fl/ft/tt/Th as single
+# glyphs at code points that decode as punctuation and currency. The text then
+# reads as prose - every quality gate above passes it - while individual words
+# are quietly wrong: an IEEE S&P paper ABOUT fingerprinting archived 422
+# instances of "€ngerprinting", plus "di‚erent", "a‹ributes" and "‘is".
+LIGATURES = {
+    "€": "fi",       # signi€cant -> significant
+    "‚": "ff",       # di‚erent   -> different
+    "‹": "tt",       # a‹ributes  -> attributes
+    "ƒ": "fl",       # overƒow    -> overflow
+    "‰": "ft",       # dra‰       -> draft
+    "‘": "Th",       # ‘is        -> This
+}
+
+# What PROVES the face is mis-mapped, rather than merely containing the glyph.
+# None of these is ever glued to a letter in real prose - a price is "€25" and a
+# guillemet sits outside a word - so a run of them inside words cannot be
+# anything else. U+2018 is deliberately NOT evidence: it legitimately opens a
+# quotation, where a letter follows it, and treating that as proof would rewrite
+# every quoted word in the corpus.
+LIGATURE_EVIDENCE = ("€", "‚", "‹", "ƒ", "‰")
+
+# A mis-mapped face is PERVASIVE: every fi, ff and tt in the paper is wrong, so
+# the count runs to hundreds. The one broken document in this corpus scores 669.
+# A handful of hits is something else wearing the same glyph - a superscript
+# affiliation mark after an author's name ("Minhui Xue‚"), or a decoded font
+# stream that happens to contain the byte. The nearest such document scores 15,
+# so the floor sits well above the noise and far below the real thing. Missing a
+# repair leaves a document exactly as it is; making one wrongly rewrites a byline.
+LIGATURE_FLOOR = 40
+
+# ...and how many DIFFERENT ones must appear inside words. This is what finally
+# separates a broken face from a bullet: a font whose ligature table was read at
+# the wrong code points gets fi, ff, tt, fl and ft wrong together, while a paper
+# that merely sets its list markers in this face misuses exactly one glyph. Two
+# other papers here put `€` between a colon and a lower-case item - "three
+# different forms:€a sphere€a cube" - and spell their own fi as `certi“cate`,
+# proving `€` cannot be fi for them.
+LIGATURE_DISTINCT = 3
+
+
+def _glued(glyph):
+    """The glyph, only where it is standing IN FOR LETTERS inside a word.
+
+    "Next to a letter" is not enough, and assuming it was would have corrupted
+    six other papers in this corpus. They set their bullet list markers in the
+    same face, so `€` lands between a colon and the first word of the item -
+    "contributions are:€We provide" - and rewriting that to "fiWe" destroys a
+    sentence that was correct. Those documents spell their own fi ligature with
+    a different glyph again, so they are not even the same fault.
+
+    A ligature is surrounded by letters (signi€cant), or opens a word and is
+    continued in LOWER case (€ngerprinting), or closes one that began in lower
+    case (a dra‰). A bullet is preceded by punctuation and followed by the
+    capital that starts the item, which is what tells the two apart.
+    """
+    escaped = re.escape(glyph)
+    return re.compile(r"(?<=[A-Za-z])" + escaped + r"(?=[A-Za-z])"
+                      r"|(?<![A-Za-z])" + escaped + r"(?=[a-z])"
+                      r"|(?<=[a-z])" + escaped + r"(?![A-Za-z])")
+
+
+def _ffi_or_qu(match):
+    """U+FFFD stood for two different glyphs; the next letter says which.
+
+    The decoder had already lost these, so the code point cannot be read back.
+    The following letter can: `ffi` ends in its own `i`, so a consonant comes
+    next (reaffirms, difficult, traffic), while `Qu` is always followed by a
+    vowel (Queries, Quantifying). Checked against every occurrence in the two
+    papers that carry them.
+    """
+    following = match.group(1) or match.group(2)
+    return ("Qu" if following.lower() in "aeiou" else "ffi") + following
+
+
+def ligature_evidence(text):
+    """(occurrences, distinct glyphs) standing in for letters inside words.
+
+    Zero in an ordinary document: none of these is ever spelled inside a word.
+    """
+    counts = [len(_glued(glyph).findall(text)) for glyph in LIGATURE_EVIDENCE]
+    return sum(counts), sum(1 for n in counts if n)
+
+
+def _font_is_mismapped(text):
+    occurrences, distinct = ligature_evidence(text)
+    return occurrences >= LIGATURE_FLOOR and distinct >= LIGATURE_DISTINCT
+
+
+def _apply_ligatures(text):
+    """Repeat until nothing moves: ligatures stack.
+
+    "fifth" is set as fi + ft + h, so it arrives as `€‰h` - and neither glyph
+    is between two letters until the other one has been expanded. One pass
+    leaves it as `€fth`.
+    """
+    repaired, changes = text, 0
+    for _ in range(3):
+        moved = 0
+        for glyph, letters in LIGATURES.items():
+            repaired, count = _glued(glyph).subn(letters, repaired)
+            moved += count
+        changes += moved
+        if not moved:
+            break
+    repaired, count = re.subn("(?<=[A-Za-z])�([A-Za-z])|(?<![A-Za-z])�([a-z])",
+                              lambda m: _ffi_or_qu(m), repaired)
+    return repaired, changes + count
+
+
+def repair_ligatures(text):
+    """Undo a ligature map only where the text proves it is wrong.
+
+    Returns the text unchanged unless the evidence glyphs appear inside words
+    often enough that no legitimate reading is left. Nothing here guesses at a
+    document that merely mentions a euro or opens a quotation.
+    """
+    if not _font_is_mismapped(text):
+        return text, 0
+    return _apply_ligatures(text)
+
+
+# --- font damage the lightweight parser cannot undo -------------------------
+#
+# `repair_ligatures` above fixes ONE font's mistake, because that one is
+# decidable: five glyphs, hundreds of occurrences, a single reading. Most broken
+# faces are not. A paper may lose its `fi` entirely ("identies" for
+# "identifies"), spell a quotation as `�contextŽ`, or leak a decoded font stream
+# into the prose - each a different table, none recoverable by substitution.
+#
+# What they share is a signature that healthy text never has: a replacement
+# character welded to a letter, or a DOUBLE quotation mark between two letters.
+# Measured over the whole corpus, 1,598 of 1,672 documents score zero and the
+# damaged ones score 3 to 606, so this separates cleanly. (Single quotes are
+# excluded: U+2019 between letters is the apostrophe of "don't", and counting it
+# flagged 937 healthy documents.)
+#
+# The answer is not to guess the table but to hand the PDF to poppler, which
+# reads the font properly - `acquire` already catches this and does exactly
+# that. The lightweight parser stays lightweight; it just stops pretending it
+# read a document it could not.
+LOST_GLYPH = re.compile(r"(?<=[A-Za-z])�|�(?=[A-Za-z])")
+QUOTE_IN_WORD = re.compile(r"(?<=[A-Za-z])[“”](?=[A-Za-z])")
+FONT_DAMAGE_FLOOR = 3
+
+
+def font_damage(text):
+    """How many glyphs this parser demonstrably failed to read."""
+    return len(LOST_GLYPH.findall(text)) + len(QUOTE_IN_WORD.findall(text))
+
+
+# --- a ligature that left NO mark at all ------------------------------------
+#
+# The check above needs a replacement character or a stray quotation mark to
+# fire. A TeX face whose `fi`, `ff`, `ffi` and `fl` glyphs map to nothing does
+# not leave one: the ligature is simply DELETED, and what arrives is prose that
+# passes every gate here - vowels, letter share, no replacement characters -
+# while saying "signicant", "congurations" and "efciency". The NDSS semantic
+# cache-poisoning paper reached the archive that way, 1.9MB of it, just under
+# the size that routes a PDF to poppler regardless: 102 damaged words in a
+# document nothing had any reason to doubt. A reader searching the archive for
+# `configuration` does not find the paper about configurations.
+#
+# THE TEST IS A VOCABULARY, NOT A PATTERN. Every entry is what a real English
+# word becomes with one ligature deleted, and is not itself an English word -
+# which is why `identical`, `classic`, `notice` and `Prolexic` are absent, each
+# of which a suffix-wildcard version of this matched. Measured over the whole
+# corpus, this hits 23 documents of ~1,700 and every one of them is genuinely
+# damaged.
+DROPPED_LIGATURE = re.compile(r"\b(?:%s)\b" % "|".join(sorted((
+    "signicant", "signicantly", "signicance", "signies", "signied",
+    "specic", "specically", "specication", "specications", "specied",
+    "classier", "classiers", "classication", "classied",
+    "identier", "identiers", "identied", "identies", "identication",
+    "notication", "notications", "notied", "noties",
+    "modied", "modier", "modiers", "modication", "modications",
+    "justied", "justication", "veried", "verier", "verication", "veries",
+    "qualied", "qualier", "qualiers",
+    "congure", "congured", "congures", "conguring", "conguration",
+    "congurations", "conrm", "conrms", "conrmed", "conrming", "conrmation",
+    "condence", "condent", "condential",
+    "dene", "dened", "denes", "dening", "denition", "denitions",
+    "denitely", "denitive",
+    "efcient", "efciently", "efciency", "ecient", "eciently", "eciency",
+    "trafc", "difcult", "difculty", "difculties",
+    "sufcient", "sufciently", "coefcient", "coefcients",
+    "benet", "benets", "prole", "proles", "proling", "articial",
+    "workow", "workows", "overow", "overows", "overowing",
+    "reected", "reects", "lter", "lters", "ltering", "ltered",
+), key=len, reverse=True)), re.IGNORECASE)
+DROPPED_LIGATURE_FLOOR = 3
+
+
+def dropped_ligatures(text):
+    """(occurrences, distinct words) where a ligature was deleted outright."""
+    found = DROPPED_LIGATURE.findall(text or "")
+    return len(found), len({word.lower() for word in found})
+
+
+# A LOST GLYPH WITH EXACTLY ONE READING. Some fonts map a ligature to a code
+# point that has no Unicode meaning at all, so neither this parser nor poppler
+# can recover it - the 2008 Stanford CSRF paper reaches us from poppler with 33
+# instances of `h?p://`, its `tt` gone. Where the surrounding letters admit one
+# word and one only, putting it back is a reading rather than a guess.
+#
+# Kept deliberately tiny. Every entry has to be a case where no other English
+# word fits, which is why it is a table of proven losses and not a heuristic.
+LOST_WORDS = ((re.compile(r"\bh�(p://|ps://|p\b)"), r"htt\1"),)
+
+
+def repair_lost_words(text):
+    """(text, changes) with unambiguous lost glyphs restored."""
+    repaired, changes = text or "", 0
+    for pattern, replacement in LOST_WORDS:
+        repaired, n = pattern.subn(replacement, repaired)
+        changes += n
+    return repaired, changes
+
+
 def pdf_to_markdown(data, title=""):
     """Page-by-page text with `--- page N ---` markers.
 
@@ -172,14 +469,60 @@ def pdf_to_markdown(data, title=""):
         content = _inflate(raw)
         if content is None:
             continue
+        if len(content) > MAX_LIGHTWEIGHT_STREAM_BYTES:
+            raise ExternalPdfToolRequired(
+                "a decoded PDF stream is %d bytes, above the lightweight "
+                "parser's %d-byte safety limit" %
+                (len(content), MAX_LIGHTWEIGHT_STREAM_BYTES))
         text = _pdf_stream_text(content)
+        if _is_binary_stream(text):
+            continue
         if len(text.strip()) >= MIN_PAGE_CHARS:
             pages.append(text.strip())
 
     if not pages:
-        raise Unconvertible(
+        raise NoTextLayer(
             "no extractable text: the PDF is image-only (a scan or exported "
             "slides), so it needs OCR rather than conversion")
+
+    # Read SOME of it and stopping is the quiet failure, because what comes back
+    # is real text and passes every check made on it. Hand the file to Poppler
+    # rather than publish the part this parser could reach.
+    declared = declared_pages(data)
+    if declared >= COVERAGE_MIN_PAGES and len(pages) * COVERAGE_FACTOR < declared:
+        raise ExternalPdfToolRequired(
+            "the lightweight parser read %d text stream(s) from a document "
+            "whose page objects say it has %d pages" % (len(pages), declared))
+
+    # Before judging the text, undo a ligature map the font got wrong. This runs
+    # on evidence rather than on failure, because such a document READS fine:
+    # the gate below passes it, and the damage is inside individual words. The
+    # evidence is counted across the WHOLE document and then applied to every
+    # page, because one page of a broken paper may hold too few to prove it.
+    if _font_is_mismapped("\n".join(pages)):
+        pages = [_apply_ligatures(page)[0] for page in pages]
+
+    # AFTER the repair above, because that one fixes its own font in place and
+    # what is left is what this parser genuinely cannot read.
+    damage = font_damage("\n".join(pages))
+    if damage >= FONT_DAMAGE_FLOOR:
+        raise ExternalPdfToolRequired(
+            "the font's encoding was not applied: %d glyph(s) came through as a "
+            "replacement character inside a word, or as a quotation mark between "
+            "two letters. The text reads as prose and would be archived as the "
+            "paper, with words like \"identies\" for \"identifies\"" % damage)
+
+    # THE SAME FAILURE, WITH NOTHING LEFT BEHIND TO COUNT. Two distinct words
+    # are required as well as the floor, because one is a typo and a table is a
+    # font.
+    lost, distinct = dropped_ligatures("\n".join(pages))
+    if lost >= DROPPED_LIGATURE_FLOOR and distinct >= 2:
+        raise ExternalPdfToolRequired(
+            "the font's ligatures were dropped rather than read: %d word(s) in "
+            "%d spellings arrived without their fi/ff/fl, such as \"signicant\" "
+            "for \"significant\". The text reads as prose and would be archived "
+            "as the paper, unsearchable for every word it damaged"
+            % (lost, distinct))
 
     ok, reason = text_quality("\n".join(pages))
     if not ok:
@@ -266,6 +609,8 @@ def _retry_with_tounicode(data):
         if content is None or (b"Tj" not in content and b"TJ" not in content):
             continue
         text = _pdf_stream_text(content, mapping)
+        if _is_binary_stream(text):
+            continue
         if len(text.strip()) >= MIN_PAGE_CHARS:
             pages.append(text.strip())
     return "\f".join(pages)
@@ -284,6 +629,33 @@ def _safe_chr(code):
         return chr(code)
     except ValueError:
         return ""
+
+
+def _is_binary_stream(text):
+    """True when this stream's "text" is a mis-decoded binary blob.
+
+    Counted as suspect: the Latin-1 supplement block, the replacement character,
+    and control characters other than tab and newline. Ordinary prose in any
+    script stays well under the ceiling - accented European text uses a few of
+    those code points, CJK and Cyrillic use none of them - while a font or image
+    stream read as Latin-1 is made of almost nothing else.
+    """
+    stripped = text.strip()
+    if len(stripped) < BINARY_STREAM_SHORT_MIN_CHARS:
+        return False            # too short to judge, and cheap to keep
+    suspect = 0
+    for char in stripped:
+        if char in "\t\n\r":
+            continue
+        code = ord(char)
+        if 0x80 <= code <= 0xFF or code == 0xFFFD:
+            suspect += 1
+        elif unicodedata.category(char) in ("Cc", "Cf", "Co", "Cs"):
+            suspect += 1
+    share = suspect / len(stripped)
+    if len(stripped) >= BINARY_STREAM_MIN_CHARS:
+        return share > BINARY_STREAM_SUSPECT_CEILING
+    return share > BINARY_STREAM_SHORT_CEILING
 
 
 def _inflate(raw):
@@ -382,8 +754,8 @@ def _decode_literal(literal, mapping=None):
         index += 1
     # PDF literal strings are PDFDocEncoding, which is Latin-1 shaped, but some
     # producers emit UTF-8. Decide by TRYING utf-8 strictly rather than sniffing
-    # for a lead byte: the sniff turned "Munoz" with an n-tilde into a
-    # replacement character because one byte elsewhere in the same string
+    # for a lead byte: the sniff turned an author's surname carrying an n-tilde
+    # into a replacement character because one byte elsewhere in the same string
     # happened to look like a UTF-8 lead.
     raw = bytes(out)
     if mapping:

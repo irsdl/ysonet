@@ -2,7 +2,7 @@
 
 Acquisition and publication are separate layers, and this is the acquisition
 side. Raw responses, browser DOMs, assets, extractions and translations live
-here by hash; `docs/references-md/` holds only what is rendered. That split is
+here by hash; `docs/archived-references/` holds only what is rendered. That split is
 what makes a depth switch a re-render instead of a re-crawl, and it is why a
 lighter archive can be produced offline in seconds.
 
@@ -27,6 +27,10 @@ class Store(object):
     def __init__(self, root):
         self.root = str(root)
 
+    def has_object_directory(self):
+        """Whether this path has the minimum shape of a content store."""
+        return os.path.isdir(os.path.join(self.root, "objects"))
+
     def path_for(self, digest):
         """Two levels of fan-out: a flat directory of 100k objects is miserable
         on Windows, and 256 x 256 keeps every level small."""
@@ -44,8 +48,7 @@ class Store(object):
         if os.path.exists(target):
             return digest
         directory = os.path.dirname(target)
-        if not os.path.isdir(directory):
-            os.makedirs(directory)
+        os.makedirs(directory, exist_ok=True)
         handle, temporary = tempfile.mkstemp(dir=directory, suffix=".tmp")
         try:
             with os.fdopen(handle, "wb") as stream:

@@ -115,6 +115,9 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path release | Out-Null
           Move-Item .\ysonet\bin\Release\* .\release\ -Force
+          $skill = ".\release\.claude\skills\ysonet-payloads\SKILL.md"
+          if (-not (Test-Path $skill)) { throw "Release artifact is missing the YSoNet Agent Skill at $skill." }
+          Write-Host "Agent Skill staged: $skill"
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 (2026-04-10)
@@ -122,3 +125,4 @@ jobs:
           name: ysonet-${{ github.sha }}
           path: release
           if-no-files-found: error
+          include-hidden-files: true

@@ -57,6 +57,42 @@ class Unavailable(Exception):
     """The API refused or answered with nothing usable. Reported, never guessed."""
 
 
+# A blob whose bytes are NOT source text. `_file` wraps what it fetches in a
+# fenced code block, which is right for a `.py` and catastrophic for a `.pdf`:
+# three browser-security whitepapers were stored as several megabytes of
+# `decode("utf-8", "replace")` - a code fence full of replacement characters -
+# and every later stage faithfully preserved the damage. These are downloaded as
+# bytes by the ordinary document route instead, which knows what a PDF is.
+BINARY_BLOB_SUFFIXES = (
+    ".pdf", ".ppt", ".pptx", ".doc", ".docx", ".xls", ".xlsx", ".odt", ".odp",
+    ".zip", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".tar", ".rar",
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".svgz",
+    ".mp3", ".mp4", ".avi", ".mov", ".wav", ".woff", ".woff2", ".ttf", ".otf",
+    ".exe", ".dll", ".so", ".dylib", ".jar", ".class", ".bin", ".img", ".iso",
+)
+
+
+def raw_url(url):
+    """The `raw.githubusercontent.com` URL for a BINARY blob, or "".
+
+    Only for the blobs `_file` must not read as text. A text blob keeps going
+    through the API route, which adds the repository, the ref and the cited line
+    number - context a raw download does not carry.
+    """
+    parts = urlsplit(str(url or ""))
+    if (parts.hostname or "").lower() not in ("github.com", "www.github.com"):
+        return ""
+    path = unquote(parts.path or "")
+    matched = BLOB.match(path)
+    if not matched:
+        return ""
+    owner, repo, ref, blob_path = matched.groups()
+    if not blob_path.lower().endswith(BINARY_BLOB_SUFFIXES):
+        return ""
+    return "%s/%s/%s/%s/%s" % (RAW, owner, repo, quote(ref, safe=""),
+                               quote(blob_path, safe="/"))
+
+
 def route(url):
     """Which API shape this URL is, or "" when it is an ordinary page."""
     parts = urlsplit(str(url or ""))
@@ -67,7 +103,9 @@ def route(url):
     if ADVISORY.match(path):
         return "advisory"
     if BLOB.match(path):
-        return "file"
+        # A binary blob is not a file the API route can render, so it falls
+        # through to the ordinary document route and is fetched as bytes.
+        return "" if raw_url(url) else "file"
     if CONVERSATION.match(path):
         return "conversation"
     return ""

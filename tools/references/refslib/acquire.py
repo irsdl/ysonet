@@ -77,6 +77,15 @@ class Acquired(object):
         return self.status in ("stored", "link-only")
 
 
+def retry_raw_sha256(entry, store):
+    """A held source object, including bytes from a refused refresh attempt."""
+    attempt = ((entry.get("steps") or {}).get("acquire-attempt") or {})
+    for digest in (entry.get("raw_sha256"), attempt.get("raw_sha256")):
+        if store.has(digest):
+            return digest
+    return ""
+
+
 def media_policy(config):
     policy = (config or {}).get("media_policy") or {}
     return {
@@ -152,7 +161,7 @@ def acquire(key, entry, store, fetcher, config, taken_slugs=(), refetch=False,
             "retrieved_kind") or "stored"
         final_url = health.get("final_url") or url
     else:
-        response = fetcher.get(url)
+        response = fetcher.get(github.raw_url(url) or url, max_bytes=MAX_DOCUMENT_BYTES)
         if not (200 <= response.status < 300) or not response.body:
             return Acquired(key, "failed",
                             reason="http %d on acquisition" % response.status)
@@ -213,9 +222,15 @@ def acquire(key, entry, store, fetcher, config, taken_slugs=(), refetch=False,
     # chrome removal cannot see a call to action that sits in the article's own
     # flow with no class worth naming, and 111 files end with one.
     trimmed, furniture = boilerplate.trim(chosen.markdown)
+    from . import reading
+    trimmed = reading.catalog_body(trimmed, url)
     body = sanitise.sanitise_text(trimmed)
     facts = meta.read(markup, final_url)
     title = facts["title"] or _title_from(chosen.markdown) or url
+    from . import reading
+    identity_fault = reading.capture_fault({"title": title, "original_url": url}, body.text)
+    if identity_fault:
+        return Acquired(key, "review", reason=identity_fault, raw_sha256=raw_sha)
     # A date the page did not DECLARE is often still in the article, the byline
     # or the URL. Only fills when metadata gave none, so a declared date wins.
     published = facts["published"] or dates.recover_published(body.text, url)
@@ -386,10 +401,13 @@ def _repository(key, url, entry, store, taken_slugs):
                                % (package.full_name, package.commit[:12]))
 
     body = repo_module.to_markdown(package, url)
+    from . import isolation
+    import json
+    raw_sha = store.put(json.dumps(isolation.encode(package), ensure_ascii=True).encode("utf-8"))
     from . import sanitise as sanitise_module
     cleaned = sanitise_module.sanitise_text(body)
-    # A clone reads the whole repository, so a short README is a short record
-    # rather than something still to be fetched.
+    # This is the selected documentation at a pinned revision. A short README
+    # can be a complete document, but selection limits remain explicit.
     verdict = decide(cleaned.text, url, complete=True)
     content_sha = store.put_text(cleaned.text)
     health = entry.get("health") or {}
@@ -407,10 +425,11 @@ def _repository(key, url, entry, store, taken_slugs):
         "original_url": url,
         "canonical_url": "",
         "also_at": entry.get("also_at") or [],
-        "retrieved_kind": "git",
+        "retrieved_kind": "public-api",
         "retrieved_from": url,
         "snapshot": "",
         "commit": package.commit,
+        "raw_sha256": raw_sha,
         "content_sha256": content_sha,
         "cited_by": entry.get("cited_by") or [],
         "quality": {"chars": len(cleaned.text), "documents": len(package.materials)},
@@ -441,7 +460,7 @@ def _document(key, url, entry, kind, store, fetcher, taken_slugs, refetch, ladde
         raw_sha = entry["raw_sha256"]
         retrieved_kind = "stored"
     else:
-        response = fetcher.get(url, max_bytes=MAX_DOCUMENT_BYTES)
+        response = fetcher.get(github.raw_url(url) or url, max_bytes=MAX_DOCUMENT_BYTES)
         if not (200 <= response.status < 300) or not response.body:
             return Acquired(key, "failed",
                             reason="http %d fetching the %s" % (response.status, kind))
@@ -489,7 +508,16 @@ def _document(key, url, entry, kind, store, fetcher, taken_slugs, refetch, ladde
             cut = extract_doc.looks_truncated(raw)
             if cut:
                 return Acquired(key, "failed", reason=cut, raw_sha256=raw_sha)
-            body = extract_doc.pdf_to_markdown(raw, title)
+            try:
+                body = extract_doc.pdf_to_markdown(raw, title)
+            except (extract_doc.ExternalPdfToolRequired, extract_doc.NoTextLayer) as extraction_error:
+                from . import toolbox
+                try:
+                    body = toolbox.pdf_text(raw)
+                except toolbox.Unavailable as error:
+                    raise extract_doc.Unconvertible(
+                        str(extraction_error) + "; PDF text unavailable after isolated Poppler extraction; "
+                        "render page images for transcription/OCR: " + str(error))
             authors, published, publisher = [], "", ""
     except extract_doc.Unconvertible as error:
         # This is the failure list the maintainer asked for. It names the reason

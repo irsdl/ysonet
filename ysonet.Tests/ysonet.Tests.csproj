@@ -101,6 +101,7 @@
   -->
   <ItemGroup>
     <Compile Include="Tests.cs" />
+    <Compile Include="CompletionUxTests.cs" />
     <Compile Include="TestRegistrationCoverage.cs" />
     <Compile Include="TypeConfuseDelegatePowerShellTests.cs" />
     <Compile Include="BootstrapperBuilderTests.cs" />
@@ -335,9 +336,8 @@
     <Copy SourceFiles="$(YsonetOutDir)\GhostWebShell.cs" DestinationFolder="$(OutDir)"
           OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
           Condition="Exists('$(YsonetOutDir)\GhostWebShell.cs')" />
-    <!-- The windowless fire sink. Without it the suite falls back to the legacy
-         "cmd /c echo" marker instead of skipping a fire row, but the sink probe row
-         reports the fallback as a failure, so the copy is what keeps it green. -->
+    <!-- The required windowless fire sink. Without it the runner reports one ordinary
+         failure with the probe reason and stops before any command fire row can run. -->
     <Copy SourceFiles="$(TestSinkExe)" DestinationFolder="$(OutDir)"
           OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
           Condition="Exists('$(TestSinkExe)')" />

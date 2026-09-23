@@ -151,6 +151,8 @@ require a SAFE, observed effect (adopt-then-neutralize, a benign marker), never 
    tokens, or `RuntimeVersion.Range(...)` only when every intervening version is evidenced). Keep
    current-runtime evidence when adding a legacy floor; discrete endpoints are more honest than an
    unmeasured range. When a claim depends on `--legacyfx`, say so in the module help/prose.
+   After building Debug, run the shipped-skill updater named in `CLAUDE.md`; runtime evidence is
+   part of `.claude/skills/ysonet-payloads/references/full-help.md`.
 6. **Record the negatives too.** A `DoesNotFire` row with `payload-names-4x-assembly` (and no
    `--legacyfx` support yet), `carrier-member-shape-differs`, `type-absent-on-clr2`,
    `target-assembly-absent`, or `deserialized-no-effect` is the deliverable that stops the question

@@ -226,7 +226,8 @@ When the user asks for edits:
 6. Add focused coverage for meaningful variant distinctions or new values.
 7. Confirm `--category=axis=value`, filtered `--list gadgets`, and gadget help
    expose each effective unit correctly.
-8. Run the project's normal Debug build.
+8. Run the project's normal Debug build, then the shipped-skill updater named in
+   `CLAUDE.md` so the generated full-help reference carries the new categories.
 
 Do not change payload generation to make a category convenient. Do not add plugin
 metadata. For a catalog-wide consistency review, use
@@ -257,3 +258,4 @@ exact target dependencies, changed files, and verification results.
   token or an evidence-backed contiguous range, never to look complete.
 - Formatter values match effective variant support.
 - No plugin facet work was introduced.
+- The shipped `ysonet-payloads` skill reflects the final categories.

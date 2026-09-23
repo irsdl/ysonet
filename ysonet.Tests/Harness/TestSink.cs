@@ -9,30 +9,44 @@ using System.Threading;
 namespace ysonet.Tests
 {
     /// <summary>
-    /// What a fire row asks a payload to do, and how it proves the payload did it.
-    ///
-    /// Two backends satisfy this: the windowless ysonet.TestSink.exe (preferred - no shell,
-    /// no window, and it records the exact argument it received) and the original
-    /// "cmd /c echo x &gt; marker" (kept for one release as an automatic fallback).
-    ///
-    /// Rows do not choose. One backend is selected for the whole run, before the first row,
-    /// and every row goes through this abstraction, so no gadget or plugin assertion has to
-    /// know which one is live. A row is never SKIPPED because the sink is unavailable:
-    /// dropping the evidence would make a green run mean less than it does today.
+    /// What a fire row asks a payload to do, and how it proves the payload did it. Every
+    /// command row uses the windowless ysonet.TestSink.exe: no shell, no window, and the
+    /// record names the exact argument the process received.
     /// </summary>
-    internal abstract class FireTarget : IDisposable
+    internal sealed class FireTarget : IDisposable
     {
+        private readonly string _tag;
+        private readonly string _descriptiveTag;
+
+        internal FireTarget(string tag, string descriptiveTag)
+        {
+            _tag = tag;
+            _descriptiveTag = descriptiveTag;
+            Clear();
+        }
+
         /// <summary>The value to put in InputArgs.Cmd (or after -c on a command line).</summary>
-        public abstract string Command { get; }
+        public string Command { get { return FireBackend.SinkExePath + " " + _tag; } }
 
         /// <summary>Poll for the effect. True as soon as complete evidence exists.</summary>
-        public abstract bool Wait(int totalMs);
+        public bool Wait(int totalMs)
+        {
+            SinkRecord record;
+            if (!FireBackend.TryReadRecord(_tag, totalMs, out record)) return false;
+            if (record.ArgCount != 1)
+                throw new Exception("fire " + _descriptiveTag + ": the sink received "
+                    + record.ArgCount + " arguments, expected 1 (raw: " + record.RawCommandLine + ")");
+            if (record.Arg0 != _tag)
+                throw new Exception("fire " + _descriptiveTag + ": the sink received argument '"
+                    + record.Arg0 + "', expected '" + _tag + "' (raw: " + record.RawCommandLine + ")");
+            return true;
+        }
 
         /// <summary>Remove any evidence, so the same target can be reused for a second phase.</summary>
-        public abstract void Clear();
+        public void Clear() { FireBackend.RemoveRecords(_tag); }
 
         /// <summary>Human-readable detail for a failure message.</summary>
-        public abstract string Describe();
+        public string Describe() { return "sink tag " + _tag; }
 
         public void Dispose() { Clear(); }
     }
@@ -87,27 +101,24 @@ namespace ysonet.Tests
     }
 
     /// <summary>
-    /// Picks the fire backend once per run and mints the per-row targets.
-    ///
-    /// Selection order:
-    ///   YSONET_TEST_SINK=off                      -> legacy marker, no probe;
-    ///   the sink executable is missing/unusable   -> legacy marker, one printed reason;
-    ///   a direct probe produces a valid record    -> the sink.
+    /// Probes the required fire sink once per run and mints the per-row targets.
     ///
     /// The probe is direct on purpose. It answers "can this machine run the sink at all"
     /// before a single payload is built, so a real fire row that later produces no record
     /// stays a genuine failure worth investigating instead of being explained away as an
-    /// environment problem.
+    /// environment problem. If the probe cannot establish that contract, the runner records
+    /// one ordinary failure with the reason and stops before any row can lose fire coverage.
     /// </summary>
     internal static class FireBackend
     {
-        /// <summary>"test-sink" or "legacy-cmd" - the short token used in the status file.</summary>
-        public static string Name = "legacy-cmd";
+        /// <summary>The short token used in the status file.</summary>
+        public static string Name = "test-sink-unavailable";
 
-        /// <summary>The header line, including the reason when the sink was not used.</summary>
-        public static string Description = "legacy-cmd (not initialized)";
+        /// <summary>The header line, including the reason when the sink cannot be used.</summary>
+        public static string Description = "test-sink unavailable (not initialized)";
 
-        public static bool UsesSink { get; private set; }
+        public static bool IsAvailable { get; private set; }
+        public static string UnavailableReason = "not initialized";
 
         /// <summary>Space-free path of the sink executable, once validated.</summary>
         public static string SinkExePath { get; private set; }
@@ -117,39 +128,25 @@ namespace ysonet.Tests
 
         public const string DirectoryVariable = "YSONET_TEST_SINK_DIR";
 
-        private static Func<string, string> _markerPath;
         private static int _counter;
         private static readonly int Pid = System.Diagnostics.Process.GetCurrentProcess().Id;
 
         /// <summary>
-        /// Choose the backend for this whole run. <paramref name="markerPathFactory"/> is the
-        /// suite's existing marker-path helper, passed in so the legacy backend keeps writing
-        /// exactly where it always did.
+        /// Probe the required sink for this whole run.
         /// </summary>
-        public static void Select(bool sinkAllowed, string artifactDirectory, Func<string, string> markerPathFactory)
+        public static void Select(string artifactDirectory)
         {
-            Select(sinkAllowed, artifactDirectory, markerPathFactory, null);
+            Select(artifactDirectory, null);
         }
 
         /// <summary>
         /// The testable form. <paramref name="sinkExeOverride"/> lets
-        /// TestSinkProbeSelectsBackend point selection at a missing, unlaunchable or
-        /// record-less executable, which is the only way to drive the fallback branches
-        /// without breaking the real sink for the rest of the run.
+        /// TestSinkProbeRequiresAvailableSink point selection at a missing, unlaunchable or
+        /// record-less executable without breaking the real sink for the rest of the run.
         /// </summary>
-        public static void Select(bool sinkAllowed, string artifactDirectory,
-            Func<string, string> markerPathFactory, string sinkExeOverride)
+        public static void Select(string artifactDirectory, string sinkExeOverride)
         {
-            _markerPath = markerPathFactory;
-            UsesSink = false;
-            Name = "legacy-cmd";
-            SinkExePath = null;
-
-            if (!sinkAllowed)
-            {
-                Description = "legacy-cmd (" + TestRunOptions.SinkVar + "=off)";
-                return;
-            }
+            SetUnavailable("not initialized");
 
             string reason;
             string exe = sinkExeOverride == null
@@ -157,7 +154,7 @@ namespace ysonet.Tests
                 : ResolveOverride(sinkExeOverride, out reason);
             if (exe == null)
             {
-                Description = "legacy-cmd (" + reason + ")";
+                SetUnavailable(reason);
                 return;
             }
 
@@ -165,7 +162,7 @@ namespace ysonet.Tests
             try { Directory.CreateDirectory(recordDir); }
             catch (Exception ex)
             {
-                Description = "legacy-cmd (cannot create the sink record directory: " + ex.Message + ")";
+                SetUnavailable("cannot create the sink record directory: " + ex.Message);
                 return;
             }
 
@@ -175,14 +172,33 @@ namespace ysonet.Tests
 
             if (!ProbeSink(out reason))
             {
-                SinkExePath = null;
-                Description = "legacy-cmd (" + reason + ")";
+                SetUnavailable(reason);
                 return;
             }
 
-            UsesSink = true;
+            IsAvailable = true;
+            UnavailableReason = null;
             Name = "test-sink";
             Description = "test-sink (" + exe + ")";
+        }
+
+        private static void SetUnavailable(string reason)
+        {
+            IsAvailable = false;
+            UnavailableReason = reason;
+            Name = "test-sink-unavailable";
+            Description = "test-sink unavailable (" + reason + ")";
+            SinkExePath = null;
+            RecordDirectory = null;
+            Environment.SetEnvironmentVariable(DirectoryVariable, null);
+        }
+
+        /// <summary>Fail with the probe reason before any command row can be skipped.</summary>
+        public static void RequireAvailable()
+        {
+            if (!IsAvailable)
+                throw new Exception("the required windowless fire sink is unavailable: "
+                    + UnavailableReason);
         }
 
         /// <summary>
@@ -230,8 +246,8 @@ namespace ysonet.Tests
         internal sealed class BackendState
         {
             public string Name, Description, SinkExePath, RecordDirectory, EnvironmentDirectory;
-            public bool UsesSink;
-            public Func<string, string> MarkerPath;
+            public string UnavailableReason;
+            public bool IsAvailable;
         }
 
         internal static BackendState Snapshot()
@@ -242,8 +258,8 @@ namespace ysonet.Tests
                 Description = Description,
                 SinkExePath = SinkExePath,
                 RecordDirectory = RecordDirectory,
-                UsesSink = UsesSink,
-                MarkerPath = _markerPath,
+                IsAvailable = IsAvailable,
+                UnavailableReason = UnavailableReason,
                 EnvironmentDirectory = Environment.GetEnvironmentVariable(DirectoryVariable),
             };
         }
@@ -254,8 +270,8 @@ namespace ysonet.Tests
             Description = state.Description;
             SinkExePath = state.SinkExePath;
             RecordDirectory = state.RecordDirectory;
-            UsesSink = state.UsesSink;
-            _markerPath = state.MarkerPath;
+            IsAvailable = state.IsAvailable;
+            UnavailableReason = state.UnavailableReason;
             Environment.SetEnvironmentVariable(DirectoryVariable, state.EnvironmentDirectory);
         }
 
@@ -330,14 +346,11 @@ namespace ysonet.Tests
             }
         }
 
-        /// <summary>A fresh target for one fire row. Never throws for an ordinary tag.</summary>
+        /// <summary>A fresh target for one fire row.</summary>
         public static FireTarget Create(string descriptiveTag)
         {
-            if (UsesSink)
-                return new SinkFireTarget(NewTag(), descriptiveTag);
-            return new LegacyMarkerTarget(_markerPath != null
-                ? _markerPath(descriptiveTag)
-                : Path.Combine(Path.GetTempPath(), "ysonet_fire_" + descriptiveTag + ".txt"));
+            RequireAvailable();
+            return new FireTarget(NewTag(), descriptiveTag);
         }
 
         /// <summary>
@@ -400,83 +413,5 @@ namespace ysonet.Tests
         private static extern uint GetShortPathNameW(string lpszLongPath, StringBuilder lpszShortPath,
             uint cchBuffer);
 
-        // ---- the two backends --------------------------------------------------
-
-        /// <summary>
-        /// The original marker: a self-closing "cmd /c echo x &gt; marker". Kept as the
-        /// automatic fallback so no fire row is ever lost to a missing sink. Works whether or
-        /// not the caller (a plugin) wraps the command in another "cmd /c".
-        /// </summary>
-        private sealed class LegacyMarkerTarget : FireTarget
-        {
-            private readonly string _marker;
-
-            public LegacyMarkerTarget(string marker)
-            {
-                _marker = marker;
-                Clear();
-            }
-
-            public override string Command { get { return "cmd /c echo x > \"" + _marker + "\""; } }
-
-            public override bool Wait(int totalMs)
-            {
-                int waited = 0;
-                while (waited < totalMs)
-                {
-                    if (File.Exists(_marker)) return true;
-                    Thread.Sleep(100);
-                    waited += 100;
-                }
-                return File.Exists(_marker);
-            }
-
-            // Never a bare File.Delete: WaitForFile returns the moment the file EXISTS, and
-            // the spawned cmd creates it before it writes and closes, so a delete right after
-            // the wait can land while cmd still holds the handle. That is housekeeping
-            // failing, not the payload; the startup sweep is the backstop.
-            public override void Clear()
-            {
-                try { if (File.Exists(_marker)) File.Delete(_marker); } catch { }
-            }
-
-            public override string Describe() { return "marker " + _marker; }
-        }
-
-        /// <summary>
-        /// The windowless sink. The evidence is a record file naming the argument the sink
-        /// process actually received, which is strictly stronger than "a file appeared".
-        /// </summary>
-        private sealed class SinkFireTarget : FireTarget
-        {
-            private readonly string _tag;
-            private readonly string _descriptiveTag;
-
-            public SinkFireTarget(string tag, string descriptiveTag)
-            {
-                _tag = tag;
-                _descriptiveTag = descriptiveTag;
-                Clear();
-            }
-
-            public override string Command { get { return SinkExePath + " " + _tag; } }
-
-            public override bool Wait(int totalMs)
-            {
-                SinkRecord record;
-                if (!TryReadRecord(_tag, totalMs, out record)) return false;
-                if (record.ArgCount != 1)
-                    throw new Exception("fire " + _descriptiveTag + ": the sink received "
-                        + record.ArgCount + " arguments, expected 1 (raw: " + record.RawCommandLine + ")");
-                if (record.Arg0 != _tag)
-                    throw new Exception("fire " + _descriptiveTag + ": the sink received argument '"
-                        + record.Arg0 + "', expected '" + _tag + "' (raw: " + record.RawCommandLine + ")");
-                return true;
-            }
-
-            public override void Clear() { RemoveRecords(_tag); }
-
-            public override string Describe() { return "sink tag " + _tag; }
-        }
     }
 }

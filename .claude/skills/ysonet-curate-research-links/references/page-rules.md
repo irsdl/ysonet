@@ -115,4 +115,6 @@ python .claude/skills/ysonet-curate-research-links/scripts/check_links.py --only
 python .claude/skills/ysonet-curate-research-links/scripts/audit_links.py
 ```
 
-Then report what was added and what was rejected. Do not commit.
+Then run the automatic archive handoff in the parent skill for new and replaced
+URLs, unless the user requested links only. Report what was added, rejected,
+preserved locally, or remains unresolved. Do not commit.

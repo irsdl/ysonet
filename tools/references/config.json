@@ -4,7 +4,7 @@
     "the archive manifest, never here, so a re-run never conflicts with a human",
     "decision. A fork changes 'depth' and re-renders offline."
   ],
-  "archive_dir": "docs/references-md",
+  "archive_dir": "docs/archived-references",
   "primary_document": "docs/dotnet-deserialization-research.md",
   "curated_documents": [
     "docs/dotnet-deserialization-research.md",
@@ -36,28 +36,17 @@
       ".claude/skills/ysonet-curate-research-links/",
       "docs/references-md/",
       "tools/",
-      "tools/references/tests/"
+      "tools/references/tests/",
+      "docs/archived-references/"
     ]
   },
   "depth": "full",
   "media_policy": {
     "_comment": [
-      "Maintainer decision 2026-08-03: do not download binary media. A PDF, a",
-      "slide deck or a video can be opened at its own URL by whoever reads the",
-      "archive, and a local copy of a 30 MB deck earns little.",
-      "",
-      "The cost, recorded rather than glossed over: if one of those sources goes",
-      "offline, the archive has the citation and the attribution but no content,",
-      "which is the exact case the archive exists for. This is a switch, not a",
-      "rule: set store_binaries true to preserve them instead.",
-      "",
-      "Video is excluded on separate grounds anyway - the useful part is",
-      "metadata, description and captions, none of which is the media file."
+      "Preserve source PDF and slide documents. Video media and executables remain link-only; archive available captions."
     ],
-    "store_binaries": false,
+    "store_binaries": true,
     "binary_kinds": [
-      "whitepaper",
-      "slides",
       "video",
       "image"
     ]
@@ -74,5 +63,6 @@
   },
   "locale_stripped_hosts": [
     "learn.microsoft.com"
-  ]
+  ],
+  "layout_version": 2
 }

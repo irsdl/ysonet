@@ -1,0 +1,3 @@
+# Reference preservation
+
+2026-09-22 - The reference archive uses matching English Markdown and PDF trees under `docs/archived-references/`. Original PDF bytes outrank publisher copies, which outrank offline Markdown rendering. Source conversion and browser acquisition use bounded Docker workers and a separate public-address broker. Recover published bodies and translations before a refresh when the content store is incomplete; a failed or materially shorter replacement must not destroy a held document. Publication depth, semantic review, document gaps and missing store bytes are separate facts. - This prevents short descriptions, missing translations and successful conversions from being mistaken for complete archived references.

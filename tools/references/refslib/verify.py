@@ -29,7 +29,8 @@ PATH_FIELDS = ("cited_by", "file", "files", "material_paths")
 # Generated pages ABOUT the archive, not archived references. They carry no
 # third-party content, so requiring an attribution block on them is nonsense.
 GENERATED_PAGES = ("readme.md", "index.md", "needs-work.md", "unresolved.md",
-                   "excluded.md", "log.md")
+                   "excluded.md", "log.md", "document-gaps.md", "review-gaps.md", "store-gaps.md")
+STORE_UNAVAILABLE = "content store unavailable"
 
 
 class Finding(object):
@@ -42,7 +43,7 @@ class Finding(object):
         return "%-5s %-46s %s" % (self.level.upper(), self.what, self.detail)
 
 
-def run(root, config, manifest, store, curated_hashes=None):
+def run(root, config, manifest, store, curated_hashes=None, workspace_cache=False):
     """Every offline check. Returns a list of findings; empty means clean."""
     findings = []
     stale = orphans(root, config, manifest)
@@ -55,9 +56,14 @@ def run(root, config, manifest, store, curated_hashes=None):
     findings.extend(_check_boundary(root))
     findings.extend(_check_manifest(manifest))
     findings.extend(_check_no_local_path_in_state(manifest))
-    findings.extend(_check_store(manifest, store))
+    store_findings = _check_store(manifest, store, workspace_cache=workspace_cache)
+    findings.extend(store_findings)
     findings.extend(check_published_attribution(root, config))
-    findings.extend(_check_translations(manifest, store))
+    if not any(item.what == STORE_UNAVAILABLE for item in store_findings):
+        findings.extend(_check_translations(manifest, store))
+    if config.get("layout_version") == 2:
+        from . import preservation
+        findings.extend(preservation.verify_pairs(root, config, manifest, store))
     return findings
 
 
@@ -97,7 +103,7 @@ def _check_translations(manifest, store):
 
 def published_files(root, config):
     """Every rendered reference file, excluding the generated index."""
-    archive_dir = os.path.join(str(root), config.get("archive_dir") or "docs/references-md")
+    archive_dir = os.path.join(str(root), config.get("archive_dir") or "docs/archived-references")
     found = []
     if not os.path.isdir(archive_dir):
         return found
@@ -150,8 +156,11 @@ def check_published_attribution(root, config):
     """
     from . import render
 
+    if config.get("layout_version") == 2:
+        return _isolated_published_checks(root, config)
+
     findings = []
-    archive_dir = os.path.join(str(root), config.get("archive_dir") or "docs/references-md")
+    archive_dir = os.path.join(str(root), config.get("archive_dir") or "docs/archived-references")
     if not os.path.isdir(archive_dir):
         return findings
     for current, _directories, files in os.walk(archive_dir):
@@ -172,6 +181,39 @@ def check_published_attribution(root, config):
                                         "%s -> %s" % (name, leaked[0])))
             for level, what, detail in malformed(text):
                 findings.append(Finding(level, what, "%s -> %s" % (name, detail)))
+    return findings
+
+
+def _isolated_published_checks(root, config):
+    from . import isolation
+    findings, batch = [], []
+    files = published_files(root, config)
+    for start in range(0, len(files), 20):
+        batch = []
+        for path in files[start:start + 20]:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+            key = os.path.relpath(path, str(root)).replace("\\", "/")
+            batch.append({"key": key, "text": text})
+            for leaked in local_paths_in(text, root):
+                findings.append(Finding("fail", "local path in a published file", key))
+        results = isolation.call("reading.validate_batch", batch)
+        if len(results) != len(batch) or {r["key"] for r in results} != {r["key"] for r in batch}:
+            raise ValueError("invalid published-validation response")
+        for result in results:
+            key = result["key"]
+            if result["attribution"]:
+                findings.append(Finding("fail", "published file is missing attribution",
+                                        key + " -> " + ", ".join(result["attribution"])))
+            if result["foreign"]:
+                findings.append(Finding("fail", "published prose is not fully English", key))
+            if result.get("capture_fault"):
+                findings.append(Finding("fail", "published source is a block or error page",
+                                        key + " -> " + result["capture_fault"]))
+            for level, what, detail in result["malformed"]:
+                if level not in ("warn", "fail"):
+                    raise ValueError("invalid validation level")
+                findings.append(Finding(level, what, key + " -> " + detail))
     return findings
 
 
@@ -472,20 +514,36 @@ def _check_no_local_path_in_state(manifest):
     return findings
 
 
-def _check_store(manifest, store):
+def _check_store(manifest, store, workspace_cache=False):
     """Every hash the manifest names must exist and still hash to its name."""
     findings = []
     referenced = set()
+    named = []
     for key, entry in (manifest.data.get("urls") or {}).items():
         for field, value in entry.items():
             if field.endswith("_sha256") and value:
                 referenced.add(value)
-                if not store.has(value):
-                    findings.append(Finding("fail", "missing store object",
-                                            "%s -> %s" % (key, value[:16])))
-                elif not store.verify(value):
-                    findings.append(Finding("fail", "store object does not match its hash",
-                                            "%s -> %s" % (key, value[:16])))
+                named.append((key, value))
+    if named and not store.has_object_directory():
+        return [Finding(
+            "fail", STORE_UNAVAILABLE,
+            "No objects directory was found. Set YSONET_REFS_STORE to the durable "
+            "store and rerun; source bytes were not checked.")]
+    missing = set(value for _key, value in named if not store.has(value))
+    if workspace_cache and missing:
+        return [Finding(
+            "fail", STORE_UNAVAILABLE,
+            "YSONET_REFS_STORE is not configured and the workspace cache is "
+            "incomplete (%d of %d referenced object(s) missing). Set it to the "
+            "durable store and rerun; source bytes were not fully checked."
+            % (len(missing), len(referenced)))]
+    for key, value in named:
+        if not store.has(value):
+            findings.append(Finding("fail", "missing store object",
+                                    "%s -> %s" % (key, value[:16])))
+        elif not store.verify(value):
+            findings.append(Finding("fail", "store object does not match its hash",
+                                    "%s -> %s" % (key, value[:16])))
     orphans = store.unreferenced(referenced)
     if orphans:
         findings.append(Finding("warn", "unreferenced store objects",

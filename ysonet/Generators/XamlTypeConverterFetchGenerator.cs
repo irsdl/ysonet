@@ -239,14 +239,17 @@ namespace ysonet.Generators
         // element is an ordinary constructible type with a writable member, so a member-naming
         // format that converts a string to the member's declared type reaches the same converter
         // the XAML parser would have used.
+        //
+        // The "(2)" suffix is a display-only annotation meaning "this formatter carries 2
+        // variants". Every formatter carries both, because neither variant calls .Without().
         public override List<string> SupportedFormatters()
         {
             return new List<string>
             {
-                Formatters.Xaml,
-                Formatters.JsonNet,
-                Formatters.JavaScriptSerializer,
-                "YamlDotNet < 5.0.0",
+                Formatters.Xaml + " (2)",
+                Formatters.JsonNet + " (2)",
+                Formatters.JavaScriptSerializer + " (2)",
+                "YamlDotNet < 5.0.0 (2)",
             };
         }
 
@@ -257,7 +260,8 @@ namespace ysonet.Generators
 
         public override List<GadgetVariant> Variants()
         {
-            // Neither variant narrows the formatter list (there is only one) and neither changes
+            // Neither variant narrows the formatter list (all four carry both, which is why
+            // every token in SupportedFormatters() is annotated "(2)") and neither changes
             // the facets: both end in the same WpfWebRequestHelper request.
             return new List<GadgetVariant>
             {

@@ -402,8 +402,7 @@ namespace ysonet.Tests
         /// <summary>
         /// The child, built for one lane. It must compile under the C# 2 compiler as well as
         /// the 3.5 one, so: no var, no LINQ, no lambdas, no auto-properties, no extension
-        /// methods, no object initializers. That keeps the tier working on a 2.0-only compiler
-        /// and matches the project's "a future fork may target .NET 2" note.
+        /// methods, no object initializers. That keeps the tier working on a 2.0-only compiler.
         ///
         /// Only the lane's own formatter branches are emitted. That is what makes a lane real:
         /// a NetDataContractSerializer row cannot even be COMPILED into the 2.0 child.

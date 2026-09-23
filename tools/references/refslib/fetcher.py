@@ -22,6 +22,8 @@ import urllib.parse
 import gzip
 import zlib
 import urllib.request
+import shutil
+import subprocess
 from http.cookiejar import CookieJar
 
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -38,6 +40,33 @@ DEFAULT_HEADERS = {
 # Bytes past this are never needed to CLASSIFY a page, and a few sources are
 # enormous. Acquisition, later, has its own budget.
 MAX_PROBE_BYTES = 2 * 1024 * 1024
+
+# How much to ask for per read. Only a buffer size: the loop below keeps going
+# until the cap or the end of the body.
+READ_BLOCK = 256 * 1024
+
+
+def _read_capped(stream, max_bytes):
+    """Read up to `max_bytes`, looping until the body actually ends.
+
+    ONE read() IS NOT THE WHOLE BODY. `http.client` serves at most one chunk per
+    call on a chunked response, so a single `read(cap)` returns whatever the
+    first chunk held and looks exactly like a complete download. Two conference
+    PDFs were stored at precisely 1,048,576 bytes - a chunk boundary, not a file
+    size - and both failed conversion with "does not end with %%EOF" while the
+    cap they were nowhere near got the blame.
+
+    A short read is not EOF either; only an EMPTY read is.
+    """
+    blocks = []
+    remaining = max_bytes
+    while remaining > 0:
+        block = stream.read(min(remaining, READ_BLOCK))
+        if not block:
+            break
+        blocks.append(block)
+        remaining -= len(block)
+    return b"".join(blocks)
 
 
 class Response(object):
@@ -67,7 +96,7 @@ class Response(object):
 GZIP_MAGIC = bytes([0x1F, 0x8B])
 
 
-def _decompress(body):
+def decompress(body):
     """Undo a content encoding the client never asked for.
 
     A server may answer gzip whatever the request said, and urllib does not
@@ -78,6 +107,13 @@ def _decompress(body):
 
     A body that will not decompress is returned untouched: this must never turn
     a readable page into an empty one.
+
+    PUBLIC, because urllib is not the only client that has to be guarded. Both
+    curl routes - the host fallback below and the toolbox's contained one - read
+    bytes straight off a pipe, and a Wayback replay answering `Content-Encoding:
+    gzip` stored two 2023 references still compressed. Each then extracted as
+    binary noise that reads exactly like a bad snapshot, and the recovery was
+    nearly abandoned as unrecoverable.
     """
     if not body or not body.startswith(GZIP_MAGIC):
         return body
@@ -129,13 +165,13 @@ class Fetcher(object):
         try:
             with self._opener.open(request, timeout=self.timeout) as handle:
                 return (handle.status, dict(handle.headers),
-                        _decompress(handle.read(max_bytes)), None)
+                        decompress(_read_capped(handle, max_bytes)), None)
         except urllib.error.HTTPError as error:
             # A 4xx/5xx is an ANSWER, not a failure. A 403 in particular is
             # usually a live page behind a wall, so its body is what identifies
             # the wall and must be kept.
             try:
-                body = _decompress(error.read(max_bytes))
+                body = decompress(_read_capped(error, max_bytes))
             except Exception:
                 body = b""
             return error.code, dict(error.headers or {}), body, None
@@ -153,6 +189,32 @@ class Fetcher(object):
             if wait > 0:
                 self._sleep(wait)
         self._last_call[host] = time.monotonic()
+
+
+def curl_get(url, timeout=30, max_bytes=MAX_PROBE_BYTES):
+    """A bounded second HTTP stack when urllib and Docker routing both fail.
+
+    Curl writes only to stdout, downloaded bytes are never executed, TLS stays
+    verified, and the caller applies the same archive validity checks. This is
+    intentionally not part of ``Fetcher.get``: ordinary acquisition has one
+    client; a recovery command must opt into the fallback explicitly.
+    """
+    if not shutil.which("curl"):
+        return Response(url, 0, {}, b"", [], "curl is not installed")
+    command = [
+        "curl", "--silent", "--show-error", "--location", "--max-redirs", "5",
+        "--max-time", str(max(1, int(timeout))), "--max-filesize", str(max_bytes),
+        "--user-agent", USER_AGENT, "--output", "-", url,
+    ]
+    try:
+        done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              timeout=max(5, int(timeout) + 5))
+    except (OSError, subprocess.SubprocessError) as error:
+        return Response(url, 0, {}, b"", [], type(error).__name__ + ": " + str(error)[:160])
+    if done.returncode != 0 or not done.stdout:
+        return Response(url, 0, {}, b"", [],
+                        done.stderr.decode("utf-8", "replace")[-200:])
+    return Response(url, 200, {}, decompress(done.stdout), [])
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

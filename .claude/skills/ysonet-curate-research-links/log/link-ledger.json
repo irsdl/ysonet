@@ -1,21 +1,22 @@
 {
  "last_rehydrate": {
   "added": 5,
-  "date": "2026-08-02",
-  "rejected": 5,
-  "scope": "since the newest entry listed (July 2026), plus formatter/ICS coverage gaps"
+  "date": "2026-09-22",
+  "rejected": 3,
+  "scope": "Material published 2026-08-02 through 2026-09-22, including the supplied Viettel CVE-2026-65660 article; only the five new URLs checked."
  },
  "last_sweep": {
   "applied": 0,
   "classes": {
-   "ok": 2
+   "ok": 1
   },
-  "date": "2026-08-07",
+  "date": "2026-09-22",
   "duplicates_removed": 0,
   "files": [
-   "docs/dotnet-deserialization-research.md"
+   "docs/dotnet-deserialization-research.md",
+   "docs/references.md"
   ],
-  "urls": 2
+  "urls": 1
  },
  "links": {
   "https://0xdf.gitlab.io/2021/05/01/htb-sharp.html": {
@@ -269,6 +270,20 @@
    "note": "http 200 (cached)",
    "title": "CVE from 2018 Strikes Again"
   },
+  "https://blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/": {
+   "class": "ok",
+   "decision": "keep",
+   "decision_date": "2026-09-22",
+   "decision_reason": "Added to Usage: first-party incident research documenting ASP.NET ViewState deserialization abuse.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-09-22",
+   "http_status": 200,
+   "last_checked": "2026-09-22",
+   "note": "http 200",
+   "title": "UAT-10147: Chinese-speaking adversary integrates agentic AI into post-compromise operations"
+  },
   "https://blog.viettelcybersecurity.com/sharepoint-toolshell/": {
    "class": "ok",
    "files": [
@@ -278,6 +293,20 @@
    "first_seen": "2026-08-02",
    "last_checked": "2026-08-02",
    "note": "http 200 (cached)"
+  },
+  "https://blog.viettelcybersecurity.com/sharepoint_cve-2026-65660/": {
+   "class": "ok",
+   "decision": "keep",
+   "decision_date": "2026-09-22",
+   "decision_reason": "Added to Research: original SharePoint type-check analysis with a .NET deserialization connection; anonymous access depends on configuration and patch level.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-09-22",
+   "http_status": 200,
+   "last_checked": "2026-09-22",
+   "note": "HTTP 200; initial response was a cookie-setting page. Full article retrieved and read after sending the site cookie; publication date 2026-09-22.",
+   "title": "SharePoint CVE-2026-65660: From Anonymous Access to Pre-Auth RCE via EditingPageParser Type-Check Bypass"
   },
   "https://blog.viettelcybersecurity.com/sharepoint_properties_deser/": {
    "class": "ok",
@@ -3346,6 +3375,17 @@
    "last_checked": "2026-08-02",
    "note": "http 200 (cached)"
   },
+  "https://vnptcyber.io/tin-tuc/blog/some-notes-of-microsoft-exchange-deserialization-rce-cve-2021-42321": {
+   "class": "ok",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-09-22",
+   "http_status": 200,
+   "last_checked": "2026-09-22",
+   "note": "http 200",
+   "title": "Some notes of Microsoft Exchange Deserialization RCE (CVE-2021?42321) | Blog | VNPT Cyber Immunity"
+  },
   "https://web.archive.org/web/20190920114132/https://labs.mwrinfosecurity.com/advisories/milestone-xprotect-net-deserialization-vulnerability/": {
    "class": "archived",
    "files": [
@@ -4243,6 +4283,20 @@
    "note": "http 200 (cached)",
    "title": "Investigating a SharePoint Compromise: IR Tales from the Field | Rapid7 Blog"
   },
+  "https://www.rapid7.com/blog/post/etr-cve-2026-63520-microsoft-sharepoint-remote-code-execution-fixed/": {
+   "class": "ok",
+   "decision": "keep",
+   "decision_date": "2026-09-22",
+   "decision_reason": "Added to Usage: discoverer disclosure, affected products, patch guidance and coordinated disclosure timeline.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-09-22",
+   "http_status": 200,
+   "last_checked": "2026-09-22",
+   "note": "http 200",
+   "title": "Rapid7 and Microsoft disclose CVE-2026-63520, a new SharePoint Remote Code Execution vulnerability"
+  },
   "https://www.rapid7.com/blog/post/etr-zero-day-exploitation-of-microsoft-sharepoint-servers-cve-2025-53770/": {
    "class": "ok",
    "files": [
@@ -4282,6 +4336,20 @@
    "last_checked": "2026-08-02",
    "note": "http 200 (cached)",
    "title": "Rapid7 Analysis: CVE-2023-40044"
+  },
+  "https://www.rapid7.com/blog/post/ra-microsoft-sharepoint-remote-code-execution-cve-2026-63520/": {
+   "class": "ok",
+   "decision": "keep",
+   "decision_date": "2026-09-22",
+   "decision_reason": "Added to Research: original CVE-2026-63520 technical analysis; distinct from the disclosure and from VulnCheck's independently analysed path.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-09-22",
+   "http_status": 200,
+   "last_checked": "2026-09-22",
+   "note": "http 200",
+   "title": "Technical Analysis of Microsoft SharePoint Remote Code Execution vulnerability CVE-2026-63520"
   },
   "https://www.rapid7.com/blog/post/ve-cve-2026-55040-microsoft-sharepoint-jwt-token-authentication-bypass-fixed/": {
    "class": "ok",
@@ -4774,6 +4842,20 @@
    "note": "http 200 (cached)",
    "title": "KB4424: CVE-2023-27532"
   },
+  "https://www.vulncheck.com/blog/cve-2026-63520-sharepoint-unsafe-type-rce": {
+   "class": "ok",
+   "decision": "keep",
+   "decision_date": "2026-09-22",
+   "decision_reason": "Added to Research: independent CVE-2026-63520 analysis with a distinct .NET deserialization path, not a syndicated copy of Rapid7's research.",
+   "files": [
+    "docs/dotnet-deserialization-research.md"
+   ],
+   "first_seen": "2026-09-22",
+   "http_status": 200,
+   "last_checked": "2026-09-22",
+   "note": "http 200",
+   "title": "Exploiting SharePoint: CVE-2026-55040 and CVE-2026-63520 RCE Chain | Blog | VulnCheck"
+  },
   "https://www.vulncheck.com/blog/making-dotnet-gadgets": {
    "class": "ok",
    "files": [
@@ -5168,5 +5250,5 @@
   }
  },
  "schema": 1,
- "updated": "2026-08-07"
+ "updated": "2026-09-22"
 }

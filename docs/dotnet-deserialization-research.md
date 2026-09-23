@@ -299,6 +299,9 @@ A collection of research and advisories that use YSoNet / ysoserial.net.
 - https://claroty.com/team82/research/exploiting-a-classic-deserialization-vulnerability-in-siemens-simatic-energy-manager
 - https://blog.viettelcybersecurity.com/sharepoint-toolshell/
 - https://blog.viettelcybersecurity.com/sharepoint_properties_deser/
+- https://www.rapid7.com/blog/post/ra-microsoft-sharepoint-remote-code-execution-cve-2026-63520/
+- https://www.vulncheck.com/blog/cve-2026-63520-sharepoint-unsafe-type-rce
+- https://blog.viettelcybersecurity.com/sharepoint_cve-2026-65660/
 
 ### Usage
 
@@ -363,7 +366,7 @@ A collection of research and advisories that use YSoNet / ysoserial.net.
 - https://web.archive.org/web/20190920114132/https://labs.mwrinfosecurity.com/advisories/milestone-xprotect-net-deserialization-vulnerability/
 - https://github.com/murataydemir/CVE-2017-9822
 - https://devme4f.github.io/posts/2023/dotnetnuke_cve-2017-9822/
-- https://sec.vnpt.vn/2021/11/some-notes-of-microsoft-exchange-deserialization-rce-cve-2021-42321
+- https://vnptcyber.io/tin-tuc/blog/some-notes-of-microsoft-exchange-deserialization-rce-cve-2021-42321
 - https://securitylab.github.com/research/exchange-rce-CVE-2020-0688/
 - https://research.eye.security/wsus-deserialization-exploit-in-the-wild-cve-2025-59287/
 - https://blog.securelayer7.net/cve-2026-44963-veeam-backup-authenticated-rce-binaryformatter-bypass/
@@ -495,6 +498,8 @@ A collection of research and advisories that use YSoNet / ysoserial.net.
 - https://www.kb.cert.org/vuls/id/706695
 - https://www.exploit-db.com/exploits/41903
 - https://certvde.com/en/advisories/VDE-2026-051
+- https://www.rapid7.com/blog/post/etr-cve-2026-63520-microsoft-sharepoint-remote-code-execution-fixed/
+- https://blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/
 
 ### CTF write-ups
 

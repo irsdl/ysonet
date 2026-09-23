@@ -68,6 +68,19 @@ New to this tool? The easiest way to start is interactive mode: a menu-driven wi
 
 See all options with `ysonet.exe --fullhelp`, and per-gadget or per-plugin help with `-g NameHere -help` or `-p NameHere -help`. More in [Usage and Examples](docs/usage-and-examples.md).
 
+## AI assistant skill
+
+Every build ships the portable Agent Skill at
+`.claude/skills/ysonet-payloads/` beside `ysonet.exe`. Claude Code discovers that
+project skill when it works from the extracted binary folder. Other Agent Skills
+compatible clients can import the same folder.
+
+The skill covers the command line, interactive mode, every public gadget and plugin,
+their formatters, variants and options, and a target-driven payload selection workflow.
+It uses the running binary's `--list`, module help and `--fullhelp` as the live source of
+truth. No generated `CLAUDE.md` is needed in the binary folder; that would be a
+Claude-specific second copy of instructions that could drift from the standard skill.
+
 ## Build from source
 
 Needs Windows, MSBuild from Visual Studio 2022 or the Build Tools (".NET desktop

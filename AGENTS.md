@@ -22,6 +22,9 @@ Pointers:
   generation, deserialization, and runtime-effect checks first. Once they pass, run the
   normal Debug tests and finish with the FULL suite; see "Gadget/plugin development test
   order" in `CLAUDE.md`
+- Reference source handling, complete English Markdown/PDF pairs, and automatic
+  archive handoff: `.claude/source-security.md` and the reference archive section
+  in `CLAUDE.md`.
 - Security-review rule: `SECURITY.md`
 - Public/private seam - this repo is public, and ignored paths may belong to a
   contributor's separate private repo. Never move ignored content into a tracked file

@@ -181,7 +181,24 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path dist | Out-Null
-          Compress-Archive -Path ".\ysonet\bin\Release\*" -DestinationPath "dist\ysonet-${{ steps.v.outputs.value }}.zip" -Force
+          $skill = ".\ysonet\bin\Release\.claude\skills\ysonet-payloads\SKILL.md"
+          if (-not (Test-Path $skill)) { throw "Release output is missing the YSoNet Agent Skill at $skill." }
+          $archive = "dist\ysonet-${{ steps.v.outputs.value }}.zip"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $source = (Resolve-Path ".\ysonet\bin\Release").Path
+          $archivePath = Join-Path (Get-Location) $archive
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $source, $archivePath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
+          try {
+            $entry = $zip.Entries | Where-Object {
+              $_.FullName.Replace('\', '/') -eq ".claude/skills/ysonet-payloads/SKILL.md"
+            }
+            if ($null -eq $entry) { throw "Packaged release is missing .claude/skills/ysonet-payloads/SKILL.md." }
+          } finally {
+            $zip.Dispose()
+          }
+          Write-Host "Agent Skill packaged: .claude/skills/ysonet-payloads/SKILL.md"
 
       # The release body is assembled from tracked files: the sponsor thanks first,
       # then this version's highlights when they were written. GitHub pre-pends all of

@@ -97,6 +97,12 @@ class TestDocumentConversion(unittest.TestCase):
         self.assertTrue(result.raw_sha256)
         self.assertTrue(self.store.has(result.raw_sha256))
 
+    def test_a_preserved_failed_attempt_can_be_retried_offline(self):
+        held = self.store.put(b"complete candidate bytes")
+        entry = {"raw_sha256": "missing",
+                 "steps": {"acquire-attempt": {"raw_sha256": held}}}
+        self.assertEqual(held, acquire.retry_raw_sha256(entry, self.store))
+
     def test_a_video_without_a_transcript_still_produces_a_file_and_records_the_gap(self):
         """The title, channel, date and description are real content. Throwing
         them away because the transcript is missing would lose what WAS

@@ -27,9 +27,32 @@ If your terminal is very narrow or output is redirected, it falls back to a simp
 
 ## Installation
 
-To obtain the latest version, it is recommended to download it from [the Actions page](https://github.com/irsdl/ysonet/actions).
+YSoNet requires Windows and .NET Framework 4.7.2 or a newer 4.x runtime (4.8 or
+4.8.1). Running a downloaded build does not require Visual Studio or MSBuild.
 
-You can install the previous releases of YSoSerial.NET from [the releases page](https://github.com/pwntester/ysoserial.net/releases).
+1. Sign in to GitHub and open [Actions](https://github.com/irsdl/ysonet/actions).
+   Select **CI Build**, then a successful run for `master`.
+2. In that run's **Artifacts** section, download `ysonet-<commit>`. See
+   [GitHub's artifact download instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts)
+   if the download is unavailable; artifacts expire and downloading requires sign-in.
+3. Extract the whole archive into a folder. Keep the DLLs, configuration files, and
+   subfolders beside `ysonet.exe`; copying only the executable is not enough.
+4. Open PowerShell in the extracted folder and check that help opens:
+
+   ```powershell
+   .\ysonet.exe -h
+   ```
+
+The [YSoSerial.NET releases](https://github.com/pwntester/ysoserial.net/releases)
+belong to the predecessor project, not to these YSoNet development builds.
+
+The extracted YSoNet folder includes an AI assistant skill at
+`.claude/skills/ysonet-payloads/`. Claude Code discovers it when opened from that
+folder. Other clients that support the Agent Skills standard can import the same skill
+directory. It teaches the agent the one-shot command line, interactive mode, public
+gadget and plugin catalogue, variants, options, and payload-selection rules. A separate
+`CLAUDE.md` is not required because the skill is already the portable instruction entry
+point.
 
 ## Build from source
 
@@ -100,14 +123,15 @@ Fire backend: test-sink (D:\src\ysonet\ysonet\bin\Debug\ysonet.TestSink.exe)
 Read it by polling and REOPENING the path, because every update replaces the whole file:
 
 ```powershell
-while ($true) { Get-Content "$env:TEMP\..\ysonet_testrun.txt"; Start-Sleep 2; Clear-Host }
+$statusPath = Read-Host 'Paste the path printed after Status file:'
+while ($true) { Get-Content -LiteralPath $statusPath; Start-Sleep 2; Clear-Host }
 ```
 
 `state=finished` means the run completed (even if it failed - check `failed` and `exit_code`). `state=running` with an `updated_utc` more than a few seconds old means the run was interrupted; there is no `crashed` state, because a killed process cannot write one.
 
 Only one automated run happens at a time on a machine: a second one waits for the first and says who is holding it. Separate checkouts do not change that, because the runs share CPU and the same local probes.
 
-Each mechanism has an off switch: `--ui-isolation=none`, `--wer-containment=off`, `--status-file=off`, `--test-lock=off`, and `YSONET_TEST_SINK=off`. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the details.
+Isolation, containment, status, and locking have off switches: `--ui-isolation=none`, `--wer-containment=off`, `--status-file=off`, and `--test-lock=off`. The fire sink has no off switch because every command-effect row depends on it. If it cannot run, the suite reports one failed check with the reason and stops. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the details.
 
 Test policy and how to extend: never weaken a test to make it pass (investigate and fix the root cause; see the "Test integrity policy" in [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md)). A new gadget/formatter/variant is covered automatically by the generation matrix; a new gadget's runtime EFFECT and a new PLUGIN MODE must be added by hand. See [Architecture](ARCHITECTURE.md) (the `ysonet.Tests` section and "How to add things") for where each kind of coverage goes.
 

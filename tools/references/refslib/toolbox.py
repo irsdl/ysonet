@@ -1,54 +1,15 @@
-"""The sandbox for data collection this tool will not do in-process.
+"""Archive container lifecycle and public retrieval entrypoints.
 
-ONE CONTAINER, several jobs. Everything here shares a property: it is either
-third-party code the archive would otherwise run on this machine, or a fetch
-that deliberately relaxes something the in-process client must never relax.
-Keeping both in one place means the in-process fetcher stays strict, the
-third-party code stays contained, and there is a single set of container rules
-to read rather than one per tool.
+Source processors run non-root with a read-only root, capped no-exec tmpfs,
+CPU/memory/process limits, bounded stdout/stderr and no direct networking.
+Offline conversions get no retrieval capability. Network jobs use a dedicated
+Unix socket to a separate public-IP broker; no host profile, credentials,
+checkout, content store or Docker socket is exposed to either process.
 
-What lives here today:
-
-* **`captions`** - `yt-dlp`, for a talk's transcript.
-* **`fetch_insecure`** - `curl` WITHOUT certificate verification, for a source
-  whose certificate has expired. The maintainer decided on 2026-08-04 that this
-  is acceptable for collecting a public document. It lives here rather than in
-  the fetcher so that "our client always verifies" stays true: the exception is
-  a different process, in a container, and cannot be reached by accident.
-* **`pdf_page_images`** - `pdftoppm`, rendering a PDF whose text layer is
-  unreadable into one image per page, so a reader can be shown the pages.
-
-Original note, on why the first of these needed a container at all:
-
-WHY A CONTAINER. These are the places the archive runs code that is not this
-repository's. `yt-dlp` is a large, fast-moving project that exists to keep up
-with a hostile platform; `pdftoppm` is a C parser fed documents chosen by
-somebody else. Running either directly would give it this machine, this checkout
-and the content store; running it in a container gives it a throwaway directory
-and nothing else. The maintainer asked for exactly this, and it is the right
-call whatever a tool's reputation.
-
-WHY IT IS NEEDED AT ALL. Measured 2026-08-04: YouTube refuses timed text by
-every route this tool owns. A plain fetch gets http 404 or a zero-byte body; the
-same fetch made BY the page, with its session and origin, gets a zero-byte body;
-and the page's own "Show transcript" opens a panel that spins forever. The
-caption URL now needs a token the real player generates. `yt-dlp` asks a
-different player client that still answers, which is why 13 talks in this corpus
-have transcripts again.
-
-WHAT THE CONTAINER GETS, and nothing more:
-
-* one throwaway output directory, the only writable mount;
-* no repository, no content store, no home directory, no environment variables;
-* a read-only root filesystem with a small no-exec tmpfs for scratch;
-* every capability dropped, no new privileges, a memory and process cap;
-* a non-root user inside.
-
-It does get the NETWORK, because fetching is the job. Nothing it downloads is
-executed: the output is JSON that this module parses.
-
-OPTIONAL BY DESIGN. No Docker, or no image, means a clear skip with a reason,
-never a failure and never a silent empty transcript.
+Native job files stay in the worker's tmpfs. The host receives only bounded
+JSON/bytes, validates identities, and owns final publication. No writable host
+output directory is mounted into a source processor. Missing Docker or a failed
+boundary is reported; no host browser/parser fallback is available.
 """
 
 import json
@@ -57,6 +18,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from contextlib import contextmanager
 
 # Pinned. The base image is pinned by DIGEST so a rebuild cannot silently become
 # a different image, and yt-dlp by version so a run is reproducible. YouTube
@@ -65,19 +27,34 @@ import tempfile
 BASE_IMAGE = ("python:3.12-alpine@sha256:"
               "6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df")
 YT_DLP = "2026.07.04"
-IMAGE = "ysonet-refs-toolbox:" + YT_DLP
+WAYMORE = "8.9"
+IMAGE = "ysonet-refs-toolbox:" + YT_DLP + "-source-workers-4"
 
-# `curl` for the certificate exception and `poppler-utils` for `pdftoppm`. Their
+# `curl` for the certificate exception, `poppler-utils` for `pdftoppm`, and
+# Chromium for rendered DOM collection. Their
 # versions come from the pinned base image's package repository rather than
 # being pinned themselves: pinning an apk version breaks the build the moment
 # that repository moves on, and the digest pin already fixes the distribution
 # release. A stated limit rather than an oversight.
+#
+# `poppler-data` IS NOT OPTIONAL, and its absence fails silently. It carries the
+# CJK character-collection maps (Adobe-Japan1, Adobe-GB1, Adobe-Korea1); without
+# them poppler cannot map an `Identity-H` CID font and DROPS EVERY GLYPH IT
+# CANNOT MAP - `pdftotext` returns the Latin fragments only, `pdftoppm` renders
+# the slide with its Japanese text simply absent, and neither reports an error a
+# caller can see. A 180-page Japanese conference deck came back as bullets and
+# emoji, was judged a broken text layer, and had 103 blank-ish pages transcribed
+# by hand from renders that had already thrown the text away. With the pack the
+# same file extracts cleanly and needs no transcription at all.
 DOCKERFILE = """FROM %s
-RUN apk add --no-cache curl poppler-utils \\
- && pip install --no-cache-dir "yt-dlp==%s" \\
+RUN apk add --no-cache chromium curl poppler-utils poppler-data font-dejavu \\
+ && pip install --no-cache-dir "yt-dlp==%s" "waymore==%s" \\
+ && printf 'Pillow==12.3.0 --hash=sha256:0dd2064cbc55aaec028ef5fbb60fa47bb6c3e7918e07ff17935284b227a9d2df\\n' > /tmp/pillow.txt \\
+ && pip install --no-cache-dir --only-binary=:all: --require-hashes -r /tmp/pillow.txt \\
+ && rm /tmp/pillow.txt \\
  && adduser -D -u 10001 fetcher
 USER fetcher
-""" % (BASE_IMAGE, YT_DLP)
+""" % (BASE_IMAGE, YT_DLP, WAYMORE)
 
 # What the container may spend. A talk's caption track is a few hundred KB, so
 # these are generous; they exist to bound a runaway, not to tune throughput.
@@ -94,7 +71,181 @@ RUN_ARGS = (
     "--security-opt", "no-new-privileges",
     "--memory", MEMORY,
     "--pids-limit", PIDS,
+    "--cpus", "2",
 )
+
+
+def run_args():
+    """Container isolation arguments, using the host's non-root UID on POSIX.
+
+    Match the non-root operator's ownership for selected read-only inputs.
+    Source outputs stay in container tmpfs. A root operator still gets the
+    image's unprivileged UID; Docker Desktop handles shared-file ownership on
+    platforms without `getuid`.
+    """
+    args = list(RUN_ARGS)
+    if hasattr(os, "getuid") and hasattr(os, "getgid") and os.getuid() != 0:
+        args += ["--user", "%d:%d" % (os.getuid(), os.getgid())]
+    else:
+        args += ["--user", "10001:10001"]
+    return args
+
+
+def _run_container(command, timeout, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                   output_limit=128 * 1024 * 1024):
+    with _public_egress(command) as isolated_command:
+        return _run_container_direct(isolated_command, timeout, stdout, stderr, output_limit)
+
+
+@contextmanager
+def _public_egress(command):
+    """Give retrieval workers only a socket to a public-address egress broker.
+
+    The processing container itself has --network none. The small broker is a
+    separate container with no inputs, credentials or host mounts other than a
+    disposable socket directory and its trusted implementation file.
+    """
+    if "--network" not in command or command[command.index("--network") + 1] != "bridge":
+        yield command
+        return
+    import time
+    work = tempfile.mkdtemp(prefix="ysonet_source_egress_")
+    identifier = ""
+    try:
+        os.chmod(work, 0o755)
+        sockets = os.path.join(work, "sockets")
+        os.mkdir(sockets, 0o777)
+        os.chmod(sockets, 0o777)
+        gateway = os.path.join(work, "gateway.py")
+        shutil.copyfile(os.path.join(os.path.dirname(__file__), "gateway.py"), gateway)
+        broker_cid = os.path.join(work, "broker.cid")
+        broker = ["docker", "run", "--detach", "--cidfile", broker_cid] + run_args()
+        broker += ["-v", _mount(sockets) + ":/source-egress",
+                   "-v", _mount(gateway) + ":/source-gateway.py:ro",
+                   IMAGE, "python", "-I", "-B", "/source-gateway.py", "broker"]
+        started = subprocess.run(broker, capture_output=True, timeout=30)
+        identifier = started.stdout.decode("ascii", "replace").strip()
+        if started.returncode or not re.fullmatch(r"[0-9a-f]{12,64}", identifier):
+            identifier = ""
+            raise Unavailable("public egress broker could not start")
+        deadline = time.monotonic() + 20
+        while not os.path.exists(os.path.join(sockets, "proxy.sock")):
+            if time.monotonic() >= deadline:
+                raise Unavailable("public egress broker did not become ready")
+            time.sleep(0.1)
+        guarded = list(command)
+        guarded[guarded.index("--network") + 1] = "none"
+        image_at = guarded.index(IMAGE)
+        guarded[image_at:image_at] = ["-v", _mount(sockets) + ":/source-egress:ro",
+                                     "-v", _mount(gateway) + ":/source-gateway.py:ro"]
+        image_at = guarded.index(IMAGE)
+        guarded[image_at + 1:image_at + 1] = ["python", "-I", "-B", "/source-gateway.py", "relay"]
+        yield guarded
+    finally:
+        if not identifier:
+            try:
+                with open(os.path.join(work, "broker.cid"), encoding="ascii") as handle:
+                    candidate = handle.read(100).strip()
+                if re.fullmatch(r"[0-9a-f]{12,64}", candidate):
+                    identifier = candidate
+            except OSError:
+                pass
+        if identifier:
+            subprocess.run(["docker", "rm", "--force", identifier],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _run_container_direct(command, timeout, stdout, stderr, output_limit):
+    """Run one disposable container and force-remove it on every exit path.
+
+    Docker's ``--rm`` only runs after the container process exits. If the host
+    client times out or is interrupted, killing that client can leave Chromium
+    running indefinitely. A host-side cidfile lets this wrapper remove the
+    exact container in ``finally`` without matching names, images, or other
+    Docker work.
+    """
+    control = tempfile.mkdtemp(prefix="ysonet_refs_container_")
+    cidfile = os.path.join(control, "cid")
+    command = list(command[:2]) + ["--cidfile", cidfile] + list(command[2:])
+    try:
+        if output_limit is not None:
+            return _bounded_run(command, timeout, stdout, stderr, output_limit)
+        return subprocess.run(command, stdout=stdout, stderr=stderr, timeout=timeout)
+    finally:
+        identifier = ""
+        try:
+            with open(cidfile, "r", encoding="ascii") as handle:
+                identifier = handle.read().strip()
+        except OSError:
+            pass
+        if re.fullmatch(r"[0-9a-f]{12,64}", identifier):
+            try:
+                subprocess.run(["docker", "rm", "--force", identifier],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               timeout=30)
+            except (OSError, subprocess.SubprocessError):
+                pass
+        shutil.rmtree(control, ignore_errors=True)
+
+
+def _bounded_run(command, timeout, stdout, stderr, limit):
+    """Bound Docker attach streams on the host, including a compromised worker.
+
+    Container ulimits do NOT constrain the host Docker client's output files.
+    Drain two pipes concurrently and stop writing at the explicit byte limit.
+    The caller's finally block force-removes the exact container on any failure.
+    """
+    import threading
+    import io
+    out = io.BytesIO() if stdout == subprocess.PIPE else stdout
+    err = out if stderr == subprocess.STDOUT else (io.BytesIO() if stderr == subprocess.PIPE else stderr)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    exceeded = threading.Event()
+    closing = threading.Event()
+    read_errors = []
+
+    def copy(source, destination):
+        total = 0
+        while True:
+            try:
+                chunk = source.read(65536)
+            except (ValueError, OSError) as error:
+                if not closing.is_set():
+                    read_errors.append(type(error).__name__)
+                return
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > limit:
+                exceeded.set()
+                process.kill()
+                break
+            destination.write(chunk)
+
+    readers = [threading.Thread(target=copy, args=pair, daemon=True)
+               for pair in ((process.stdout, out), (process.stderr, err))]
+    for reader in readers:
+        reader.start()
+    try:
+        process.wait(timeout=timeout)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=10)
+        for reader in readers:
+            reader.join(timeout=5)
+        incomplete = any(reader.is_alive() for reader in readers)
+        closing.set()
+        process.stdout.close()
+        process.stderr.close()
+    if exceeded.is_set():
+        raise Unavailable("source worker exceeded its output limit")
+    if incomplete or read_errors:
+        raise Unavailable("source worker output was not completely collected")
+    return subprocess.CompletedProcess(command, process.returncode,
+                                        out.getvalue() if stdout == subprocess.PIPE else None,
+                                        err.getvalue() if stderr == subprocess.PIPE else None)
 
 # Captions only, never the media. `--skip-download` is what keeps a 400 MB video
 # off this machine; the rest asks for English, manual first then automatic.
@@ -139,7 +290,7 @@ def available():
 def ensure_image(log=None):
     """Build the pinned image if it is not present. Returns the image tag."""
     if not available():
-        raise Unavailable("no container runtime: install Docker, or run with --no-transcripts")
+        raise Unavailable("no container runtime: install Docker, or skip the container route")
     have = subprocess.run(["docker", "image", "inspect", IMAGE],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if have.returncode == 0:
@@ -150,42 +301,16 @@ def ensure_image(log=None):
                            input=DOCKERFILE.encode("utf-8"),
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=TIMEOUT)
     if build.returncode != 0:
-        raise Unavailable("could not build the transcript image: "
+        raise Unavailable("could not build the reference toolbox image: "
                           + build.stdout.decode("utf-8", "replace")[-400:])
     return IMAGE
 
 
 def fetch(urls, log=None):
-    """{video url: json3 caption text} for as many as answered.
-
-    A url that produced nothing is simply absent from the result: the caller
-    reports it as a gap, exactly as before. One container run covers the whole
-    batch, so the image is built and started once rather than per video.
-    """
+    """Fetch caption text inside a worker with no writable host output mount."""
+    from . import isolation
     urls = [url for url in urls if video_id(url)]
-    if not urls:
-        return {}
-    ensure_image(log=log)
-
-    output = tempfile.mkdtemp(prefix="ysonet_refs_captions_")
-    try:
-        command = ["docker", "run"] + list(RUN_ARGS)
-        command += ["-v", _mount(output) + ":/out"]
-        command += [IMAGE, "yt-dlp"] + list(YT_DLP_ARGS) + urls
-        if log:
-            log("fetching %d caption track(s) in a container" % len(urls))
-        done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              timeout=TIMEOUT)
-        if done.returncode != 0 and log:
-            # --ignore-errors means a non-zero exit can still have produced most
-            # of the batch, so this is reported and the results are still read.
-            log("yt-dlp exited %d; reading whatever it wrote"
-                % done.returncode)
-        return _collect(urls, output)
-    except subprocess.TimeoutExpired:
-        raise Unavailable("the transcript container did not finish within %ds" % TIMEOUT)
-    finally:
-        shutil.rmtree(output, ignore_errors=True)
+    return isolation.call("captions", urls) if urls else {}
 
 
 CURL_ARGS = (
@@ -195,85 +320,194 @@ CURL_ARGS = (
 )
 
 
+def _uncompressed(body):
+    """Decode acquired bytes in an offline, resource-limited worker."""
+    from . import isolation
+    return isolation.call("fetcher.decompress", body)
+
+
 def fetch_insecure(url, log=None):
-    """Fetch a URL WITHOUT verifying its certificate. Returns bytes.
+    """Explicit certificate exception in a public-only retrieval worker."""
+    from . import isolation
+    return _uncompressed(isolation.call("curl_bytes", url, insecure=True))
 
-    Maintainer decision 2026-08-04: acceptable for collecting a public document
-    from a source whose certificate has expired. One reference in this corpus
-    needs it, and the browser recorded the interstitial as if it were the page.
 
-    It lives in the container and not in the fetcher on purpose. "Our client
-    always verifies" stays true, because the exception is a different process
-    behind a container boundary that nothing else reaches by accident, and what
-    comes back is bytes that go through the same extraction as any other fetch.
+def fetch_public(url, log=None):
+    """Verified public retrieval, followed by isolated offline decompression."""
+    from . import isolation
+    return _uncompressed(isolation.call("curl_bytes", url))
+
+
+def waymore_urls(domains, log=None, limit_requests=50):
+    """Historical URL discovery; result files never leave the worker."""
+    from . import isolation
+    domains = sorted(set(str(d or "").strip().lower() for d in domains
+                         if re.fullmatch(r"[a-z0-9.-]+", str(d or "").strip().lower())))
+    return isolation.call("waymore", domains, limit_requests=limit_requests) if domains else []
+
+
+def _waymore_results(path):
+    """Legacy fixture helper; production URL parsing runs inside worker_jobs."""
+    from .worker_jobs import read_result
+    body = read_result(path, 8 * 1024 * 1024).decode("utf-8", "replace")
+    return sorted(set(line.strip() for line in body.splitlines()
+                      if line.strip().startswith(("http://", "https://"))))
+
+
+# External pages run only in the toolbox. `--dump-dom` serialises the rendered
+# document after Chromium has loaded it; the virtual-time budget is the wait
+# which lets client-side rendering replace an empty shell. No host directory is
+# mounted for this route, and downloads, extensions and background services are
+# disabled.
+CHROMIUM_ARGS = (
+    "--headless=new",
+    "--no-sandbox",  # Docker is the sandbox; every container capability is dropped.
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-extensions",
+    "--disable-plugins",
+    "--disable-sync",
+    "--disable-background-networking",
+    "--disable-component-update",
+    "--disable-client-side-phishing-detection",
+    "--disable-features=Translate,OptimizationHints,MediaRouter",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--no-service-autorun",
+    "--password-store=basic",
+    "--use-mock-keychain",
+    "--deny-permission-prompts",
+    "--disable-file-system",
+    "--block-new-web-contents",
+    "--dump-dom",
+)
+
+# Chromium normally exits within a few seconds of its virtual-time budget. A
+# generous 90-second grace let a broken page leave each rung waiting for
+# minutes, even though the cidfile wrapper could now clean it up safely. This is
+# process-exit grace, not page-rendering time: the caller already owns that
+# budget and retries with longer rungs when useful content has not appeared.
+BROWSER_PROCESS_GRACE = 20
+
+
+def browser_dom(url, wait_seconds=10, log=None):
+    """Return Chromium's rendered DOM for one public URL, from the container.
+
+    `wait_seconds` becomes Chromium's virtual-time budget. The caller inspects
+    visible text and wall markers, and can retry with a longer budget; this
+    function deliberately returns evidence, not a truth verdict.
     """
     ensure_image(log=log)
-    output = tempfile.mkdtemp(prefix="ysonet_refs_insecure_")
+    wait_seconds = max(1.0, min(float(wait_seconds), 120.0))
+    milliseconds = int(wait_seconds * 1000)
+    command = ["docker", "run"] + run_args()
+    command += [IMAGE, "chromium-browser"] + list(CHROMIUM_ARGS)
+    command += ["--user-data-dir=/tmp/browser-profile",
+                "--virtual-time-budget=%d" % milliseconds, url]
+    if log:
+        log("rendering the page for %.0fs in headless Chromium, in a container"
+            % wait_seconds)
     try:
-        command = ["docker", "run"] + list(RUN_ARGS)
-        command += ["-v", _mount(output) + ":/out"]
-        command += [IMAGE, "curl", "--insecure"] + list(CURL_ARGS)
-        command += ["--output", "/out/body", url]
-        if log:
-            log("fetching without certificate verification, in a container")
-        done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              timeout=TIMEOUT)
-        body = b""
-        path = os.path.join(output, "body")
-        if os.path.exists(path):
-            with open(path, "rb") as handle:
-                body = handle.read()
-        if not body:
-            raise Unavailable("the insecure fetch returned nothing: "
-                              + done.stdout.decode("utf-8", "replace")[-200:])
-        return body
+        done = _run_container(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              timeout=wait_seconds + BROWSER_PROCESS_GRACE)
     except subprocess.TimeoutExpired:
-        raise Unavailable("the insecure fetch did not finish within %ds" % TIMEOUT)
-    finally:
-        shutil.rmtree(output, ignore_errors=True)
+        raise Unavailable("the browser container did not finish after %.0fs" % wait_seconds)
+    dom = done.stdout.decode("utf-8", "replace")
+    if not dom.strip():
+        detail = done.stderr.decode("utf-8", "replace")[-300:]
+        raise Unavailable("headless Chromium returned no DOM: " + detail)
+    return dom
+
+
+# PDF printing takes only a local, self-contained HTML file. Network is disabled
+# for the entire container, and makepdf renders remote images as labelled links,
+# so Chromium cannot turn a PDF build into an accidental third-party fetch.
+BROWSER_PDF_ARGS = (
+    "--headless=new",
+    "--no-sandbox",  # Docker is the sandbox; every container capability is dropped.
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-extensions",
+    "--disable-plugins",
+    "--disable-sync",
+    "--disable-background-networking",
+    "--disable-component-update",
+    "--disable-client-side-phishing-detection",
+    "--disable-features=Translate,OptimizationHints,MediaRouter",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--no-service-autorun",
+    "--password-store=basic",
+    "--use-mock-keychain",
+    "--deny-permission-prompts",
+    "--disable-file-system",
+    "--block-new-web-contents",
+    "--no-pdf-header-footer",
+    "--run-all-compositor-stages-before-draw",
+)
+
+
+def browser_pdf(html, log=None, image=None):
+    """Print offline; only PDF bytes cross back, never a container-created path."""
+    from . import isolation
+    return isolation.call("print_pdf", html)
 
 
 # One image per page, at a resolution a reader can actually read. 150 DPI keeps
 # a slide legible while keeping a 60-page deck to a few megabytes.
 PDFTOPPM_ARGS = ("-png", "-r", "150")
 
+# `-layout` keeps columns and code indentation, which is most of what a security
+# whitepaper's meaning rests on.
+PDFTOTEXT_ARGS = ("-layout", "-enc", "UTF-8")
+
+
+def pdf_text(pdf_bytes, log=None):
+    """Extract and repair PDF text entirely inside an offline worker."""
+    from . import isolation
+    return isolation.call("pdf_text", pdf_bytes)
+
 
 def pdf_page_images(pdf_bytes, into, first=1, last=0, log=None):
-    """Render each page of a PDF to a PNG in `into`. Returns the paths, in order.
+    """Render bounded offline batches and publish validated bytes at fixed paths.
 
-    For the PDF whose text layer cannot be read: a scan, or a deck whose glyphs
-    carry no usable encoding map. Extracting text from those produces confident
-    nonsense - one in this corpus came out with 32% of its words containing a
-    vowel - and the honest alternative is to LOOK at the pages.
-
-    This only produces the images. Reading them is a separate, human or model
-    step, because deciding what a page says is not a job for a converter.
+    The destination is controller-selected and is never mounted in a container.
+    Workers cannot create a host symlink or consume unbounded host scratch space.
     """
-    ensure_image(log=log)
-    source = tempfile.mkdtemp(prefix="ysonet_refs_pdf_")
-    try:
-        with open(os.path.join(source, "in.pdf"), "wb") as handle:
-            handle.write(pdf_bytes)
-        command = ["docker", "run"] + list(RUN_ARGS)
-        command += ["-v", _mount(source) + ":/in:ro", "-v", _mount(into) + ":/out"]
-        command += [IMAGE, "pdftoppm"] + list(PDFTOPPM_ARGS)
-        command += ["-f", str(first)]
-        if last:
-            command += ["-l", str(last)]
-        command += ["/in/in.pdf", "/out/page"]
-        if log:
-            log("rendering the PDF to page images in a container")
-        done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              timeout=TIMEOUT)
-        pages = sorted(name for name in os.listdir(into) if name.endswith(".png"))
-        if not pages:
-            raise Unavailable("pdftoppm produced no pages: "
-                              + done.stdout.decode("utf-8", "replace")[-200:])
-        return [os.path.join(into, name) for name in pages]
-    except subprocess.TimeoutExpired:
-        raise Unavailable("rendering the PDF did not finish within %ds" % TIMEOUT)
-    finally:
-        shutil.rmtree(source, ignore_errors=True)
+    from . import isolation
+    from pathlib import Path
+    count = isolation.call("pdf_info", pdf_bytes, text=False)
+    if type(count) is not int or not 1 <= count <= 500:
+        raise Unavailable("PDF page count is outside the 1..500 bound")
+    last = last or count
+    if type(first) is not int or type(last) is not int or not 1 <= first <= last <= count:
+        raise Unavailable("invalid PDF page range")
+    target = Path(into)
+    if target.is_symlink() or not target.is_dir():
+        raise Unavailable("page output must be a controller-selected directory")
+    paths, total = [], 0
+    for start in range(first, last + 1, 5):
+        end = min(last, start + 4)
+        pages = isolation.call("pdf_images", pdf_bytes, start, end)
+        if not isinstance(pages, list) or [row[0] for row in pages] != list(range(start, end + 1)):
+            raise Unavailable("renderer returned an unexpected page range")
+        for number, data in pages:
+            if type(number) is not int or not isinstance(data, bytes) or not data.startswith(b"\x89PNG\r\n\x1a\n") or len(data) > 20 * 1024 * 1024:
+                raise Unavailable("invalid rendered page bytes")
+            total += len(data)
+            if total > 512 * 1024 * 1024:
+                raise Unavailable("rendered PDF exceeds the 512 MiB output budget; select fewer pages")
+            dest = target / ("page-%03d.png" % number)
+            descriptor, temporary = tempfile.mkstemp(prefix=".page-", dir=target)
+            try:
+                with os.fdopen(descriptor, "wb") as handle:
+                    handle.write(data)
+                os.replace(temporary, dest)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+            paths.append(str(dest))
+    return paths
 
 
 def _collect(urls, output):
@@ -289,8 +523,8 @@ def _collect(urls, output):
             key=lambda name: (len(name), name))
         for name in candidates:
             try:
-                with open(os.path.join(output, name), "r", encoding="utf-8") as handle:
-                    body = handle.read()
+                from .worker_jobs import read_result
+                body = read_result(os.path.join(output, name), 2 * 1024 * 1024).decode("utf-8")
             except OSError:
                 continue
             if _has_text(body):

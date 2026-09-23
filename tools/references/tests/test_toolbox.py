@@ -10,8 +10,9 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from refslib import toolbox, video
+from refslib import isolation, toolbox, video
 
 
 def json3(*lines):
@@ -64,6 +65,7 @@ class TestWhatTheContainerIsGiven(unittest.TestCase):
         """A moving tag would let a rebuild become a different image."""
         self.assertIn("@sha256:", toolbox.BASE_IMAGE)
         self.assertIn('yt-dlp==', toolbox.DOCKERFILE)
+        self.assertIn('waymore==%s' % toolbox.WAYMORE, toolbox.DOCKERFILE)
 
     def test_the_media_file_is_never_downloaded(self):
         self.assertIn("--skip-download", toolbox.YT_DLP_ARGS)
@@ -76,6 +78,16 @@ class TestWhatTheContainerIsGiven(unittest.TestCase):
         self.assertNotIn("-e ", joined)
         self.assertNotIn("--privileged", joined)
         self.assertEqual(joined.count("-v"), 0)   # the only mount is added per run
+
+
+class TestHistoricalUrlDiscovery(unittest.TestCase):
+    def test_domains_are_normalised_and_sent_only_to_the_waymore_worker(self):
+        expected = ["https://old.example/a"]
+        with patch.object(isolation, "call", return_value=expected) as called:
+            found = toolbox.waymore_urls(
+                {"OLD.EXAMPLE", "old.example", "bad/domain"}, limit_requests=7)
+        self.assertEqual(found, expected)
+        called.assert_called_once_with("waymore", ["old.example"], limit_requests=7)
 
 
 class TestCollect(unittest.TestCase):

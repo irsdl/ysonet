@@ -73,7 +73,7 @@ WorkflowDesigner (FastJson, JavaScriptSerializer, Json.NET, MessagePackTypeless,
 WSManPluginInstance (BinaryFormatter, DataContractJsonSerializer, DataContractSerializer, FastJson, JavaScriptSerializer, Json.NET, LosFormatter, MessagePackTypeless, MessagePackTypelessLz4, NetDataContractSerializer, SharpSerializerBinary, SharpSerializerXml, SoapFormatter, Xaml, XmlSerializer, YamlDotNet < 5.0.0)
 XamlAssemblyLoadFromFile (BinaryFormatter (2), LosFormatter (2), NetDataContractSerializer (2), SoapFormatter (2))
 XamlImageInfo (Json.NET (2))
-XamlTypeConverterFetch (JavaScriptSerializer, Json.NET, Xaml, YamlDotNet < 5.0.0)
+XamlTypeConverterFetch (JavaScriptSerializer (2), Json.NET (2), Xaml (2), YamlDotNet < 5.0.0 (2))
 XmlDocumentSurrogateXxe (BinaryFormatter (2), DataContractJsonSerializer (2), DataContractSerializer (2), FsPickler (2), LosFormatter (2), NetDataContractSerializer (2), SoapFormatter (2))
 XmlDocumentXxe (FastJson, JavaScriptSerializer (2), MessagePackTypeless (2), MessagePackTypelessLz4 (2), SharpSerializerBinary (2), SharpSerializerXml (2), Xaml (2), YamlDotNet < 5.0.0)
 ```
@@ -102,7 +102,7 @@ SharePoint (Generates payloads for the following SharePoint CVEs: CVE-2026-50522
 ThirdPartyGadgets (Implements gadgets for 3rd Party Libraries)
 TransactionManagerReenlist (Generates payload for the TransactionManager.Reenlist method)
 ViewState (Generates a ViewState using known MachineKey parameters)
-Xps (Generates a malicious XPS document (CVE-2020-0605) - binary output, use --outputpath to save it as an .xps file)
+Xps (Generates a malicious XPS document (CVE-2020-0605) for XpsDocument or PrintQueue.AddJob(path) - binary output, use --outputpath to save it as an .xps file)
 ```
 
 ### Plugin options

@@ -1,66 +1,34 @@
 ---
 name: ysonet-add-reference
-description: One move for adding research to this repository: curate the link onto the right reading list, then ask whether to archive it as a local Markdown copy too. Use when the user gives a URL to add, asks to add a paper, blog post, tool, talk or CVE write-up to the docs, or asks to add something and keep a local copy. It runs the two existing skills in order and owns no logic of its own.
+description: Add eligible research to the reading lists and automatically preserve a local reference under docs/archived-references/. Use when the user supplies a source to add or asks to add references. Coordinates the curation and archive skills without owning their implementation.
 ---
 
-# Add a reference, and optionally archive it
+# Add and locally preserve a reference
 
-A thin wrapper. It runs two skills that each work perfectly well alone, and its
-only job is to run them in the right order and ask the question between them.
-
-**It owns no logic.** If you find yourself implementing anything here, it belongs
-in one of the two skills instead.
-
-## Why this exists
-
-`ysonet-curate-research-links` owns the reading lists. `ysonet-archive-references`
-owns the archive. The maintainer decided on 2026-08-03 that neither should know
-about the other: curation must keep working with the archive tool absent, and the
-archive must never edit a curated document.
-
-That leaves one gap, which is this skill: somebody adding a link usually also
-wants the local copy, and should be asked rather than made to remember a second
-command.
+Run the two skills in order. The maintainer's 2026-09-22 instruction makes local
+preservation the default after adding a citation. Do not ask a second question
+about archiving. An explicit request for links only still takes precedence.
 
 ## Steps
 
-1. **Curate.** Invoke `ysonet-curate-research-links` with the URL or the request,
-   and let it do its whole job: vetting, placement on the right list, the
-   annotation, and its own link check. Do not second-guess it, and do not edit
-   the reading lists yourself.
+1. Run [ysonet-curate-research-links](../ysonet-curate-research-links/SKILL.md).
+   It owns eligibility, placement, link checks, the ledger and the page audit.
+2. Let curation run its automatic handoff to
+   [ysonet-archive-references](../ysonet-archive-references/SKILL.md) for the
+   accepted new or replaced URLs. Do not run the archive twice. If curation
+   rejects every candidate, there is nothing new to preserve.
+3. Report the list and section, each matching English Markdown/PDF pair and its preservation depth,
+   the archive verification result, and any unresolved source or store gap.
 
-2. **Report what it did.** Which list, which section, and the annotation. If it
-   rejected the source, say why and stop: there is nothing to archive.
+## Boundaries
 
-3. **Ask.** Exactly one question, and honour a "no" without arguing:
-
-   > Added to `<list>`. Do you also want a local Markdown copy in the archive?
-   > It preserves the page so the technique survives the source going offline.
-   > Costs one fetch. Answering no changes nothing.
-
-4. **Archive, only if asked.** Invoke `ysonet-archive-references` and run its
-   single-reference path for that URL:
-
-   ```text
-   python tools/references/refs.py check --only <url>
-   python tools/references/refs.py acquire --only <url>
-   python tools/references/refs.py index
-   python tools/references/refs.py verify
-   ```
-
-5. **Write the two human sections** in the new file: `## Why it is in ysonet`
-   and `## Summary`. The tool cannot write those and leaves them marked as not
-   written.
-
-## Rules
-
-- **Never skip step 3.** Archiving is a separate, deliberate act. Doing it
-  silently is exactly what the boundary exists to prevent.
-- **If the archive tool is missing or broken, step 1 still stands.** Report the
-  failure and leave the curated list as it is. A broken archive must never make
-  adding a link fail.
-- **Never edit `docs/dotnet-deserialization-research.md` or `docs/references.md`
-  from here.** Only the curation skill writes those.
-- Run `ysonet-curate-research-links` on its own when the user only wants the
-  link, and `ysonet-archive-references` on its own when they only want the
-  archive refreshed. This wrapper is a convenience, never a gate.
+- Curation owns the reading lists; the archive reads them and writes only its
+  own output. Read [source handling](../../source-security.md) before processing
+  sources. Automatic orchestration does not merge those implementations.
+- Preserve permitted source content with attribution. Where a full copy cannot
+  be made, retain source metadata and an original summary, clearly labelled as
+  such. A summary, exclusion or failed fetch is not a full-text archive.
+- An unavailable archive tool or source does not undo a valid citation. Report
+  the unfinished archive step and its reason instead of declaring success.
+- Never hand-edit generated archive files, erase existing copies after a failed
+  retry, or commit automatically.

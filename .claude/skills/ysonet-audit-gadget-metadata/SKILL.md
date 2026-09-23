@@ -141,6 +141,10 @@ Then summarize changed files, verification, unresolved uncertainty, and any
 question that requires the user. A clean audit should say which surfaces and
 variants were checked, not merely state that no issue was found.
 
+After an approved metadata repair and Debug build, run the shipped-skill updater
+named in `CLAUDE.md`. Formatter, variant, facet, requirement, input, and runtime
+metadata all appear in `.claude/skills/ysonet-payloads/references/full-help.md`.
+
 ## Final checks
 
 - Review-only requests did not mutate files.
@@ -151,3 +155,4 @@ variants were checked, not merely state that no issue was found.
   not overstate the `WithVersions` ceiling.
 - Generation and plugin behavior were untouched.
 - Help, CLI discovery, documentation, and tests agree.
+- The shipped `ysonet-payloads` skill reflects every approved metadata change.

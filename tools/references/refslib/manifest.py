@@ -44,6 +44,11 @@ def apply_acquired_fields(entry, record):
     An empty publisher is meaningful when a real document replaces a Wayback
     wrapper: the replay host is no longer allowed to survive as attribution.
     """
+    incoming = record.get("content_sha256")
+    if incoming and incoming != entry.get("content_sha256") and entry.get("translation_sha256"):
+        entry["stale_translation_sha256"] = entry.pop("translation_sha256")
+        entry.pop("title_english", None)
+        entry.pop("publisher_english", None)
     for field in ACQUIRED_FIELDS:
         if field in record:
             entry[field] = record[field]

@@ -6,8 +6,9 @@
   declared variant metadata, identifies formatter-dependent option axes for
   semantic review, audits test fire safety
   (nothing opens a real application, every fired command comes from the shared
-  sink), and prints one compact report. Replaces dozens of manual Grep/Read calls
-  for checks 1-5 of the ysonet-dev-consistency-check skill.
+  sink), checks the shipped Agent Skill snapshot against live public help, and
+  prints one compact report. Replaces dozens of manual Grep/Read calls for checks
+  1-6 of the ysonet-dev-consistency-check skill.
 
 .DESCRIPTION
   The authoritative catalog is the built exe's `--list gadgets` / `--list
@@ -23,6 +24,9 @@
 
 .EXAMPLE
   powershell -File scripts/inventory.ps1
+
+.EXAMPLE
+  powershell -File scripts/tests/inventory.tests.ps1
 #>
 [CmdletBinding()]
 param(
@@ -54,23 +58,43 @@ $generatorsDir = Join-Path $RepoRoot 'ysonet/Generators'
 $pluginsDir    = Join-Path $RepoRoot 'ysonet/Plugins'
 $docsDir       = Join-Path $RepoRoot 'docs'
 $archPath      = Join-Path $RepoRoot 'docs/ARCHITECTURE.md'
+$testsDir      = Join-Path $RepoRoot 'ysonet.Tests'
 $testsPath     = Join-Path $RepoRoot 'ysonet.Tests/Tests.cs'
 $versionPath   = Join-Path $RepoRoot 'VERSION'
 $exePath       = Join-Path $RepoRoot 'ysonet/bin/Debug/ysonet.exe'
+$userSkillCheck = Join-Path $PSScriptRoot 'update-ysonet-payloads-skill.ps1'
 
 $nameRe = '^[A-Za-z][A-Za-z0-9_]*$'
 
+function Invoke-Ysonet([string[]]$arguments) {
+    $start = New-Object System.Diagnostics.ProcessStartInfo
+    $start.FileName = $exePath
+    $start.Arguments = $arguments -join ' '
+    $start.WorkingDirectory = Split-Path $exePath -Parent
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = [System.Diagnostics.Process]::Start($start)
+    $stdout = $process.StandardOutput.ReadToEnd()
+    $stderr = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+    if ($process.ExitCode -ne 0) {
+        throw "ysonet.exe $($start.Arguments) exited $($process.ExitCode): $stderr"
+    }
+    $stdout = $stdout.Replace("`r`r`n", "`n").Replace("`r`n", "`n").Replace("`r", "`n")
+    return @($stdout.Split("`n") | Where-Object { $_ -ne '' })
+}
+
 function Get-ListFromExe([string]$category) {
-    $out = & $exePath "--list" $category
-    if ($LASTEXITCODE -ne 0) { throw "exe --list $category exited $LASTEXITCODE" }
+    $out = Invoke-Ysonet -arguments @('--list', $category)
     return @($out | ForEach-Object { $_.Trim() } | Where-Object { $_ -match $nameRe })
 }
 
 # Same listing with private modules included. The difference between the two IS
 # the private set, which is why the private source folders are never read here.
 function Get-ListFromExeWithPrivate([string]$category) {
-    $out = & $exePath "--list" $category "--display-private"
-    if ($LASTEXITCODE -ne 0) { throw "exe --list $category --display-private exited $LASTEXITCODE" }
+    $out = Invoke-Ysonet -arguments @('--list', $category, '--display-private')
     return @($out | ForEach-Object { $_.Trim() } | Where-Object { $_ -match $nameRe })
 }
 
@@ -90,6 +114,21 @@ function Get-StaticNames([string]$dir, [string]$suffix) {
         }
     }
     return @($names | Sort-Object -Unique)
+}
+
+function Get-PublicTestFiles([string]$dir) {
+    if (-not (Test-Path $dir)) { return @() }
+
+    # RECURSIVE on purpose. Tests.cs is the runner, not the whole suite: module
+    # tests and the Runner, Tiers, Harness, and Fixtures groups live beside it.
+    # bin and obj are build output. Private is an optional git-ignored area whose
+    # contents belong to another repository and are never audited from here.
+    return @(Get-ChildItem -Path $dir -Filter '*.cs' -Recurse -ErrorAction SilentlyContinue |
+        Where-Object {
+            $p = $_.FullName -replace '/', '\'
+            ($p -notmatch '\\(bin|obj)\\') -and ($p -notmatch '\\Private\\')
+        } |
+        Sort-Object FullName)
 }
 
 function Get-BuiltGadgetMetadata([string]$assemblyPath, [string[]]$gadgetNames) {
@@ -189,7 +228,9 @@ $plugins = @($plugins | Where-Object { $_ -ne 'Generic' } | Sort-Object -Unique)
 
 # Load text corpora once.
 $archText = if (Test-Path $archPath) { Get-Content -LiteralPath $archPath -Raw } else { '' }
-$testsText = if (Test-Path $testsPath) { Get-Content -LiteralPath $testsPath -Raw } else { '' }
+$testFiles = Get-PublicTestFiles $testsDir
+$testsMainText = if (Test-Path $testsPath) { Get-Content -LiteralPath $testsPath -Raw } else { '' }
+$testsText = @($testFiles | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join "`n"
 $version = if (Test-Path $versionPath) { (Get-Content -LiteralPath $versionPath -Raw).Trim() } else { '(missing)' }
 
 $docFiles = @()
@@ -215,7 +256,7 @@ function Get-DocsMentioning([string]$name) {
 # Dictionary keys used in Tests.cs (covers argvByPlugin / excluded entries, which
 # use the { "Name", ... } form). Advisory: the agent confirms which dict.
 $dictKeys = New-Object System.Collections.Generic.HashSet[string]
-foreach ($m in [regex]::Matches($testsText, '\{\s*"([A-Za-z0-9_]+)"\s*,')) {
+foreach ($m in [regex]::Matches($testsMainText, '\{\s*"([A-Za-z0-9_]+)"\s*,')) {
     [void]$dictKeys.Add($m.Groups[1].Value)
 }
 
@@ -265,7 +306,7 @@ foreach ($g in $gadgets) {
     $problems = @()
     if (-not $inArch)  { $problems += 'not in ARCHITECTURE.md' }
     if ($docs.Count -eq 0) { $problems += 'not in any docs/*.md' }
-    if (-not $inTests) { $problems += 'not referenced in Tests.cs' }
+    if (-not $inTests) { $problems += 'not referenced in ysonet.Tests' }
     if ($problems.Count -gt 0) {
         "  $g : " + ($problems -join '; ')
     } else {
@@ -399,7 +440,7 @@ foreach ($p in $plugins) {
     if (-not $inArch)  { $problems += 'not in ARCHITECTURE.md' }
     if ($docs.Count -eq 0) { $problems += 'not in any docs/*.md' }
     if (-not $asKey)   { $problems += 'not a Tests.cs dict key (check argvByPlugin/excluded coverage guard)' }
-    elseif (-not $inTests) { $problems += 'not referenced in Tests.cs' }
+    elseif (-not $inTests) { $problems += 'not referenced in ysonet.Tests' }
     if ($problems.Count -gt 0) {
         "  $p : " + ($problems -join '; ')
     } else {
@@ -423,9 +464,9 @@ if ($approx) {
             if (Test-Word $docTexts[$k] $n) { "  LEAK: a private module is named in docs/$k"; $leaks++ }
         }
         if (Test-Word $archText $n) { "  LEAK: a private module is named in docs/ARCHITECTURE.md"; $leaks++ }
-        if (Test-Word $testsText $n) { "  LEAK: a private module is named in ysonet.Tests/Tests.cs"; $leaks++ }
+        if (Test-Word $testsText $n) { "  LEAK: a private module is named in ysonet.Tests"; $leaks++ }
     }
-    if ($leaks -eq 0) { "  no private module is named in the tracked docs or the public test file" }
+    if ($leaks -eq 0) { "  no private module is named in the tracked docs or public test sources" }
 }
 
 # Static placement guard: a private DECLARATION belongs only in the private source
@@ -461,19 +502,17 @@ if ($placementProblems -eq 0) {
 "-- TEST FIRE SAFETY: nothing opens an app, fires use the sink -----"
 # A test may NAME calc.exe/notepad.exe as generation input (the catalogue's own
 # examples, bytes only compared or encoded). It must never EXECUTE one. Every fire
-# row therefore takes its command from FireBackend.Create(...).Command, which picks
-# the windowless ysonet.TestSink.exe when it is available and falls back to the
-# self-closing "cmd /c echo x > marker" only inside TestSink.cs.
-
-$testsDir = Join-Path $RepoRoot 'ysonet.Tests'
-$sinkOwnerFile = 'ysonet.Tests/Harness/TestSink.cs'
+# row therefore takes its command from FireBackend.Create(...).Command, which runs
+# the required windowless ysonet.TestSink.exe. A literal shell fire command anywhere
+# is a bypass: the sink has no fallback backend.
 # `control` is the one launcher name that is also ordinary English, and the suite uses
 # it constantly for a "control payload" (102 prose uses, 0 uses of control.exe). With
 # the extension optional it reported nothing but noise, and a section that cries wolf
 # gets skipped, so this name alone requires the `.exe`. Coverage is not lost: a bare
 # `cmd /c control` is still reported by the REVIEW rule below, which flags any literal
-# shell command in the test sources.
-$launcherRe = '(?i)(\b(calc|notepad|mspaint|wordpad|winword|excel|iexplore|explorer|taskmgr|powershell|pwsh|wscript|cscript|rundll32|mshta)(\.exe)?\b|\bcontrol\.exe\b)'
+# shell command in the test sources. The other names may be bare commands, but they
+# must not be part of a dotted identifier such as an assembly or namespace name.
+$launcherRe = '(?i)((?<![\w.])(calc|notepad|mspaint|wordpad|winword|excel|iexplore|explorer|taskmgr|powershell|pwsh|wscript|cscript|rundll32|mshta)(\.exe)?\b(?!\.)|(?<![\w.])control\.exe\b(?!\.))'
 
 # Replace every string/char literal with a same-length filler, so brace depth and
 # the "//" comment index can be found without a literal confusing either.
@@ -490,19 +529,6 @@ function Get-MaskedLine([string]$line) {
 $fireProblems = 0
 $fireScopes = 0
 $reviewLines = New-Object System.Collections.Generic.List[string]
-$testFiles = @()
-if (Test-Path $testsDir) {
-    # RECURSIVE on purpose. The suite's sources are grouped into Runner\, Tiers\,
-    # Harness\ and Fixtures\ (see ysonet.Tests/README.md), so a flat listing would
-    # scan Tests.cs alone and quietly report an all-clear for everything else.
-    # bin\ and obj\ are build output; Private\ is an optional git-ignored area whose
-    # contents belong to another repository and are never audited from here.
-    $testFiles = Get-ChildItem -Path $testsDir -Filter '*.cs' -Recurse -ErrorAction SilentlyContinue |
-        Where-Object {
-            $p = $_.FullName -replace '/', '\'
-            ($p -notmatch '\\(bin|obj)\\') -and ($p -notmatch '\\Private\\')
-        }
-}
 
 foreach ($f in $testFiles) {
     $rel = $f.FullName.Substring($RepoRoot.Length).TrimStart('\', '/') -replace '\\', '/'
@@ -614,16 +640,15 @@ foreach ($f in $testFiles) {
         }
     }
 
-    # Hand-rolled shell fire commands. The two backends live in TestSink.cs; anywhere
-    # else this is either a bypass of the sink or a generation-only equality check.
-    if ($rel -ne $sinkOwnerFile) {
-        for ($i = 0; $i -lt $n; $i++) {
-            # A line asserting ON a FireTarget's own command describes the backend
-            # rather than building a command, so it is not a lead.
-            if ($code[$i] -match '\.Command\b') { continue }
-            if ($code[$i] -match '"cmd(\.exe)?\s*/[ckCK]\b') {
-                $reviewLines.Add("  REVIEW: ${rel}:$($i + 1) builds a literal shell command: $($lines[$i].Trim())")
-            }
+    # Hand-rolled shell commands are either a sink bypass or a generation-only equality
+    # check. Report both for review; TestSink.cs has no exemption now that there is no
+    # shell backend.
+    for ($i = 0; $i -lt $n; $i++) {
+        # A line asserting ON a FireTarget's own command describes the target rather
+        # than building a command, so it is not a lead.
+        if ($code[$i] -match '\.Command\b') { continue }
+        if ($code[$i] -match '"cmd(\.exe)?\s*/[ckCK]\b') {
+            $reviewLines.Add("  REVIEW: ${rel}:$($i + 1) builds a literal shell command: $($lines[$i].Trim())")
         }
     }
 }
@@ -637,13 +662,13 @@ if ($reviewLines.Count -gt 0) {
     "   command that is DESERIALIZED must come from FireBackend.Create instead.)"
 }
 
-# The preferred backend only gets selected if the sink executable is really staged.
+# The required backend only gets selected if the sink executable is really staged.
 $sinkProj = Join-Path $RepoRoot 'ysonet.TestSink/ysonet.TestSink.csproj'
 $testsProjText = ''
 $testsProjPath = Join-Path $RepoRoot 'ysonet.Tests/ysonet.Tests.csproj'
 if (Test-Path $testsProjPath) { $testsProjText = Get-Content -LiteralPath $testsProjPath -Raw }
 if (-not (Test-Path $sinkProj)) {
-    "  SINK: ysonet.TestSink project is missing; every fire row would use the legacy marker"
+    "  SINK: ysonet.TestSink project is missing; the suite will hard-fail before command rows"
 } elseif ($testsProjText -notmatch 'ysonet\.TestSink\.csproj') {
     "  SINK: ysonet.Tests.csproj does not reference ysonet.TestSink; the sink may not be built"
 } else {
@@ -652,7 +677,20 @@ if (-not (Test-Path $sinkProj)) {
         "  sink wired: ysonet.TestSink referenced and staged beside the test exe"
     } else {
         "  SINK: ysonet.TestSink.exe is not staged in ysonet/bin/Debug (build Debug); a run"
-        "        there falls back to legacy-cmd, which check 9 must not accept silently"
+        "        there must report one ordinary failure and stop before command rows"
+    }
+}
+""
+"-- SHIPPED AGENT SKILL: live help snapshot ----------------------"
+if (-not (Test-Path $exePath)) {
+    "  UNVERIFIED: needs a runnable Debug build to compare --fullhelp."
+} elseif (-not (Test-Path $userSkillCheck)) {
+    "  MISSING: deterministic shipped-skill snapshot checker: $userSkillCheck"
+} else {
+    try {
+        & $userSkillCheck -RepoRoot $RepoRoot -ExePath $exePath -Check
+    } catch {
+        "  STALE: $($_.Exception.Message)"
     }
 }
 ""

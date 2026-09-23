@@ -338,4 +338,8 @@ reference entries when applicable. Verify normal help, specific help,
 `--list gadgets`, `--list formatters -g <Name>`, category filtering, and the
 interactive module editor.
 
+Plan a post-build refresh of `.claude/skills/ysonet-payloads/references/full-help.md`
+with the bundled updater, plus maintained selection-guide edits when the gadget
+introduces a new operator decision.
+
 Do not document an unregistered draft as supported.

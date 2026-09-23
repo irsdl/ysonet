@@ -64,7 +64,10 @@ namespace ysonet.Helpers
                                 }
 
                                 // we need this to make it standard
-                                result = XmlMinifier.XmlXSLTMinifier(dirtymarshal);
+                                // Wrap the already type-swapped document. Minifying dirtymarshal
+                                // here restores the authoring marshal as the child and makes the
+                                // declared root type impossible to deserialize.
+                                result = XmlMinifier.XmlXSLTMinifier(result);
 
                                 result = "<" + rootTagName + " " + typeAttributeName + @"=""" + objectType.AssemblyQualifiedName + @""">" + result + "</" + rootTagName + ">";
                             }

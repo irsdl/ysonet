@@ -21,7 +21,7 @@ namespace ysonet.Tests
         public string Tier = "NORMAL";
         public string Isolation = "none";
         public string Wer = "off";
-        public string Sink = "legacy-cmd";
+        public string Sink = "test-sink";
         public DateTime StartedUtc;
         public DateTime UpdatedUtc;
         public string Current = "";

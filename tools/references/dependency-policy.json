@@ -12,9 +12,28 @@
     "'refs.py dependencies --verify' fails when an installed package is absent",
     "from this file, so an undeclared dependency cannot creep in."
   ],
-
-  "admitted": [],
-
+  "admitted": [
+    {
+      "name": "Pillow",
+      "version": "12.3.0",
+      "purpose": "Decode and re-encode archived research figures using the existing images pipeline",
+      "upstream": "https://pypi.org/project/pillow/",
+      "release_date": "2026-07-01",
+      "licence": "MIT-CMU",
+      "dependencies": [],
+      "note": "Adopted from the reviewed archive toolbox dependency policy. Used only inside the Docker worker; no host installation.",
+      "artifacts": [
+        {
+          "filename": "pillow-12.3.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "f0606c8bf2cdefea14a43530f7657cbbb7ecf1c4222512492ef4a4434a9501ec"
+        },
+        {
+          "filename": "pillow-12.3.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+          "sha256": "0dd2064cbc55aaec028ef5fbb60fa47bb6c3e7918e07ff17935284b227a9d2df"
+        }
+      ]
+    }
+  ],
   "candidates": [
     {
       "name": "trafilatura",

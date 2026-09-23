@@ -103,7 +103,19 @@ namespace ysonet.Tests
         private static int RunTypeConfuseDelegatePowerShellFocused()
         {
             SweepStaleTestArtifacts();
-            FireBackend.Select(true, ResolveTestArtifactDir(), MarkerPath);
+            FireBackend.Select(ResolveTestArtifactDir());
+            Console.Error.WriteLine("Fire backend: " + FireBackend.Description);
+            if (!FireBackend.IsAvailable)
+            {
+                Run("The required windowless fire sink is available", FireBackend.RequireAvailable);
+                Console.Error.WriteLine();
+                TestEnvironment.WriteReport(Console.Error);
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Passed: " + _passed + "  Failed: " + _failed
+                    + "  Environment-skipped: " + TestEnvironment.EnvironmentSkipCount);
+                RemoveEmptyRunDirectories();
+                return TestEnvironment.ExitCode(_failed);
+            }
             Run("The PowerShell TCD gadget has one conditional public contract",
                 TypeConfuseDelegatePowerShellDeclaresItsContract);
             Run("The PowerShell TCD graph stays explicit in raw and minified BF",

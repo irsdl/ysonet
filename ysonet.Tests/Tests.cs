@@ -88,6 +88,8 @@ namespace ysonet.Tests
 
         private static int Main(string[] args)
         {
+            string completionProbe = Environment.GetEnvironmentVariable(CompletionProbeVar);
+            if (completionProbe != null) return CompletionProbe(completionProbe);
             if (Environment.GetEnvironmentVariable("YSONET_DUMPUI") != null) { DumpUi(); return 0; }
             string tcdPowerShellProbe = Environment.GetEnvironmentVariable(TcdPowerShellProbeVar);
             if (tcdPowerShellProbe != null)
@@ -117,8 +119,8 @@ namespace ysonet.Tests
                 System.Diagnostics.Debugger.IsAttached);
             if (options.ConfigError != null)
             {
-                // An operator typed something wrong. That is the ONE thing in this file that
-                // fails before tests: every OS mechanism failing later falls back instead.
+                // An operator typed something wrong. This is the only failure before the
+                // run header; a required sink failure is reported as an ordinary failed row.
                 Console.Error.WriteLine(options.ConfigError);
                 return 2;
             }
@@ -178,9 +180,10 @@ namespace ysonet.Tests
             _testLock = TestRunLock.Acquire(options.TestLock, ResolveTestArtifactRoot(),
                 Console.Error.WriteLine);
 
-            // One fire backend for the whole run, chosen before the first row so no gadget or
-            // plugin assertion has to know which one is live.
-            FireBackend.Select(options.SinkAllowed, ResolveTestArtifactDir(), MarkerPath);
+            // The one command-fire sink is probed before the first row. If it cannot run,
+            // the suite records one ordinary failure with the reason and stops: continuing
+            // would silently remove every command-effect assertion.
+            FireBackend.Select(ResolveTestArtifactDir());
 
             // The status file is the one artifact that stays in the shared ROOT rather than
             // in this run's directory: its value is a stable, easy-to-find path, and
@@ -222,6 +225,12 @@ namespace ysonet.Tests
             // only changes what the EXIT CODE requires: an absent capability still means
             // "do not run that row", in strict mode exactly as in the default.
             TestEnvironment.Strict = options.StrictEnv;
+
+            if (!FireBackend.IsAvailable)
+            {
+                Run("The required windowless fire sink is available", FireBackend.RequireAvailable);
+                return FinishRun();
+            }
 
             if (options.Oob)
                 RunOobTier();
@@ -282,7 +291,10 @@ namespace ysonet.Tests
             Run("Completion profile block installs idempotently and uninstalls", CompletionProfileBlock);
             Run("Completion shell classifier recognizes shells", CompletionShellClassifier);
             Run("Completion policy classifier flags signing-required policies", CompletionPolicyClassifier);
+            RunCompletionUxTests();
+            Run("The shipped Agent Skill covers every public module and option", UserSkillCoversPublicInterface);
             Run("The minification snapshot doc covers every gadget cell and minify-capable plugin", MinificationSnapshotDocCoversEveryModule);
+            Run("The public catalog doc matches the live gadget and plugin listing", PublicCatalogDocMatchesLiveCatalogue);
             Run("Menu navigates with arrows and Enter", MenuNavigation);
             Run("Menu digit shortcut and Escape cancel", MenuDigitAndCancel);
             Run("Picker selects by typing and cancels on Esc", PickerShowSelectAndCancel);
@@ -457,6 +469,8 @@ namespace ysonet.Tests
             Run("DynamicUpdateMapExtension refuses only an empty -c and an unadvertised formatter", DynamicUpdateMapExtensionRefusesOnlyWhatItCannotEmit);
             Run("DynamicUpdateMapExtension reaches ReadXml only through x:XData", DynamicUpdateMapExtensionReachesReadXmlOnlyThroughXData);
             Run("DynamicUpdateMapExtension declares a nested-deserialization/code-execution kind", DynamicUpdateMapExtensionDeclaresItsFacets);
+            Run("TextFormattingRunProperties --hasRootDCS wraps and self-tests both DCS document shapes", TextFormattingRunPropertiesHasRootDcsWrapsTheDocument);
+            Run("TextFormattingRunProperties --hasRootDCS refuses every non-DCS formatter", TextFormattingRunPropertiesHasRootDcsRefusesOtherFormatters);
             Run("TextFormattingRunProperties --xamlurl carries ResourceDictionary, not ObjectDataProvider", TextFormattingRunPropertiesXamlUrlCarriesResourceDictionary);
             Run("XAML root container: no option equals --rootcontainer 1 (byte-for-byte)", XamlContainerDefaultEqualsContainerOne);
             Run("XAML root container rejects a value outside 1-3", XamlContainerOptionIsValidated);
@@ -598,7 +612,7 @@ namespace ysonet.Tests
             Run("The test sink refuses every malformed invocation", TestSinkRejectsInvalidInput);
             Run("The test sink publishes one complete record per invocation", TestSinkPublishesUniqueCompleteRecords);
             Run("The sink path is space-free and its tag alphabet is what a test relies on", TestSinkPathAndOrdering);
-            Run("The sink probe selects a backend and never skips a fire row", TestSinkProbeSelectsBackend);
+            Run("The sink probe requires the windowless backend and fails loudly", TestSinkProbeRequiresAvailableSink);
             Run("The sink record proves the exact argument it received", TestSinkRecordsParsedArgument);
             Run("Non-raw -c reaches the fire backend (TypeConfuseDelegate)", NonRawTypeConfuseDelegateCanary);
             Run("Non-raw -c reaches the fire backend (ObjectDataProvider)", NonRawObjectDataProviderCanary);
@@ -763,7 +777,7 @@ namespace ysonet.Tests
                 Console.Error.WriteLine("Runtime: " + RuntimeBuild.Describe());
                 Run("Every gadget x formatter x variant generates (x minify)", GadgetFullMatrixGenerates);
                 Run("XAML container x formatter x minify generates for both consumers", XamlContainerFullMatrix);
-                Run("Payloads fire into test-owned sinks (marker/listener/tempdir/self-cs)", PayloadsFireIntoTestSinks);
+                Run("Payloads fire into test-owned sinks (process/listener/tempdir/self-cs)", PayloadsFireIntoTestSinks);
                 Run("Output encodings correct per formatter (representative gadgets)", OutputEncodingPerFormatter);
                 Run("Bridged gadget chains (--bgc) generate for every consumer", BridgedChainsGenerate);
                 Run("Bridged chains propagate --minify to the whole chain (raw vs min)", BridgedChainsMinifyPropagates);
@@ -791,6 +805,11 @@ namespace ysonet.Tests
             if (options.Full || options.Legacy || options.Net40)
                 Run("Runtime version claims match what fired on this build", VersionEvidenceMatchesThisRuntime);
 
+            return FinishRun();
+        }
+
+        private static int FinishRun()
+        {
             // Unconditional: the clr2-runtime capability probe compiles the same child, so a
             // run that only PROBED (and then skipped the tier) still has one to remove.
             LegacyClrChild.Cleanup();
@@ -823,7 +842,7 @@ namespace ysonet.Tests
         }
 
         // How the run header and the status file describe UI isolation, before any relaunch
-        // is attempted. A fallback replaces this with its own reason.
+        // is attempted. A UI-isolation fallback replaces this with its own reason.
         private static string DescribeIsolation(TestRunOptions options)
         {
             if (options.IsIsolationChild)
@@ -871,7 +890,7 @@ namespace ysonet.Tests
         private static int StatusProbe(string path)
         {
             using (RunStatus status = RunStatus.Start(path, Path.GetDirectoryName(path),
-                System.Diagnostics.Process.GetCurrentProcess().Id, "PROBE", "none", "off", "legacy-cmd"))
+                System.Diagnostics.Process.GetCurrentProcess().Id, "PROBE", "none", "off", "test-sink"))
             {
                 status.BeginRow("status probe row", 1);
                 Console.Out.WriteLine("status-probe-started " + (status.Path ?? "off"));
@@ -1832,6 +1851,146 @@ namespace ysonet.Tests
             return File.ReadAllText(found);
         }
 
+        // ================= .claude/skills/ysonet-payloads coverage ===============
+        //
+        // The exhaustive reference is a tracked snapshot of --fullhelp. The running
+        // binary is authoritative, but a downloaded skill must still be useful before an
+        // agent runs that query. Check the live public catalogue and OptionSets rather
+        // than a second hand-written name list, so a new gadget, plugin, variant, or
+        // option cannot silently be absent from the shipped reference. Then compare the
+        // generated body exactly, so changed descriptions, modes, categories, runtime
+        // evidence, or requirements cannot leave older guidance behind either.
+        private static readonly string UserSkillFullHelp = Path.Combine(
+            ".claude", "skills", "ysonet-payloads", "references", "full-help.md");
+        private const string UserSkillFullHelpStart =
+            "YSoNet generates deserialization payloads for a variety of .NET formatters.";
+
+        private static void UserSkillCoversPublicInterface()
+        {
+            const string rowName = "shipped Agent Skill catalogue coverage";
+            if (!TestEnvironment.CanRun(TestEnvironment.RepoCheckout, rowName))
+                return;
+
+            string root = TestEnvironment.WorkspaceRoot();
+            AssertTrue(root != null,
+                "the checkout was probed as usable, so its root has to resolve here");
+
+            string skillRoot = Path.Combine(root, ".claude", "skills", "ysonet-payloads");
+            string skillPath = Path.Combine(skillRoot, "SKILL.md");
+            string cliPath = Path.Combine(skillRoot, "references", "cli-and-interactive.md");
+            string selectionPath = Path.Combine(skillRoot, "references", "selection-guide.md");
+            string fullHelpPath = Path.Combine(root, UserSkillFullHelp);
+
+            AssertTrue(File.Exists(skillPath), "the user skill entry point must be tracked");
+            AssertTrue(File.Exists(cliPath), "the user skill CLI/interactive reference must be tracked");
+            AssertTrue(File.Exists(selectionPath), "the user skill selection reference must be tracked");
+            AssertTrue(File.Exists(fullHelpPath), "the user skill full-help reference must be tracked");
+
+            string fullHelp = File.ReadAllText(fullHelpPath);
+            int gadgetHeading = fullHelp.IndexOf("== GADGETS ==", StringComparison.Ordinal);
+            int pluginHeading = fullHelp.IndexOf("== PLUGINS ==", StringComparison.Ordinal);
+            int usageHeading = fullHelp.IndexOf("Usage: ysonet.exe [options]", StringComparison.Ordinal);
+            AssertTrue(gadgetHeading >= 0 && pluginHeading > gadgetHeading && usageHeading > pluginHeading,
+                UserSkillFullHelp + " must keep the gadget, plugin, and global-option sections");
+
+            int snapshotStart = fullHelp.IndexOf(UserSkillFullHelpStart, StringComparison.Ordinal);
+            AssertTrue(snapshotStart >= 0,
+                UserSkillFullHelp + " must keep the generated --fullhelp body");
+            int exit;
+            string liveHelp, helpError;
+            AssertTrue(TryRunYsonet("--fullhelp", out exit, out liveHelp, out helpError),
+                "ysonet.exe must be built beside the test runner");
+            AssertEqual(0, exit, "live --fullhelp exits 0 while checking the shipped skill");
+            AssertEqual(NormalizeUserSkillHelp(fullHelp.Substring(snapshotStart)),
+                NormalizeUserSkillHelp(liveHelp),
+                "the shipped Agent Skill full-help snapshot matches the built public CLI exactly");
+
+            foreach (string name in CliListing.Gadgets())
+            {
+                string section = UserSkillModuleSection(
+                    fullHelp, name, gadgetHeading, pluginHeading);
+                AssertTrue(section != null,
+                    UserSkillFullHelp + " is missing public gadget " + name);
+
+                IGenerator gadget = GadgetRegistry.CreateGadgetInstance(name);
+                AssertTrue(gadget != null, "listed gadget " + name + " must resolve");
+                foreach (string formatter in gadget.SupportedFormatters())
+                    AssertTrue(section.IndexOf(formatter, StringComparison.Ordinal) >= 0,
+                        "the user skill section for " + name + " is missing formatter " + formatter);
+                foreach (string option in CliListing.GadgetOptions(name))
+                    AssertTrue(section.IndexOf(option, StringComparison.Ordinal) >= 0,
+                        "the user skill section for " + name + " is missing option " + option);
+                foreach (GadgetVariant variant in gadget.Variants())
+                    AssertTrue(section.IndexOf("Categories [variant " + variant.Number + "]",
+                            StringComparison.Ordinal) >= 0,
+                        "the user skill section for " + name + " is missing variant "
+                        + variant.Number + " metadata");
+            }
+
+            foreach (string name in CliListing.Plugins())
+            {
+                string section = UserSkillModuleSection(
+                    fullHelp, name, pluginHeading, usageHeading);
+                AssertTrue(section != null,
+                    UserSkillFullHelp + " is missing public plugin " + name);
+                foreach (string option in CliListing.PluginOptions(name))
+                    AssertTrue(section.IndexOf(option, StringComparison.Ordinal) >= 0,
+                        "the user skill section for plugin " + name + " is missing option " + option);
+            }
+
+            string globalOptions = fullHelp.Substring(usageHeading);
+            foreach (string option in CliListing.OptionTokens(ysonet.Program.options))
+                AssertTrue(globalOptions.IndexOf(option, StringComparison.Ordinal) >= 0,
+                    "the user skill global command-line reference is missing option " + option);
+            string compactGlobalOptions = RemoveWhitespace(globalOptions);
+            foreach (string output in CliListing.OutputFormats)
+                AssertTrue(compactGlobalOptions.IndexOf(output, StringComparison.Ordinal) >= 0,
+                    "the user skill global command-line reference is missing output " + output);
+        }
+
+        private static string RemoveWhitespace(string value)
+        {
+            var compact = new StringBuilder(value.Length);
+            foreach (char c in value)
+                if (!char.IsWhiteSpace(c))
+                    compact.Append(c);
+            return compact.ToString();
+        }
+
+        private static string NormalizeUserSkillHelp(string value)
+        {
+            string normalized = (value ?? "").Replace("\r\r\n", "\n")
+                .Replace("\r\n", "\n").Replace('\r', '\n');
+            normalized = System.Text.RegularExpressions.Regex.Replace(
+                normalized, "[ \\t]+(?=\\n|$)", "");
+            return normalized.TrimEnd('\n');
+        }
+
+        private static string UserSkillModuleSection(
+            string text, string name, int groupStart, int groupEnd)
+        {
+            string marker = "\t(*) " + name;
+            int start = groupStart;
+            while (true)
+            {
+                start = text.IndexOf(marker, start, StringComparison.Ordinal);
+                if (start < 0 || start >= groupEnd)
+                    return null;
+
+                int after = start + marker.Length;
+                if (after >= text.Length || text[after] == ' ' || text[after] == '\r'
+                    || text[after] == '\n')
+                    break;
+                start = after;
+            }
+
+            int end = text.IndexOf("\n\t(*) ", start + marker.Length,
+                StringComparison.Ordinal);
+            if (end < 0 || end > groupEnd)
+                end = groupEnd;
+            return text.Substring(start, end - start);
+        }
+
         // ================= docs/minification-savings.md coverage =================
         //
         // That page is a hand-made snapshot: prose plus two pasted tables, produced by one
@@ -2079,6 +2238,187 @@ namespace ysonet.Tests
                 int.Parse(m.Groups[1].Value.Replace(",", "")),
                 int.Parse(m.Groups[2].Value.Replace(",", "")),
             };
+        }
+
+        // ================= docs/gadgets-and-plugins.md coverage =================
+        //
+        // The public catalog page carries two PASTED snapshots of the live listing: the
+        // concise gadget lines from normal help ("Name (formatters)", Program.cs) and the
+        // plugin lines ("Name (description)"). Nothing regenerated them and nothing
+        // compared them, so both blocks drifted and both were found by READING the page:
+        // the Xps plugin line had lost a clause the tool prints, and XamlTypeConverterFetch
+        // still carried bare formatter tokens after the gadget grew a second variant.
+        //
+        // This row rebuilds every line from the same source the CLI prints and compares it
+        // verbatim, so a new gadget or plugin, a changed formatter set, a new variant
+        // suffix, or a reworded plugin description fails the build instead of waiting for a
+        // reader. Only the two generated blocks are asserted; the surrounding prose is
+        // hand-written and is deliberately left alone.
+        //
+        // Hidden gadgets are the one intended difference, and it is ENCODED rather than
+        // tolerated: the page's own preamble says a GadgetTags.Hidden gadget is left out, so
+        // a row for one fails just like a missing public row does. Private modules need no
+        // rule here: the listing helpers this row reads never return one without
+        // --display-private, so a private name in the page shows up as an unknown module.
+        private static readonly string PublicCatalogDoc =
+            Path.Combine("docs", "gadgets-and-plugins.md");
+
+        private static void PublicCatalogDocMatchesLiveCatalogue()
+        {
+            const string rowName = "public catalog doc coverage";
+            if (!TestEnvironment.CanRun(TestEnvironment.RepoCheckout, rowName))
+                return;
+
+            string root = TestEnvironment.WorkspaceRoot();
+            AssertTrue(root != null,
+                "the checkout was probed as usable, so its root has to resolve here");
+
+            string path = Path.Combine(root, PublicCatalogDoc);
+            AssertTrue(File.Exists(path), PublicCatalogDoc + " is tracked, so it must exist");
+            string[] lines = File.ReadAllLines(path);
+
+            // ---- gadgets ----------------------------------------------------------
+            var expectedGadgets = new List<string>();
+            var hiddenGadgets = new List<string>();
+            foreach (string name in CliListing.Gadgets())
+            {
+                IGenerator gadget = GadgetRegistry.CreateGadgetInstance(name);
+                AssertTrue(gadget != null, "listed gadget " + name + " must resolve");
+
+                List<string> labels = gadget.Labels() ?? new List<string>();
+                if (labels.Contains(GadgetTags.Hidden)) { hiddenGadgets.Add(name); continue; }
+
+                // Exactly what normal help prints for this gadget: the formatter strings as
+                // the gadget declares them, annotations included, in the same order. The
+                // CLI sorts with a stable OrderBy; List.Sort is not stable, so the ordinal
+                // tie-break keeps this deterministic even for two formatters that differ
+                // only by case.
+                var formatters = new List<string>(gadget.SupportedFormatters());
+                formatters.Sort(delegate(string a, string b)
+                {
+                    int byName = StringComparer.OrdinalIgnoreCase.Compare(a, b);
+                    return byName != 0 ? byName : StringComparer.Ordinal.Compare(a, b);
+                });
+                expectedGadgets.Add(
+                    name + " (" + string.Join(", ", formatters.ToArray()) + ")");
+            }
+
+            List<string> docGadgets = PublicCatalogBlock(lines, "## Gadgets");
+            foreach (string name in hiddenGadgets)
+                AssertTrue(PublicCatalogRowFor(docGadgets, name) == null,
+                    PublicCatalogDoc + " has a row for \"" + name + "\", which carries "
+                    + "GadgetTags.Hidden. The page's preamble says hidden gadgets are left out "
+                    + "of this snapshot, so drop the row or drop the label.");
+            ComparePublicCatalogBlock("gadget", docGadgets, expectedGadgets);
+
+            // ---- plugins ----------------------------------------------------------
+            var expectedPlugins = new List<string>();
+            foreach (string name in CliListing.Plugins())
+            {
+                IPlugin plugin = PluginRegistry.CreatePluginInstance(name);
+                AssertTrue(plugin != null, "listed plugin " + name + " must resolve");
+                expectedPlugins.Add(name + " (" + plugin.Description() + ")");
+            }
+
+            ComparePublicCatalogBlock("plugin",
+                PublicCatalogBlock(lines, "Available plugins:"), expectedPlugins);
+        }
+
+        // The first fenced text block after the given marker line, without its blank lines.
+        // The page has several such blocks, so the marker is what picks one.
+        private static List<string> PublicCatalogBlock(string[] lines, string marker)
+        {
+            var rows = new List<string>();
+
+            int i = 0;
+            while (i < lines.Length && lines[i].Trim() != marker) i++;
+            AssertTrue(i < lines.Length,
+                PublicCatalogDoc + " no longer contains the line \"" + marker + "\", which is "
+                + "what selects the block this check reads. Keep that line, or update this "
+                + "check together with it.");
+
+            while (i < lines.Length && !lines[i].StartsWith("```text", StringComparison.Ordinal)) i++;
+            AssertTrue(i < lines.Length,
+                PublicCatalogDoc + " has no fenced text block after \"" + marker + "\"");
+
+            for (i++; i < lines.Length; i++)
+            {
+                if (lines[i].StartsWith("```", StringComparison.Ordinal)) break;
+                string row = lines[i].Trim();
+                if (row.Length > 0) rows.Add(row);
+            }
+            AssertTrue(rows.Count > 0,
+                "the block after \"" + marker + "\" in " + PublicCatalogDoc + " is empty");
+            return rows;
+        }
+
+        // Both blocks use "Name (details)", and a name never contains a space, so the first
+        // " (" separates them. A plugin description carries its own brackets, which is why
+        // only that first separator is used and the row must still close with ")".
+        private static string PublicCatalogRowName(string row)
+        {
+            int split = row.IndexOf(" (", StringComparison.Ordinal);
+            if (split <= 0 || !row.EndsWith(")", StringComparison.Ordinal)) return null;
+            return row.Substring(0, split);
+        }
+
+        private static string PublicCatalogRowFor(List<string> rows, string name)
+        {
+            foreach (string row in rows)
+                if (string.Equals(PublicCatalogRowName(row), name, StringComparison.Ordinal))
+                    return row;
+            return null;
+        }
+
+        // Compares one pasted block with the live listing by NAME, so a missing module, a
+        // module that no longer exists, and a stale detail string are reported separately and
+        // each message names exactly what to paste.
+        private static void ComparePublicCatalogBlock(
+            string kind, List<string> docRows, List<string> liveRows)
+        {
+            var docByName = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (string row in docRows)
+            {
+                string name = PublicCatalogRowName(row);
+                AssertTrue(name != null,
+                    PublicCatalogDoc + " has a " + kind + " line that is not \"Name (details)\": "
+                    + row);
+                AssertTrue(!docByName.ContainsKey(name),
+                    PublicCatalogDoc + " lists " + kind + " " + name + " twice");
+                docByName.Add(name, row);
+            }
+
+            var liveByName = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (string row in liveRows)
+                liveByName.Add(PublicCatalogRowName(row), row);
+
+            var missing = new List<string>();
+            foreach (KeyValuePair<string, string> live in liveByName)
+                if (!docByName.ContainsKey(live.Key)) missing.Add(live.Value);
+            AssertTrue(missing.Count == 0,
+                PublicCatalogDoc + " has no " + kind + " row for " + missing.Count
+                + " module(s) the tool lists. Paste these lines into the block:\n  "
+                + string.Join("\n  ", missing.ToArray()));
+
+            var stale = new List<string>();
+            foreach (KeyValuePair<string, string> row in docByName)
+                if (!liveByName.ContainsKey(row.Key)) stale.Add(row.Key);
+            AssertTrue(stale.Count == 0,
+                PublicCatalogDoc + " lists " + stale.Count + " " + kind + "(s) the tool does not: "
+                + string.Join(", ", stale.ToArray()) + ". They were renamed, removed, hidden, or "
+                + "made private.");
+
+            var wrong = new List<string>();
+            foreach (KeyValuePair<string, string> row in docByName)
+            {
+                string live;
+                if (!liveByName.TryGetValue(row.Key, out live)) continue;
+                if (!string.Equals(row.Value, live, StringComparison.Ordinal))
+                    wrong.Add(row.Key + "\n      page: " + row.Value + "\n      tool: " + live);
+            }
+            AssertTrue(wrong.Count == 0,
+                PublicCatalogDoc + " is stale for " + wrong.Count + " " + kind + "(s). Replace each "
+                + "page line with the tool line:\n    " + string.Join("\n    ", wrong.ToArray()));
         }
 
         // ================= Private module visibility =================
@@ -3279,6 +3619,9 @@ namespace ysonet.Tests
                 "counts DLL-path variants, not getter choices");
             AssertOptionHelpContains("WbemClassObjectUnmarshal", "rootcarrier",
                 "counts blob variants, not root-carrier choices");
+            AssertOptionHelpContains("TextFormattingRunProperties",
+                TextFormattingRunPropertiesGenerator.HasRootDcsOptionName,
+                "applies only to DataContractSerializer");
         }
 
         private static void AssertOptionHelpContains(string gadget, string option,
@@ -10587,6 +10930,130 @@ namespace ysonet.Tests
             AssertInfoPanelKeepsItsFacts(DumGadget);
         }
 
+        private static void TextFormattingRunPropertiesHasRootDcsWrapsTheDocument()
+        {
+            foreach (bool hasRoot in new[] { false, true })
+            {
+                foreach (bool minify in new[] { false, true })
+                {
+                    string label = (hasRoot ? "--hasRootDCS" : "default")
+                        + (minify ? " --minify" : "");
+                    using (FireTarget fire = FireBackend.Create("tfrp_dcs_"
+                        + (hasRoot ? "root" : "plain") + (minify ? "_m" : "_n")))
+                    {
+                        InputArgs ia = new InputArgs();
+                        ia.Cmd = fire.Command;
+                        ia.IsRawCmd = true;
+                        ia.Test = true;
+                        ia.Minify = minify;
+                        if (hasRoot)
+                        {
+                            ia.ExtraArguments = new List<string>
+                            {
+                                "--" + TextFormattingRunPropertiesGenerator.HasRootDcsOptionName
+                            };
+                        }
+
+                        RunResult r = null;
+                        RunSTA(delegate
+                        {
+                            r = PayloadRunner.GenerateGadget(new GenerationRequest
+                            {
+                                GadgetName = "TextFormattingRunProperties",
+                                FormatterName = Formatters.DataContractSerializer,
+                                OutputFormat = "",
+                                InputArgs = ia,
+                            });
+                        });
+
+                        AssertTrue(r != null && r.Success,
+                            label + " generates and runs its DCS self-test: "
+                                + (r == null ? "no result" : r.ErrorMessage));
+                        if (r == null || !r.Success)
+                            continue;
+
+                        var document = new XmlDocument();
+                        document.LoadXml(Text(r.Raw));
+                        AssertEqual(hasRoot ? "root" : "TextFormattingRunProperties",
+                            document.DocumentElement.LocalName,
+                            label + " has the requested document root");
+                        AssertEqual(hasRoot,
+                            document.DocumentElement.HasAttribute("type"),
+                            label + " writes the root type attribute only for --hasRootDCS");
+                        if (hasRoot)
+                        {
+                            XmlElement child = document.DocumentElement.FirstChild as XmlElement;
+                            AssertTrue(child != null, label + " contains the typed DCS document");
+                            if (child != null)
+                            {
+                                AssertEqual("TextFormattingRunProperties", child.LocalName,
+                                    label + " wraps the target type, not the authoring marshal");
+                            }
+                            AssertTrue(Text(r.Raw).IndexOf("TextFormattingRunPropertiesMarshal",
+                                    StringComparison.Ordinal) < 0,
+                                label + " does not restore the authoring marshal inside root");
+                        }
+                        AssertTrue(fire.Wait(MarkerWaitMs),
+                            label + " deserializes through the matching self-test path and fires");
+                    }
+                }
+            }
+
+            var editor = new ModuleEditor(null, null, true, null, null);
+            var fields = editor.BuildFieldsForTest("TextFormattingRunProperties");
+            EditableField root = FindEditable(fields,
+                TextFormattingRunPropertiesGenerator.HasRootDcsOptionName);
+            AssertTrue(root != null && !root.Hidden && root.ModuleOwn,
+                "the interactive editor offers --hasRootDCS as a gadget option");
+            if (root != null)
+            {
+                root.Value = "true";
+                AssertTrue(editor.GadgetCommandLineForTest().Contains(
+                        "--" + TextFormattingRunPropertiesGenerator.HasRootDcsOptionName),
+                    "the interactive editor emits --hasRootDCS when enabled");
+            }
+        }
+
+        private static void TextFormattingRunPropertiesHasRootDcsRefusesOtherFormatters()
+        {
+            foreach (string formatter in Gadget("TextFormattingRunProperties").SupportedFormatters())
+            {
+                if (string.Equals(formatter, Formatters.DataContractSerializer,
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                foreach (bool minify in new[] { false, true })
+                {
+                    InputArgs ia = new InputArgs();
+                    ia.Cmd = "unused-without-self-test";
+                    ia.Minify = minify;
+                    ia.ExtraArguments = new List<string>
+                    {
+                        "--" + TextFormattingRunPropertiesGenerator.HasRootDcsOptionName
+                    };
+                    RunResult refused = PayloadRunner.GenerateGadget(new GenerationRequest
+                    {
+                        GadgetName = "TextFormattingRunProperties",
+                        FormatterName = formatter,
+                        OutputFormat = "",
+                        InputArgs = ia,
+                    });
+
+                    string label = formatter + (minify ? " --minify" : "");
+                    AssertTrue(!refused.Success, label + " refuses --hasRootDCS");
+                    AssertTrue(refused.Raw == null, label + " returns no payload when refused");
+                    string message = refused.ErrorMessage ?? "";
+                    AssertTrue(message.Contains(formatter),
+                        label + " refusal names the formatter: " + message);
+                    AssertTrue(message.Contains(
+                            TextFormattingRunPropertiesGenerator.HasRootDcsOptionName),
+                        label + " refusal names the option: " + message);
+                    AssertTrue(message.Contains(Formatters.DataContractSerializer),
+                        label + " refusal names the supported formatter: " + message);
+                }
+            }
+        }
+
         // TextFormattingRunProperties' --xamlurl used to steer ObjectDataProvider onto variant
         // 3. It now carries the ResourceDictionary gadget instead, and the SharePoint plugin's
         // --useurl mode rides the same path. The payload the target sees is unchanged, which
@@ -14497,6 +14964,10 @@ namespace ysonet.Tests
             EditableField tfrpXamlUrl = FindEditable(tfrpFields, "xamlurl");
             AssertTrue(tfrpXamlUrl != null && !tfrpXamlUrl.Hidden,
                 "TextFormattingRunProperties still offers xamlurl");
+            EditableField tfrpHasRootDcs = FindEditable(tfrpFields,
+                TextFormattingRunPropertiesGenerator.HasRootDcsOptionName);
+            AssertTrue(tfrpHasRootDcs != null && !tfrpHasRootDcs.Hidden,
+                "TextFormattingRunProperties still offers hasRootDCS");
 
             // ObjectDataProvider keeps its variants and its one plain option, and every
             // variant leaves that option visible.
@@ -16870,14 +17341,12 @@ namespace ysonet.Tests
             t.Join();
         }
 
-        // How long a fired payload gets to drop its marker file (or directory).
+        // How long a fired payload gets to publish its sink record or other asynchronous
+        // file/directory effect.
         //
-        // The payload spawns a real process (`cmd /c echo x > marker`), so the marker
-        // lands asynchronously and this budget is pure wall clock. A short budget is a
-        // false-negative generator: on a loaded machine a run reported 34 "marker not
-        // created" failures while EVERY one of those markers was in fact written a few
-        // seconds later. The proof was the leftover files - the finally-delete ran
-        // before the write, so the marker survived the test that had already given up.
+        // The payload spawns a real process, so its evidence lands asynchronously and this
+        // budget is pure wall clock. A short budget is a false-negative generator on a
+        // loaded machine.
         //
         // Raising the ceiling does not weaken anything: a healthy row still has to
         // produce the marker, and WaitForFile polls every 100ms so it returns the
@@ -20135,11 +20604,9 @@ namespace ysonet.Tests
             return WriteTestArtifact(name, content);
         }
 
-        // Leftovers from an earlier run: mostly fire markers that the spawned
-        // "cmd /c echo x > marker" re-creates a moment AFTER the test already deleted it,
-        // plus whatever a crashed or killed run never cleaned up. They never cause a false
-        // pass (every fire helper deletes its marker before firing), but they pile up, so
-        // each run sweeps them once at startup.
+        // Leftovers from a crashed or killed run. They never cause a false pass (every fire
+        // helper clears its own evidence before firing), but they pile up, so each run sweeps
+        // them once at startup.
         private static readonly TimeSpan StaleArtifactAge = TimeSpan.FromHours(1);
 
         private static void SweepStaleTestArtifacts()
@@ -21596,12 +22063,10 @@ namespace ysonet.Tests
             return TestArtifactPath("ysonet_fire_" + tag + ".txt");
         }
 
-        // Every cleanup of a fire marker must go through this, never a bare File.Delete.
-        // WaitForFile returns as soon as the file EXISTS, and "cmd /c echo x > marker"
-        // creates it before it writes and closes, so a delete right after the wait can
-        // land while the spawned cmd still holds the handle and throws "used by another
-        // process". That is housekeeping failing, not the payload failing, so it must
-        // never fail a test: the startup sweep removes whatever is left behind.
+        // Every cleanup of a process-created file must go through this, never a bare
+        // File.Delete. WaitForFile returns as soon as the file EXISTS, which can be before
+        // the child closes it. That is housekeeping failing, not the payload failing, so it
+        // must never fail a test: the startup sweep removes whatever is left behind.
         private static void SafeDelete(string path)
         {
             try { if (path != null && File.Exists(path)) File.Delete(path); } catch { }
@@ -21750,13 +22215,9 @@ namespace ysonet.Tests
             const string label = "fire TypeConfuseDelegate_reversed_pair";
             if (trace) { Console.Error.WriteLine("    [fire] " + label); Console.Error.Flush(); }
 
-            if (!FireBackend.UsesSink)
-            {
-                skipped++;
-                Console.Error.WriteLine("  [skip] " + label
-                    + ": the legacy marker backend cannot express a reversed pair");
-                return;
-            }
+            // Main has already made sink availability a hard gate. Keep the same guard here
+            // so a focused caller also gets the probe reason instead of a null-path failure.
+            FireBackend.RequireAvailable();
 
             // Sorts below a minted tag ("0p..."): same leading digit, then 'a' before 'p'.
             const string sinkCopyName = "0asink.exe";
@@ -26639,7 +27100,6 @@ namespace ysonet.Tests
             AssertEqual(UiIsolationMode.Desktop, plain.Ui, "auto resolves to desktop on a developer machine");
             AssertEqual(WerContainmentMode.Job, plain.Wer, "the WER job is on by default");
             AssertTrue(plain.StatusEnabled && plain.StatusPath == null, "status defaults to the canonical path");
-            AssertTrue(plain.SinkAllowed, "the sink is probed by default");
             AssertTrue(!plain.Full && !plain.Dos && !plain.Oob && !plain.Legacy && !plain.Net40,
                 "no tier is enabled by default");
             AssertEqual("NORMAL", plain.DescribeTiers(), "a bare run describes itself as NORMAL only");
@@ -26721,19 +27181,12 @@ namespace ysonet.Tests
             AssertTrue(TestRunOptions.Parse(new string[0], Env(TestRunOptions.StatusVar, "off"), false).StatusEnabled == false,
                 "the status environment variable also accepts off");
 
-            AssertTrue(!TestRunOptions.Parse(new string[0], Env(TestRunOptions.SinkVar, "off"), false).SinkAllowed,
-                "YSONET_TEST_SINK=off forces the legacy marker");
-            AssertTrue(TestRunOptions.Parse(new string[0], Env(TestRunOptions.SinkVar, "auto"), false).SinkAllowed,
-                "YSONET_TEST_SINK=auto keeps the default");
-
             // Invalid enumerated values and missing values are operator errors: one message,
             // exit code 2, before any test runs.
             AssertTrue(TestRunOptions.Parse(new[] { "--ui-isolation=sideways" }, noEnv, false).ConfigError != null,
                 "an unknown UI isolation mode is rejected");
             AssertTrue(TestRunOptions.Parse(new[] { "--wer-containment=maybe" }, noEnv, false).ConfigError != null,
                 "an unknown WER containment mode is rejected");
-            AssertTrue(TestRunOptions.Parse(new string[0], Env(TestRunOptions.SinkVar, "sometimes"), false).ConfigError != null,
-                "an unknown sink value is rejected");
             AssertTrue(TestRunOptions.Parse(new[] { "--test-lock=maybe" }, noEnv, false).ConfigError != null,
                 "an unknown test lock mode is rejected");
             AssertTrue(TestRunOptions.Parse(new[] { "--ui-isolation" }, noEnv, false).ConfigError != null,
@@ -27061,7 +27514,7 @@ namespace ysonet.Tests
             RunStatus status = null;
             try
             {
-                status = RunStatus.Start(path, dir, 4242, "NORMAL", "none", "off", "legacy-cmd");
+                status = RunStatus.Start(path, dir, 4242, "NORMAL", "none", "off", "test-sink");
                 AssertTrue(!status.Disabled && status.Path == path, "status publishes to the requested path");
 
                 // A reader that polls and REOPENS must never see a partial file, no matter how
@@ -27273,7 +27726,7 @@ namespace ysonet.Tests
                 string blocker = Path.Combine(dir, "blocker.txt");
                 File.WriteAllText(blocker, "not a directory");
                 using (RunStatus broken = RunStatus.Start(Path.Combine(blocker, "sub", "run.txt"),
-                    dir, 7, "NORMAL", "none", "off", "legacy-cmd"))
+                    dir, 7, "NORMAL", "none", "off", "test-sink"))
                 {
                     AssertTrue(broken.Disabled, "an unwritable status destination disables status");
                     // Still callable, and still silent.
@@ -27286,9 +27739,9 @@ namespace ysonet.Tests
                 // liveness probe is injected here so the test does not depend on two real
                 // processes existing with the pids it made up.
                 File.Delete(canonical);
-                using (RunStatus a = RunStatus.Start(null, dir, 11, "NORMAL", "none", "off", "legacy-cmd",
+                using (RunStatus a = RunStatus.Start(null, dir, 11, "NORMAL", "none", "off", "test-sink",
                     null, allAlive))
-                using (RunStatus b = RunStatus.Start(null, dir, 12, "NORMAL", "none", "off", "legacy-cmd",
+                using (RunStatus b = RunStatus.Start(null, dir, 12, "NORMAL", "none", "off", "test-sink",
                     null, allAlive))
                 {
                     AssertEqual(canonical, a.Path, "the first live run takes the canonical file");
@@ -27715,11 +28168,7 @@ namespace ysonet.Tests
         private static void TestSinkRejectsInvalidInput()
         {
             string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.TestSink.exe");
-            if (!File.Exists(exe))
-            {
-                Console.Error.WriteLine("  [skip] the test sink is not staged beside the test exe");
-                return;
-            }
+            AssertTrue(File.Exists(exe), "the required test sink is staged beside the test exe");
 
             string dir = Path.Combine(ResolveTestArtifactDir(), "ysonet_sinkin_" + Guid.NewGuid().ToString("N").Substring(0, 8));
             Directory.CreateDirectory(dir);
@@ -27780,11 +28229,7 @@ namespace ysonet.Tests
         private static void TestSinkPublishesUniqueCompleteRecords()
         {
             string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.TestSink.exe");
-            if (!File.Exists(exe))
-            {
-                Console.Error.WriteLine("  [skip] the test sink is not staged beside the test exe");
-                return;
-            }
+            AssertTrue(File.Exists(exe), "the required test sink is staged beside the test exe");
 
             string dir = Path.Combine(ResolveTestArtifactDir(), "ysonet_sinkrace_" + Guid.NewGuid().ToString("N").Substring(0, 8));
             Directory.CreateDirectory(dir);
@@ -27852,7 +28297,7 @@ namespace ysonet.Tests
                 string resolved = FireBackend.ResolveSpaceFreePath(file);
                 if (resolved == null)
                 {
-                    Console.Error.WriteLine("  [info] 8.3 short names are unavailable here; the sink would use the legacy backend");
+                    Console.Error.WriteLine("  [info] 8.3 short names are unavailable here; a runner staged at this path would fail loudly");
                 }
                 else
                 {
@@ -27879,7 +28324,7 @@ namespace ysonet.Tests
                 "and a digit-first executable name sorts BELOW it, which is the reversed case");
         }
 
-        private static void TestSinkProbeSelectsBackend()
+        private static void TestSinkProbeRequiresAvailableSink()
         {
             FireBackend.BackendState saved = FireBackend.Snapshot();
             string artifacts = ResolveTestArtifactDir();
@@ -27887,71 +28332,64 @@ namespace ysonet.Tests
             Directory.CreateDirectory(scratch);
             try
             {
-                // 1) Forced off: the legacy marker, with no probe at all.
-                FireBackend.Select(false, artifacts, MarkerPath);
-                AssertTrue(!FireBackend.UsesSink, "YSONET_TEST_SINK=off selects the legacy marker");
-                AssertEqual("legacy-cmd", FireBackend.Name, "the forced-off backend is named legacy-cmd");
-                AssertTrue(FireBackend.Description.Contains(TestRunOptions.SinkVar + "=off"),
-                    "the forced-off reason names the switch: " + FireBackend.Description);
-                using (FireTarget legacy = FireBackend.Create("selection_off"))
-                    AssertTrue(legacy.Command.StartsWith("cmd /c echo "),
-                        "the legacy backend still emits the original marker command");
+                // 1) A missing executable is a hard failure with the exact probe reason.
+                FireBackend.Select(artifacts, Path.Combine(scratch, "ysonet_no_such_sink.exe"));
+                AssertSinkUnavailable("not found");
 
-                // 2) A missing executable: one reason, and still no skipped rows.
-                FireBackend.Select(true, artifacts, MarkerPath,
-                    Path.Combine(scratch, "ysonet_no_such_sink.exe"));
-                AssertTrue(!FireBackend.UsesSink, "a missing sink selects the legacy marker");
-                AssertTrue(FireBackend.Description.Contains("not found"),
-                    "a missing sink says so: " + FireBackend.Description);
-
-                // 3) An unlaunchable file: Process.Start refuses it. Use an existing
+                // 2) An unlaunchable file: Process.Start refuses it. Use an existing
                 // managed DLL instead of writing a fake .exe: endpoint scanners can hold a
                 // newly created invalid executable inside Process.Start for minutes, which
-                // tests the scanner rather than this fallback.
+                // tests the scanner rather than the sink contract.
                 string notAProgram = new Uri(typeof(OptionSet).Assembly.CodeBase).LocalPath;
                 AssertTrue(File.Exists(notAProgram),
                     "the unlaunchable managed-DLL fixture exists: " + notAProgram);
-                FireBackend.Select(true, artifacts, MarkerPath, notAProgram);
-                AssertTrue(!FireBackend.UsesSink, "an unlaunchable sink selects the legacy marker");
-                AssertTrue(FireBackend.Description.StartsWith("legacy-cmd ("),
-                    "an unlaunchable sink reports a reason: " + FireBackend.Description);
+                FireBackend.Select(artifacts, notAProgram);
+                AssertSinkUnavailable("could not be launched");
 
-                // 4) A real program that is not the sink: it writes no valid record.
+                // 3) A real program that is not the sink: it writes no valid record.
                 string ysonetExe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
-                if (File.Exists(ysonetExe))
+                AssertTrue(File.Exists(ysonetExe), "the record-less program fixture exists");
+                FireBackend.Select(artifacts, ysonetExe);
+                AssertSinkUnavailable("wrote no valid record");
+
+                // 4) A real sink path with no space-free form is refused before launch.
+                string spacedDir = Path.Combine(scratch, "sink path with spaces");
+                Directory.CreateDirectory(spacedDir);
+                string stagedSink = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                    "ysonet.TestSink.exe");
+                AssertTrue(File.Exists(stagedSink),
+                    "the required test sink exists for the space-path probe");
+                string spacedSink = Path.Combine(spacedDir, "ysonet.TestSink.exe");
+                File.Copy(stagedSink, spacedSink, true);
+                if (FireBackend.ResolveSpaceFreePath(spacedSink) == null)
                 {
-                    FireBackend.Select(true, artifacts, MarkerPath, ysonetExe);
-                    AssertTrue(!FireBackend.UsesSink, "a program that publishes no record selects the legacy marker");
-                    AssertTrue(FireBackend.Description.StartsWith("legacy-cmd ("),
-                        "a record-less probe reports a reason: " + FireBackend.Description);
+                    FireBackend.Select(artifacts, spacedSink);
+                    AssertSinkUnavailable("space-free form");
+                }
+                else
+                {
+                    Console.Error.WriteLine("  [info] 8.3 short names are available here; "
+                        + "the space-path failure branch is covered by ResolveSpaceFreePath");
                 }
 
                 // 5) An unusable record directory (a path under a file).
                 string blocker = Path.Combine(scratch, "blocker.txt");
                 File.WriteAllText(blocker, "not a directory");
-                FireBackend.Select(true, Path.Combine(blocker, "sub"), MarkerPath);
-                AssertTrue(!FireBackend.UsesSink, "an unusable record directory selects the legacy marker");
-                AssertTrue(FireBackend.Description.Contains("record directory"),
-                    "the record-directory failure says so: " + FireBackend.Description);
+                FireBackend.Select(Path.Combine(blocker, "sub"));
+                AssertSinkUnavailable("record directory");
 
-                // 6) The real sink, if it is staged: selected, and its targets carry the tag.
+                // 6) The real sink is required, and its targets carry the tag.
                 string realSink = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.TestSink.exe");
-                if (File.Exists(realSink))
+                AssertTrue(File.Exists(realSink), "the required test sink is staged beside the test exe");
+                FireBackend.Select(artifacts);
+                AssertTrue(FireBackend.IsAvailable, "a working sink is selected: " + FireBackend.Description);
+                AssertEqual("test-sink", FireBackend.Name, "the sink backend is named test-sink");
+                using (FireTarget target = FireBackend.Create("selection_on"))
                 {
-                    FireBackend.Select(true, artifacts, MarkerPath);
-                    AssertTrue(FireBackend.UsesSink, "a working sink is selected: " + FireBackend.Description);
-                    AssertEqual("test-sink", FireBackend.Name, "the sink backend is named test-sink");
-                    using (FireTarget target = FireBackend.Create("selection_on"))
-                    {
-                        AssertTrue(target.Command.StartsWith(FireBackend.SinkExePath),
-                            "a sink target runs the sink executable: " + target.Command);
-                        AssertEqual(2, target.Command.Split(' ').Length,
-                            "a sink command splits into exactly an executable and one tag: " + target.Command);
-                    }
-                }
-                else
-                {
-                    Console.Error.WriteLine("  [skip] the test sink is not staged; only the fallback branches were checked");
+                    AssertTrue(target.Command.StartsWith(FireBackend.SinkExePath),
+                        "a sink target runs the sink executable: " + target.Command);
+                    AssertEqual(2, target.Command.Split(' ').Length,
+                        "a sink command splits into exactly an executable and one tag: " + target.Command);
                 }
             }
             finally
@@ -27962,14 +28400,32 @@ namespace ysonet.Tests
             }
         }
 
+        private static void AssertSinkUnavailable(string expectedReason)
+        {
+            AssertTrue(!FireBackend.IsAvailable,
+                "the sink stays unavailable after a failed probe: " + FireBackend.Description);
+            AssertEqual("test-sink-unavailable", FireBackend.Name,
+                "the status token exposes that no backend is active");
+            AssertTrue(FireBackend.Description.Contains(expectedReason),
+                "the unavailable description names '" + expectedReason + "': " + FireBackend.Description);
+
+            string requireFailure = null;
+            try { FireBackend.RequireAvailable(); }
+            catch (Exception ex) { requireFailure = ex.Message; }
+            AssertTrue(requireFailure != null && requireFailure.Contains(expectedReason),
+                "the startup gate fails loudly with the probe reason: " + requireFailure);
+
+            string createFailure = null;
+            try { FireBackend.Create("must_not_fallback"); }
+            catch (Exception ex) { createFailure = ex.Message; }
+            AssertTrue(createFailure != null && createFailure.Contains(expectedReason),
+                "a fire row cannot bypass the startup gate or select another backend: " + createFailure);
+        }
+
         private static void TestSinkRecordsParsedArgument()
         {
             string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.TestSink.exe");
-            if (!File.Exists(exe))
-            {
-                Console.Error.WriteLine("  [skip] the test sink is not staged beside the test exe");
-                return;
-            }
+            AssertTrue(File.Exists(exe), "the required test sink is staged beside the test exe");
 
             string dir = Path.Combine(ResolveTestArtifactDir(), "ysonet_sinkarg_" + Guid.NewGuid().ToString("N").Substring(0, 8));
             Directory.CreateDirectory(dir);

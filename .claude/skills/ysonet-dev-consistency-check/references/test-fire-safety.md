@@ -40,10 +40,9 @@ literal.
 
 ## An executed shell command comes from the shared sink
 
-`ysonet.Tests/Harness/TestSink.cs` selects one fire backend for the whole run and
-prefers the windowless `ysonet.TestSink.exe`, which records the exact argument
-the process received. The self-closing `cmd /c echo x > marker` form is its
-automatic fallback and belongs to that file alone.
+`ysonet.Tests/Harness/TestSink.cs` owns the one fire target for the whole run: the
+windowless `ysonet.TestSink.exe`, which records the exact argument the process
+received. There is no shell fallback.
 
 A command fire row therefore:
 
@@ -71,15 +70,17 @@ using one is not a finding:
 
 ## The sink has to be available
 
-If it is not, every command row silently drops to the weaker backend:
+It is required:
 
 - `ysonet.Tests.csproj` keeps `ysonet.TestSink.csproj` as a build-order
   `ProjectReference` (`ReferenceOutputAssembly=false`, `Private=false`);
 - the Debug post-build staging copies `ysonet.TestSink.exe` next to
   `ysonet.Tests.exe` in `ysonet/bin/Debug`;
-- the run header prints `Fire backend: test-sink (<path>)`. `legacy-cmd (...)`
-  names its reason in the brackets; report it, never accept it as equivalent
-  coverage.
+- the run header prints `Fire backend: test-sink (<path>)`;
+- if the sink is missing or unusable, the header prints
+  `Fire backend: test-sink unavailable (<reason>)`, one ordinary check fails with
+  that reason, the normal verdict and summary are printed, and the run stops before
+  any command fire row.
 
-`YSONET_TEST_SINK=off` forces the legacy marker on purpose and is the one
-expected way to see `legacy-cmd`.
+There is no off switch. A run that continues after sink failure has silently lost
+effect coverage and is invalid.
