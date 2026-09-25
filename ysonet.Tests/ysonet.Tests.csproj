@@ -217,9 +217,10 @@
     Build the unsafe victim with the .NET 4.0 compiler and exact 4.0 reference set. This
     does not make the local machine a 4.0 target: 4.5+ replaces 4.0 in place. The executable
     is copied into an isolated 4.0 VM and the NET40 tier talks to it through a shared folder.
+    NORMAL also probes its refusal on a replacement CLR, so compile it for Release
+    test builds too. CI stages it only into the extracted test copy, never the product ZIP.
   -->
-  <Target Name="BuildNet40TestHost" AfterTargets="CoreCompile"
-          Condition="'$(Configuration)' == 'Debug'">
+  <Target Name="BuildNet40TestHost" AfterTargets="CoreCompile">
     <MakeDir Directories="$(TargetDir)" />
     <Exec Condition="Exists('$(Net40Compiler)') and Exists('$(Net40ReferenceDir)\mscorlib.dll')"
           Command="&quot;$(Net40Compiler)&quot; /nologo /noconfig /nostdlib+ /target:exe /platform:anycpu /optimize+ /warn:4 /out:&quot;$(Net40TestHostExe)&quot; /reference:&quot;$(Net40ReferenceDir)\mscorlib.dll&quot; /reference:&quot;$(Net40ReferenceDir)\System.dll&quot; /reference:&quot;$(Net40ReferenceDir)\System.Web.dll&quot; /reference:&quot;$(Net40ReferenceDir)\System.Runtime.Serialization.Formatters.Soap.dll&quot; &quot;$(Net40TestHostSource)&quot;" />
@@ -307,8 +308,9 @@
     The CLR2/CLR4 victim executables are generated after the product build, rather than
     project content, so a ProjectReference does not copy them either.
 
-    Debug only, matching the two targets above: the suite never runs from a Release build,
-    and no test executable or fixture may reach a release artifact. Each copy is guarded by
+    Debug only, matching the staging target above. Release behavior is exercised in an
+    extracted ZIP by tools/ci/test_gate.py, which stages the test-only harness separately.
+    No test executable or fixture may reach a release artifact. Each copy is guarded by
     Exists, so a partial build skips it rather than failing.
   -->
   <Target Name="StageFixturesBesideTheTestBinary" AfterTargets="Build"

@@ -25,7 +25,7 @@ originally developed by Alvaro Muñoz (@pwntester), and is maintained by
 - Sites: [ysonet.net](https://ysonet.net) or [ysonet.com](https://ysonet.com) (both open this repo).
 
 ---
-[![Build](https://github.com/irsdl/ysonet/actions/workflows/build.yml/badge.svg)](https://github.com/irsdl/ysonet/actions/workflows/build.yml)
+[![Build and tests](https://github.com/irsdl/ysonet/actions/workflows/build.yml/badge.svg)](https://github.com/irsdl/ysonet/actions/workflows/build.yml)
 [![License](https://img.shields.io/github/license/irsdl/ysonet)](https://github.com/irsdl/ysonet/blob/master/LICENSE.txt)
 [![Download](https://img.shields.io/github/v/release/irsdl/ysonet?label=download)](https://github.com/irsdl/ysonet/releases/latest)
 

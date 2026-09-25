@@ -101,11 +101,16 @@ out of scope for this host. Both hosts share a small CLI: `--help`, `--probe`, a
   Release requires the Windows .NET
   Framework 3.5 feature for the CLR2 host; Debug warns and omits that host when the
   toolchain is unavailable. The CLR4 host builds with the always-present 4.x compiler.
-- CI: `.github/workflows/build.yml` (restore + msbuild Release on `windows-latest`,
-  installs/probes all three CLR2 hosts, checks the explicit process bitness, then uploads
-  `release/`). Release:
-  `tag-build-release.yml` repeats those package checks, tags, and publishes when
-  `VERSION` changes on master.
+- CI: `.github/workflows/build.yml` runs Debug NORMAL and packaged Release NORMAL
+  on pull requests, `master` pushes, and manual runs. Existing CLR2/CLR4 host and
+  obfuscation checks remain. The uploaded ZIP is the one tested.
+- Release: `tag-build-release.yml` runs Debug NORMAL and requires packaged Release
+  FULL before tagging or publishing. `tools/ci/test_gate.py` stages only the test
+  runner, sink, and test-only .NET 4.0 host beside the extracted package, checks strict
+  completed results,
+  and retains logs and environment evidence. Both workflows always publish test
+  summaries/artifacts; releases also attach the combined Markdown report. See
+  [behavioral gates](../tools/ci/README.md).
 - Platforms configured: AnyCPU / x86 / x64, Debug + Release.
 
 The shipped `ysonet-payloads` folder follows the portable Agent Skills format and is
@@ -1930,7 +1935,8 @@ victim into an isolated full-.NET-4.0 VM. It runs with `ysonet.Tests.exe --net40
 `YSONET_NET40_TESTS`) when `YSONET_NET40_SHARED_DIR` names the host side of that mapping.
 Setup and containment are in `tools/net40-test-host/README.md`.
 
-The Debug build compiles `tools/net40-test-host/Net40TestHost.cs` with the v4.0 compiler,
+The test project compiles `tools/net40-test-host/Net40TestHost.cs` in Debug and Release
+with the v4.0 compiler,
 `/nostdlib+`, and the exact v4.0 reference assemblies. That compile boundary stops the
 victim from accidentally using a newer API, but is not runtime evidence. The runtime
 guard is structural and runs before every payload read:

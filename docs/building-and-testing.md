@@ -60,6 +60,22 @@ msbuild ysonet.sln -p:Configuration=Debug
 
 Everything the FULL suite runs is safe: every command is self-closing or is a value that is never executed, every listener is loopback-only, and every fixture is a temp file that is cleaned up. Nothing opens calc or leaves an app running.
 
+### CI and release gates
+
+Pull requests and pushes to `master` run NORMAL on Debug and again on an extracted
+Release ZIP. Publication requires Debug NORMAL followed by FULL on the exact Release
+ZIP that will be uploaded. This covers Release's string transformation and bundled
+files as well as the Debug build.
+
+Both workflows retain logs, failed/skipped checks, capability evidence, and the
+`ENVIRONMENT VERDICT` in downloadable test-result artifacts and the Actions summary,
+even when tests fail. A release also attaches `test-results.md` beside its ZIP.
+The gates use `--strict-env`: missing or unverified prerequisites block success;
+skipped checks are not passes. Cell-level skip diagnostics outside the environment
+counter also remain visible as unverified coverage. A failed FULL gate blocks tag
+creation and publication.
+See [the CI runner](../tools/ci/README.md) for the exact local commands and report files.
+
 ### Documentation checks
 
 Run `python tools/docs/check_docs.py links` for local Markdown paths and anchors.

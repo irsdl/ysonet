@@ -28,6 +28,12 @@ full-help snapshot, public catalogue, and minification coverage. Run it as the o
 argument; CI uses `.\ysonet.Tests\bin\Release\ysonet.Tests.exe --docs` after building.
 These same rows remain in NORMAL. This gate fails on unverified checkout access.
 
+CI also runs NORMAL on Debug and the extracted Release package; publication requires
+FULL on the packaged Release. [The CI wrapper](../tools/ci/README.md) stages only the
+Release test runner, sink, and test-only .NET 4.0 host beside the extracted product,
+and retains strict test
+results. Test-only executables never enter the uploaded product ZIP.
+
 ## Layout
 
 Everything is one `partial class Tests` in namespace `ysonet.Tests`, so a folder says what

@@ -25,15 +25,18 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
         with:
           fetch-depth: 0
 
-      - name: Check documentation links and release validator tests
+      - name: Check documentation and CI tooling
         shell: pwsh
         run: |
+          python -m unittest discover -s tools/ci -v
+          if ($LASTEXITCODE -ne 0) { throw "Behavioral gate tests failed." }
           python -m unittest discover -s tools/docs -v
           if ($LASTEXITCODE -ne 0) { throw "Documentation tooling tests failed." }
           python tools/docs/check_docs.py links
@@ -78,16 +81,6 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # Tag on a VERSION-change push, or on manual dispatch when asked and the tag is new.
-      - name: Create annotated tag
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_tag == true && steps.tagcheck.outputs.exists == 'false') }}
-        shell: pwsh
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.value }} (ysonet)"
-          git push origin "${{ steps.v.outputs.tag }}"
-
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3 (2026-03-20)
 
@@ -108,8 +101,27 @@ jobs:
       - name: Restore
         run: nuget restore ysonet.sln
 
+      - name: Restore NET40 test-host reference assemblies
+        shell: pwsh
+        run: |
+          # Build-only Microsoft reference assemblies, released 2022-08-19.
+          nuget install Microsoft.NETFramework.ReferenceAssemblies.net40 -Version 1.0.3 -Source https://api.nuget.org/v3/index.json -OutputDirectory temp/ci-reference-assemblies -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "Could not restore the NET40 test-host references." }
+          $refs = (Resolve-Path "temp/ci-reference-assemblies/Microsoft.NETFramework.ReferenceAssemblies.net40.1.0.3/build/.NETFramework/v4.0").Path
+          "NET40_REFERENCE_DIR=$refs" >> $env:GITHUB_ENV
+
+      # Run explicitly so logs and environment evidence survive a failed suite.
+      - name: Build (Debug)
+        run: msbuild ysonet.sln -p:Configuration=Debug -p:RunYsonetTests=false -p:Net40ReferenceDir="$env:NET40_REFERENCE_DIR"
+
+      - name: Test Debug (NORMAL)
+        shell: pwsh
+        run: |
+          python tools/ci/test_gate.py run --tier normal --report temp/ci-reports/debug-normal --timeout 1200
+          if ($LASTEXITCODE -ne 0) { throw "Debug NORMAL failed or has unverified coverage." }
+
       - name: Build (Release)
-        run: msbuild ysonet.sln -p:Configuration=Release -m
+        run: msbuild ysonet.sln -p:Configuration=Release -p:Net40ReferenceDir="$env:NET40_REFERENCE_DIR" -m
 
       - name: Check CLI help and generated documentation
         shell: pwsh
@@ -192,26 +204,42 @@ jobs:
 
       - name: Package artifact
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.v.outputs.value }}
         run: |
-          New-Item -ItemType Directory -Path dist | Out-Null
-          $skill = ".\ysonet\bin\Release\.claude\skills\ysonet-payloads\SKILL.md"
-          if (-not (Test-Path $skill)) { throw "Release output is missing the YSoNet Agent Skill at $skill." }
-          $archive = "dist\ysonet-${{ steps.v.outputs.value }}.zip"
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $source = (Resolve-Path ".\ysonet\bin\Release").Path
-          $archivePath = Join-Path (Get-Location) $archive
-          [System.IO.Compression.ZipFile]::CreateFromDirectory(
-            $source, $archivePath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
-          $zip = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
-          try {
-            $entry = $zip.Entries | Where-Object {
-              $_.FullName.Replace('\', '/') -eq ".claude/skills/ysonet-payloads/SKILL.md"
-            }
-            if ($null -eq $entry) { throw "Packaged release is missing .claude/skills/ysonet-payloads/SKILL.md." }
-          } finally {
-            $zip.Dispose()
-          }
-          Write-Host "Agent Skill packaged: .claude/skills/ysonet-payloads/SKILL.md"
+          python tools/ci/test_gate.py package ysonet/bin/Release "dist/ysonet-$env:RELEASE_VERSION.zip"
+          if ($LASTEXITCODE -ne 0) { throw "Could not package Release." }
+
+      - name: Test packaged Release (FULL)
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.v.outputs.value }}
+        run: |
+          python tools/ci/test_gate.py run --tier full --package "dist/ysonet-$env:RELEASE_VERSION.zip" --report temp/ci-reports/package-full --timeout 3600
+          if ($LASTEXITCODE -ne 0) { throw "Packaged Release FULL failed or has unverified coverage." }
+
+      - name: Summarize behavioral tests
+        if: always()
+        shell: pwsh
+        run: python tools/ci/test_gate.py summary --reports temp/ci-reports --expect debug-normal package-full
+
+      - name: Upload behavioral test evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 (2026-04-10)
+        with:
+          name: release-test-results-${{ github.sha }}
+          path: temp/ci-reports
+          if-no-files-found: warn
+
+      # Tag on a VERSION-change push, or on manual dispatch when asked and the tag is new.
+      - name: Create annotated tag
+        if: ${{ success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_tag == true && steps.tagcheck.outputs.exists == 'false')) }}
+        shell: pwsh
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.value }} (ysonet)"
+          git push origin "${{ steps.v.outputs.tag }}"
 
       # The validated sponsor thanks and upgrade notes precede GitHub's commit list.
       - name: Assemble release body
@@ -229,7 +257,7 @@ jobs:
           name: "YSoNet ${{ steps.v.outputs.value }}"
           generateReleaseNotes: true
           bodyFile: dist/release-body.md
-          artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip"
+          artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip,temp/ci-reports/test-results.md"
 
       # Read back the complete authored body, including optional new-sponsor credits.
       - name: Verify published sponsors and upgrade notes

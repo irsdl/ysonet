@@ -76,6 +76,12 @@ serializer, or formatter change. Two ways:
 
 Everything the FULL suite runs is safe: every command is self-closing or is a value that is never executed, every listener is loopback-only, and every fixture is a temp file that is cleaned up. Nothing opens calc or leaves an app running.
 
+CI runs NORMAL on Debug and the packaged Release for pull requests and `master`
+pushes. Publishing requires FULL against the exact Release ZIP before tag creation.
+These gates use `--strict-env` and retain logs, skipped checks, capability evidence,
+and environment verdicts even on failure. See [CI gates](tools/ci/README.md) for local
+commands and the test-result artifacts. Missing coverage is unverified, not a pass.
+
 ### Quiet runs, and watching one
 
 An automated run keeps itself off your screen and out of another run's way. Four things do that, and each has an off switch that restores the older behavior. They belong to the TEST RUNNER only: `ysonet.exe`, including `ysonet.exe -t`, is unchanged.

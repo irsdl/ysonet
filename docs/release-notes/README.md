@@ -36,6 +36,12 @@ when assembling the body and checks the complete sponsor and upgrade text after
 publication. [Run the checks locally](../../tools/docs/README.md) before starting a
 release. Historical notes need these sections if selected for publication again.
 
+Publication also requires [behavioral gates](../../tools/ci/README.md): Debug NORMAL
+and FULL against the packaged Release ZIP, both with clean environment verdicts and
+no environment-skipped checks. Cell-level skip diagnostics remain visible as
+unverified coverage. The combined `test-results.md` is attached to the release. These
+automated results supplement the version-specific validation notes.
+
 Editorial review is still required: structural checks cannot establish that claims
 are true or that validation was sufficient. Use absolute links so the notes work
 both here and on the GitHub release page. Add `## New sponsors` only when the release
