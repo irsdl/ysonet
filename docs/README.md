@@ -11,6 +11,7 @@ Sites: [ysonet.net](https://ysonet.net) or [ysonet.com](https://ysonet.com) (bot
 - [Dependency Security Notes](dependency-security.md) - the vulnerable and outdated
   libraries YSoNet pins on purpose, why each one stays, and how to triage a scanner alert.
 - [Getting Started](getting-started.md) - install, build from source, and the interactive mode wizard.
+- [Moving from ysoserial.net](moving-from-ysoserial-net.md) - saved commands, changed defaults, and the interactive workflow.
 - [Usage and Examples](usage-and-examples.md) - command-line options, notes, and worked examples.
 - [Gadgets and Plugins](gadgets-and-plugins.md) - the gadget list, the plugin list, and plugin options.
 - [Minification Savings](minification-savings.md) - a worked example of how much `--minify` shrinks each gadget and plugin payload.

@@ -4,7 +4,23 @@
   <img src="/docs/images/logo/white_polished.png" alt="YSoNet logo" width="200" />
 </picture>
 
-**YSoNet** is a fork of the original [YSoSerial.Net](https://github.com/pwntester/ysoserial.net), currently maintained by [@irsdl](https://github.com/irsdl).
+**YSoNet** generates .NET deserialization payloads for authorized security research,
+with an interactive wizard and a command line for repeatable work.
+
+- **Interactive configuration:** choose a gadget or plugin, get help for each setting,
+  and copy the equivalent command.
+- **Searchable discovery:** filter gadgets by formatter, input, effect, target
+  requirements, and recorded runtime versions.
+- **Documented requirements:** check module help for target dependencies and runtime
+  limits before choosing a payload.
+- **Broad payload coverage:** explore gadgets, plugins, formatters, and variants in
+  the [catalog](docs/gadgets-and-plugins.md).
+- **Local verification:** use supported local self-tests and the shipped CLR test
+  hosts to check payloads in your own environment.
+
+YSoNet is a fork of [ysoserial.net](https://github.com/pwntester/ysoserial.net),
+originally developed by Alvaro Muñoz (@pwntester), and is maintained by
+[Soroush Dalili (@irsdl)](https://github.com/irsdl).
 
 - Sites: [ysonet.net](https://ysonet.net) or [ysonet.com](https://ysonet.com) (both open this repo).
 
@@ -13,11 +29,27 @@
 [![License](https://img.shields.io/github/license/irsdl/ysonet)](https://github.com/irsdl/ysonet/blob/master/LICENSE.txt)
 [![Download](https://img.shields.io/github/v/release/irsdl/ysonet?label=download)](https://github.com/irsdl/ysonet/releases/latest)
 
-A proof-of-concept tool for generating payloads that exploit unsafe .NET object deserialization.
+## Quick start (interactive mode)
+
+Requires **Windows and .NET Framework 4.7.2 or a newer 4.x runtime** (4.8 or 4.8.1).
+
+1. **[Download the latest release](https://github.com/irsdl/ysonet/releases/latest).**
+   Under **Assets**, choose `ysonet-<version>.zip`, not a source-code archive.
+2. **Extract the whole ZIP.** Keep the DLLs, configuration files, and subfolders
+   beside `ysonet.exe`.
+3. **Open PowerShell in the extracted folder and run the wizard:**
+
+   ```powershell
+   .\ysonet.exe -i
+   ```
+
+The wizard explains each setting and can show the equivalent CLI command.
+See [Getting Started](docs/getting-started.md) for the walkthrough and
+[development builds](docs/getting-started.md#development-builds-optional).
 
 ## What is YSoNet
 
-YSoNet (previously known as ysoserial.net) is a collection of utilities and property-oriented programming "gadget chains" discovered in common .NET libraries that can, under the right conditions, exploit .NET applications performing unsafe deserialization of objects. You give it a command and a gadget chain; it wraps the command in the chain and serializes the result to stdout. When a vulnerable application deserializes that data, the chain runs and your command executes on the host.
+YSoNet is a collection of utilities and property-oriented programming "gadget chains" discovered in common .NET libraries that can, under the right conditions, exploit .NET applications performing unsafe deserialization of objects. You give it a command and a gadget chain; it wraps the command in the chain and serializes the result to stdout. When a vulnerable application deserializes that data, the chain runs and your command executes on the host.
 
 The vulnerability lies in the application performing unsafe deserialization, NOT in having gadgets on the classpath. This project is inspired by [Chris Frohoff's ysoserial project](https://github.com/frohoff/ysoserial).
 
@@ -43,22 +75,13 @@ The full documentation lives in [docs/](docs/README.md):
 - [Dependency Security Notes](docs/dependency-security.md) - the vulnerable and outdated
   libraries YSoNet pins on purpose, and how to triage a scanner alert.
 - [Getting Started](docs/getting-started.md) - install, build from source, and the interactive wizard.
+- [Moving from ysoserial.net](docs/moving-from-ysoserial-net.md) - saved commands, changed defaults, and the interactive workflow.
 - [Usage and Examples](docs/usage-and-examples.md) - command-line options and worked examples.
 - [Gadgets and Plugins](docs/gadgets-and-plugins.md) - the full gadget and plugin catalog.
 - [References](docs/references.md) - the background reading, talks, and sources this project draws on.
 - [.NET Deserialization Research](docs/dotnet-deserialization-research.md) - the wider reading list: tools, uses in the wild, and CTF write-ups.
 - [Credits](docs/credits.md) - who built the tool and found the gadgets and plugins.
 - [Sponsors](docs/sponsors.md) - the people funding the work.
-
-## Quick start (interactive mode)
-
-New to this tool? The easiest way to start is interactive mode: a menu-driven wizard that lists the gadgets and plugins, explains each setting, and builds the payload for you - no need to memorize flags first.
-
-```powershell
-.\ysonet.exe -i
-```
-
-(`interactive`, `wizard`, and `--interactive` work too.) You need `ysonet.exe` first - see [Getting Started](docs/getting-started.md). Full wizard walkthrough is there too.
 
 ## Quick start (command line)
 
