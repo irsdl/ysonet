@@ -111,3 +111,7 @@ Module completion uses explicit option metadata. After `-g` or `-p`, TAB offers 
 module's options and declared values, including `--name=value`. Value-taking options
 come from NDesk's declarations; flags do not consume the next completion position.
 No help-text parsing is involved. Free-text fields have no invented suggestions.
+
+The first argument also completes `doctor`. The `--list` category suggestions
+include `catalog` and `catalog-schema` for [JSON integrations](../../docs/json-catalog.md).
+Completion continues to query the existing line-oriented name/value categories.

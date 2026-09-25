@@ -22,6 +22,9 @@ requirements documented in its module help. Using Linux or macOS? Follow the
    Under **Assets**, download `ysonet-<version>.zip`. The **Source code** archives
    contain source files, not a ready-to-run build. Release downloads do not require
    GitHub sign-in.
+   The release also provides [checksums and signed build provenance](release-verification.md)
+   and a [runtime evidence matrix](runtime-evidence.md). Read the
+   [dependency security notes](dependency-security.md) for intentionally pinned research libraries.
 2. Extract the whole ZIP into a folder. Keep the DLLs, configuration files, and
    subfolders beside `ysonet.exe`; copying only the executable is not enough.
 3. Open PowerShell in the extracted folder and launch the wizard:
@@ -40,6 +43,23 @@ directory. It teaches the agent the one-shot command line, interactive mode, pub
 gadget and plugin catalogue, variants, options, and payload-selection rules. A separate
 `CLAUDE.md` is not required because the skill is already the portable instruction entry
 point.
+
+### Installation diagnostics
+
+Run `.\ysonet.exe doctor` for a read-only installation report. It shows the tool
+version, installed generator framework and CLR, process architecture, required
+DLL/config files, optional test hosts and completion profile configuration.
+Missing files include recovery instructions. It can diagnose missing third-party
+DLLs before the normal CLI parser starts.
+
+Exit 0 means the required installation checks passed; exit 1 means a required
+check failed or could not establish the requirement; exit 2 means invalid doctor
+arguments. Optional hosts and completion do not affect that result. File checks
+establish readability and managed metadata, not integrity or successful loading.
+Host launch, active completion sessions and target application compatibility stay
+unverified. No files, profiles, execution policy or machine settings are changed,
+and no payload or test host runs. If Windows cannot start the executable at all,
+install/repair .NET Framework 4.7.2 or newer first, then retry.
 
 ### Development builds (optional)
 

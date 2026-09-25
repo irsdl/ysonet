@@ -813,6 +813,8 @@ namespace ysonet.Interactive
             WriteLine("Pick 'plugin' for a higher-level builder (ViewState, SharePoint, ...).");
             WriteLine("Every run prints the equivalent ysonet.exe command so you can script it.");
             WriteLine("The one-shot CLI (ysonet.exe -g ... -f ... -c ...) still works as before.");
+            WriteLine("Use ysonet.exe doctor for read-only installation diagnostics.");
+            WriteLine("Use ysonet.exe --list catalog for versioned JSON discovery metadata.");
             Pause();
         }
 

@@ -47,6 +47,10 @@ The wizard explains each setting and can show the equivalent CLI command.
 See [Getting Started](docs/getting-started.md) for the walkthrough and
 [development builds](docs/getting-started.md#development-builds-optional).
 
+Release companions include [checksums and build provenance](docs/release-verification.md)
+and a searchable [runtime evidence matrix](docs/runtime-evidence.md).
+See [dependency security notes](docs/dependency-security.md) for intentionally pinned research libraries.
+
 ## What is YSoNet
 
 YSoNet is a collection of utilities and property-oriented programming "gadget chains" discovered in common .NET libraries that can, under the right conditions, exploit .NET applications performing unsafe deserialization of objects. You give it a command and a gadget chain; it wraps the command in the chain and serializes the result to stdout. When a vulnerable application deserializes that data, the chain runs and your command executes on the host.

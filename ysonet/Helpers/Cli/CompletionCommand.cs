@@ -286,6 +286,26 @@ namespace ysonet.Helpers
             return failed ? -1 : 0;
         }
 
+        // Read configuration without running PowerShell or changing a profile.
+        internal static string ReadProfileConfiguration(string path)
+        {
+            try
+            {
+                string profile = File.ReadAllText(path);
+                int begin = profile.IndexOf(BeginMarker, StringComparison.Ordinal);
+                int end = profile.IndexOf(EndMarker, StringComparison.Ordinal);
+                if (begin < 0 && end < 0) return "not configured";
+                if (begin < 0 || end < begin
+                    || profile.IndexOf(BeginMarker, begin + BeginMarker.Length, StringComparison.Ordinal) >= 0
+                    || profile.IndexOf(EndMarker, end + EndMarker.Length, StringComparison.Ordinal) >= 0)
+                    return "incomplete completion block; review the profile";
+                return "completion block present (session loading unverified)";
+            }
+            catch (FileNotFoundException) { return "not configured (profile absent)"; }
+            catch (DirectoryNotFoundException) { return "not configured (profile absent)"; }
+            catch (Exception ex) { return "unknown (profile unreadable): " + ex.Message; }
+        }
+
         internal static int ReportProfileStatus(ShellKind ed, string profilePath, string policy)
         {
             string profile;
@@ -735,7 +755,7 @@ namespace ysonet.Helpers
             return DetectShell(out name);
         }
 
-        private static string ProfilePathFor(ShellKind edition)
+        internal static string ProfilePathFor(ShellKind edition)
         {
             string docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             string folder = edition == ShellKind.PowerShellCore ? "PowerShell" : "WindowsPowerShell";

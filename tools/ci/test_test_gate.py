@@ -18,6 +18,9 @@ class GateTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        identity = patch.object(gate, 'source_identity', return_value={'commit': 'a' * 40, 'dirty': False, 'publicTreeSha256': 'b' * 64})
+        identity.start()
+        self.addCleanup(identity.stop)
 
     def write(self, name, data):
         path = self.root / name
@@ -172,6 +175,7 @@ Passed: {passed}  Failed: {failed}  Environment-skipped: {skipped}
             for tier in ('FULL', 'OOB', 'DOS', 'LEGACY', 'NET40'):
                 self.assertNotIn('YSONET_' + tier + '_TESTS', env)
             self.assertEqual(str(gate.ROOT), env['YSONET_REPO_ROOT'])
+            Path(env['YSONET_RUNTIME_EVIDENCE_FILE']).write_text(json.dumps(dict(schemaVersion=1, complete=True, verdict='clean', cells=[dict(kind='gadget', module='fixture', generation='verified', deserialization='not-tested', effect='not-tested')])))
             log_path.write_text(self.log())
             (report / 'status.txt').write_text('\n'.join(k + '=' + v for k, v in self.status().items()))
             return 0

@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -91,6 +91,20 @@ namespace ysonet.Tests
         {
             // A test-owned zero-exit program for the sink's missing-record check.
             if (Environment.GetEnvironmentVariable(RecordlessSinkProbeVar) == "1") return 0;
+            if (Array.IndexOf(args, "--evidence-tests") >= 0)
+            {
+                if (args.Length != 1) return 2;
+                TestEnvironment.Strict = true;
+                RunRuntimeEvidenceTests();
+                return FinishRun();
+            }
+            if (Array.IndexOf(args, "--discovery") >= 0)
+            {
+                if (args.Length != 1) return 2;
+                TestEnvironment.Strict = true;
+                RunDiscoveryCommandTests();
+                return FinishRun();
+            }
             if (Array.IndexOf(args, "--option-metadata") >= 0)
             {
                 if (args.Length != 1) return 2;
@@ -333,6 +347,8 @@ namespace ysonet.Tests
             RunDocumentationTests();
             RunCliContractTests();
             RunOptionMetadataTests();
+            RunDiscoveryCommandTests();
+            RunRuntimeEvidenceTests();
             Run("Menu navigates with arrows and Enter", MenuNavigation);
             Run("Menu digit shortcut and Escape cancel", MenuDigitAndCancel);
             Run("Picker selects by typing and cancels on Esc", PickerShowSelectAndCancel);
@@ -858,6 +874,13 @@ namespace ysonet.Tests
             // reader sees WHY a count is what it is. Passed/Failed stay counts of top-level
             // tests; an environment skip is neither, because a check that did not run was
             // not passed.
+            try { RuntimeEvidence.Write(); }
+            catch (Exception ex)
+            {
+                _failed++;
+                TestEnvironment.RecordTopLevelFailure("Runtime evidence export", ex.GetType().Name);
+                Console.Error.WriteLine("[FAIL] Runtime evidence export: " + ex.Message);
+            }
             TestEnvironment.WriteReport(Console.Error);
             Console.Error.WriteLine();
             Console.Error.WriteLine("Passed: " + _passed + "  Failed: " + _failed
@@ -21317,6 +21340,10 @@ namespace ysonet.Tests
                                     }
                                 }
 
+                                RuntimeEvidence.Generation(name, formatter, variant == null ? (int?)null : variant.Number,
+                                    minify, r.Success && !RawIsEmpty(r.Raw), expectedError != null && !r.Success
+                                    && (r.ErrorMessage ?? "").IndexOf(expectedError, StringComparison.OrdinalIgnoreCase) >= 0);
+
                                 if (dtdOut != null)
                                 {
                                     // The companion DTD is a real file this cell asked the
@@ -22027,12 +22054,19 @@ namespace ysonet.Tests
                         string desc = cell.Plugin + " " + string.Join(" ", cell.Argv) + (minify ? " --minify" : "");
                         if (trace) { Console.Error.WriteLine("    [plugin] " + desc); Console.Error.Flush(); }
 
+                        var observation = RuntimeEvidence.NewCell("plugin", cell.Plugin, null, null, minify,
+                            "plugin-matrix case=" + (rows.IndexOf(cell) + 1));
+                        observation.generation = "failed";
+                        observation.reason = "Generation did not produce a nonempty payload";
                         ResetPluginStatics(ptype);
                         RunResult r;
                         try { r = PayloadRunner.RunPlugin(cell.Plugin, argv); }
                         catch (Exception ex) { failures.Add(desc + " -> THREW " + ex.Message); continue; }
                         if (!r.Success) { failures.Add(desc + " -> " + r.ErrorMessage); continue; }
                         if (RawIsEmpty(r.Raw)) { failures.Add(desc + " -> empty payload"); continue; }
+
+                        observation.generation = "verified";
+                        observation.reason = "Nonempty plugin output produced; case ordinal refers to PluginFullMatrixGenerates";
 
                         // Minify PROPAGATION: for a cell marked .Shrinks(), the minified payload
                         // must be strictly smaller than the minify-off one this loop already made.
@@ -22146,7 +22180,7 @@ namespace ysonet.Tests
                         InputArgs = ia,
                     });
                 });
-                if (fire.Wait(MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired(gadget); }
+                if (fire.Wait(MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired(gadget, formatter: formatter, minify: false); }
                 else { skipped++; Console.Error.WriteLine("  [skip] fire " + gadget + " (self-test): did not fire - " + reasonIfSkipped); }
             }
             catch (Exception ex) { skipped++; Console.Error.WriteLine("  [skip] fire " + gadget + " (self-test): " + ex.Message); }
@@ -22318,7 +22352,7 @@ namespace ysonet.Tests
                 }
 
                 fired++;
-                RuntimeBuild.RecordFired("TypeConfuseDelegate");
+                RuntimeBuild.RecordFired("TypeConfuseDelegate", formatter: "BinaryFormatter");
             }
             catch (Exception ex)
             {
@@ -22343,6 +22377,8 @@ namespace ysonet.Tests
             if (RefuseToFireDosGadget(gadget, failures)) return;
             string tag = gadget + "_" + formatter + (variant > 0 ? "_v" + variant : "") + (minify ? "_m" : "") + (useSimpleType ? "_u" : "");
             if (trace) { Console.Error.WriteLine("    [fire] " + tag); Console.Error.Flush(); }
+            var evidence = RuntimeEvidence.NewCell("gadget", gadget, formatter, variant > 0 ? (int?)variant : null,
+                minify, "marker; simple-types=" + useSimpleType);
             FireTarget fire = null;
             try
             {
@@ -22364,6 +22400,8 @@ namespace ysonet.Tests
                     InputArgs = ia,
                 };
                 RunResult r = PayloadRunner.GenerateGadget(req);
+                evidence.generation = r.Success && !RawIsEmpty(r.Raw) ? "verified" : "failed";
+                evidence.reason = evidence.generation == "verified" ? "Nonempty payload produced" : "Generation failed";
                 if (!r.Success)
                 {
                     string msg = "fire " + tag + ": generate -> " + r.ErrorMessage;
@@ -22371,17 +22409,30 @@ namespace ysonet.Tests
                     return;
                 }
 
-                RunSTA(delegate { DeserializeAs(deserAs, r.Raw); });
+                RunSTA(delegate
+                {
+                    evidence.deserialization = "attempted";
+                    try { DeserializeAs(deserAs, r.Raw); evidence.deserialization = "returned"; }
+                    catch { evidence.deserialization = "threw"; throw; }
+                });
 
-                if (fire.Wait(MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired(gadget); }
+                if (fire.Wait(MarkerWaitMs))
+                {
+                    evidence.effect = "verified";
+                    evidence.reason = "Test-owned sink observed the expected effect";
+                    fired++; RuntimeBuild.RecordFired(gadget, formatter: formatter, variant: variant > 0 ? (int?)variant : null, minify: minify);
+                }
                 else
                 {
+                    evidence.effect = "not-observed";
+                    evidence.reason = "Sink did not observe the expected effect in this environment";
                     string msg = "fire " + tag + ": did not fire (" + fire.Describe() + ")";
                     if (required) failures.Add(msg); else { skipped++; Console.Error.WriteLine("  [skip] " + msg + " (conditional)"); }
                 }
             }
             catch (Exception ex)
             {
+                evidence.reason = "Test interrupted by " + ex.GetType().Name;
                 string msg = "fire " + tag + ": " + ex.Message;
                 if (required) failures.Add(msg); else { skipped++; Console.Error.WriteLine("  [skip] " + msg); }
             }
@@ -22708,7 +22759,7 @@ namespace ysonet.Tests
                     proc.BeginErrorReadLine();
                     if (!proc.WaitForExit(60000)) { try { proc.Kill(); } catch { } }
                 }
-                if (fire.Wait(MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired(WdGadget); }
+                if (fire.Wait(MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired(WdGadget, formatter: formatter, minify: minify); }
                 else failures.Add("fire " + label + " (subprocess): the sink was never reached");
             }
             catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
@@ -23994,7 +24045,7 @@ namespace ysonet.Tests
                 failures.Add("fire " + label + ": the target file was not written");
             else if (File.ReadAllText(target) != expected)
                 failures.Add("fire " + label + ": the target text does not match the local content file");
-            else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+            else { fired++; RuntimeBuild.RecordFired(FileOpsGadget, formatter: formatter, minify: minify); }
             SafeDelete(target);
         }
 
@@ -24014,7 +24065,7 @@ namespace ysonet.Tests
                     failures.Add("fire " + label + ": the destination copy was not created");
                 else if (File.ReadAllText(dest) != "copied by ysonet")
                     failures.Add("fire " + label + ": the copy does not hold the source content");
-                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget, formatter: formatter, minify: minify); }
             }
             SafeDelete(source); SafeDelete(dest);
         }
@@ -24049,7 +24100,7 @@ namespace ysonet.Tests
                         + "way round and thrown)");
                 else if (File.ReadAllText(dest) != "copied by ysonet")
                     failures.Add("fire " + label + ": the copy does not hold the source content");
-                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget, formatter: formatter, minify: minify); }
             }
             SafeDelete(source); SafeDelete(dest);
         }
@@ -24070,7 +24121,7 @@ namespace ysonet.Tests
                     failures.Add("fire " + label + ": the destination file was not created");
                 else if (File.ReadAllText(dest) != "moved by ysonet")
                     failures.Add("fire " + label + ": the moved file does not hold the source content");
-                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget, formatter: formatter, minify: minify); }
             }
             SafeDelete(source); SafeDelete(dest);
         }
@@ -24090,7 +24141,7 @@ namespace ysonet.Tests
                     failures.Add("fire " + label + ": the source directory was not moved away");
                 else if (!File.Exists(Path.Combine(dest, "inside.txt")))
                     failures.Add("fire " + label + ": the moved directory does not carry its child file");
-                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget, formatter: formatter, minify: minify); }
             }
             SafeDeleteDir(source); SafeDeleteDir(dest);
         }
@@ -24110,7 +24161,7 @@ namespace ysonet.Tests
                     failures.Add("fire " + label + ": the target file is missing");
                 else if (new FileInfo(target).Length != 0)
                     failures.Add("fire " + label + ": the existing file was not truncated to zero bytes");
-                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget); }
+                else { fired++; RuntimeBuild.RecordFired(FileOpsGadget, formatter: formatter, minify: minify); }
             }
             SafeDelete(target);
         }
@@ -24353,7 +24404,7 @@ namespace ysonet.Tests
                                 }
 
                                 fired++;
-                                RuntimeBuild.RecordFired(FsiGadget);
+                                RuntimeBuild.RecordFired(FsiGadget, formatter: formatter, variant: variant, minify: minify);
                             }
                             catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
                         }
@@ -24516,7 +24567,7 @@ namespace ysonet.Tests
                 else if (!File.Exists(sentinel))
                     failures.Add("fire " + label + ": the sentinel file was deleted too, so the "
                         + "payload removed more than the one path it was given");
-                else { fired++; RuntimeBuild.RecordFired(TempFilesGadget); }
+                else { fired++; RuntimeBuild.RecordFired(TempFilesGadget, formatter: formatter, minify: minify); }
             }
             catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
             finally { SafeDelete(target); SafeDelete(sentinel); }
@@ -24597,7 +24648,7 @@ namespace ysonet.Tests
                         + (result == null ? "no result" : result.ErrorMessage));
                     return;
                 }
-                if (WaitForDir(dir, MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired("FileLogTraceListener"); }
+                if (WaitForDir(dir, MarkerWaitMs)) { fired++; RuntimeBuild.RecordFired("FileLogTraceListener", formatter: formatter, minify: minify); }
                 else failures.Add("fire " + label + ": directory not created");
             }
             catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
@@ -24701,7 +24752,7 @@ namespace ysonet.Tests
                 }
 
                 fired++;
-                RuntimeBuild.RecordFired("FileSystemProxyCurrentDirectory");
+                RuntimeBuild.RecordFired("FileSystemProxyCurrentDirectory", formatter: formatter, minify: minify);
             }
             catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
             finally
@@ -24792,7 +24843,7 @@ namespace ysonet.Tests
                 }
 
                 fired++;
-                RuntimeBuild.RecordFired("AssemblyInstallerLoad");
+                RuntimeBuild.RecordFired("AssemblyInstallerLoad", formatter: formatter, minify: minify);
             }
             catch (Exception ex) { failures.Add("fire " + label + ": " + ex.Message); }
             finally
@@ -24863,7 +24914,7 @@ namespace ysonet.Tests
                             + (result == null ? "no result" : result.ErrorMessage));
                         return;
                     }
-                    if (listener.Fired(3000)) { fired++; RuntimeBuild.RecordFired(gadget); }
+                    if (listener.Fired(3000)) { fired++; RuntimeBuild.RecordFired(gadget, formatter: formatter, minify: minify); }
                     else failures.AddCapability(TestEnvironment.LoopbackTcp, label,
                         "fire " + label + ": listener not hit");
                 }
@@ -25012,7 +25063,7 @@ namespace ysonet.Tests
                     string seen = server.WaitForRequest(dtdPath, legacy ? MarkerWaitMs : 2000);
                     if (legacy)
                     {
-                        if (seen != null) { fired++; RuntimeBuild.RecordFired(gadget, LegacyXmlChild.LegacyVersionToken); }
+                        if (seen != null) { fired++; RuntimeBuild.RecordFired(gadget, LegacyXmlChild.LegacyVersionToken, formatter: formatter, minify: minify); }
                         else
                             // The child confirmed the legacy resolver default above, so a
                             // missing request is about the loopback path, not the payload.
@@ -25099,7 +25150,7 @@ namespace ysonet.Tests
                     if (server.WaitForRequest(dtdPath, MarkerWaitMs) != null)
                     {
                         fired++;
-                        RuntimeBuild.RecordFired("XmlDocumentXxe");
+                        RuntimeBuild.RecordFired("XmlDocumentXxe", formatter: formatter, variant: 2, minify: minify);
                     }
                     else
                     {
@@ -26350,7 +26401,7 @@ namespace ysonet.Tests
                     return;
                 }
                 fired++;
-                RuntimeBuild.RecordFired(gadget);
+                RuntimeBuild.RecordFired(gadget, formatter: formatter);
                 Console.Error.WriteLine("  [oob] " + gadget + " (" + formatter + ") observed over: " + protocols);
             }
             catch (Exception ex) { failures.Add("fire " + gadget + " (" + formatter + "): " + ex.Message); }

@@ -302,3 +302,6 @@ local/
 # Python bytecode from the agent tooling under .claude/skills
 __pycache__/
 *.pyc
+
+# Generated release archives, provenance and runtime evidence sidecars.
+/dist/

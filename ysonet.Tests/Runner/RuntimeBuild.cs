@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Collections.Generic;
 using Microsoft.Win32;
 using ysonet.Generators;
@@ -131,15 +132,13 @@ namespace ysonet.Tests
 
         // Called by every fire helper the moment a payload's effect is observed
         // (marker file, listener hit, created directory, OOB callback).
-        public static void RecordFired(string gadgetName)
+        public static void RecordFired(string gadgetName, string versionToken = "installed-runtime",
+            string formatter = null, int? variant = null, bool? minify = null,
+            [CallerMemberName] string source = null)
         {
-            RecordFired(gadgetName, Token());
-        }
-
-        // The overload for a row that knows better than the machine: the framework
-        // version the payload actually landed on.
-        public static void RecordFired(string gadgetName, string versionToken)
-        {
+            // The omitted token keeps the historical installed-runtime default.
+            if (versionToken == "installed-runtime") versionToken = Token();
+            RuntimeEvidence.ObservedEffect("gadget", gadgetName, versionToken, formatter, variant, minify, source);
             if (string.IsNullOrEmpty(gadgetName))
                 return;
 
@@ -171,14 +170,13 @@ namespace ysonet.Tests
             }
         }
 
-        public static void RecordPluginFired(string pluginName)
+        public static void RecordPluginFired(string pluginName, string versionToken = "installed-runtime",
+            string formatter = null, int? variant = null, bool? minify = null,
+            [CallerMemberName] string source = null)
         {
-            RecordPluginFired(pluginName, Token());
-        }
-
-        public static void RecordPluginFired(string pluginName, string versionToken)
-        {
+            if (versionToken == "installed-runtime") versionToken = Token();
             Record(_pluginFired, pluginName, versionToken);
+            RuntimeEvidence.ObservedEffect("plugin", pluginName, versionToken, formatter, variant, minify, source);
         }
 
         public static List<string> FiredPlugins()

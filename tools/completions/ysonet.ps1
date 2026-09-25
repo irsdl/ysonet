@@ -29,7 +29,7 @@
 
 # Categories accepted by --list. These are part of the CLI contract, not a
 # growing list, so they are safe to keep here.
-$script:YsonetListCategories = @('gadgets', 'plugins', 'formatters', 'options', 'outputs', 'values', 'value-options')
+$script:YsonetListCategories = @('gadgets', 'plugins', 'formatters', 'options', 'outputs', 'values', 'value-options', 'catalog', 'catalog-schema')
 
 # Every option, in both short and long form, with the kind of value it takes.
 # Kind: 'none' (flag), 'gadget', 'plugin', 'formatter', 'output', 'listcat',
@@ -64,8 +64,8 @@ $script:YsonetOptions = @(
     @{ Names = @('--checkupdate');                        Kind = 'none'      }
 )
 
-# First-argument-only keywords that launch interactive mode.
-$script:YsonetFirstArgKeywords = @('interactive', 'wizard', '-i', '--interactive')
+# First-argument-only entry modes.
+$script:YsonetFirstArgKeywords = @('interactive', 'wizard', '-i', '--interactive', 'doctor')
 
 # Flat list of all option strings (for completing option names).
 $script:YsonetAllOptionNames = $script:YsonetOptions | ForEach-Object { $_.Names } | Sort-Object -Unique
@@ -200,6 +200,12 @@ $script:YsonetCompleter = {
             'file'      { return $null }   # let PowerShell's default file completion run
             default     { return $null }   # 'text' / unknown: no suggestions
         }
+    }
+
+    # Doctor owns its own arguments; do not offer generation switches here.
+    if ($tokens.Count -gt 0 -and $tokens[0] -eq 'doctor' -and
+        ($commandAst.CommandElements.Count -gt 2 -or $wordToComplete -ne 'doctor')) {
+        return New-Results @('--help', '-h', 'help') $wordToComplete 'Doctor option'
     }
 
     # Case 1: word is "--formatter=Obj" style. Split on the first '='.

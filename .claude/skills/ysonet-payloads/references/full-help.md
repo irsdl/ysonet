@@ -2571,15 +2571,18 @@ Options:
                              Search in all formatters to show relevant
                                gadgets and their formatters (other parameters
                                will be ignored).
-      --list=VALUE           Print a machine-readable list (one item per
-                               line) and exit. Categories:
+      --list=VALUE           Print discovery data and exit (line lists, or
+                               JSON for catalog/catalog-schema). Categories:
                                gadgets|plugins|formatters|options|
-                               outputs|values|value-options. Add -g <gadget> to
-                               list that gadget's formatters/options, or -p
-                               <plugin> to list that plugin's options. Useful
-                               for shell tab-completion scripts.
+                               outputs|values|value-options|catalog| catalog-
+                               schema. The catalog category emits versioned
+                               JSON. Add -g <gadget> to list that gadget's
+                               formatters/options, or -p <plugin> to list that
+                               plugin's options. Useful for shell tab-
+                               completion scripts.
                                Suggested values: gadgets, plugins, formatters,
-                               options, outputs, values, value-options.
+                               options, outputs, values, value-options, catalo-
+                               g, catalog-schema.
       --option=VALUE         Option name whose declared values to print with -
                                -list values (combine with -g or -p).
       --category=VALUE       Find gadgets by category (repeatable): --

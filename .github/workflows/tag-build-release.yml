@@ -21,6 +21,8 @@ on:
 permissions:
   contents: write
   actions: read
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -56,6 +58,7 @@ jobs:
           # Versioning is calendar based: vYEAR.MONTH.RELEASE (middle = month,
           # last = release count in that month). Example: v2026.7.1.
           if ($v -notmatch '^v\d+\.\d+\.\d+$') { throw "Unexpected VERSION format: $v (expected vYEAR.MONTH.RELEASE like v2026.7.1)" }
+          if ($v -cne (Get-Content VERSION -Raw).Trim()) { throw "Requested version must match the checked-out VERSION." }
           $tag = "ysonet/$v"
           "value=$v"  >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
@@ -76,8 +79,12 @@ jobs:
         shell: bash
         run: |
           if git rev-parse -q --verify "refs/tags/${{ steps.v.outputs.tag }}" >/dev/null; then
+            test "$(git rev-parse "refs/tags/${{ steps.v.outputs.tag }}^{commit}")" = "$GITHUB_SHA" || { echo "Existing tag points to another source commit"; exit 1; }
             echo "exists=true"  >> "$GITHUB_OUTPUT"
           else
+            if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "${{ inputs.create_tag }}" != "true" ]; then
+              echo "Missing release tag; enable create_tag or select an existing tag at this commit"; exit 1
+            fi
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -231,9 +238,31 @@ jobs:
           path: temp/ci-reports
           if-no-files-found: warn
 
+      - name: Create release evidence and checksums
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.v.outputs.value }}
+        run: |
+          python tools/ci/release_evidence.py create --archive "dist/ysonet-$env:RELEASE_VERSION.zip" --report temp/ci-reports/package-full --output dist --version $env:RELEASE_VERSION --official
+          if ($LASTEXITCODE -ne 0) { throw "Release evidence could not be bound to the tested archive and source." }
+          python tools/ci/release_evidence.py verify dist
+          if ($LASTEXITCODE -ne 0) { throw "Release checksum verification failed." }
+
+      - name: Attest tested release files
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2 (2026-08-04)
+        with:
+          subject-checksums: dist/SHA256SUMS
+
+      - name: Preserve signed attestation bundle
+        shell: pwsh
+        env:
+          ATTESTATION_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: Copy-Item -LiteralPath $env:ATTESTATION_BUNDLE -Destination dist/provenance-attestation.jsonl
+
       # Tag on a VERSION-change push, or on manual dispatch when asked and the tag is new.
       - name: Create annotated tag
-        if: ${{ success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_tag == true && steps.tagcheck.outputs.exists == 'false')) }}
+        if: ${{ success() && steps.tagcheck.outputs.exists == 'false' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_tag == true)) }}
         shell: pwsh
         run: |
           git config user.name  "github-actions[bot]"
@@ -257,7 +286,7 @@ jobs:
           name: "YSoNet ${{ steps.v.outputs.value }}"
           generateReleaseNotes: true
           bodyFile: dist/release-body.md
-          artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip,temp/ci-reports/test-results.md"
+          artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip,dist/SHA256SUMS,dist/build-provenance.json,dist/component-inventory.json,dist/runtime-evidence.json,dist/runtime-evidence.csv,dist/runtime-evidence.html,dist/provenance-attestation.jsonl,temp/ci-reports/test-results.md"
 
       # Read back the complete authored body, including optional new-sponsor credits.
       - name: Verify published sponsors and upgrade notes

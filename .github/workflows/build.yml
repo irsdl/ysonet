@@ -160,6 +160,15 @@ jobs:
           python tools/ci/test_gate.py run --tier normal --package dist/ysonet-ci.zip --report temp/ci-reports/package-normal --timeout 1200
           if ($LASTEXITCODE -ne 0) { throw "Packaged Release NORMAL failed or has unverified coverage." }
 
+      - name: Create unsigned build evidence
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          python tools/ci/release_evidence.py create --archive dist/ysonet-ci.zip --report temp/ci-reports/package-normal --output dist --version $version
+          if ($LASTEXITCODE -ne 0) { throw "Build evidence is incomplete." }
+          python tools/ci/release_evidence.py verify dist
+          if ($LASTEXITCODE -ne 0) { throw "Build checksum verification failed." }
+
       - name: Summarize behavioral tests
         if: always()
         shell: pwsh
@@ -177,5 +186,12 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 (2026-04-10)
         with:
           name: ysonet-${{ github.sha }}
-          path: dist/ysonet-ci.zip
+          path: |
+            dist/ysonet-ci.zip
+            dist/SHA256SUMS
+            dist/build-provenance.json
+            dist/component-inventory.json
+            dist/runtime-evidence.json
+            dist/runtime-evidence.csv
+            dist/runtime-evidence.html
           if-no-files-found: error

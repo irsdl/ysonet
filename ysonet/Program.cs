@@ -69,7 +69,7 @@ namespace ysonet
                 {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. The shared transform rewrites framework assembly versions; gadgets that carry source may also use the CLR-v2 compiler, and a gadget may author a type's older assembly identity when it moved between CLR generations. The graph and your input are untouched. It is not proof that every gadget works there. Default: false", v => legacyFx = v != null },
                 {"raf|runallformatters", "Try every listed non denial-of-service gadget whose formatter name contains the given text. Requires -f plus -c or -s, and cannot be combined with -g or -p. Uses each formatter's default output format, ignores -o, -t, and --testclr2, prints payloads with their length, and reports per-payload failures plus a summary on stderr. Default: false", v => isSearchFormatterAndRunMode =  v != null },
                 {"sf|searchformatter=", "Search in all formatters to show relevant gadgets and their formatters (other parameters will be ignored).", v => searchFormatter =  v},
-                {"list=", "Print a machine-readable list (one item per line) and exit. Categories: gadgets|plugins|formatters|options|outputs|values|value-options. Add -g <gadget> to list that gadget's formatters/options, or -p <plugin> to list that plugin's options. Useful for shell tab-completion scripts.", v => listCategory = v },
+                {"list=", "Print discovery data and exit (line lists, or JSON for catalog/catalog-schema). Categories: gadgets|plugins|formatters|options|outputs|values|value-options|catalog|catalog-schema. The catalog category emits versioned JSON. Add -g <gadget> to list that gadget's formatters/options, or -p <plugin> to list that plugin's options. Useful for shell tab-completion scripts.", v => listCategory = v },
                 {"option=", "Option name whose declared values to print with --list values (combine with -g or -p).", v => listOption = v },
                 {"category=", "Find gadgets by category (repeatable): --category=axis=value where axis is kind|formatter|input|requirement|version. Repeat for OR within an axis and AND across axes. A version is an exact runtime build (4.8.1, 5.0, mono) and only lists gadgets recorded as working there. Alone it prints matching gadgets and their categories; with '--list gadgets' it prints matching names only. Example: --category=kind=code-execution --category=formatter=Json.NET", v => rawCategoryValues.Add(v) },
                 {"debugmode", "Enable debugging to show exception errors and output length", v => isDebugMode  =  v != null},
@@ -84,7 +84,7 @@ namespace ysonet
             .WithMetadata("output", new OptionMetadata(choices: CliListing.OutputFormats))
             .WithMetadata("list", new OptionMetadata(choices: CliListing.ListCategories));
 
-        static void Main(string[] args)
+        internal static void Main(string[] args)
         {
             try { RunMain(args); }
             catch (Exception error)
@@ -506,6 +506,16 @@ namespace ysonet
 
             switch (category)
             {
+                case "catalog-schema":
+                    Console.Out.WriteLine(JsonCatalog.Schema());
+                    Environment.Exit(0);
+                    return;
+
+                case "catalog":
+                    Console.Out.WriteLine(JsonCatalog.Render(options, show_private, gadget_name, plugin_name));
+                    Environment.Exit(0);
+                    return;
+
                 case "gadgets":
                     items = CliListing.Gadgets(show_private);
                     break;
@@ -548,7 +558,7 @@ namespace ysonet
 
                 default:
                     Console.Error.WriteLine("Unknown list category: " + category);
-                    Console.Error.WriteLine("Valid categories: gadgets, plugins, formatters, options, outputs, values, value-options");
+                    Console.Error.WriteLine("Valid categories: gadgets, plugins, formatters, options, outputs, values, value-options, catalog, catalog-schema");
                     Environment.Exit(-1);
                     return; // unreachable, keeps the compiler happy about items
             }
@@ -1035,6 +1045,8 @@ namespace ysonet
                 Console.WriteLine("       ysonet.exe -p <plugin> [plugin options]");
                 Console.WriteLine("       ysonet.exe -i                  Start the interactive wizard");
                 Console.WriteLine();
+                Console.WriteLine("  doctor                             Read-only installation diagnostics");
+                Console.WriteLine("  --list catalog                     Export the versioned JSON catalog");
                 Console.WriteLine("== GADGETS ==");
                 Console.WriteLine("  --list gadgets                     List gadget names");
                 Console.WriteLine("  -g ObjectDataProvider -h            Read one gadget's inputs and options");

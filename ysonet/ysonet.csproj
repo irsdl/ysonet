@@ -11,6 +11,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{6B40FDE7-14EA-4F57-8B7B-CC2EB4A25E6C}</ProjectGuid>
     <OutputType>Exe</OutputType>
+    <StartupObject>ysonet.CliEntryPoint</StartupObject>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>ysonet</RootNamespace>
     <AssemblyName>ysonet</AssemblyName>
@@ -384,6 +385,9 @@
     <Compile Include="Plugins\ViewStatePlugin.cs" />
     <Compile Include="Plugins\XpsPlugin.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="Helpers\Cli\CliEntryPoint.cs" />
+    <Compile Include="Helpers\Cli\DoctorCommand.cs" />
+    <Compile Include="Helpers\Cli\JsonCatalog.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <!--
@@ -457,6 +461,16 @@
          truth: the same file the tests check). `ysonet completion powershell`
          emits it. Obfuscar keeps resource names, so the fixed LogicalName is
          safe to look up at runtime. -->
+    <EmbeddedResource Include="$(IntermediateOutputPath)doctor-dependencies.txt">
+      <LogicalName>ysonet.doctor.dependencies</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\docs\schemas\catalog-v1.schema.json">
+      <LogicalName>ysonet.catalog.schema.v1</LogicalName>
+    </EmbeddedResource>
+    <Content Include="..\docs\schemas\catalog-v1.schema.json">
+      <Link>schemas\catalog-v1.schema.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <EmbeddedResource Include="..\tools\completions\ysonet.ps1">
       <Link>Resources\ysonet.ps1</Link>
       <LogicalName>ysonet.completions.ysonet.ps1</LogicalName>
@@ -579,6 +593,12 @@
     <Clr2SelfTestX86OutputConfig>$(Clr2SelfTestX86Exe).config</Clr2SelfTestX86OutputConfig>
     <Clr2SelfTestX64OutputConfig>$(Clr2SelfTestX64Exe).config</Clr2SelfTestX64OutputConfig>
   </PropertyGroup>
+  <!-- Resolve the actual copy-local closure, including transitive dependencies. -->
+  <Target Name="WriteDoctorDependencies" BeforeTargets="PrepareResources" DependsOnTargets="ResolveReferences">
+    <WriteLinesToFile File="$(IntermediateOutputPath)doctor-dependencies.txt"
+      Lines="@(ReferenceCopyLocalPaths->'%(DestinationSubDirectory)%(Filename)%(Extension)');@(ContentWithTargetPath->'%(TargetPath)')"
+      Overwrite="true" WriteOnlyWhenDifferent="true" />
+  </Target>
   <Target Name="BuildClr2SelfTestHost" AfterTargets="Build"
           Inputs="$(Clr2SelfTestSource);$(Clr2SelfTestConfig)"
           Outputs="$(Clr2SelfTestExe);$(Clr2SelfTestOutputConfig);$(Clr2SelfTestX86Exe);$(Clr2SelfTestX86OutputConfig);$(Clr2SelfTestX64Exe);$(Clr2SelfTestX64OutputConfig)">

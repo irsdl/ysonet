@@ -81,3 +81,28 @@ a job-level timeout leaves additional time for reporting and artifact upload.
 
 These checks establish behavior on the runner's installed runtime and capabilities.
 They do not establish compatibility with every target application or every .NET version.
+
+## Release evidence
+
+Every gate requires a fresh runtime evidence export and checks that the public source
+state stayed unchanged. Reports include JSON, CSV and an offline searchable HTML
+matrix. Per-phase observations are never inferred from a green suite. See
+[runtime evidence](../../docs/runtime-evidence.md) for its coverage and status semantics.
+
+After packaged FULL, create sidecars with the ZIP in the output directory:
+
+```powershell
+python tools/ci/release_evidence.py create --archive temp/ysonet-ci.zip --report temp/ci-reports/package-full --output temp --version (Get-Content VERSION -Raw).Trim()
+python tools/ci/release_evidence.py verify temp
+```
+
+Source edits after the test invalidate its evidence, so finish edits before the gate.
+Local sidecars are explicitly unsigned. The publishing workflow adds `--official`,
+which requires a clean checkout at `GITHUB_SHA`, a trusted release event and packaged
+FULL. It creates an attestation with the pinned `actions/attest` action only after
+verifying all six checksummed subjects; an attestation failure blocks publication.
+The ordinary CI workflow has no signing permissions and publishes unsigned NORMAL
+observations. Both workflows upload only named release files.
+
+[Release verification](../../docs/release-verification.md) explains consumer checks,
+component inventory scope, the Release transform and provenance limitations.

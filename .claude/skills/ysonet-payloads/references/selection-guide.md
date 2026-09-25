@@ -202,3 +202,20 @@ If the user only wants discovery, provide information-only `--category`, `--list
 
 When diagnosing, add `--debugmode`, inspect the selected module's live help, and compare
 the target facts with its categories and requirements. Do not switch gadgets at random.
+
+## Release-specific observations
+
+Release assets include `runtime-evidence.html` (offline, searchable) and matching JSON
+and CSV. Match its ZIP SHA-256 and tool version to the user's installed release before
+citing it. Read generation, deserialization and expected-effect columns independently;
+`not-tested` means unverified, not broken. Unknown formatter/variant/minify dimensions
+never establish sibling compatibility. Runner environment and prerequisite states apply
+to that run, not to the user's target. Module help and catalog runtime declarations
+remain selection hints rather than fresh observations.
+
+`SHA256SUMS`, `build-provenance.json`, `component-inventory.json` and the signed
+`provenance-attestation.jsonl` accompany new releases. Checksum integrity and authenticated
+build provenance are distinct; neither proves payload correctness. See the repository's
+`docs/release-verification.md` and `docs/dependency-security.md` for verification and
+intentional research dependency pins. Missing sidecars on older releases mean unverified
+provenance. Local/ordinary CI sidecars are unsigned.

@@ -7,6 +7,8 @@
 | Download YSoNet and open the wizard | [Getting Started](getting-started.md) |
 | Find a module, read help, or save a payload | [Quick reference](quick-reference.md) |
 | Switch from ysoserial.net | [Migration guide](moving-from-ysoserial-net.md) |
+| Inspect observed runtime results | [Release runtime evidence](runtime-evidence.md) |
+| Verify a download and its source | [Release verification](release-verification.md) |
 | See why I should update | [Upgrade notes](release-notes/README.md) |
 | Work from Linux, macOS, or WSL | [Windows VM and WSL workflow](linux-and-macos.md) |
 | Build or run contributor tests | [Building and testing](building-and-testing.md) |
@@ -15,6 +17,7 @@
 ## Detailed reference
 
 - [Usage and examples](usage-and-examples.md): all CLI options and detailed examples.
+- [JSON catalog](json-catalog.md): versioned discovery data and its schema for integrations.
 - [Gadgets and plugins](gadgets-and-plugins.md): the full catalog and plugin options.
 - [Minification savings](minification-savings.md): measured output sizes.
 - [PowerShell completion](../tools/completions/README.md): complete flags and module names.

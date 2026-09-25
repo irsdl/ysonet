@@ -49,3 +49,7 @@ defined error `Standard input did not contain a command.` A non-empty `-c` still
 2026-09-25 - A sink-probe test needs a dedicated zero-exit, record-less child, not the product CLI given a bare tag. The test runner owns that fixture through an early probe branch and preserves the missing-record assertion. - Correctly rejecting an invalid CLI invocation changes its exit status, so it cannot also stand in for a successful non-sink program.
 
 2026-09-25 - Resolve the global output encoding against the combined global and selected-module option metadata. NDesk short-option bundling otherwise reads Resx `-of` as `-o f` (and ViewState `-osf` as `-o sf`). - Strict encoding validation must not reject legitimate module aliases; the CLI regression gate covers both resource-file generation and its existing test-owned runtime effect.
+
+2026-09-25 - An installation doctor needs a BCL-only entry point before the normal Program static OptionSet is initialized, or a missing parser DLL prevents its own diagnosis. Embed the resolved build dependency closure and test the real executable with every third-party DLL absent; file presence and registry declarations must not be reported as successful host launches.
+
+2026-09-25 - A JSON discovery catalog is an explicit versioned projection, not serialization of live module objects: retain whole defaults, option omission policy, effective variant facets and plugin modes, use null for undeclared facts, and label source-symbol references as declarations rather than fresh execution evidence.

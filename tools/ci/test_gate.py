@@ -12,6 +12,9 @@ import sys
 import tempfile
 import zipfile
 
+from runtime_evidence import render, validate
+from source_identity import source_identity
+
 ROOT = Path(__file__).resolve().parents[2]
 TEST_FILES = ('ysonet.Tests.exe', 'ysonet.TestSink.exe', 'ysonet.Tests.exe.config',
               'ysonet.Net40TestHost.exe', 'ysonet.Net40TestHost.exe.config')
@@ -130,10 +133,11 @@ def run_gate(args):
     report = args.report.resolve()
     report.mkdir(parents=True, exist_ok=True)
     # Each invocation owns its report files; an interrupted retry cannot reuse a pass.
-    for name in ('status.txt', 'result.json', 'summary.md', 'runner.log'):
+    for name in ('status.txt', 'result.json', 'summary.md', 'runner.log', 'runtime-evidence.json', 'runtime-evidence.csv', 'runtime-evidence.html'):
         (report / name).unlink(missing_ok=True)
     result = dict(ok=False, verdict='unverified', reason='Runner did not complete', tier=args.tier)
     scratch = None
+    bound_evidence = None
     try:
         if args.package:
             result['package_sha256'] = sha256(args.package)
@@ -143,11 +147,12 @@ def run_gate(args):
             stage_harness(ROOT, folder)
         else:
             folder = ROOT / 'ysonet/bin/Debug'
+        source = source_identity()
         runner = folder / 'ysonet.Tests.exe'
         command = [str(runner), '--strict-env', '--status-file=' + str(report / 'status.txt')]
         if args.tier == 'full':
             command.append('--full')
-        env = dict(os.environ, YSONET_REPO_ROOT=str(ROOT))
+        env = dict(os.environ, YSONET_REPO_ROOT=str(ROOT), YSONET_RUNTIME_EVIDENCE_FILE=str(report / 'runtime-evidence.json'))
         # Only the requested local tier can run; inherited opt-ins must not enable OOB or DoS.
         for name in ('FULL', 'OOB', 'DOS', 'LEGACY', 'NET40'):
             env.pop('YSONET_' + name + '_TESTS', None)
@@ -158,9 +163,17 @@ def run_gate(args):
         status = dict(line.split('=', 1) for line in status_path.read_text(encoding='utf-8-sig').splitlines() if '=' in line) if status_path.is_file() else {}
         log = (report / 'runner.log').read_text(encoding='utf-8-sig', errors='replace')
         result.update(evaluate(log, exit_code, args.tier, status))
+        evidence = validate(json.loads((report / 'runtime-evidence.json').read_text(encoding='utf-8-sig')))
+        if source != source_identity():
+            raise ValueError('Public source state changed during the test gate')
+        if evidence.get('verdict') != result['verdict']:
+            raise ValueError('Runtime evidence and runner verdict disagree')
         if args.package and result['package_sha256'] != sha256(args.package):
-            result.update(ok=False, reason='The package changed while its tests were running')
-    except (OSError, ValueError, RuntimeError, zipfile.BadZipFile) as error:
+            raise ValueError('The package changed while its tests were running')
+        evidence.update(source=source, packageSha256=result.get('package_sha256'), tier=args.tier,
+                        passed=result['passed'], failed=result['failed'], diagnosticSkips=result['diagnostic_skips'])
+        bound_evidence = evidence
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError, zipfile.BadZipFile) as error:
         result.update(ok=False, reason=str(error))
     finally:
         if scratch:
@@ -168,6 +181,13 @@ def run_gate(args):
                 scratch.cleanup()
             except OSError as error:
                 result.update(ok=False, reason=result['reason'] + '; package staging cleanup failed: ' + str(error))
+        if bound_evidence is not None:
+            try:
+                bound_evidence['gatePassed'] = result['ok']
+                render(bound_evidence, report)
+                result['runtime_evidence'] = 'runtime-evidence.json'
+            except (OSError, ValueError) as error:
+                result.update(ok=False, reason='Runtime evidence rendering failed: ' + str(error))
         log_path = report / 'runner.log'
         log = log_path.read_text(encoding='utf-8-sig', errors='replace') if log_path.is_file() else ''
         (report / 'result.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')

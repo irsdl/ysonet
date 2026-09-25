@@ -1,0 +1,599 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "YSoNet catalog v1",
+  "description": "Metadata declarations from this build, not test results. See docs/json-catalog.md for the stability policy.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "toolVersion",
+    "scope",
+    "generatorRequirements",
+    "outputFormats",
+    "globalOptions",
+    "gadgets",
+    "plugins"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+$"
+    },
+    "toolVersion": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "includePrivate",
+        "gadget",
+        "plugin"
+      ],
+      "properties": {
+        "includePrivate": {
+          "type": "boolean"
+        },
+        "gadget": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plugin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "generatorRequirements": {
+      "type": "object",
+      "required": [
+        "operatingSystem",
+        "runtime"
+      ],
+      "properties": {
+        "operatingSystem": {
+          "type": "string"
+        },
+        "runtime": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "outputFormats": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "globalOptions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/option"
+      }
+    },
+    "gadgets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/gadget"
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/plugin"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "definitions": {
+    "option": {
+      "type": "object",
+      "required": [
+        "prototype",
+        "aliases",
+        "description",
+        "valueArity",
+        "metadataDeclared",
+        "defaultValue",
+        "required",
+        "prefillDefault",
+        "allowCustom",
+        "valueSource",
+        "choices"
+      ],
+      "properties": {
+        "prototype": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "valueArity": {
+          "enum": [
+            "none",
+            "optional",
+            "required"
+          ]
+        },
+        "metadataDeclared": {
+          "type": "boolean"
+        },
+        "defaultValue": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prefillDefault": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "allowCustom": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "valueSource": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "status",
+        "measuredInThisInvocation",
+        "references"
+      ],
+      "properties": {
+        "status": {
+          "const": "declaration-only"
+        },
+        "measuredInThisInvocation": {
+          "const": false
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "reference"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "reference": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "formatter": {
+      "type": "object",
+      "required": [
+        "name",
+        "declaration"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "declaration": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "variant": {
+      "type": "object",
+      "required": [
+        "number",
+        "label",
+        "isDefault",
+        "commandInput",
+        "unsupportedFormatters",
+        "unusedOptions",
+        "refusesSelfTest"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "isDefault": {
+          "type": "boolean"
+        },
+        "commandInput": {
+          "type": "string"
+        },
+        "unsupportedFormatters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unusedOptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "refusesSelfTest": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "capability": {
+      "type": "object",
+      "required": [
+        "variant",
+        "kinds",
+        "formatters",
+        "inputs",
+        "requirements",
+        "runtimeVersions"
+      ],
+      "properties": {
+        "variant": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "formatters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "runtimeVersions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "gadget": {
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "labels",
+        "credit",
+        "finders",
+        "contributors",
+        "commandInput",
+        "supportsLegacyFx",
+        "bridgedFormatter",
+        "formatters",
+        "options",
+        "variants",
+        "targetCapabilities",
+        "evidence"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "credit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finders": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contributors": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "commandInput": {
+          "type": "string"
+        },
+        "supportsLegacyFx": {
+          "type": "boolean"
+        },
+        "bridgedFormatter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "formatters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/formatter"
+          }
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/option"
+          }
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/variant"
+          }
+        },
+        "targetCapabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/capability"
+          }
+        },
+        "evidence": {
+          "$ref": "#/definitions/evidence"
+        }
+      },
+      "additionalProperties": true
+    },
+    "mode": {
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "options",
+        "requiredOptions",
+        "preset"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredOptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "preset": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "plugin": {
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "credit",
+        "options",
+        "modes",
+        "targetRuntimeVersions",
+        "targetRequirements",
+        "formatters",
+        "evidence"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "credit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/option"
+          }
+        },
+        "modes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/mode"
+          }
+        },
+        "targetRuntimeVersions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "targetRequirements": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "formatters": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "$ref": "#/definitions/evidence"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

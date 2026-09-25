@@ -26,7 +26,7 @@ namespace ysonet.Helpers
         // shared by the CLI handler and the completion scripts (their drift-guard
         // test compares against this).
         public static readonly string[] ListCategories =
-            { "gadgets", "plugins", "formatters", "options", "outputs", "values", "value-options" };
+            { "gadgets", "plugins", "formatters", "options", "outputs", "values", "value-options", "catalog", "catalog-schema" };
 
         // "Generic" is an internal placeholder, not a real gadget/plugin a user
         // would pick, so every listing hides it.

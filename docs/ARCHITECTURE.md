@@ -1485,6 +1485,8 @@ filter was applied.
 |---|---|---|
 | **Assemblies/AssemblyResolver.cs** (was `Utilities.cs`) | Locate bundled DLLs + hook `AppDomain.AssemblyResolve` to load from `dlls/`. | `GetDllFullPath`, `AddRelativeDirToAppDomainAsmResolve`, `AddAbsoluteDirToAppDomainAsmResolve` |
 | **Assemblies/LocalCodeCompiler.cs** | Runtime C# compilation: from a `;`-separated file chain, load `.dll` bytes or compile first `.cs` (referencing the rest) to a library assembly. | `GetAsmBytes(fileChain)`, `CompileToAsmBytes` (default `-t:library -o+ -platform:anycpu`) |
+| **Cli/CliEntryPoint.cs**, **Cli/DoctorCommand.cs** | Entry point dispatches `doctor` before touching the normal parser's dependencies. BCL-only installation report reads the framework registry, build-generated copy-local/content DLL manifest, host presence and completion profile markers. No payloads, host launches or writes; required checks determine exit status. | `Run`, `RequiredFiles`, `InspectFiles` |
+| **Cli/JsonCatalog.cs** | Explicit versioned projection of discovery metadata behind `--list catalog`; schema exported by `--list catalog-schema` and shipped beside the executable. Includes variants, effective facets, options and plugin modes; evidence references are declarations, not a new test run. See [the wire contract](json-catalog.md). | `Render`, `Schema`, `Options` |
 | **Cli/CliListing.cs** | Machine-readable listings behind `--list` and the shell completion scripts. Computed from live gadgets/plugins/option sets so they never drift; excludes `Generic`; cleans variant notes off formatter names. The catalogue-wide methods take `includePrivate`; the module-scoped ones answer about a name the user typed and never filter. | `Gadgets`, `Plugins`, `Formatters`, `GadgetFormatters`, `GadgetOptions`, `PluginOptions`, `OptionTokens`; `OutputFormats`, `ListCategories` |
 | **Cli/CompletionCommand.cs** | The `completion` subcommand: emit/install/uninstall/status for PowerShell tab completion. Embeds `tools/completions/ysonet.ps1`, edits the PowerShell profile idempotently (marked block), and detects the shell by walking the parent-process chain. | `IsInvocation`, `Run`, `LoadPowerShellScript`, `AddOrUpdateBlock`, `RemoveBlock`, `ClassifyShell`, `DetectShell` |
 | **Cli/HelpText.cs** | Safe `--help` rendering; guards an NDesk.Options wrap-loop hang by soft-breaking over-long tokens. | `SoftBreak` |
@@ -2146,3 +2148,19 @@ gate.
   the CLI prints the message and exits non-zero, interactive mode shows it and continues. Do
   not reintroduce `Environment.Exit` in generation paths - it hard-kills interactive mode.
   (The `--runmytest`/help/validation exits in `Program.Main` are fine; those are CLI-only.)
+
+## Release evidence pipeline
+
+`ysonet.Tests/Runner/RuntimeEvidence.cs` records per-phase observations from existing
+generation matrices and test-owned effect sinks. It exports public module identities,
+known formatter/variant/minify dimensions, runner environment and already-recorded
+prerequisite states, without probing capabilities. Unobserved declarations remain
+unverified. `RuntimeEvidenceTests.cs` checks phase isolation and passive reporting.
+
+`tools/ci/test_gate.py` binds the completed report to the exact tested ZIP and public
+checkout identity (`source_identity.py`). `runtime_evidence.py` validates and renders
+JSON, CSV and standalone searchable HTML. `release_evidence.py` rejects stale reports,
+creates provenance and component inventories from the archive and dependency pins,
+and writes/verifies `SHA256SUMS`. The publishing workflow signs those explicit subjects
+with GitHub Actions attestations before publication. See
+[release verification](release-verification.md) and [runtime evidence](runtime-evidence.md).

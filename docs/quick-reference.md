@@ -48,6 +48,18 @@ reusing gadget arguments. Invalid or incomplete commands and failed output write
 exit nonzero. Check `$LASTEXITCODE`; diagnostics go to stderr and requested data goes
 to stdout (or `--outputpath`). See the [scripting contract](usage-and-examples.md#scripting-contract).
 
+## Diagnose or integrate
+
+```powershell
+.\ysonet.exe doctor
+.\ysonet.exe --list catalog
+.\ysonet.exe --list catalog-schema
+```
+
+Doctor checks the local installation without running payloads. The
+[JSON catalog](json-catalog.md) exports structured declarations for wrappers and
+documentation; its schema and stability policy are separate from the tool version.
+
 ## Next steps
 
 - [Moving from ysoserial.net](moving-from-ysoserial-net.md): adapt saved commands.

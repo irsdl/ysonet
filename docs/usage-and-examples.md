@@ -1867,3 +1867,15 @@ Uses the ActivitySurrogateDisableTypeCheck gadget inside the ClaimsPrincipal gad
 ```bash
 ./ysonet.exe -g ClaimsPrincipal -f BinaryFormatter -c foobar -bgc ActivitySurrogateDisableTypeCheck --minify --ust
 ```
+
+## Installation diagnostics and structured discovery
+
+Use `ysonet.exe doctor` for a read-only report of runtime, architecture, required
+files, optional local-test hosts and completion configuration. See
+[installation diagnostics](getting-started.md#installation-diagnostics) for exit
+codes and the checks' limits.
+
+`ysonet.exe --list catalog` exports versioned JSON for integrations; add `-g NAME`
+or `-p NAME` for one module. `--list catalog-schema` emits the schema. See the
+[JSON catalog contract and stability policy](json-catalog.md). The other list
+categories keep their existing newline-separated output.

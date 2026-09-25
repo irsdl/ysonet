@@ -302,3 +302,23 @@ probe has a 15-second deadline. Uninstall continues across profiles but returns 
 if any removal fails. Windows PowerShell 5.1 supports the session command only.
 
 Completion reads the same live `--list` surfaces as the CLI.
+
+## Installation diagnostics and JSON discovery
+
+Run `ysonet.exe doctor` for read-only local installation diagnostics, including
+runtime, process architecture, required files, optional hosts and completion
+configuration. Exit 0 means required checks passed, 1 means a required check
+failed or is unknown, and 2 means invalid arguments. Optional hosts/completion
+are informational. This checks neither a target application nor payload behavior;
+no tests, policy changes or profile writes happen. It starts before third-party
+CLI dependencies, so missing DLLs can be diagnosed.
+
+For wrappers, use `--list catalog` (optionally `-g NAME` or `-p NAME`) and
+`--list catalog-schema`. The JSON catalog has its own `schemaVersion`, currently
+`1.0`, and includes explicit options, variants, formatter declarations, effective
+target facets and plugin modes. Ignore additive fields within major version 1;
+reject an unsupported major version. The schema ships at
+`schemas/catalog-v1.schema.json`. Other `--list` categories remain line lists.
+Evidence references point to declarations, not results from this invocation.
+Null plugin formatters/requirements mean unknown. Preserve intentionally unset
+options (`prefillDefault: false`) and never infer facts from description wording.

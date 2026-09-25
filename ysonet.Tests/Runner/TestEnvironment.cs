@@ -399,6 +399,19 @@ namespace ysonet.Tests
 
         // ---- report ------------------------------------------------------------
 
+        // Reporting must never run a previously unused prerequisite probe.
+        internal static List<CapabilityResult> RecordedCapabilities()
+        {
+            var result = new List<CapabilityResult>();
+            foreach (string token in Capabilities)
+            {
+                CapabilityResult value;
+                result.Add(_capabilities.TryGetValue(token, out value) ? value
+                    : new CapabilityResult(token, CapabilityState.Unprobed, "not needed", 0));
+            }
+            return result;
+        }
+
         public static void WriteReport(TextWriter w)
         {
             w.WriteLine("---- ENVIRONMENT ----");

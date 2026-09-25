@@ -81,3 +81,21 @@ and mode-dependent omissions, queries aliases through the CLI, and drives PowerS
 `TabExpansion2` against the embedded completion script. `OptionMetadataTests.cs` owns the
 new checks. Legacy public parser utility tests remain as compatibility coverage; the
 editor no longer uses those utilities.
+
+`ysonet.Tests.exe --discovery` runs the doctor and JSON catalog checks included in
+NORMAL: real CLI output/exit codes, startup without third-party DLLs, missing and
+invalid files, read-only profile classification, complete live metadata projection,
+public/private visibility, scoped lookups, deterministic JSON and shipped schema
+agreement. It performs no payload generation or local deserialization.
+
+## Runtime evidence export
+
+`Runner/RuntimeEvidence.cs` records generation matrix results and existing observed
+sink effects without changing payloads or assertions. Generic marker rows also record
+reader return/throw outcomes. The runner exports a completed document at shutdown when
+`YSONET_RUNTIME_EVIDENCE_FILE` is set. The CI gate owns freshness, source/ZIP binding and
+HTML/CSV rendering. Unknown dimensions and phases remain unverified.
+
+Run `ysonet.Tests.exe --evidence-tests` for the isolated reporting checks in
+`RuntimeEvidenceTests.cs`; they are also in NORMAL. See the
+[runtime evidence guide](../docs/runtime-evidence.md) for interpretation.
