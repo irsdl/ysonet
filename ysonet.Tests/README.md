@@ -23,6 +23,11 @@ other architecture cannot stand in for it.
 `CLAUDE.md` ("Running tests") owns the tier rules, the environment verdict, and the
 test-integrity policy. Read it before changing anything here.
 
+`--docs` is a standalone, information-only gate for compact/module help, the shipped
+full-help snapshot, public catalogue, and minification coverage. Run it as the only
+argument; CI uses `.\ysonet.Tests\bin\Release\ysonet.Tests.exe --docs` after building.
+These same rows remain in NORMAL. This gate fails on unverified checkout access.
+
 ## Layout
 
 Everything is one `partial class Tests` in namespace `ysonet.Tests`, so a folder says what
@@ -34,6 +39,7 @@ compiled.**
 | Path | What lives here |
 |---|---|
 | `Tests.cs` | The runner and the shared ordinary rows. |
+| `DocumentationTests.cs` | Help regression checks and shared NORMAL/CI registration for generated documentation comparisons. |
 | `CompletionUxTests.cs` | Completion deadlines, pipe draining, profile error handling and preservation, PowerShell hint quoting, and scoped console-mode restoration. Uses temporary profiles and harmless child processes. |
 | `TypeConfuseDelegatePowerShellTests.cs` | The PowerShell TCD profile's focused equality-comparer graph/boundary checks and its fresh-process application-config/effect harness. It is separate because the target setting must exist before process startup. |
 | `Runner\` | How a run configures, isolates, reports and records ITSELF, rather than anything about a payload: `TestRunOptions` (every switch, parsed once), `TestEnvironment` (the capability model, failure classification and the verdict), `RunStatus` (the `key=value` snapshot and heartbeat), `TestRunLock` (one automated run at a time on this machine), `UiIsolation` (the hidden-desktop relaunch), `WerContainment` (the crash-UI job), `RuntimeBuild` (which framework build this is, and which gadget or plugin sources fired on which version). |

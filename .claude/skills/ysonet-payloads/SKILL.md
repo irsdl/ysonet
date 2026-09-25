@@ -78,6 +78,9 @@ which are the snapshot for the distribution that shipped them:
 .\ysonet.exe --fullhelp
 ```
 
+`--help` shows the compact command guide; use `--fullhelp` or selected-module `-h`
+when you need detailed options.
+
 These commands only inspect help and catalogue metadata. They do not generate or run a
 payload.
 

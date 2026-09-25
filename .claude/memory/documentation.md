@@ -1,0 +1,5 @@
+# Documentation and release gates
+
+2026-09-25 - Default CLI help is a compact guide; catalogue and full-option consumers must use `--list`, selected-module `-h`, or `--fullhelp`. The standalone test-runner `--docs` entry point reuses NORMAL's generated-documentation comparisons and rejects other arguments; missing checkout access fails it. Both workflows run it against Release before packaging. - Reusing the same rows makes the CI gate and local coverage agree, while keeping information checks separate from payload tests.
+
+2026-09-25 - Release notes are validated before tag creation and again when assembling the body; published-body verification compares the complete sponsor and upgrade text. The offline `tools/docs/check_docs.py` gate requires four nonempty sections and rejects explicit unfinished template markers and relative release-note links. Maintainers still review the truth of validation claims. - A heading-only check can pass while sponsor credits, upgrade advice, or test limitations have vanished.

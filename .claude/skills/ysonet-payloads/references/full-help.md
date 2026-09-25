@@ -2392,12 +2392,13 @@ Options:
                                disrupt or terminate the target process. It is
                                required to generate one and is not needed by
                                any other gadget.
-  -h, --help                 Shows this message and exit.
-      --fullhelp             Shows this message + extra options for gadgets
-                               and plugins and exit.
+  -h, --help                 Show the quick guide or selected-module help and
+                               exit.
+      --fullhelp             Show all gadgets, plugins, and global options,
+                               or selected-module help, and exit.
       --prv, --display-private
-                             Also list private gadgets and plugins in --help,
-                               --fullhelp, --credit, --list, --sf, --raf, --
+                             Also list private gadgets and plugins in --
+                               fullhelp, --credit, --list, --sf, --raf, --
                                category and interactive mode. They always build
                                when named on the command line; this only shows
                                them in listings.

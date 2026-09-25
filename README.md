@@ -76,6 +76,9 @@ The full documentation lives in [docs/](docs/README.md):
   libraries YSoNet pins on purpose, and how to triage a scanner alert.
 - [Getting Started](docs/getting-started.md) - install, build from source, and the interactive wizard.
 - [Moving from ysoserial.net](docs/moving-from-ysoserial-net.md) - saved commands, changed defaults, and the interactive workflow.
+- [Quick reference](docs/quick-reference.md) - find a module, get focused help, and save output.
+- [Linux and macOS](docs/linux-and-macos.md) - use a Windows VM or launch from WSL.
+- [Upgrade notes](docs/release-notes/README.md) - what changed and what to check.
 - [Usage and Examples](docs/usage-and-examples.md) - command-line options and worked examples.
 - [Gadgets and Plugins](docs/gadgets-and-plugins.md) - the full gadget and plugin catalog.
 - [References](docs/references.md) - the background reading, talks, and sources this project draws on.
@@ -89,7 +92,7 @@ The full documentation lives in [docs/](docs/README.md):
 ./ysonet.exe -f Json.Net -g ObjectDataProvider -o raw -c "calc" -t
 ```
 
-See all options with `ysonet.exe --fullhelp`, and per-gadget or per-plugin help with `-g NameHere -help` or `-p NameHere -help`. More in [Usage and Examples](docs/usage-and-examples.md).
+Start with the [quick reference](docs/quick-reference.md). See all options with `ysonet.exe --fullhelp`, and per-gadget or per-plugin help with `-g NameHere -help` or `-p NameHere -help`. More in [Usage and Examples](docs/usage-and-examples.md).
 
 ## AI assistant skill
 
@@ -105,6 +108,8 @@ truth. No generated `CLAUDE.md` is needed in the binary folder; that would be a
 Claude-specific second copy of instructions that could drift from the standard skill.
 
 ## Build from source
+
+For a smaller clone, use the [source checkout without the archive](docs/source-without-archive.md).
 
 Needs Windows, MSBuild from Visual Studio 2022 or the Build Tools (".NET desktop
 development" workload), and `nuget.exe`. Every project targets .NET Framework 4.7.2.
@@ -123,7 +128,7 @@ msbuild ysonet.sln -p:Configuration=Release   # or Debug
   Debug build only warns.
 - Release string-encrypts `ysonet.exe` to cut antivirus false positives; payload bytes are
   unchanged. Skip it with `-p:ObfuscateRelease=false`. Debug is never obfuscated.
-- Full setup, including a one-liner that installs the toolchain: [Getting Started](docs/getting-started.md#build-from-source).
+- Full toolchain setup: [Building and testing](docs/building-and-testing.md#build-from-source).
 
 ## Testing
 
@@ -135,7 +140,7 @@ A Debug build runs the fast test suite automatically, and a failed test fails th
 ```
 
 Both are safe: commands are self-closing or never executed, and listeners are loopback
-only. Details and the other opt-in tiers: [Getting Started](docs/getting-started.md#testing)
+only. Details and the other opt-in tiers: [Building and testing](docs/building-and-testing.md#testing)
 and [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Tab completion (PowerShell)

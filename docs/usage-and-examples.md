@@ -1,8 +1,14 @@
 # Usage and Examples
 
+This is the detailed reference. Start with the [quick reference](quick-reference.md)
+for common tasks, or [Getting Started](getting-started.md) for installation.
+
 Command-line reference for YSoNet, plus worked examples. For the gadget and plugin catalog, see [Gadgets and Plugins](gadgets-and-plugins.md).
 
 Back to [documentation index](README.md).
+
+`--help` prints a compact command guide. Use `--fullhelp` for the complete catalogue
+and global options, or `-g <name> -h` / `-p <name> -h` for one module.
 
 ## Command line
 
@@ -16,7 +22,7 @@ Usage: ysonet.exe [options]
 Options:
   -p, --plugin=VALUE         The plugin to be used.
   -o, --output=VALUE         The output format (raw|base64|raw-
-                               urlencode|base64-urlencode|hex).
+                               urlencode|base64- urlencode|hex).
   -g, --gadget=VALUE         The gadget chain.
   -f, --formatter=VALUE      The formatter.
   -c, --command=VALUE        The command to be executed.
@@ -32,15 +38,20 @@ Options:
                                bridge gadget. The last one will be used in the
                                requested gadget. This will be ignored when
                                using the searchformatter argument.
-  -t, --test                 Test locally. With --legacyfx, use the shipped CLR2
-                               process; otherwise use ysonet's current CLR4 process.
-      --testclr2             Explicitly test in the shipped .NET Framework 3.5 /
-                               CLR2 process (BF, LosFormatter, and SoapFormatter).
+  -t, --test                 Test locally. With --legacyfx, use the
+                               separately shipped .NET Framework 3.5 / CLR2
+                               process; otherwise use ysonet's current CLR4
+                               process. Default: false
+      --testclr2             Test locally in the separately shipped .NET
+                               Framework 3.5 / CLR2 process. Supports
+                               BinaryFormatter, LosFormatter, and SoapFormatte-
+                               r. Default: false
       --outputpath=VALUE     The output file path. It will be ignored if
                                empty.
-      --minify               Minify payloads where applicable. A gadget may refuse
-                               --minify when it would rewrite operator data whose
-                               characters or bytes must survive exactly. Default: false
+      --minify               Minify payloads where applicable. A gadget may
+                               refuse --minify when it would rewrite operator
+                               data whose characters or bytes must survive
+                               exactly. Default: false
       --ust, --usesimpletype This is to remove additional info only when
                                minifying and FormatterAssemblyStyle=Simple
                                (always `true` with `--minify` for binary
@@ -49,50 +60,55 @@ Options:
                                generation. The shared transform rewrites
                                framework assembly versions; gadgets that carry
                                source may also use the CLR-v2 compiler, and a
-                               gadget may author a type's older assembly identity
-                               when it moved between CLR generations. The graph
-                               and your input are untouched. It is not proof that
-                               every gadget works there. Default: false
+                               gadget may author a type's older assembly
+                               identity when it moved between CLR generations.
+                               The graph and your input are untouched. It is
+                               not proof that every gadget works there.
+                               Default: false
       --raf, --runallformatters
                              Try every listed non denial-of-service gadget
                                whose formatter name contains the given text.
                                Requires -f plus -c or -s, and cannot be
                                combined with -g or -p. Uses each formatter's
-                               default output format, ignores -o, -t, and
-                               --testclr2, prints
-                               payloads with their length, and reports per-
-                               payload failures plus a summary on stderr.
-                               Default: false
+                               default output format, ignores -o, -t, and --
+                               testclr2, prints payloads with their length, and
+                               reports per-payload failures plus a summary on
+                               stderr. Default: false
       --sf, --searchformatter=VALUE
                              Search in all formatters to show relevant
                                gadgets and their formatters (other parameters
                                will be ignored).
-      --list=VALUE           Print a machine-readable list (one item per line)
-                               and exit. Categories:
-                               gadgets|plugins|formatters|options|outputs. Add
+      --list=VALUE           Print a machine-readable list (one item per
+                               line) and exit. Categories:
+                               gadgets|plugins|formatters|options| outputs. Add
                                -g <gadget> to list that gadget's
                                formatters/options, or -p <plugin> to list that
-                               plugin's options. Useful for shell tab-completion
-                               scripts.
-      --category=VALUE       Find gadgets by category (repeatable):
-                               --category=axis=value where axis is
-                               kind|formatter|input|requirement|version. Repeat
-                               for OR within an axis and AND across axes. A
-                               version is an exact runtime build (4.8.1, 5.0,
-                               mono) and only lists gadgets recorded as working
-                               there. Alone it prints matching gadgets and their
-                               categories; with '--list gadgets' it prints
-                               matching names only. Example:
-                               --category=kind=code-execution
-                               --category=formatter=Json.NET
+                               plugin's options. Useful for shell tab-
+                               completion scripts.
+      --category=VALUE       Find gadgets by category (repeatable): --
+                               category=axis=value where axis is
+                               kind|formatter|input|requirement| version.
+                               Repeat for OR within an axis and AND across axe-
+                               s. A version is an exact runtime build (4.8.1, -
+                               5.0, mono) and only lists gadgets recorded as
+                               working there. Alone it prints matching gadgets
+                               and their categories; with '--list gadgets' it
+                               prints matching names only. Example: --
+                               category=kind=code-execution --
+                               category=formatter=Json.NET
       --debugmode            Enable debugging to show exception errors and
                                output length
-  -h, --help                 Shows this message and exit.
-      --fullhelp             Shows this message + extra options for gadgets
-                               and plugins and exit.
+      --i-understand-dos     Acknowledge that a denial-of-service gadget can
+                               disrupt or terminate the target process. It is
+                               required to generate one and is not needed by
+                               any other gadget.
+  -h, --help                 Show the quick guide or selected-module help and
+                               exit.
+      --fullhelp             Show all gadgets, plugins, and global options,
+                               or selected-module help, and exit.
       --prv, --display-private
-                             Also list private gadgets and plugins in --help,
-                               --fullhelp, --credit, --list, --sf, --raf, --
+                             Also list private gadgets and plugins in --
+                               fullhelp, --credit, --list, --sf, --raf, --
                                category and interactive mode. They always build
                                when named on the command line; this only shows
                                them in listings.

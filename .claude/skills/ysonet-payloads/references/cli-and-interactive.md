@@ -117,7 +117,7 @@ the selected plugin's help:
 | `--category` | Filter gadgets by metadata. Repeat for OR within one axis and AND across axes. |
 | `--debugmode` | Print exception detail and output length. |
 | `--i-understand-dos` | Required explicit acknowledgement for a DoS gadget. |
-| `-h`, `--help` | Show global or selected-module help and exit. |
+| `-h`, `--help` | Show the compact command guide or detailed selected-module help and exit. |
 | `--fullhelp` | Show every public gadget, plugin, option, category, and global argument. |
 | `--prv`, `--display-private` | Widen listings to private modules in a local private build. It does not gate generation by exact name. |
 | `--credit` | Show gadget and plugin credit/history and exit. |
@@ -127,6 +127,10 @@ the selected plugin's help:
 `-t` and `--testclr2` select different runtimes and cannot be combined.
 
 ## Discovery and help
+
+`--help` is a short task guide, not the catalogue. Use `--list` for names,
+`--category` to narrow gadgets, module-specific `-h` for details, and `--fullhelp`
+for the exhaustive catalogue and every global option.
 
 Use live queries before relying on remembered names:
 

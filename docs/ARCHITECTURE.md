@@ -46,6 +46,16 @@ and PDF copies under `md/` and `pdf/`. Its README indexes the documents; separat
 gap reports distinguish incomplete copies, pending review and missing original
 source bytes. The archive has no effect on payload generation or runtime behavior.
 
+### Documentation and release gates
+
+`tools/docs/check_docs.py` checks local Markdown paths and anchors and validates,
+assembles, and verifies version-specific release notes. Both GitHub workflows run
+its fixture tests and link checks. After building Release, they run the test runner's
+information-only `--docs` gate (`ysonet.Tests/DocumentationTests.cs`), which shares
+NORMAL's full-help, public-catalogue, and minification-coverage checks. Release notes
+must pass before tag creation; the complete authored body is checked after publication.
+See [documentation tooling](../tools/docs/README.md).
+
 ### Projects (`ysonet.sln`, 5 projects)
 | Project | Path | Type | Output | Role |
 |---|---|---|---|---|
@@ -204,6 +214,9 @@ ysonet/
 
 ## 4. Program.cs - CLI entry point and orchestration flow
 
+`--help` is a compact command guide. `--fullhelp` retains the exhaustive catalogue
+and global options; selected-module help retains its detailed options and categories.
+
 `ysonet/Program.cs` (`class Program`, `Main(string[] args)`). Uses **NDesk.Options** for
 parsing. All state is in static fields; parsed into an `InputArgs` object.
 
@@ -326,7 +339,7 @@ unpublished gadgets and plugins in the git-ignored `Generators\Private\` and
 `Plugins\Private\` folders, which the csproj already compiles. A gadget declares
 itself private with `GadgetTags.Private` in its `Labels()`; a plugin declares it
 with `IPlugin.IsPrivate()`. Without the flag, such a module is absent from
-`--help`, `--fullhelp`, `--credit`, `--list`, `--sf`, `--raf`, `--category`, the
+`--fullhelp`, `--credit`, `--list`, `--sf`, `--raf`, `--category`, the
 "not supported" suggestion lists, tab completion, and every interactive screen.
 With it (`ysonet -i --prv` works too), they are listed again; existing filters
 still compose, so a module carrying both `Private` and `Hidden` still needs

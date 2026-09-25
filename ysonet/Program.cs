@@ -72,8 +72,8 @@ namespace ysonet
                 {"category=", "Find gadgets by category (repeatable): --category=axis=value where axis is kind|formatter|input|requirement|version. Repeat for OR within an axis and AND across axes. A version is an exact runtime build (4.8.1, 5.0, mono) and only lists gadgets recorded as working there. Alone it prints matching gadgets and their categories; with '--list gadgets' it prints matching names only. Example: --category=kind=code-execution --category=formatter=Json.NET", v => rawCategoryValues.Add(v) },
                 {"debugmode", "Enable debugging to show exception errors and output length", v => isDebugMode  =  v != null},
                 {DosPolicy.AckOptionName, DosPolicy.AckHelp, v => dosAcknowledged = v != null },
-                {"h|help", "Shows this message and exit.", v => show_help = v != null },
-                {"fullhelp", "Shows this message + extra options for gadgets and plugins and exit.", v => show_fullhelp = v != null },
+                {"h|help", "Show the quick guide or selected-module help and exit.", v => show_help = v != null },
+                {"fullhelp", "Show all gadgets, plugins, and global options, or selected-module help, and exit.", v => show_fullhelp = v != null },
                 {PrivateModulePolicy.FlagOptionName, PrivateModulePolicy.FlagHelp, v => show_private = v != null },
                 {"credit", "Shows the credit/history of gadgets and plugins (other parameters will be ignored).", v => show_credit =  v != null },
                 {"checkupdate", "Check GitHub for a newer YSoNet release and exit.", v => checkUpdate = v != null },
@@ -1006,6 +1006,36 @@ namespace ysonet
             Console.WriteLine("YSoNet generates deserialization payloads for a variety of .NET formatters.");
             Console.WriteLine("Project: https://ysonet.net or https://ysonet.com (both open the repo).");
             Console.WriteLine("");
+            if (plugin_name == "" && !show_fullhelp)
+            {
+                Console.WriteLine("Usage: ysonet.exe -g <gadget> -f <formatter> -c <input> [options]");
+                Console.WriteLine("       ysonet.exe -p <plugin> [plugin options]");
+                Console.WriteLine("       ysonet.exe -i                  Start the interactive wizard");
+                Console.WriteLine();
+                Console.WriteLine("== GADGETS ==");
+                Console.WriteLine("  --list gadgets                     List gadget names");
+                Console.WriteLine("  -g ObjectDataProvider -h            Read one gadget's inputs and options");
+                Console.WriteLine("  --list formatters -g <gadget>       List its supported formatters");
+                Console.WriteLine("  --category=formatter=Json.NET       Categories: filter by formatter");
+                Console.WriteLine("  --category=version=net-fx-3.5       Filter by recorded runtime support");
+                Console.WriteLine();
+                Console.WriteLine("== PLUGINS ==");
+                Console.WriteLine("  --list plugins                     List plugin names");
+                Console.WriteLine("  -p ViewState -h                     Read one plugin's options");
+                Console.WriteLine();
+                Console.WriteLine("Common gadget options:");
+                Console.WriteLine("  -c <input>                         Command, URL, path, or other gadget input");
+                Console.WriteLine("  -o <format>                        Output encoding; see --list outputs");
+                Console.WriteLine("  --outputpath <file>                 Write the payload to a file");
+                Console.WriteLine("  --minify                           Minify where supported");
+                Console.WriteLine("  -t                                 Deserialize locally (runs the payload)");
+                Console.WriteLine();
+                Console.WriteLine("More help:");
+                Console.WriteLine("  -h, --help                         Show this quick guide");
+                Console.WriteLine("  --fullhelp                         All gadgets, plugins, and global options");
+                Console.WriteLine("  https://github.com/irsdl/ysonet/blob/master/docs/quick-reference.md");
+                System.Environment.Exit(0);
+            }
             if (plugin_name == "")
             {
                 Console.WriteLine("== GADGETS ==");

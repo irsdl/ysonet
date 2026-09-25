@@ -14,6 +14,25 @@ Adding or changing a gadget or plugin? Read [ysonet/Generators/README.md](ysonet
 
 Before sending a dependency upgrade, read [docs/dependency-security.md](docs/dependency-security.md). Several libraries are pinned to a vulnerable version on purpose, because that vulnerability is the gadget. That page records each pin, the advisory against it, and how to triage a new scanner alert.
 
+## Documentation and release review
+
+Keep introductory pages short; put detailed options and examples in their reference
+pages. Before submitting documentation, check relative links and heading anchors,
+try new command examples, and state what was not verified. Preserve old section
+anchors with a link when moving a section to another page.
+
+Both CI workflows run [documentation checks](tools/docs/README.md): local Markdown
+links and anchors, compact/module help, and comparisons of the public catalog,
+minification coverage, and shipped full-help snapshot against the built binary.
+The binary comparisons also remain in NORMAL. Do not hand-edit the generated
+full-help body. Run `python tools/docs/check_docs.py links` for a documentation edit.
+
+Every release requires [upgrade notes](docs/release-notes/README.md) covering benefits,
+compatibility, limitations, and validation. Prepare and review the version-named file
+before the version change. The workflow rejects missing or incomplete notes before
+creating a tag and verifies the complete authored text after publication. Editorial
+review still establishes that the claims are accurate.
+
 ## Building and testing
 
 The projects target .NET Framework 4.7.2. Build with Visual Studio's MSBuild:

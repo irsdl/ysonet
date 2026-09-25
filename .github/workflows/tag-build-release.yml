@@ -31,12 +31,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check documentation links and release validator tests
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tools/docs -v
+          if ($LASTEXITCODE -ne 0) { throw "Documentation tooling tests failed." }
+          python tools/docs/check_docs.py links
+          if ($LASTEXITCODE -ne 0) { throw "Documentation links are broken." }
+
       - name: Determine version
         id: v
         shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $v = "${{ inputs.version }}".Trim()
+            $v = $env:REQUESTED_VERSION.Trim()
           } else {
             $v = (Get-Content VERSION -Raw).Trim()
           }
@@ -49,17 +59,14 @@ jobs:
           Write-Host "Version: $v"
           Write-Host "Tag: $tag"
 
-      # Every release body opens with the standing sponsor page. It carries no names -
-      # those are credited per release in docs/release-notes/<version>.md - so this only
-      # proves the page is there and still has the heading the body needs.
-      - name: Verify sponsor acknowledgement
+      # Fail before creating a tag, and validate again when assembling the body.
+      - name: Require complete upgrade notes
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.v.outputs.value }}
         run: |
-          $path = "docs/sponsors.md"
-          if (-not (Test-Path $path)) { throw "Release body source is missing: $path" }
-          $text = Get-Content $path -Raw
-          if ($text -notmatch '(?m)^##\s+Sponsors\s*$') { throw "$path lost the '## Sponsors' heading the release body needs." }
-          Write-Host "Sponsor acknowledgement present: $path"
+          python tools/docs/check_docs.py release $env:RELEASE_VERSION
+          if ($LASTEXITCODE -ne 0) { throw "Required upgrade notes are missing or incomplete." }
 
       - name: Check if tag already exists
         id: tagcheck
@@ -103,6 +110,12 @@ jobs:
 
       - name: Build (Release)
         run: msbuild ysonet.sln -p:Configuration=Release -m
+
+      - name: Check CLI help and generated documentation
+        shell: pwsh
+        run: |
+          & .\ysonet.Tests\bin\Release\ysonet.Tests.exe --docs
+          if ($LASTEXITCODE -ne 0) { throw "CLI help or generated documentation is out of date." }
 
       - name: Verify CLR2 self-test hosts and FSharp.Core tool asset
         shell: pwsh
@@ -200,21 +213,14 @@ jobs:
           }
           Write-Host "Agent Skill packaged: .claude/skills/ysonet-payloads/SKILL.md"
 
-      # The release body is assembled from tracked files: the sponsor thanks first,
-      # then this version's highlights when they were written. GitHub pre-pends all of
-      # it to the "What's Changed" list it generates.
+      # The validated sponsor thanks and upgrade notes precede GitHub's commit list.
       - name: Assemble release body
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.v.outputs.value }}
         run: |
-          $parts = @((Get-Content "docs/sponsors.md" -Raw))
-          $highlights = "docs/release-notes/${{ steps.v.outputs.value }}.md"
-          if (Test-Path $highlights) {
-            $parts += (Get-Content $highlights -Raw)
-            Write-Host "Release body: docs/sponsors.md + $highlights"
-          } else {
-            Write-Host "::warning::No highlights at $highlights, so this release note carries the sponsors and the generated notes only."
-          }
-          Set-Content -Path "dist/release-body.md" -Value ($parts -join "`n") -Encoding utf8
+          python tools/docs/check_docs.py release $env:RELEASE_VERSION --output dist/release-body.md
+          if ($LASTEXITCODE -ne 0) { throw "Could not assemble the required release body." }
 
       - name: Publish GitHub Release
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0 (2026-03-14)
@@ -225,35 +231,16 @@ jobs:
           bodyFile: dist/release-body.md
           artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip"
 
-      # A body is only PRE-PENDED to the generated notes, so an action or API change
-      # could drop it silently. Read the published release back and fail loudly.
-      - name: Verify the published release note thanks the sponsors
+      # Read back the complete authored body, including optional new-sponsor credits.
+      - name: Verify published sponsors and upgrade notes
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.v.outputs.value }}
+          RELEASE_TAG: ${{ steps.v.outputs.tag }}
         run: |
-          $tag = "${{ steps.v.outputs.tag }}"
-          $body = (gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq ".body") -join "`n"
-          if ($LASTEXITCODE -ne 0) { throw "Could not read the published release $tag." }
-          if ($body -notmatch '##\s+Sponsors') { throw "The published release note for $tag has no sponsor section." }
-          $highlights = "docs/release-notes/${{ steps.v.outputs.value }}.md"
-          if (-not (Test-Path $highlights)) {
-            Write-Host "No highlights for this version, so it credits no sponsor by name."
-            exit 0
-          }
-          if ($body -notmatch '##\s+Highlights') { throw "$highlights exists but the published release note for $tag has no Highlights section." }
-          # Names are credited in the release their support paid for, so they are read
-          # from THIS version notes rather than from the standing sponsors page. A
-          # release that credits nobody new lists no handle here and passes.
-          $text = Get-Content $highlights -Raw
-          $section = [regex]::Match($text, '(?ms)^##\s+New sponsors\s*$(.*?)(?=^##\s|\z)')
-          $names = @()
-          if ($section.Success) {
-            $names = [regex]::Matches($section.Groups[1].Value, '\[@([A-Za-z0-9-]+)\]') | ForEach-Object { $_.Groups[1].Value }
-          }
-          foreach ($n in $names) {
-            if ($body -notmatch [regex]::Escape($n)) { throw "The published release note for $tag does not mention the sponsor $n." }
-          }
-          if ($names.Count -gt 0) { Write-Host "Published release note thanks: $($names -join ', ')" }
-          else { Write-Host "This release credits no new sponsor by name." }
-          Write-Host "Published release note carries the highlights from $highlights"
+          $body = (gh api "repos/${{ github.repository }}/releases/tags/$env:RELEASE_TAG" --jq ".body") -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw "Could not read the published release." }
+          Set-Content -Path dist/published-body.md -Value $body -Encoding utf8
+          python tools/docs/check_docs.py release $env:RELEASE_VERSION --published dist/published-body.md
+          if ($LASTEXITCODE -ne 0) { throw "Published release omitted or changed the required notes." }

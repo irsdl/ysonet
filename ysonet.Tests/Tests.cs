@@ -88,6 +88,18 @@ namespace ysonet.Tests
 
         private static int Main(string[] args)
         {
+            // This standalone gate reads documentation and runs metadata queries only.
+            if (Array.IndexOf(args, "--docs") >= 0)
+            {
+                if (args.Length != 1)
+                {
+                    Console.Error.WriteLine("--docs must be used alone; it runs information-only checks.");
+                    return 2;
+                }
+                TestEnvironment.Strict = true;
+                RunDocumentationTests();
+                return FinishRun();
+            }
             string completionProbe = Environment.GetEnvironmentVariable(CompletionProbeVar);
             if (completionProbe != null) return CompletionProbe(completionProbe);
             if (Environment.GetEnvironmentVariable("YSONET_DUMPUI") != null) { DumpUi(); return 0; }
@@ -292,9 +304,7 @@ namespace ysonet.Tests
             Run("Completion shell classifier recognizes shells", CompletionShellClassifier);
             Run("Completion policy classifier flags signing-required policies", CompletionPolicyClassifier);
             RunCompletionUxTests();
-            Run("The shipped Agent Skill covers every public module and option", UserSkillCoversPublicInterface);
-            Run("The minification snapshot doc covers every gadget cell and minify-capable plugin", MinificationSnapshotDocCoversEveryModule);
-            Run("The public catalog doc matches the live gadget and plugin listing", PublicCatalogDocMatchesLiveCatalogue);
+            RunDocumentationTests();
             Run("Menu navigates with arrows and Enter", MenuNavigation);
             Run("Menu digit shortcut and Escape cancel", MenuDigitAndCancel);
             Run("Picker selects by typing and cancels on Esc", PickerShowSelectAndCancel);

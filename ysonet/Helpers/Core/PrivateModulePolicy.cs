@@ -35,7 +35,7 @@ namespace ysonet.Helpers.Core
         public const string LongFlagName = "--display-private";
 
         public const string FlagHelp =
-            "Also list private gadgets and plugins in --help, --fullhelp, --credit, "
+            "Also list private gadgets and plugins in --fullhelp, --credit, "
             + "--list, --sf, --raf, --category and interactive mode. They always build "
             + "when named on the command line; this only shows them in listings.";
 
@@ -46,7 +46,7 @@ namespace ysonet.Helpers.Core
         // Fail OPEN: a module whose declaration cannot be read is treated as PUBLIC.
         // The cost is that a BROKEN private gadget could surface in a listing. The
         // alternative costs more: a broken PUBLIC gadget would silently vanish from
-        // --help and hide a real bug behind a feature that only tidies a listing. A
+        // --fullhelp and hide a real bug behind a feature that only tidies a listing. A
         // visibility rule must never be able to swallow a build error.
         public static bool IsPrivate(IGenerator g)
         {
