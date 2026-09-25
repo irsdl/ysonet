@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
@@ -87,7 +87,8 @@ namespace ysonet.Generators
                     "and have the same effect; they differ only in the member NAME on the wire. " +
                     "An unknown number falls back to 1.",
                     v => int.TryParse(v, out variant_number) },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()));
 
             return options;
         }

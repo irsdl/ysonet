@@ -101,10 +101,9 @@ namespace ysonet.Interactive
             }
         }
 
-        // ---- Heuristics: recover choices/default/required from an option's help
-        // text, because NDesk.Options records none of these (the validation is an
-        // opaque compiled lambda). Best-effort by design; a Choice always allows a
-        // custom value so a wrong guess never blocks the user.
+        // Legacy public parsing utilities retained for source compatibility. The
+        // editor does not call these: option metadata is its sole source of defaults,
+        // choices and required hints. New consumers must use OptionMetadata instead.
 
         // The token after a "Default:" marker in a description, or "". The colon is
         // required so prose like "no default mentioned" is not misread as a value.

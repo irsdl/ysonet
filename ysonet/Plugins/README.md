@@ -11,10 +11,10 @@ A plugin follows the same two rules as a gadget, and the contract is written up 
 - **Write it to be read.** Plugins are research material. The payload must be fully visible in
   the source, copyable straight into the testing arena, never obfuscated or encoded to hide
   what it is, named after the real types, and commented with the WHY.
-- **Option help is an input.** The interactive editor recovers each option's default from its
-  help text and then EMITS it, so a `Default:` marker follows the same rules for a plugin as
-  for a gadget: one value, quoted when it contains a separator, and no marker at all when the
-  default depends on another option.
+- **Explicit option metadata.** Declare defaults, choices, and required hints beside the
+  option set with `WithMetadata`; see the option-metadata section in the gadget contract.
+  Help text never supplies configuration. Leave context-dependent defaults unset and keep
+  conditional requirements in the existing plugin-mode declarations.
 
 # Development test order
 

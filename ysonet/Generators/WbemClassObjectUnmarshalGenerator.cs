@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -398,7 +398,9 @@ namespace ysonet.Generators
                         + " The (2) formatter annotation counts blob variants, not root-carrier choices.",
                     v => rootCarrier = ParseRootCarrierOption(v)
                 },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("rootcarrier", new OptionMetadata(defaultValue: "1", choices: new[] { "1", "2" }, prefillDefault: false));
         }
 
         // Strict, like TypeConfuseDelegate's --rootcontainer and unlike the usual

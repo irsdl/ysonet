@@ -42,6 +42,7 @@ namespace ysonet
         static bool dosAcknowledged = false;
         static bool legacyFx = false;
         static string listCategory = "";
+        static string listOption = "";
 
         // Repeatable --category=axis=value discovery filter. Collected raw here and
         // parsed once in Main. Internal so the parser test can drive Program.options.
@@ -68,7 +69,8 @@ namespace ysonet
                 {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. The shared transform rewrites framework assembly versions; gadgets that carry source may also use the CLR-v2 compiler, and a gadget may author a type's older assembly identity when it moved between CLR generations. The graph and your input are untouched. It is not proof that every gadget works there. Default: false", v => legacyFx = v != null },
                 {"raf|runallformatters", "Try every listed non denial-of-service gadget whose formatter name contains the given text. Requires -f plus -c or -s, and cannot be combined with -g or -p. Uses each formatter's default output format, ignores -o, -t, and --testclr2, prints payloads with their length, and reports per-payload failures plus a summary on stderr. Default: false", v => isSearchFormatterAndRunMode =  v != null },
                 {"sf|searchformatter=", "Search in all formatters to show relevant gadgets and their formatters (other parameters will be ignored).", v => searchFormatter =  v},
-                {"list=", "Print a machine-readable list (one item per line) and exit. Categories: gadgets|plugins|formatters|options|outputs. Add -g <gadget> to list that gadget's formatters/options, or -p <plugin> to list that plugin's options. Useful for shell tab-completion scripts.", v => listCategory = v },
+                {"list=", "Print a machine-readable list (one item per line) and exit. Categories: gadgets|plugins|formatters|options|outputs|values|value-options. Add -g <gadget> to list that gadget's formatters/options, or -p <plugin> to list that plugin's options. Useful for shell tab-completion scripts.", v => listCategory = v },
+                {"option=", "Option name whose declared values to print with --list values (combine with -g or -p).", v => listOption = v },
                 {"category=", "Find gadgets by category (repeatable): --category=axis=value where axis is kind|formatter|input|requirement|version. Repeat for OR within an axis and AND across axes. A version is an exact runtime build (4.8.1, 5.0, mono) and only lists gadgets recorded as working there. Alone it prints matching gadgets and their categories; with '--list gadgets' it prints matching names only. Example: --category=kind=code-execution --category=formatter=Json.NET", v => rawCategoryValues.Add(v) },
                 {"debugmode", "Enable debugging to show exception errors and output length", v => isDebugMode  =  v != null},
                 {DosPolicy.AckOptionName, DosPolicy.AckHelp, v => dosAcknowledged = v != null },
@@ -78,9 +80,23 @@ namespace ysonet
                 {"credit", "Shows the credit/history of gadgets and plugins (other parameters will be ignored).", v => show_credit =  v != null },
                 {"checkupdate", "Check GitHub for a newer YSoNet release and exit.", v => checkUpdate = v != null },
                 {"runmytest", "Runs that `Start` method of `TestingArenaHome` - useful for testing and debugging.", v => runMyTest =  v != null }
-            };
+            }
+            .WithMetadata("output", new OptionMetadata(choices: CliListing.OutputFormats))
+            .WithMetadata("list", new OptionMetadata(choices: CliListing.ListCategories));
 
         static void Main(string[] args)
+        {
+            try { RunMain(args); }
+            catch (Exception error)
+            {
+                Console.Error.WriteLine("ysonet: " + error.Message);
+                Console.Error.WriteLine("Try 'ysonet --help' or selected-module '-h' for more information.");
+                if (isDebugMode) Console.Error.WriteLine(error);
+                Environment.ExitCode = 1;
+            }
+        }
+
+        private static void RunMain(string[] args)
         {
             // Isolated self-test child: ysonet re-runs itself to deserialize ONE payload
             // whose firing kills the process (see Helpers/Core/IsolatedSelfTest.cs). It is
@@ -139,11 +155,16 @@ namespace ysonet
             }
             catch (OptionException e)
             {
-                Console.Write("ysonet: ");
-                Console.WriteLine(e.Message);
-                Console.WriteLine("Try 'ysonet --help' for more information.");
+                Console.Error.Write("ysonet: ");
+                Console.Error.WriteLine(e.Message);
+                Console.Error.WriteLine("Try 'ysonet --help' for more information.");
                 System.Environment.Exit(-1);
             }
+
+            // No arguments is an information request; an incomplete command is not.
+            if (args.Length == 0) show_help = true;
+            if (!runMyTest && !isSearchFormatterAndRunMode)
+                ValidateKnownOptions(args);
 
             // A module whose visibility declaration could not be read is treated as
             // PUBLIC (fail open). Say so under --debugmode only, before anything
@@ -213,6 +234,8 @@ namespace ysonet
                 gadget_name = GadgetRegistry.NormalizeGadgetName(gadget_name);
                 string exactGadgetName = GadgetRegistry.ValidateAndGetExactGadgetName(gadget_name);
 
+                if (string.IsNullOrEmpty(exactGadgetName))
+                    throw new ArgumentException("Gadget '" + gadget_name + "' not supported.");
                 if (!string.IsNullOrEmpty(exactGadgetName))
                 {
                     ShowGadgetSpecificHelp(exactGadgetName);
@@ -221,12 +244,14 @@ namespace ysonet
             }
 
             // Handle plugin-specific help when a valid plugin is provided with --help or --fullhelp
-            if (!string.IsNullOrEmpty(plugin_name) && (show_help || show_fullhelp) && gadget_name == "" && !show_credit && searchFormatter == "")
+            if (!string.IsNullOrEmpty(plugin_name) && (show_help || show_fullhelp) && !show_credit && searchFormatter == "")
             {
                 // Normalize plugin name and validate
                 plugin_name = PluginRegistry.NormalizePluginName(plugin_name);
                 string exactPluginName = PluginRegistry.ValidateAndGetExactPluginName(plugin_name);
 
+                if (string.IsNullOrEmpty(exactPluginName))
+                    throw new ArgumentException("Plugin '" + plugin_name + "' not supported.");
                 if (!string.IsNullOrEmpty(exactPluginName))
                 {
                     ShowPluginSpecificHelp(exactPluginName);
@@ -274,71 +299,21 @@ namespace ysonet
                 }
             }
 
-            // Check for missing arguments and decide when to show general help.
-            // Run-all is excluded: it needs no gadget name and reported its own
-            // requirements above, so this block must not judge it by the
-            // single-gadget contract.
-            if (!isSearchFormatterAndRunMode &&
-                ((cmd == "" && !cmdstdin && !commandIgnored) || formatter_name == "" || gadget_name == "") &&
-                plugin_name == "" && !show_credit && searchFormatter == "")
+            // A plugin can use -g for its own catalogue, so only validate the global
+            // gadget selector when no plugin owns it. Information modes keep precedence.
+            if (!show_credit && searchFormatter == "")
             {
-                // If a gadget name is provided but other params are missing (scenario A)
-                if (!string.IsNullOrEmpty(gadget_name) && !show_help && !show_fullhelp)
-                {
-                    // Validate gadget using GadgetRegistry
-                    string exactGadgetName = GadgetRegistry.ValidateAndGetExactGadgetName(gadget_name);
-
-                    if (!string.IsNullOrEmpty(exactGadgetName))
-                    {
-                        Console.WriteLine("Missing arguments (a gadget also needs a formatter, and usually a command).");
-                        ShowGadgetSpecificHelp(exactGadgetName);
-                        System.Environment.Exit(0);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Gadget '" + gadget_name + "' not supported.");
-                        Console.WriteLine();
-                        ShowAvailableGadgets(gadget_name, formatter_name);
-                        System.Environment.Exit(-1);
-                    }
-                }
-                // There is no plugin branch here on purpose. The enclosing condition
-                // requires plugin_name == "", so any branch testing for a non-empty
-                // plugin name is unreachable. A plugin's own missing-argument errors
-                // and examples come from plugin dispatch, and its help from the
-                // plugin-specific help branch above.
-                else if (!show_help)
-                {
-                    Console.WriteLine("Missing arguments.");
-                    show_help = true;
-                }
+                if (plugin_name != "" && !PluginRegistry.PluginExists(plugin_name))
+                    throw new ArgumentException("Plugin '" + plugin_name + "' not supported.");
+                if (plugin_name == "" && gadget_name != "" && !GadgetRegistry.GadgetExists(gadget_name))
+                    throw new ArgumentException("Gadget '" + gadget_name + "' not supported.");
             }
 
-            // Early validation for gadget parameter - show available gadgets if invalid gadget is provided
-            if (!string.IsNullOrEmpty(gadget_name) && plugin_name == "" && !show_credit && searchFormatter == "" && !show_help && !show_fullhelp)
-            {
-                // Use GadgetRegistry to validate gadget exists
-                if (!GadgetRegistry.GadgetExists(gadget_name))
-                {
-                    Console.WriteLine("Gadget '" + gadget_name + "' not supported.");
-                    Console.WriteLine();
-                    ShowAvailableGadgets(gadget_name, formatter_name);
-                    System.Environment.Exit(-1);
-                }
-            }
-
-            // Early validation for plugin parameter - show available plugins if invalid plugin is provided
-            if (!string.IsNullOrEmpty(plugin_name) && gadget_name == "" && !show_credit && searchFormatter == "" && !show_help && !show_fullhelp)
-            {
-                // Use PluginRegistry to validate plugin exists
-                if (!PluginRegistry.PluginExists(plugin_name))
-                {
-                    Console.WriteLine("Plugin '" + plugin_name + "' not supported.");
-                    Console.WriteLine();
-                    ShowAvailablePlugins(plugin_name);
-                    System.Environment.Exit(-1);
-                }
-            }
+            if (!isSearchFormatterAndRunMode && plugin_name == "" && !show_help
+                && !show_credit && searchFormatter == ""
+                && ((cmd == "" && !cmdstdin && !commandIgnored) || formatter_name == "" || gadget_name == ""))
+                throw new ArgumentException("Missing arguments (a gadget needs a formatter, and usually a command)."
+                    + (gadget_name == "" ? "" : " Use 'ysonet -g " + gadget_name + " -h' for its options."));
 
             // Search in formatters
             if (searchFormatter != "")
@@ -358,40 +333,23 @@ namespace ysonet
                 ShowHelp();
             }
 
+            if (!isSearchFormatterAndRunMode && outputformat != ""
+                && !CliListing.OutputFormats.Contains(outputformat, StringComparer.OrdinalIgnoreCase))
+                throw new ArgumentException("Unknown output format '" + outputformat
+                    + "'. Use --list outputs for supported encodings.");
+
             object raw = null;
 
             // Try to execute plugin first
             if (plugin_name != "")
             {
-                // Use PluginRegistry to validate plugin exists
-                if (!PluginRegistry.PluginExists(plugin_name))
-                {
-                    Console.WriteLine("Plugin not supported. Supported plugins are: " + string.Join(" , ", plugins));
-                    System.Environment.Exit(-1);
-                }
+                // Modules return their data. Console messages during execution are
+                // diagnostics, including legacy plugin validation and debug messages.
+                RunResult pluginResult = WithDiagnostics(() => PayloadRunner.RunPlugin(plugin_name, args));
+                if (!pluginResult.Success) throw new ArgumentException(pluginResult.ErrorMessage);
+                raw = pluginResult.Raw;
 
-                // Instantiate Plugin using PluginRegistry
-                IPlugin plugin = PluginRegistry.CreatePluginInstance(plugin_name);
-                if (plugin == null)
-                {
-                    Console.WriteLine("Plugin not supported!");
-                    System.Environment.Exit(-1);
-                }
-
-                try
-                {
-                    raw = plugin.Run(args);
-                }
-                catch (Exception ex)
-                {
-                    // A plugin-invoked gadget may now signal bad input by throwing
-                    // instead of exiting the process. Preserve the old CLI behavior:
-                    // print the message and exit non-zero.
-                    Console.WriteLine(ex.Message);
-                    System.Environment.Exit(-1);
-                }
-
-                WriteOutputOrReportOnStdout(outputformat, raw, isDebugMode, outputpath);
+                WriteOutputOrFail(outputformat, raw, isDebugMode, outputpath);
             }
             // othersiwe run payload generation
             else if (!isSearchFormatterAndRunMode && (cmd != "" || cmdstdin || commandIgnored) && formatter_name != "" && gadget_name != "")
@@ -409,7 +367,7 @@ namespace ysonet
 
                 if (isDebugMode)
                 {
-                    Console.WriteLine("Current gadget chain: " + string.Join(" -> ", gadgetsChain));
+                    Console.Error.WriteLine("Current gadget chain: " + string.Join(" -> ", gadgetsChain));
                 }
 
                 string stdinError;
@@ -431,10 +389,10 @@ namespace ysonet
                     InputArgs = inputArgs
                 };
 
-                RunResult result = PayloadRunner.GenerateGadget(request);
+                RunResult result = WithDiagnostics(() => PayloadRunner.GenerateGadget(request));
                 if (!result.Success)
                 {
-                    Console.WriteLine(result.ErrorMessage);
+                    Console.Error.WriteLine(result.ErrorMessage);
                     System.Environment.Exit(-1);
                 }
 
@@ -447,7 +405,7 @@ namespace ysonet
                 raw = result.Raw;
                 outputformat = result.EffectiveOutputFormat;
 
-                WriteOutputOrReportOnStdout(outputformat, raw, isDebugMode, outputpath);
+                WriteOutputOrFail(outputformat, raw, isDebugMode, outputpath);
             }
             else if (isSearchFormatterAndRunMode)
             {
@@ -456,10 +414,6 @@ namespace ysonet
                 Environment.ExitCode = RunAllFormatters(inputArgs);
             }
 
-            if (isDebugMode)
-            {
-                Console.ReadLine();
-            }
         }
 
         // Detects whether the user asked for interactive mode. Triggers, and only
@@ -578,30 +532,14 @@ namespace ysonet
                     break;
 
                 case "options":
-                    if (!string.IsNullOrEmpty(gadget_name))
-                    {
-                        string exact = GadgetRegistry.ValidateAndGetExactGadgetName(GadgetRegistry.NormalizeGadgetName(gadget_name));
-                        if (string.IsNullOrEmpty(exact))
-                        {
-                            Console.Error.WriteLine("Unknown gadget: " + gadget_name);
-                            Environment.Exit(-1);
-                        }
-                        items = CliListing.GadgetOptions(exact);
-                    }
-                    else if (!string.IsNullOrEmpty(plugin_name))
-                    {
-                        string exactPlugin = PluginRegistry.ValidateAndGetExactPluginName(PluginRegistry.NormalizePluginName(plugin_name));
-                        if (string.IsNullOrEmpty(exactPlugin))
-                        {
-                            Console.Error.WriteLine("Unknown plugin: " + plugin_name);
-                            Environment.Exit(-1);
-                        }
-                        items = CliListing.PluginOptions(exactPlugin);
-                    }
-                    else
-                    {
-                        items = CliListing.OptionTokens(options);
-                    }
+                case "value-options":
+                    items = CliListing.OptionTokens(SelectedOptions(), category == "value-options");
+                    break;
+
+                case "values":
+                    if (string.IsNullOrEmpty(listOption))
+                        throw new ArgumentException("--list values requires --option <name>.");
+                    items = CliListing.OptionValues(SelectedOptions(), listOption, show_private);
                     break;
 
                 case "outputs":
@@ -610,7 +548,7 @@ namespace ysonet
 
                 default:
                     Console.Error.WriteLine("Unknown list category: " + category);
-                    Console.Error.WriteLine("Valid categories: gadgets, plugins, formatters, options, outputs");
+                    Console.Error.WriteLine("Valid categories: gadgets, plugins, formatters, options, outputs, values, value-options");
                     Environment.Exit(-1);
                     return; // unreachable, keeps the compiler happy about items
             }
@@ -622,14 +560,96 @@ namespace ysonet
             Environment.Exit(0);
         }
 
-        // The single-payload path: write the payload and, when that fails, print the
-        // reason on stdout exactly where the old ProcessOutput printed it. Run-all
-        // does not use this, because it needs the reason as data for its own record.
-        private static void WriteOutputOrReportOnStdout(string outputformat, object raw, bool showOutputLength, string outputFilePath)
+        private static OptionSet SelectedOptions()
+        {
+            // A plugin owns selectors such as -g in its own argument vocabulary.
+            if (!string.IsNullOrEmpty(plugin_name))
+            {
+                IPlugin plugin = PluginRegistry.CreatePluginInstance(plugin_name);
+                if (plugin == null) throw new ArgumentException("Unknown plugin: " + plugin_name);
+                return plugin.Options();
+            }
+            if (!string.IsNullOrEmpty(gadget_name))
+            {
+                IGenerator gadget = GadgetRegistry.CreateGadgetInstance(gadget_name);
+                if (gadget == null) throw new ArgumentException("Unknown gadget: " + gadget_name);
+                return gadget.Options();
+            }
+            return options;
+        }
+
+        // Restore stdout even if a module throws. Returned payload bytes are written
+        // only after execution completes, outside this diagnostic scope.
+        private static T WithDiagnostics<T>(Func<T> action)
+        {
+            TextWriter output = Console.Out;
+            try
+            {
+                Console.SetOut(Console.Error);
+                return action();
+            }
+            finally { Console.SetOut(output); }
+        }
+
+        // NDesk returns unknown arguments to support module-specific options. Check
+        // against the selected modules without invoking their option callbacks twice.
+        private static void ValidateKnownOptions(string[] args)
+        {
+            var sets = new List<OptionSet>();
+            if (plugin_name != "")
+            {
+                IPlugin plugin = PluginRegistry.CreatePluginInstance(plugin_name);
+                if (plugin != null) sets.Add(plugin.Options());
+            }
+            sets.Add(options);
+            var names = new List<string> { gadget_name };
+            if (!string.IsNullOrEmpty(bridged_gadget_chain)) names.AddRange(bridged_gadget_chain.Split(','));
+            foreach (string name in names)
+            {
+                if (string.IsNullOrEmpty(name)) continue;
+                IGenerator gadget = GadgetRegistry.CreateGadgetInstance(name);
+                if (gadget != null) sets.Add(gadget.Options());
+            }
+            // Resolve the encoding with the complete option vocabulary. The global
+            // parser alone treats a module's -of as -o with the value "f".
+            outputformat = "";
+            var accepted = new OptionSet();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (OptionSet set in sets)
+            {
+                if (set == null) continue;
+                foreach (Option option in set)
+                {
+                    string suffix = option.OptionValueType == OptionValueType.Required ? "="
+                        : option.OptionValueType == OptionValueType.Optional ? ":" : "";
+                    // Variant selectors are integer-valued throughout the catalogue.
+                    // Some legacy callbacks use TryParse and silently fall back to zero.
+                    bool variant = option.GetNames().Contains("variant");
+                    bool outputEncoding = option.GetNames().Contains("output");
+                    foreach (string name in option.GetNames())
+                    {
+                        if (!seen.Add(name)) continue;
+                        accepted.Add(name + suffix, value =>
+                        {
+                            if (outputEncoding) outputformat = value;
+                            int number;
+                            if (variant && !int.TryParse(value, out number))
+                                throw new OptionException("Invalid option --" + name
+                                    + ": expected an integer variant number.", name);
+                        });
+                    }
+                }
+            }
+            List<string> extra = accepted.Parse(args);
+            if (extra.Count > 0)
+                throw new ArgumentException("Unknown option or unexpected argument: " + extra[0]);
+        }
+
+        private static void WriteOutputOrFail(string outputformat, object raw, bool showOutputLength, string outputFilePath)
         {
             string error;
             if (!ProcessOutput(outputformat, raw, showOutputLength, outputFilePath, out error))
-                Console.WriteLine(error);
+                throw new IOException(error);
         }
 
         // Encode and write one payload. Returns false with a reason instead of
@@ -653,6 +673,9 @@ namespace ysonet
                 return false;
             }
 
+            if (showOutputLength && string.IsNullOrEmpty(prefix))
+                Console.Error.WriteLine("(*) Output length: " + outputActualLength);
+
             if (String.IsNullOrWhiteSpace(outputFilePath))
             {
                 // output in console
@@ -662,7 +685,7 @@ namespace ysonet
                     Console.WriteLine(prefix);
                 }
 
-                if (showOutputLength)
+                if (showOutputLength && !string.IsNullOrEmpty(prefix))
                 {
                     Console.WriteLine("(*) Output length: " + outputActualLength);
                 }
@@ -707,7 +730,7 @@ namespace ysonet
                                 writer.WriteLine(prefix);
                             }
 
-                            if (showOutputLength)
+                            if (showOutputLength && !string.IsNullOrEmpty(prefix))
                             {
                                 writer.WriteLine("(*) Output length: " + outputBytes.Length);
                             }
@@ -862,7 +885,7 @@ namespace ysonet
                     RunResult result;
                     try
                     {
-                        result = PayloadRunner.GenerateGadget(request);
+                        result = WithDiagnostics(() => PayloadRunner.GenerateGadget(request));
                     }
                     catch (Exception err)
                     {
@@ -998,7 +1021,7 @@ namespace ysonet
                     Debugging.ShowErrors(inputArgs, err);
                 }
             }
-            System.Environment.Exit(-1);
+            System.Environment.Exit(0);
         }
 
         private static void ShowHelp()
@@ -1118,7 +1141,7 @@ namespace ysonet
                     }
                     catch
                     {
-                        Console.WriteLine("Gadget not supported");
+                        Console.Error.WriteLine("Gadget not supported");
                         System.Environment.Exit(-1);
                     }
                 }
@@ -1166,7 +1189,7 @@ namespace ysonet
                     }
                     catch
                     {
-                        Console.WriteLine("Plugin not supported");
+                        Console.Error.WriteLine("Plugin not supported");
                         System.Environment.Exit(-1);
                     }
                 }
@@ -1195,12 +1218,12 @@ namespace ysonet
                     }
                     else
                     {
-                        Console.WriteLine("Plugin not supported");
+                        Console.Error.WriteLine("Plugin not supported");
                     }
                 }
                 catch
                 {
-                    Console.WriteLine("Plugin not supported");
+                    Console.Error.WriteLine("Plugin not supported");
                 }
                 System.Environment.Exit(-1);
             }
@@ -1215,7 +1238,7 @@ namespace ysonet
 
                 if (gg == null)
                 {
-                    Console.WriteLine("Gadget '" + specificGadgetName + "' not found.");
+                    Console.Error.WriteLine("Gadget '" + specificGadgetName + "' not found.");
                     System.Environment.Exit(-1);
                 }
 
@@ -1258,7 +1281,7 @@ namespace ysonet
             }
             catch
             {
-                Console.WriteLine("Error loading gadget '" + specificGadgetName + "'");
+                Console.Error.WriteLine("Error loading gadget '" + specificGadgetName + "'");
                 System.Environment.Exit(-1);
             }
         }
@@ -1276,7 +1299,7 @@ namespace ysonet
 
                 if (pp == null)
                 {
-                    Console.WriteLine("Plugin '" + specificPluginName + "' not found.");
+                    Console.Error.WriteLine("Plugin '" + specificPluginName + "' not found.");
                     System.Environment.Exit(-1);
                 }
 
@@ -1298,7 +1321,7 @@ namespace ysonet
             }
             catch
             {
-                Console.WriteLine("Error loading plugin '" + specificPluginName + "'");
+                Console.Error.WriteLine("Error loading plugin '" + specificPluginName + "'");
                 System.Environment.Exit(-1);
             }
         }
@@ -1412,7 +1435,7 @@ namespace ysonet
                 }
                 catch
                 {
-                    Console.WriteLine("Gadget not supported");
+                    Console.Error.WriteLine("Gadget not supported");
                     System.Environment.Exit(-1);
                 }
             }
@@ -1434,7 +1457,7 @@ namespace ysonet
                 }
                 catch
                 {
-                    Console.WriteLine("Plugin not supported");
+                    Console.Error.WriteLine("Plugin not supported");
                     System.Environment.Exit(-1);
                 }
             }

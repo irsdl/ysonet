@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel;
@@ -35,11 +35,16 @@ namespace ysonet.Plugins
         static OptionSet options = new OptionSet()
             {
                 {"c|command=", "the command to be executed e.g. \"cmd /c calc\"", v => command = v },
-                {"t|test", "whether to run payload locally. Default: false", v => test =  v != null },
-                {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
-                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
+                {"t|test", "whether to run payload locally. Default: {default}", v => test =  v != null },
+                {"minify", "Whether to minify the payloads where applicable (experimental). Default: {default}", v => minify =  v != null },
+                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: {default}", v => useSimpleType =  v != null },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
-            };
+            }
+            .WithMetadata("command", new OptionMetadata(required: true))
+            .WithMetadata("test", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("minify", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("usesimpletype", new OptionMetadata(defaultValue: "true"))
+            .WithMetadata("rawcmd", new OptionMetadata(defaultValue: "false"));
 
         public string Name()
         {

@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -172,7 +172,8 @@ namespace ysonet.Generators
                         variant_number = parsed;
                     }
                 }
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()));
         }
 
         // BF, NDCS and Los carry all three variants. Soap carries SortedSet and TreeSet

@@ -96,11 +96,18 @@ find the exe, option-name completion still works and value lists come back empty
 The scripts are thin wrappers over the tool's own machine-readable listing:
 
 ```text
-ysonet.exe --list gadgets|plugins|formatters|options|outputs
+ysonet.exe --list gadgets|plugins|formatters|options|outputs|values|value-options
 ysonet.exe -g <gadget> --list formatters   # that gadget's formatters
 ysonet.exe -g <gadget> --list options      # that gadget's extra options
 ysonet.exe -p <plugin> --list options      # that plugin's options
+ysonet.exe -p <plugin> --list value-options # options that take a value
+ysonet.exe -p Resx --list values --option mode # declared mode suggestions
 ```
 
 It prints one item per line to stdout and exits, so it is easy to reuse from any
 other tooling or shell.
+
+Module completion uses explicit option metadata. After `-g` or `-p`, TAB offers that
+module's options and declared values, including `--name=value`. Value-taking options
+come from NDesk's declarations; flags do not consume the next completion position.
+No help-text parsing is involved. Free-text fields have no invented suggestions.

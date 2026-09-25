@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -70,15 +70,23 @@ namespace ysonet.Plugins
 
         static OptionSet options = new OptionSet()
             {
-                {"m|mode=", "delivery mode (default: winforms). 'winforms': a BinaryFormatter gadget under a WinForms format (see --format). 'wpfxaml': an ObjectDataProvider XAML string under the WPF 'Xaml' format, for InkCanvas/RichTextBox paste; fires only if the target enabled the legacy clipboard switch or predates the CVE-2020-0605/0606 mitigation (see the header comment for details).", v => { if (v != null) mode = v.Trim().ToLowerInvariant(); } },
-                {"F|format=", "winforms mode only. The object format: Csv, DeviceIndependentBitmap, DataInterchangeFormat, PenData, RiffAudio, WindowsForms10PersistentObject, System.String, SymbolicLink, TaggedImageFileFormat, WaveAudio. Default: WindowsForms10PersistentObject (the only one that works in Feb 2020 as a result of an incomplete silent patch - will not be useful to target text-based fields anymore)", v => format = v },
+                {"m|mode=", "delivery mode (default: {default}). 'winforms': a BinaryFormatter gadget under a WinForms format (see --format). 'wpfxaml': an ObjectDataProvider XAML string under the WPF 'Xaml' format, for InkCanvas/RichTextBox paste; fires only if the target enabled the legacy clipboard switch or predates the CVE-2020-0605/0606 mitigation (see the header comment for details).", v => { if (v != null) mode = v.Trim().ToLowerInvariant(); } },
+                {"F|format=", "winforms mode only. The object format: Csv, DeviceIndependentBitmap, DataInterchangeFormat, PenData, RiffAudio, WindowsForms10PersistentObject, System.String, SymbolicLink, TaggedImageFileFormat, WaveAudio. Default: {default} (the only one that works in Feb 2020 as a result of an incomplete silent patch - will not be useful to target text-based fields anymore)", v => format = v },
                 {"xamlvariant=", "wpfxaml mode only. ObjectDataProvider XAML variant: 1 = bare ObjectDataProvider, 2 = ResourceDictionary wrapper (looks like real clipboard XAML). Default: 2", v => int.TryParse(v, out xamlVariant) },
                 {"c|command=", "the command to be executed", v => command = v },
-                {"t|test", "whether to run payload locally. In wpfxaml mode this simulates the WPF paste path (restrictive vs legacy) and runs the command if it fires. Default: false", v => test =  v != null },
-                {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
-                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
+                {"t|test", "whether to run payload locally. In wpfxaml mode this simulates the WPF paste path (restrictive vs legacy) and runs the command if it fires. Default: {default}", v => test =  v != null },
+                {"minify", "Whether to minify the payloads where applicable (experimental). Default: {default}", v => minify =  v != null },
+                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: {default}", v => useSimpleType =  v != null },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
-            };
+            }
+            .WithMetadata("mode", new OptionMetadata(defaultValue: "winforms", choices: new[] { "winforms", "wpfxaml" }))
+            .WithMetadata("format", new OptionMetadata(defaultValue: "WindowsForms10PersistentObject", choices: new[] { "Csv", "DeviceIndependentBitmap", "DataInterchangeFormat", "PenData", "RiffAudio", "WindowsForms10PersistentObject", "System.String", "SymbolicLink", "TaggedImageFileFormat", "WaveAudio" }))
+            .WithMetadata("xamlvariant", new OptionMetadata(defaultValue: "2", choices: new[] { "1", "2" }))
+            .WithMetadata("command", new OptionMetadata(required: true))
+            .WithMetadata("test", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("minify", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("usesimpletype", new OptionMetadata(defaultValue: "true"))
+            .WithMetadata("rawcmd", new OptionMetadata(defaultValue: "false"));
 
         public string Name()
         {

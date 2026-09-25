@@ -279,11 +279,7 @@ namespace ysonet.Generators
             return new OptionSet
             {
                 {
-                    // The first two lines are written for the interactive editor as well as for
-                    // --fullhelp: "Choices: ..." is the cue EditableField.ParseChoices reads to
-                    // build the picker, and "Default: ..." is the marker it pre-fills and EMITS.
-                    // Both sit before any other colon so the heuristic cannot offer a menu of
-                    // prose fragments.
+                    // Choice/default facts are declared below; this text explains them.
                     "var|" + VariantOptionName + "=",
                     "Which type converter the attribute selects.\r\n"
                         + "Choices: " + VariantImageSource + ", " + VariantCursor + ". "
@@ -352,7 +348,9 @@ namespace ysonet.Generators
                         + "on the target, the network and your endpoint.",
                     v => { if (v != null) rawInput = true; }
                 },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("rawinput", new OptionMetadata(defaultValue: "false"));
         }
 
         // ---- Generation --------------------------------------------------------

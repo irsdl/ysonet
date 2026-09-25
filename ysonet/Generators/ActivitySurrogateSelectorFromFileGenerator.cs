@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Runtime.Serialization;
 using ysonet.Helpers;
@@ -41,7 +41,8 @@ namespace ysonet.Generators
             OptionSet options = new OptionSet()
             {
                 {"var|variant=", "Payload variant number where applicable. Choices: 1 (default), 2 (shorter but may not work between versions), 3 (larger DataSet carrier)", v => int.TryParse(v, out this.variant_number) },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()));
             return options;
         }
 

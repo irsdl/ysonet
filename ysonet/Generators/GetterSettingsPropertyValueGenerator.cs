@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.Windows.Markup;
@@ -97,7 +97,8 @@ namespace ysonet.Generators
                 "\r\n4 - CheckedListBox getter-call gadget" +
                 "\r\n5 - BindingSource getter-call gadget (Xaml only; a Component, so no WinForms control is built on the target)",
                 v => int.TryParse(v, out variant_number) },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()));
 
             return options;
         }

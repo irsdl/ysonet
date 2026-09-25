@@ -284,7 +284,9 @@ namespace ysonet.Generators
                         + "change the selected file operation.",
                     v => root_container_number = ParseRootContainer(v)
                 },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("rootcontainer", new OptionMetadata(defaultValue: "1", choices: new[] { "1", "2", "3" }, prefillDefault: false));
         }
 
         private static int ParseRootContainer(string value)

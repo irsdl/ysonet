@@ -91,20 +91,48 @@ namespace ysonet.Plugins
             {"islegacy", "Use the legacy algorithm suitable for .NET 4.0 and below.", v => isLegacy = v != null },
             {"isencrypted", "Use when the legacy algorithm is used to bypass WAFs.", v => isEncrypted = v != null },
             {"vsuk|VSUK|viewstateuserkey=|ViewStateUserKey=", "Sets the ViewStateUserKey parameter, sometimes used as the anti-CSRF token.", v => viewStateUserKey = v },
-            {"da|DA|decryptionalg=|DecryptionAlg=", "The encryption algorithm can be set to DES, 3DES, or AES. Default: AES.", v => decryptionAlg = v },
+            {"da|DA|decryptionalg=|DecryptionAlg=", "The encryption algorithm can be set to DES, 3DES, or AES. Default: {default}.", v => decryptionAlg = v },
             {"dk|DK|decryptionkey=|DecryptionKey=", "The decryptionKey attribute from machineKey. Only needed when encryption is used (for example with 'isencrypted').", v => decryptionKey = v },
-            {"va|VA|validationalg=|ValidationAlg=", "The validation algorithm can be set to SHA1, HMACSHA256, HMACSHA384, HMACSHA512, MD5, 3DES, or AES. Default: HMACSHA256.", v => validationAlg = v },
+            {"va|VA|validationalg=|ValidationAlg=", "The validation algorithm can be set to SHA1, HMACSHA256, HMACSHA384, HMACSHA512, MD5, 3DES, or AES. Default: {default}.", v => validationAlg = v },
             {"vk|VK|validationkey=|ValidationKey=", "The validationKey attribute from machineKey in the web.config file.", v => validationKey = v },
             {"cv|currentviewstate=", "To validate and decrypt the provided viewstate value if it has been encrypted.", v => currentViewStateStr = v },
-            {"showraw", "Stop URL-encoding the result. Default: false.", v => showraw = v != null },
-            {"minify", "Minify the payloads where applicable (experimental). Default: false.", v => minify = v != null },
-            {"ust|usesimpletype", "Remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true.", v => useSimpleType = v != null },
+            {"showraw", "Stop URL-encoding the result. Default: {default}.", v => showraw = v != null },
+            {"minify", "Minify the payloads where applicable (experimental). Default: {default}.", v => minify = v != null },
+            {"ust|usesimpletype", "Remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: {default}.", v => useSimpleType = v != null },
             {"osf|objectstateformatter", "This is to simulate ObjectStateFormatter with a MAC encoding key on its own.", v => isOSF = v != null },
             {"mk|mackey=", "The ObjectStateFormatter MAC encoding key in base64. Only used with the 'osf' option.", v => macEncodingKey = v },
             {"isdebug", "Show useful debugging messages.", v => isDebug = v != null },
-            {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. This reaches the GADGET only; the ViewState envelope and its signature name no framework assembly. Pair it with 'islegacy', which selects the matching pre-4.5 signing algorithm. Default: false", v => legacyFx = v != null },
+            {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. This reaches the GADGET only; the ViewState envelope and its signature name no framework assembly. Pair it with 'islegacy', which selects the matching pre-4.5 signing algorithm. Default: {default}", v => legacyFx = v != null },
             {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
-        };
+        }
+            .WithMetadata("examples", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("dryrun", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("gadget", new OptionMetadata(defaultValue: DefaultGadget, valueSource: OptionValueSource.Gadgets))
+            .WithMetadata("command", new OptionMetadata())
+            .WithMetadata("rawcmd", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("stdin", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("unsignedpayload", new OptionMetadata())
+            .WithMetadata("isfileusp", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("generator", new OptionMetadata())
+            .WithMetadata("path", new OptionMetadata())
+            .WithMetadata("pathisclass", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("apppath", new OptionMetadata())
+            .WithMetadata("islegacy", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("isencrypted", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("viewstateuserkey", new OptionMetadata())
+            .WithMetadata("decryptionalg", new OptionMetadata(defaultValue: "AES", choices: new[] { "DES", "3DES", "AES" }))
+            .WithMetadata("decryptionkey", new OptionMetadata())
+            .WithMetadata("validationalg", new OptionMetadata(defaultValue: "HMACSHA256", choices: new[] { "SHA1", "HMACSHA256", "HMACSHA384", "HMACSHA512", "MD5", "3DES", "AES" }))
+            .WithMetadata("validationkey", new OptionMetadata(required: true))
+            .WithMetadata("currentviewstate", new OptionMetadata())
+            .WithMetadata("showraw", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("minify", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("usesimpletype", new OptionMetadata(defaultValue: "true"))
+            .WithMetadata("objectstateformatter", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("mackey", new OptionMetadata())
+            .WithMetadata("isdebug", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("legacyfx", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("i-understand-dos", new OptionMetadata(defaultValue: "false"));
 
         public string Name()
         {

@@ -1,4 +1,4 @@
-﻿using fastJSON;
+using fastJSON;
 using NDesk.Options;
 using System;
 using System.Collections.Generic;
@@ -84,7 +84,8 @@ namespace ysonet.Generators
             OptionSet options = new OptionSet()
             {
                 {"var|variant=", "Payload variant number. The (N) formatter suffix counts these variants; bare formatters support only variant 1. Choices: 1, 2 based on formatter. NOTE: two variants left this gadget. Variant 3 was the ResourceDictionary XAML-url payload and is now the ResourceDictionary gadget, whose -c is the URI. Variant 4 was the WorkflowDesigner wrapper and is now the WorkflowDesigner gadget, which also reaches Json.NET, FastJson, JavaScriptSerializer, both SharpSerializer modes and both MessagePack Typeless flavours.", v => int.TryParse(v, out variant_number) },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()));
 
             return options;
         }

@@ -26,7 +26,7 @@ namespace ysonet.Helpers
         // shared by the CLI handler and the completion scripts (their drift-guard
         // test compares against this).
         public static readonly string[] ListCategories =
-            { "gadgets", "plugins", "formatters", "options", "outputs" };
+            { "gadgets", "plugins", "formatters", "options", "outputs", "values", "value-options" };
 
         // "Generic" is an internal placeholder, not a real gadget/plugin a user
         // would pick, so every listing hides it.
@@ -120,10 +120,20 @@ namespace ysonet.Helpers
             return p == null ? new List<string>() : OptionTokens(p.Options());
         }
 
+        // Declared suggestions only: an empty set means free text, never guessed prose.
+        public static List<string> OptionValues(OptionSet options, string name, bool includePrivate = false)
+        {
+            name = (name ?? "").TrimStart('-');
+            Option option = options == null ? null : options.FirstOrDefault(o => o.GetNames().Contains(name));
+            if (option == null) throw new ArgumentException("Unknown option: " + name);
+            OptionMetadata metadata = option.GetMetadata();
+            return metadata == null ? new List<string>() : new List<string>(metadata.ResolveChoices(includePrivate));
+        }
+
         // Render an OptionSet into the flag tokens a user types: a single-char
         // name becomes -x, a longer name becomes --xxx. Declaration order is
         // preserved so short forms sit next to their long forms.
-        public static List<string> OptionTokens(OptionSet options)
+        public static List<string> OptionTokens(OptionSet options, bool valuesOnly = false)
         {
             var tokens = new List<string>();
             if (options == null)
@@ -131,7 +141,7 @@ namespace ysonet.Helpers
 
             foreach (Option opt in options)
             {
-                if (opt == null)
+                if (opt == null || (valuesOnly && opt.OptionValueType == OptionValueType.None))
                     continue;
 
                 string[] names = opt.GetNames();

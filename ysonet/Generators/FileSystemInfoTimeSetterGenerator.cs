@@ -250,15 +250,7 @@ namespace ysonet.Generators
                     v => int.TryParse(v, out variantNumber)
                 },
                 {
-                    // The first two lines are written for the interactive editor as well as for
-                    // --fullhelp: "Choices: a, b, c." is the cue EditableField.ParseChoices reads
-                    // to build the picker, and "Default: ..." is the marker it pre-fills and then
-                    // EMITS. Both have to sit before any other colon or the word "default", or
-                    // the heuristic offers a menu of prose fragments and ships one of them. The
-                    // default is QUOTED, which is the documented way of saying "this whole string
-                    // is the value": unquoted, its closing period would only end the value when a
-                    // SPACE follows, and here the line ends instead - so the editor pre-filled and
-                    // emitted "LastWriteTimeUtc." and the gadget then refused its own default.
+                    // Metadata below carries the complete member default and choice set.
                     MemberOptionName + "=",
                     "Which timestamp property the payload assigns.\r\n"
                         + "Choices: " + string.Join(", ", TimestampMembers) + ". "
@@ -293,7 +285,10 @@ namespace ysonet.Generators
                         + "then no text of yours left to compare against.",
                     v => { if (v != null) rawInput = true; }
                 },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("member", new OptionMetadata(defaultValue: DefaultMemberName, choices: TimestampMembers))
+            .WithMetadata("rawinput", new OptionMetadata(defaultValue: "false"));
         }
 
         // ---- Generation --------------------------------------------------------

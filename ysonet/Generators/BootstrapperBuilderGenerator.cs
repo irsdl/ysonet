@@ -258,7 +258,8 @@ namespace ysonet.Generators
                         + "target, the network and your endpoint.",
                     v => { if (v != null) rawInput = true; }
                 },
-            };
+            }
+            .WithMetadata("rawinput", new OptionMetadata(defaultValue: "false"));
         }
 
         // ---- Generation --------------------------------------------------------

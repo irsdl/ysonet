@@ -80,7 +80,7 @@ Options:
                                will be ignored).
       --list=VALUE           Print a machine-readable list (one item per
                                line) and exit. Categories:
-                               gadgets|plugins|formatters|options| outputs. Add
+                               gadgets|plugins|formatters|options|outputs|values|value-options. Add
                                -g <gadget> to list that gadget's
                                formatters/options, or -p <plugin> to list that
                                plugin's options. Useful for shell tab-
@@ -120,6 +120,49 @@ Options:
 ```
 
 Note: Machine authentication code (MAC) key modifier is not used for LosFormatter in YSoNet. Therefore, LosFormatter (base64 encoded) can be used to create ObjectStateFormatter payloads.
+
+## Option values and editor defaults
+
+The wizard uses explicit defaults and suggested values declared by each module. Help
+wording does not change the generated command. A default that depends on another option
+stays unset so the module can select it. Required markers are hints; mode-specific
+requirements still follow the selected mode.
+
+Read a module's declared suggestions without generating anything:
+
+```powershell
+.\ysonet.exe -p Resx --list values --option mode
+.\ysonet.exe -g ObjectDataProvider --list values --option variant
+```
+
+`--list value-options` lists only aliases that take a value. Any declared option alias works. An empty result means no suggestions are declared, not
+that the option rejects input. Unknown modules or options fail with a diagnostic. The
+PowerShell completer uses these same suggestions after `-g` or `-p`, including the
+`--option=value` form. Help and the generated full-help reference show the same defaults.
+
+## Scripting contract
+
+A one-shot gadget or plugin command exits zero when it returns its result and writes it
+successfully. Missing arguments, unknown options/modules/formatters/output encodings,
+generation errors, and failed output writes exit nonzero. Check `$LASTEXITCODE` in
+PowerShell; do not depend on a particular nonzero value.
+
+Stdout contains the requested data. Diagnostics, warnings, and debug details go to
+stderr, including messages printed by a plugin or gadget during generation. With
+`--outputpath`, the file contains only the result; debug length messages do not enter
+that file. Avoid merging stderr into a saved payload. A write failure can leave a
+partial file or stream, so discard output from a failed command.
+
+No arguments, explicit help, lists, and formatter searches are information requests
+and exit zero when successful. `--raf` retains its documented best-effort contract:
+zero means at least one payload was written, not that every cell succeeded. A local
+self-test's diagnostics remain separate from generation success; exit zero does not
+prove an effect in a target application.
+
+```powershell
+.\ysonet.exe -g ObjectDataProvider -f Json.NET -c 'echo example' --outputpath payload.json
+if ($LASTEXITCODE -ne 0) { throw 'YSoNet did not produce a successful result.' }
+```
 
 ## Find a gadget by category
 

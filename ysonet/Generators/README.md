@@ -113,37 +113,45 @@ Two things are NOT input validation and stay as they are:
 - **Scope.** Declining to become a generic "instantiate any type" tool is a decision about
   what the gadget IS. It is not a judgement about the operator's input.
 
-# Option help is an INPUT: how to state a `Default:`
+# Explicit option metadata
 
-An option's help text is not only documentation. NDesk.Options records no default, no
-choice set and no required flag (the validation is a compiled lambda), so the interactive
-editor RECOVERS them from the help text: `EditableField.ParseDefault` reads the value after
-a `Default:` marker, the editor pre-fills the field with it, and `ModuleEditor.CollectGadget`
-puts it on the generated command line. A default the parser reads wrongly therefore SHIPS,
-as a well-formed payload built around a value the module never meant. The command line
-never reads help text, so only an interactive user meets it.
+Declare defaults, suggested values, and required hints beside the option set:
 
-- **State it as `Default: <value>`.** The colon is required, so prose like "no default is
-  assumed" is not read as a value. An unquoted value ends at the first comma, semicolon,
-  bracket, space, line break, or sentence-ending period. A period only ends a sentence when
-  whitespace or the end of the text follows it, so `System.Data.Entity.Design.SsdlGenerator`
-  and `payload.resources` stay whole, and `Default: AES. e.g: ...` and `Default: b.` at the
-  end of a line both stop at the period.
-- **Quote a value that contains a separator.** A comma always ends an unquoted value, so an
-  assembly display name has no other safe form:
-  `Default: "System.Management.Automation, Version=3.0.0.0, Culture=neutral, PublicKeyToken=..."`
-  (`WSManPluginInstance --assembly`). Quoting is also how you say "the whole string is the
-  value", which leaves nothing to guess from punctuation, so prefer it whenever the value
-  is not one plain token.
-- **An option whose default depends on ANOTHER option carries no `Default:` marker at
-  all.** Describe both defaults in prose and let the module's own resolution apply. Any
-  single token would be wrong for one of the cases and the editor would emit it
-  (`AltserializationPlugin`'s inner-gadget option is the worked example).
+```csharp
+return new OptionSet
+{
+    { "m|mode=", "Delivery mode. Default: {default}.", v => mode = v }
+}
+.WithMetadata("mode", new OptionMetadata(defaultValue: "first",
+    choices: new[] { "first", "second" }, required: false));
+```
 
-`EditorDefaultsAreCompleteValuesNotTruncations` audits every gadget and plugin option for
-a default that is only the front half of a value, and
-`EveryGadgetEditorDefaultMatchesTheGadgetsOwnDefault` proves the editor's pre-filled
-defaults generate the same payload as typing nothing at all.
+`OptionMetadata` drives the editor, rendered help, `--list values`, shell completion,
+and the generated full-help reference. Help wording is display text, never configuration.
+`{default}` is an explicit presentation slot; without it the renderer appends the declared
+default. Keep detailed explanations in the description and facts in metadata.
+
+- Keep each declaration in the module's own file. Use existing constants for defaults and
+  choice sets. Variant options use `OptionMetadata.ForVariants(Variants())` so the variant
+  numbers and default have one declaration.
+- Set `prefillDefault: false` when a known CLI default should be documented but the
+  untouched editor setting must stay omitted.
+- A null default means unset or context-dependent. Do not invent a value for an option
+  whose default depends on another option; leave it unset and let the module resolve it.
+- Values are literal strings, including spaces, commas, periods, and empty strings. No
+  quoting convention or sentence punctuation changes them.
+- `required` is an advisory editor hint. Existing plugin modes still supply their explicit
+  conditional requirements. The parser and module remain responsible for validation.
+- Use `valueSource: OptionValueSource.Gadgets` for a selector backed by the gadget
+  catalogue. The editor honours private visibility; shell suggestions stay public.
+- Choices allow custom input by default. Set `allowCustom: false` only for a closed editor
+  menu. Metadata never adds CLI validation or invokes a callback.
+- Undeclared extension options remain unset free-text fields (or off flags); there is no
+  fallback to guessing from prose. Declare metadata on every public module option.
+
+`--option-metadata` checks catalogue coverage, complete defaults, help independence,
+command-line reconstruction, and real shell completion. The existing generation-equality
+check also proves that editor defaults preserve the gadget's normal output.
 
 # `-t` (self-test) policy
 

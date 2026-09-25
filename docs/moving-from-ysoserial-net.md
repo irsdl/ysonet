@@ -107,12 +107,12 @@ with your target application.
   than the entire catalog. Plugin help now exits 0 for the checked ViewState
   command; upstream exits nonzero. Use `--list` for names rather than scraping
   help headings, descriptions, or formatter suffixes.
-- **Exit status alone is insufficient.** On both checked releases,
-  `-g ObjectDataProvider` without its required arguments prints a diagnostic to
-  stdout and exits 0. Conversely, `-sf Json.Net` prints valid search results and
-  exits nonzero. Check expected output as well as status. Keep stderr separate;
-  `--debugmode` can also add text to stdout. These are existing limitations, not
-  a new success/error contract.
+- **Check which scripting contract your build provides.** Both releases compared
+  here print an incomplete `-g ObjectDataProvider` diagnostic to stdout and exit 0;
+  `-sf Json.Net` prints valid results but exits nonzero. Current source fixes these:
+  invalid one-shot requests and failed writes exit nonzero, successful formatter
+  searches exit zero, and diagnostics/debug text go to stderr. Those fixes do not
+  change already published binaries. See the [scripting contract](usage-and-examples.md#scripting-contract).
 - **Payload bytes can change even when arguments still work.** XAML generation,
   escaping, and minification have fixes. The checked DotNetNuke command, for
   example, produces different output. Recheck saved expected output and length

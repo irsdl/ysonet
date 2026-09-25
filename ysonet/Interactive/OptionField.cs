@@ -1,4 +1,5 @@
 using NDesk.Options;
+using ysonet.Helpers;
 using System.Collections.Generic;
 
 namespace ysonet.Interactive
@@ -12,6 +13,7 @@ namespace ysonet.Interactive
         public string ShortName;    // a single-char name if the option has one, else null
         public string Description;   // Option.Description
         public bool TakesValue;      // OptionValueType != None (else a boolean flag)
+        public OptionMetadata Metadata; // explicit presentation facts, never parsed from help
         public string[] Choices;     // small known set (menu); else null (free text)
         public string Value;         // current value; for a flag, "true" when on
         public bool Advanced;        // collapse under "Advanced options" by default
@@ -109,9 +111,10 @@ namespace ysonet.Interactive
                 OptionField field = new OptionField();
                 field.Name = longName;
                 field.ShortName = shortName;
-                field.Description = opt.Description;
+                field.Description = opt.Describe();
+                field.Metadata = opt.GetMetadata();
                 field.TakesValue = opt.OptionValueType != OptionValueType.None;
-                field.Choices = null;
+                field.Choices = field.Metadata == null ? null : field.Metadata.Choices;
                 field.Value = "";
                 field.Advanced = false;
                 fields.Add(field);

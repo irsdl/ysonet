@@ -102,6 +102,8 @@
   <ItemGroup>
     <Compile Include="Tests.cs" />
     <Compile Include="DocumentationTests.cs" />
+    <Compile Include="CliContractTests.cs" />
+    <Compile Include="OptionMetadataTests.cs" />
     <Compile Include="CompletionUxTests.cs" />
     <Compile Include="TestRegistrationCoverage.cs" />
     <Compile Include="TypeConfuseDelegatePowerShellTests.cs" />

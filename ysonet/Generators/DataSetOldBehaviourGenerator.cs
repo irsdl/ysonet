@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -40,7 +40,9 @@ namespace ysonet.Generators
             {
                 {"spoofedAssembly=", "The assembly name you want to use in the generated serialized object (example: 'mscorlib' or use 'default' for System.Data)", v => spoofedAssembly = v },
                 {"var|variant=", "Payload variant number where applicable. Choices: 1 (default), 2", v => int.TryParse(v, out this.variant_number) },
-            };
+            }
+            .WithMetadata("spoofedAssembly", new OptionMetadata(choices: new[] { "mscorlib", "default" }))
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()));
 
             return options;
         }

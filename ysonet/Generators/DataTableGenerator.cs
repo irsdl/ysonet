@@ -147,7 +147,8 @@ namespace ysonet.Generators
                         + "2 -> TypeConfuseDelegate (built-in, no WPF)",
                     v => int.TryParse(v, out variant_number)
                 }
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()));
         }
 
         // These three are the complete achievable set, not an arbitrary pick. The gadget

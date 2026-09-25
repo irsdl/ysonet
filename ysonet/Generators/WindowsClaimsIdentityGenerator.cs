@@ -73,7 +73,8 @@ namespace ysonet.Generators
                     "NOTE: what 1-3 build CHANGED when the numbering was unified - it used to " +
                     "depend on the formatter. An unknown number falls back to 1.",
                     v => int.TryParse(v, out variant_number) },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()));
 
             return options;
         }

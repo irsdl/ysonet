@@ -23,6 +23,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			      --var, --variant=VALUE Choices: 1 -> use TypeConfuseDelegateGenerator
 			                               [default], 2 -> use
 			                               TextFormattingRunPropertiesMarshal
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --rootcontainer=VALUE  Serialized root container of the
 			                               TypeConfuseDelegate wrapper: 1 -> SortedSet
 			                               [default], 2 -> SortedDictionary, 3 -> TreeSet.
@@ -33,6 +35,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               (variant 2), which has no container. The (2)
 			                               formatter annotation counts wrapper variants,
 			                               not root-container choices.
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3.
 
 			Categories [variant 1]:
 			  Kind: Other
@@ -54,6 +58,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               Choices: 1 (default), 2 (shorter but may not
 			                               work between versions), 3 (larger DataSet
 			                               carrier)
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3.
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -81,6 +87,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               Choices: 1 (default), 2 (shorter but may not
 			                               work between versions), 3 (larger DataSet
 			                               carrier)
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3.
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -108,6 +116,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               instead of escaping it for the selected
 			                               formatter. Use this only for already-escaped
 			                               input.
+			                               Default value: "false".
 
 			Categories:
 			  Kind: Code execution, File system, Network
@@ -134,6 +143,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               target. The (2) formatter annotation counts
 			                               these two variants, not the independent --getter
 			                               choices.
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --getter=VALUE         Which WinForms getter-call carrier reads
 			                               AssemblyInstaller.HelpText. Choices:
 			                               1 (default) - PropertyGrid (reads every property
@@ -152,6 +163,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               flavours, but not with Json.NET, YamlDotNet or
 			                               MessagePack. The (2) formatter annotation counts
 			                               DLL-path variants, not getter choices.
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3, 4, 5.
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -230,6 +243,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               authentication, captured credentials or a relay:
 			                               those depend on the target, the network and your
 			                               endpoint.
+			                               Default value: "false".
 
 			Categories:
 			  Kind: File system, Network
@@ -268,6 +282,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               destination and image requests happen.
 			                                 --source-profile http://attacker.exampl-
 			                               e.com/source.icc
+			                               Required.
 			      --destination-profile=VALUE
 			                             REQUIRED. The URI of the destination ICC colour
 			                               profile the target requests. Same rule as the
@@ -275,6 +290,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               profile.
 			                                 --destination-profile http://attacker.exampl-
 			                               e.com/destination. icc
+			                               Required.
 			      --rawinput             Put the three URIs into the payload template
 			                               exactly as typed, instead of escaping them for
 			                               XML element text. Use this only when you have
@@ -312,6 +328,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               your hosts and issued the requests. It is not
 			                               proof of a native vulnerability, of code
 			                               execution, or of any data returning to you.
+			                               Default value: "false".
 
 			Categories:
 			  Kind: Network
@@ -338,8 +355,11 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                             The assembly name you want to use in the
 			                               generated serialized object (example: 'mscorlib'
 			                               or use 'default' for System.Data)
+			                               Suggested values: mscorlib, default.
 			      --var, --variant=VALUE Payload variant number where applicable.
 			                               Choices: 1 (default), 2
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 
 			Categories [variant 1]:
 			  Kind: Nested deserialization
@@ -361,13 +381,17 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                             The assembly name you want to use in the
 			                               generated serialized object (example: 'mscorlib'
 			                               or use 'default' for System.Data)
+			                               Suggested values: mscorlib, default.
 			      --var, --variant=VALUE Payload variant number where applicable.
 			                               Choices: 1 (default), 2
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --compressed           GZip-compress the embedded assembly bytes so the
 			                               payload is much smaller for a large assembly.
 			                               The payload decompresses them at deserialization
 			                               time via a GZipStream in the XAML chain (works
 			                               with both variants).
+			                               Default value: "false".
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -414,6 +438,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               payload fetches a 404 and nothing is disclosed.
 			                               Read the file content out of the query string of
 			                               the request that arrives at the second URL.
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --rawinput             Variant 1 only. Skip the URL validation and put -
 			                               c into the DTD external identifier exactly as
 			                               typed, with no trimming. Normal mode accepts an
@@ -429,6 +455,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               payload is still a valid document - but nothing
 			                               checks that the identifier inside it still is,
 			                               and a broken one simply fetches nothing.
+			                               Default value: "false".
 			      --file=VALUE           Variant 2 only, and required there. What to read
 			                               ON THE TARGET, usually an absolute file: URI,
 			                               for example "file:///C:/Windows/system.ini". The
@@ -490,6 +517,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			      --var, --variant=VALUE Inner gadget: 1 -> TextFormattingRunProperties
 			                               [default], 2 -> TypeConfuseDelegate (built-in,
 			                               no WPF)
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -510,18 +539,25 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			      --var, --variant=VALUE Inner gadget: 1 -> TextFormattingRunProperties
 			                               [default], 2 -> TypeConfuseDelegate (built-in,
 			                               no WPF)
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --target-type=VALUE    Type name written on the wire, verbatim. Must be
 			                               a DataTable subclass on the TARGET. Default:
 			                               "System.Data.Entity.Design. SsdlGenerato-
 			                               r.TableDetailsCollection". Second in-box
 			                               profile: System.Data.Entity.Design.SsdlGenerato-
 			                               r. RelationshipDetailsCollection
+			                               Default value: "System.Data.Entity.Design.
+			                               SsdlGenerator.TableDetailsCollection".
 			      --target-assembly=VALUE
 			                             Assembly identity written on the wire, verbatim
 			                               (Name, Version=..., Culture=..., PublicKeyToken-
 			                               =...). Default: "System.Data.Entity.Design,
 			                               Version=4.0.0.0, Culture=neutral,
 			                               PublicKeyToken=b77a5c561934e089"
+			                               Default value: "System.Data.Entity.Design,
+			                               Version=4.0.0.0, Culture=neutral,
+			                               PublicKeyToken=b77a5c561934e089".
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -554,6 +590,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               nothing checks that the identifier inside it
 			                               still is, and a broken one simply fetches
 			                               nothing.
+			                               Default value: "false".
 
 			Categories:
 			  Kind: Network
@@ -579,6 +616,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               instead of escaping it for the selected
 			                               formatter. Use this only for already-escaped
 			                               input.
+			                               Default value: "false".
 
 			Categories:
 			  Kind: File system
@@ -636,6 +674,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               point -t at an endpoint you own, and do not use
 			                               it on a machine whose outbound traffic you would
 			                               rather not explain.
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --rawinput             Put -c into the payload template exactly as
 			                               typed, instead of escaping it for the selected
 			                               formatter. Normal mode escapes it, which is what
@@ -647,6 +687,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               check that the finished payload still carries
 			                               your path unchanged, because there is then no
 			                               text of yours left to compare against.
+			                               Default value: "false".
 
 			Categories [variant 1]:
 			  Kind: Network
@@ -693,6 +734,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               authentication, captured credentials or a relay:
 			                               those depend on the target, the network and your
 			                               endpoint.
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --member=VALUE         Which timestamp property the payload assigns.
 			                               Choices: CreationTime, CreationTimeUtc,
 			                               LastAccessTime, LastAccessTimeUtc, LastWriteTim-
@@ -722,6 +765,10 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               it really does change that file's timestamp to
 			                               the value above. FileMode.Open means it never
 			                               creates a file that was not there.
+			                               Default value: "LastWriteTimeUtc".
+			                               Suggested values: CreationTime, CreationTimeUtc,
+			                               LastAccessTime, LastAccessTimeUtc, LastWriteTim-
+			                               e, LastWriteTimeUtc.
 			      --rawinput             Put -c into the payload template exactly as
 			                               typed, instead of escaping it for XML. Normal
 			                               mode escapes "&", "<" and ">", which is what the
@@ -731,6 +778,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               payload still carries your path unchanged,
 			                               because there is then no text of yours left to
 			                               compare against.
+			                               Default value: "false".
 
 			Categories [variant 1]:
 			  Kind: File system, Network
@@ -752,6 +800,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               instead of escaping it for the selected
 			                               formatter. Use this only for already-escaped
 			                               input.
+			                               Default value: "false".
 
 			Categories:
 			  Kind: File system
@@ -788,6 +837,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               counts these variants; bare formatters support
 			                               only variant 1. Choices: 1 (uses serialized
 			                               ClaimsIdentities), 2 (uses serialized Claims)
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 
 			Categories [variant 1]:
 			  Kind: Nested deserialization
@@ -812,6 +863,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               twice)
 			                               3 - ListBox getter-call gadget
 			                               4 - CheckedListBox getter-call gadget
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3, 4.
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -849,6 +902,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               code twice)
 			                               3 - ListBox getter-call gadget
 			                               4 - CheckedListBox getter-call gadget
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3, 4.
 
 			Categories [variant 1]:
 			  Kind: Nested deserialization
@@ -891,6 +946,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               5 - BindingSource getter-call gadget (Xaml only;
 			                               a Component, so no WinForms control is built on
 			                               the target)
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3, 4, 5.
 
 			Categories [variant 1]:
 			  Kind: Nested deserialization
@@ -939,6 +996,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               instead of escaping it for the selected
 			                               formatter. Use this only for already-escaped
 			                               input.
+			                               Default value: "false".
 
 			Categories:
 			  Kind: Network
@@ -961,6 +1019,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               which also reaches Json.NET, FastJson,
 			                               JavaScriptSerializer, both SharpSerializer modes
 			                               and both MessagePack Typeless flavours.
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -991,6 +1051,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               instead of escaping it for the selected
 			                               formatter. Use this only for already-escaped
 			                               input.
+			                               Default value: "false".
 
 			Categories:
 			  Kind: Network
@@ -1015,6 +1076,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               instead of escaping it for the selected
 			                               formatter. Use this only for already-escaped
 			                               input.
+			                               Default value: "false".
 
 			Categories:
 			  Kind: Code execution, Nested deserialization, Network
@@ -1031,6 +1093,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               1=TypeConfuseDelegate,
 			                               2=TextFormattingRunProperties (default: 1
 			                               [TypeConfuseDelegate])
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -1080,6 +1144,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               ysonet cannot know it. -t activates that type on
 			                               THIS machine, so only -t a type and file you
 			                               trust.
+			                               Default value: "2".
+			                               Suggested values: 1, 2, 3.
 			      --type=VALUE           Variant 3 only: the type the TARGET resolves
 			                               with Type.GetType and then activates with the
 			                               file's bytes. Give an assembly qualified name
@@ -1097,6 +1163,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               instead of escaping it for the selected
 			                               formatter. Use this only for already-escaped
 			                               input.
+			                               Default value: "false".
 
 			Categories [variant 1]:
 			  Kind: File system, Information disclosure, Network
@@ -1193,6 +1260,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               DataContractSerializer payload. This option
 			                               applies only to DataContractSerializer; other
 			                               formatters are refused.
+			                               Default value: "false".
 
 			Categories:
 			  Kind: Code execution
@@ -1218,6 +1286,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               SortedDictionary, 3 -> TreeSet (2 and 3 evade an
 			                               exact SortedSet wire-name blocklist and need
 			                               distinct command and argument strings)
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3.
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -1271,6 +1341,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               same input safely. Minification may therefore be
 			                               refused when content has characters that must
 			                               survive exactly.
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3, 4, 5.
 			      --rootcontainer=VALUE  Serialized root container, independent of the
 			                               five file-operation variants: 1 -> SortedSet
 			                               [default], 2 -> SortedDictionary, 3 -> TreeSet.
@@ -1283,6 +1355,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               a binder or blocklist that rejects the exact
 			                               SortedSet wire type name. Changing this option
 			                               does not change the selected file operation.
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3.
 
 			Categories [variant 1]:
 			  Kind: File system
@@ -1396,6 +1470,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               for this variant, because self-testing would
 			                               feed your unparsed bytes to native COM on this
 			                               machine.
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --rootcarrier=VALUE    Which type sits at the SERIALIZED ROOT.
 			                               Orthogonal to variant: it changes the type name
 			                               on the wire and nothing else. Both carriers hand
@@ -1420,6 +1496,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               FsPickler; those two keep working on carrier 1.
 			                               The (2) formatter annotation counts blob
 			                               variants, not root-carrier choices.
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 
 			Categories [variant 1]:
 			  Kind: Network
@@ -1451,6 +1529,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               NDCS. NOTE: what 1-3 build CHANGED when the
 			                               numbering was unified - it used to depend on the
 			                               formatter. An unknown number falls back to 1.
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3, 4.
 
 			Categories [variant 1]:
 			  Kind: Nested deserialization
@@ -1490,6 +1570,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               ClaimsIdentity.Deserialize and have the same
 			                               effect; they differ only in the member NAME on
 			                               the wire. An unknown number falls back to 1.
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3.
 
 			Categories [variant 1]:
 			  Kind: Nested deserialization
@@ -1567,6 +1649,9 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               process. The effect is ASYNCHRONOUS - it waits
 			                               for a collection - so do not expect it at the
 			                               moment of deserialization.
+			                               Default value: "System.Management.Automation,
+			                               Version=3.0.0.0, Culture=neutral,
+			                               PublicKeyToken=31bf3856ad364e35".
 
 			Categories:
 			  Kind: Denial of service
@@ -1581,6 +1666,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			      --var, --variant=VALUE Choices: 1 -> use TypeConfuseDelegateGenerator
 			                               [default], 2 -> use
 			                               TextFormattingRunPropertiesMarshal
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --rootcontainer=VALUE  Serialized root container of the
 			                               TypeConfuseDelegate wrapper: 1 -> SortedSet
 			                               [default], 2 -> SortedDictionary, 3 -> TreeSet.
@@ -1591,6 +1678,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               (variant 2), which has no container. The (2)
 			                               formatter annotation counts wrapper variants,
 			                               not root-container choices.
+			                               Default value: "1".
+			                               Suggested values: 1, 2, 3.
 
 			Categories [variant 1]:
 			  Kind: Code execution
@@ -1617,6 +1706,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               t.dll) - ReadOnlyStreamFromStrings for Stream
 			                               delivery, command to execute can be provided for
 			                               -c argument
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 
 			Categories [variant 1]:
 			  Kind: Nested deserialization
@@ -1667,6 +1758,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               not fire it, while a WPF application
 			                               deserializing on its own UI thread does. Variant
 			                               1 has no such condition.
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --rawinput             Put -c into the payload template exactly as
 			                               typed, instead of escaping it for XML. Use this
 			                               only when you have already escaped the value
@@ -1710,6 +1803,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               authentication, of captured credentials, or of a
 			                               relay: those depend on the target, the network
 			                               and your endpoint.
+			                               Default value: "false".
 
 			Categories [variant 1]:
 			  Kind: Network
@@ -1747,6 +1841,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               is disclosed. Read the file content out of the
 			                               query string of the request that arrives at the
 			                               second URL.
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --rawinput             Skip the URL validation and put -c into the DTD
 			                               external identifier exactly as typed, with no
 			                               trimming. Normal mode accepts an absolute http
@@ -1762,6 +1858,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               nothing checks that the identifier inside it
 			                               still is, and a broken one simply fetches
 			                               nothing.
+			                               Default value: "false".
 			      --file=VALUE           Variant 2 only, and required there. What to read
 			                               ON THE TARGET, usually an absolute file: URI,
 			                               for example "file:///C:/Windows/system.ini". The
@@ -1845,6 +1942,8 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               target's library version, not of the payload,
 			                               and it applies to both variants on those two
 			                               formatters.
+			                               Default value: "1".
+			                               Suggested values: 1, 2.
 			      --rawinput             Skip the URL validation and put -c into the DTD
 			                               external identifier exactly as typed, with no
 			                               trimming. Normal mode accepts an absolute http
@@ -1860,6 +1959,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 			                               nothing checks that the identifier inside it
 			                               still is, and a broken one simply fetches
 			                               nothing.
+			                               Default value: "false".
 
 			Categories [variant 1]:
 			  Kind: Network
@@ -1879,8 +1979,11 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		Runtime versions: Unspecified
 		Options:
 		  -c, --command=VALUE        the command to be executed.
+		                               Required.
 		  -u, --url=VALUE            the url passed to Activator.GetObject.
+		                               Required.
 		  -s                         if TCPChannel security should be enabled.
+		                               Default value: "false".
 
 	(*) Altserialization (Generates payload for HttpStaticObjectsCollection or SessionStateItemCollection)
 		Runtime versions: .NET Framework 2.0 - 4.8.1
@@ -1888,13 +1991,18 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		  -M, --mode=VALUE           the payload mode: HttpStaticObjectsCollection or
 		                               SessionStateItemCollection. Default:
 		                               HttpStaticObjectsCollection
+		                               Suggested values: HttpStaticObjectsCollection,
+		                               SessionStateItemCollection.
 		  -o, --output=VALUE         the output format (raw|base64).
+		                               Suggested values: raw, base64.
 		  -c, --command=VALUE        the command to be executed
+		                               Required.
 		  -g, --gadget=VALUE         a gadget chain that supports BinaryFormatter.
 		                               Leave it empty to use the gadget each mode has
 		                               always used: TextFormattingRunProperties for
 		                               HttpStaticObjectsCollection, TypeConfuseDelegate
 		                               for SessionStateItemCollection.
+		                               Values: see --list gadgets.
 		  -t, --test                 whether to run payload locally. Default: false
 		      --minify               Whether to minify the payloads where applicable
 		                               (experimental). Default: false
@@ -1904,6 +2012,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 		      --legacyfx             Target the .NET Framework 2.0/3.0/3.5 (CLR v2)
 		                               generation. This reaches the GADGET only; both
 		                               wire frames this plugin writes name no framework
@@ -1913,13 +2022,17 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                               disrupt or terminate the target process. It is
 		                               required to generate one and is not needed by
 		                               any other gadget.
+		                               Default value: "false".
 
 	(*) ApplicationTrust (Generates XML payload for the ApplicationTrust class)
 		Runtime versions: .NET Framework 2.0 - 4.8.1
 		Options:
 		  -c, --command=VALUE        the command to be executed
+		                               Required.
 		  -g, --gadget=VALUE         a gadget chain that supports BinaryFormatter.
 		                               Default: TextFormattingRunProperties.
+		                               Default value: "TextFormattingRunProperties".
+		                               Values: see --list gadgets.
 		  -t, --test                 whether to run payload locally. Default: false
 		      --minify               Whether to minify the payloads where applicable
 		                               (experimental). Default: false
@@ -1929,6 +2042,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 		      --legacyfx             Target the .NET Framework 2.0/3.0/3.5 (CLR v2)
 		                               generation. This reaches the GADGET only; this
 		                               plugin's own XML envelope names no framework
@@ -1936,10 +2050,12 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                               false
 		      --no-comment           Output only the serialized payload, without the
 		                               explanatory XML comment.
+		                               Default value: "false".
 		      --i-understand-dos     Acknowledge that a denial-of-service gadget can
 		                               disrupt or terminate the target process. It is
 		                               required to generate one and is not needed by
 		                               any other gadget.
+		                               Default value: "false".
 
 	(*) Clipboard (Generates payload for DataObject and copies it into the clipboard - ready to be pasted in affected apps)
 		Runtime versions: Unspecified
@@ -1952,6 +2068,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                               target enabled the legacy clipboard switch or
 		                               predates the CVE-2020-0605/0606 mitigation (see
 		                               the header comment for details).
+		                               Suggested values: winforms, wpfxaml.
 		  -F, --format=VALUE         winforms mode only. The object format: Csv,
 		                               DeviceIndependentBitmap, DataInterchangeFormat,
 		                               PenData, RiffAudio,
@@ -1961,11 +2078,18 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                               only one that works in Feb 2020 as a result of
 		                               an incomplete silent patch - will not be useful
 		                               to target text-based fields anymore)
+		                               Suggested values: Csv, DeviceIndependentBitmap,
+		                               DataInterchangeFormat, PenData, RiffAudio,
+		                               WindowsForms10PersistentObject, System.String,
+		                               SymbolicLink, TaggedImageFileFormat, WaveAudio.
 		      --xamlvariant=VALUE    wpfxaml mode only. ObjectDataProvider XAML
 		                               variant: 1 = bare ObjectDataProvider, 2 =
 		                               ResourceDictionary wrapper (looks like real
 		                               clipboard XAML). Default: 2
+		                               Default value: "2".
+		                               Suggested values: 1, 2.
 		  -c, --command=VALUE        the command to be executed
+		                               Required.
 		  -t, --test                 whether to run payload locally. In wpfxaml mode
 		                               this simulates the WPF paste path (restrictive
 		                               vs legacy) and runs the command if it fires.
@@ -1978,12 +2102,16 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 
 	(*) DotNetNuke (Generates payload for DotNetNuke CVE-2017-9822)
 		Runtime versions: Unspecified
 		Options:
 		  -m, --mode=VALUE           the payload mode: read_file, write_file,
 		                               run_command.
+		                               Suggested values: read_file, write_file,
+		                               run_command.
+		                               Required.
 		  -c, --command=VALUE        the command to be executed in run_command mode.
 		  -u, --url=VALUE            the url to fetch the file from in write_file
 		                               mode.
@@ -1994,21 +2122,28 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 
 	(*) GetterCallGadgets (Implements arbitrary getter call gadgets for .NET Framework and .NET 5/6/7 with WPF enabled, run with -l for more help)
 		Runtime versions: Unspecified
 		Options:
 		  -l                         prints list of implemented gadgets
+		                               Default value: "false".
 		  -i, --inner=VALUE          file containing inner-gadget
+		                               Required.
 		  -g, --gadget=VALUE         gadget to use
+		                               Required.
 		  -m, --member=VALUE         getter to call (required for some gadgets)
 		  -t                         test gadget (execute)
+		                               Default value: "false".
 		      --minify               minify gadget
+		                               Default value: "false".
 
 	(*) MachineKeySessionSecurityTokenHandler (Generates XML payload for the MachineKeySessionSecurityTokenHandler class)
 		Runtime versions: Unspecified
 		Options:
 		  -c, --command=VALUE        the command to be executed e.g. "cmd /c calc"
+		                               Required.
 		  -t, --test                 In this scenario, the test mode should not be
 		                               applied, as the sink point relies on the web
 		                               environment. Default: false
@@ -2020,10 +2155,13 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 		      --vk, --validationkey=VALUE
 		                             Enter the validationKey from the web.config
+		                               Required.
 		      --ek, --decryptionkey=VALUE
 		                             Enter the decryptionKey from the web.config
+		                               Required.
 		      --va, --validationalg=VALUE
 		                             Enter the validation from the web.config.
 		                               Default: HMACSHA1. e.g:
@@ -2038,6 +2176,10 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		  -M, --mode=VALUE           the payload mode: indirect_resx_file,
 		                               CompiledDotResources (useful for CVE-2020-0932
 		                               for example), BinaryFormatter, SoapFormatter.
+		                               Suggested values: indirect_resx_file,
+		                               CompiledDotResources, BinaryFormatter,
+		                               SoapFormatter.
+		                               Required.
 		  -c, --command=VALUE        the command to be executed in BinaryFormatter
 		                               and CompiledDotResources. If this is provided
 		                               for SoapFormatter, it will be used as a file for
@@ -2045,6 +2187,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		  -g, --gadget=VALUE         The gadget chain used for BinaryFormatter and
 		                               CompiledDotResources (default:
 		                               TextFormattingRunProperties).
+		                               Values: see --list gadgets.
 		  -F, --file=VALUE           UNC file path location: this is used in
 		                               indirect_resx_file mode.
 		      --type=VALUE           indirect_resx_file mode only: the type name the
@@ -2059,6 +2202,10 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                               the file back as text instead, and any other
 		                               type with a public constructor taking one Stream
 		                               is activated with the file's bytes.
+		                               Default value: "System.Resources.ResXResourceSe-
+		                               t, System.Windows.Forms, Version=4.0.0.0,
+		                               Culture=neutral,
+		                               PublicKeyToken=b77a5c561934e089".
 		      --enc=VALUE            indirect_resx_file mode only: the encoding name
 		                               the target passes to Encoding.GetEncoding, used
 		                               only when --type is System.String. Omitted by
@@ -2077,6 +2224,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 		      --legacyfx             Target the .NET Framework 2.0/3.0/3.5 (CLR v2)
 		                               generation. This reaches the GADGET only. The-
 		                                .resx reader/writer headers remain at 4.0.0.0
@@ -2087,11 +2235,13 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                               disrupt or terminate the target process. It is
 		                               required to generate one and is not needed by
 		                               any other gadget.
+		                               Default value: "false".
 
 	(*) SessionSecurityTokenHandler (Generates XML payload for the SessionSecurityTokenHandler class)
 		Runtime versions: Unspecified
 		Options:
 		  -c, --command=VALUE        the command to be executed e.g. "cmd /c calc"
+		                               Required.
 		  -t, --test                 whether to run payload locally. Default: false
 		      --minify               Whether to minify the payloads where applicable
 		                               (experimental). Default: false
@@ -2101,6 +2251,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 
 	(*) SharePoint (Generates payloads for the following SharePoint CVEs: CVE-2026-50522, CVE-2025-53770, CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421)
 		Runtime versions: Unspecified
@@ -2108,15 +2259,22 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --cve=VALUE            the CVE reference: CVE-2026-50522, CVE-2025-
 		                               53770, CVE-2025-49704, CVE-2024-38018, CVE-2020-
 		                               1147, CVE-2019-0604, CVE-2018-8421
+		                               Suggested values: CVE-2026-50522, CVE-2025-5377-
+		                               0, CVE-2025-49704, CVE-2024-38018, CVE-2020-114-
+		                               7, CVE-2019-0604, CVE-2018-8421.
+		                               Required.
 		      --useurl               to use the XAML url rather than using the direct
 		                               command in CVE-2019-0604 and CVE-2018-8421
+		                               Default value: "false".
 		  -g, --gadget=VALUE         a gadget chain for CVE-2020-1147 (LosFormatter)
 		                               or CVE-2024-38018 / CVE-2026-50522
 		                               (BinaryFormatter). Default: TypeConfuseDelegate
+		                               Values: see --list gadgets.
 		  -c, --command=VALUE        the command to be executed e.g. "cmd /c calc" or
 		                               the XAML url e.g. "http://example.local/x" to
 		                               make the payload shorter with the `--useurl`
 		                               argument
+		                               Required.
 		      --target=VALUE         for CVE-2026-50522: the absolute SharePoint base
 		                               URL used as the wctx value. Required with --
 		                               formbody; on the default token output it only
@@ -2125,6 +2283,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --formbody             CVE-2026-50522 only: emit the full URL-encoded
 		                               wa/wctx/wresult form body ready to POST, instead
 		                               of just the wresult token. Requires --target.
+		                               Default value: "false".
 		      --minify               Whether to minify the payloads where applicable
 		                               (experimental). Applies to the
 		                               BinaryFormatter/LosFormatter gadget CVEs.
@@ -2135,47 +2294,66 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 		      --no-comment           Output only the serialized payload or form body,
 		                               without the trailing explanatory HTML comment.
+		                               Default value: "false".
 		      --var, --variant=VALUE Variant number for CVE-2025-49704 only. Choices:
 		                               1 (default, uses DataSetOldBehaviourGenerator
 		                               variant 2), 2 (uses
 		                               DataSetOldBehaviourFromFileGenerator variant 2)
+		                               Default value: "1".
+		                               Suggested values: 1, 2.
 		      --spver=VALUE          CVE-2024-38018 only: which SharePoint generation
 		                               to target. Choices: 2019 (default), 2016, 2013.
 		                               2016 and 2019 share the same assembly identity
 		                               and produce the same payload; 2013 uses
-		                               LosFormatter and the 15.0.0.0 assembly reference.
+		                               LosFormatter and the 15.0.0.0 assembly referenc-
+		                               e.
+		                               Default value: "2019".
+		                               Suggested values: 2019, 2016, 2013.
 		      --i-understand-dos     Acknowledge that a denial-of-service gadget can
 		                               disrupt or terminate the target process. It is
 		                               required to generate one and is not needed by
 		                               any other gadget.
+		                               Default value: "false".
 
 	(*) ThirdPartyGadgets (Implements gadgets for 3rd Party Libraries)
 		Runtime versions: Unspecified
 		Options:
 		  -l                         prints list of implemented gadgets
+		                               Default value: "false".
 		  -i, --input=VALUE          input to the gadget
+		                               Required.
 		  -g, --gadget=VALUE         gadget to use
+		                               Required.
 		  -f, --formatter=VALUE      formatter to use
+		                               Required.
 		      --rawinput             pass the input verbatim into the JSON template
 		                               instead of JSON-escaping it. By default a
 		                               backslash/quote in the input is escaped so a
 		                               natural path like \\host\share works; use this
 		                               only when you need to supply already-escaped or
 		                               literal JSON.
+		                               Default value: "false".
 		  -r                         removes version and pubkeytoken from types, it
 		                               may be useful when we do not know the version of
 		                               targeted library or require a short payload
+		                               Default value: "false".
 		  -t                         test gadget (execute after generation)
+		                               Default value: "false".
 		      --minify               minify gadget
+		                               Default value: "false".
 
 	(*) TransactionManagerReenlist (Generates payload for the TransactionManager.Reenlist method)
 		Runtime versions: .NET Framework 2.0 - 4.8.1
 		Options:
 		  -c, --command=VALUE        the command to be executed
+		                               Required.
 		  -g, --gadget=VALUE         a gadget chain that supports BinaryFormatter.
 		                               Default: TextFormattingRunProperties.
+		                               Default value: "TextFormattingRunProperties".
+		                               Values: see --list gadgets.
 		  -t, --test                 whether to run payload locally. Default: false
 		      --minify               Whether to minify the payloads where applicable
 		                               (experimental). Default: false
@@ -2185,6 +2363,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 		      --legacyfx             Target the .NET Framework 2.0/3.0/3.5 (CLR v2)
 		                               generation. This reaches the GADGET only; this
 		                               plugin's own 5-byte frame names no framework
@@ -2194,17 +2373,22 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                               disrupt or terminate the target process. It is
 		                               required to generate one and is not needed by
 		                               any other gadget.
+		                               Default value: "false".
 
 	(*) ViewState (Generates a ViewState using known MachineKey parameters)
 		Runtime versions: .NET Framework 2.0 - 4.8.1
 		Options:
 		      --examples             Show a few examples. Other parameters will be
 		                               ignored.
+		                               Default value: "false".
 		      --dryrun               Create a valid ViewState without using an
 		                               exploit payload. The gadget and command
 		                               parameters will be ignored.
+		                               Default value: "false".
 		  -g, --gadget=VALUE         A gadget chain that supports LosFormatter.
 		                               Default: TextFormattingRunProperties.
+		                               Default value: "TextFormattingRunProperties".
+		                               Values: see --list gadgets.
 		  -c, --command=VALUE        The command suitable for the used gadget. A few
 		                               gadgets ignore it and run a fixed payload
 		                               instead - ActivitySurrogateSelector is the one
@@ -2213,15 +2397,18 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 		  -s, --stdin                The command to be executed will be read from
 		                               standard input (the first line, up to 2,050
 		                               bytes). A non-empty command wins.
+		                               Default value: "false".
 		      --usp, --unsignedpayload=VALUE
 		                             The unsigned LosFormatter payload (base64
 		                               encoded). The gadget and command parameters will
 		                               be ignored.
 		      --isfileusp            Indicates that the unsigned payload contains a
 		                               file name (e.g., payload.txt).
+		                               Default value: "false".
 		      --vsg, --generator=VALUE
 		                             The __VIEWSTATEGENERATOR value in HEX, useful
 		                               for .NET <= 4.0. When not empty, 'legacy' will
@@ -2232,19 +2419,23 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                               /app/folder1/page.aspx.
 		      --pathisclass          Indicates that the path is a class name and
 		                               should not be modified.
+		                               Default value: "false".
 		      --apppath=VALUE        The IIS application path (optional; used to
 		                               simulate TemplateSourceDirectory). Example:
 		                               /myapp/. Leave empty for the site root.
 		      --islegacy             Use the legacy algorithm suitable for .NET 4.0
 		                               and below.
+		                               Default value: "false".
 		      --isencrypted          Use when the legacy algorithm is used to bypass
 		                               WAFs.
+		                               Default value: "false".
 		      --vsuk, --VSUK, --viewstateuserkey, --ViewStateUserKey=VALUE
 		                             Sets the ViewStateUserKey parameter, sometimes
 		                               used as the anti-CSRF token.
 		      --da, --DA, --decryptionalg, --DecryptionAlg=VALUE
 		                             The encryption algorithm can be set to DES, 3DE-
 		                               S, or AES. Default: AES.
+		                               Suggested values: DES, 3DES, AES.
 		      --dk, --DK, --decryptionkey, --DecryptionKey=VALUE
 		                             The decryptionKey attribute from machineKey.
 		                               Only needed when encryption is used (for example
@@ -2253,9 +2444,12 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                             The validation algorithm can be set to SHA1,
 		                               HMACSHA256, HMACSHA384, HMACSHA512, MD5, 3DES,
 		                               or AES. Default: HMACSHA256.
+		                               Suggested values: SHA1, HMACSHA256, HMACSHA384,
+		                               HMACSHA512, MD5, 3DES, AES.
 		      --vk, --VK, --validationkey, --ValidationKey=VALUE
 		                             The validationKey attribute from machineKey in
 		                               the web.config file.
+		                               Required.
 		      --cv, --currentviewstate=VALUE
 		                             To validate and decrypt the provided viewstate
 		                               value if it has been encrypted.
@@ -2267,9 +2461,11 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --osf, --objectstateformatter
 		                             This is to simulate ObjectStateFormatter with a
 		                               MAC encoding key on its own.
+		                               Default value: "false".
 		      --mk, --mackey=VALUE   The ObjectStateFormatter MAC encoding key in
 		                               base64. Only used with the 'osf' option.
 		      --isdebug              Show useful debugging messages.
+		                               Default value: "false".
 		      --legacyfx             Target the .NET Framework 2.0/3.0/3.5 (CLR v2)
 		                               generation. This reaches the GADGET only; the
 		                               ViewState envelope and its signature name no
@@ -2280,6 +2476,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                               disrupt or terminate the target process. It is
 		                               required to generate one and is not needed by
 		                               any other gadget.
+		                               Default value: "false".
 
 	(*) Xps (Generates a malicious XPS document (CVE-2020-0605) for XpsDocument or PrintQueue.AddJob(path) - binary output, use --outputpath to save it as an .xps file)
 		Runtime versions: Unspecified
@@ -2290,7 +2487,10 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		                               FixedPage part), or 'all'. The parts were
 		                               patched at different times, so this chooses what
 		                               a given target build still parses unrestricted.
+		                               Default value: "fdseq".
+		                               Suggested values: fdseq, fdoc, fpage, all.
 		  -c, --command=VALUE        the command to be executed
+		                               Required.
 		  -t, --test                 whether to run the payload locally. This opens
 		                               the generated document twice: once with the
 		                               patched default (must be blocked) and once with
@@ -2304,6 +2504,7 @@ Project: https://ysonet.net or https://ysonet.com (both open the repo).
 		      --rawcmd               Command will be executed as is without `cmd /c `
 		                               being appended (anything after the first space
 		                               is an argument).
+		                               Default value: "false".
 
 
 Note: Machine authentication code (MAC) key modifier is not being used for LosFormatter in YSoNet. Therefore, LosFormatter (base64 encoded) can be used to create ObjectStateFormatter payloads.
@@ -2313,6 +2514,8 @@ Options:
   -p, --plugin=VALUE         The plugin to be used.
   -o, --output=VALUE         The output format (raw|base64|raw-
                                urlencode|base64- urlencode|hex).
+                               Suggested values: raw, base64, raw-urlencode,
+                               base64-urlencode, hex.
   -g, --gadget=VALUE         The gadget chain.
   -f, --formatter=VALUE      The formatter.
   -c, --command=VALUE        The command to be executed.
@@ -2370,11 +2573,15 @@ Options:
                                will be ignored).
       --list=VALUE           Print a machine-readable list (one item per
                                line) and exit. Categories:
-                               gadgets|plugins|formatters|options| outputs. Add
-                               -g <gadget> to list that gadget's
-                               formatters/options, or -p <plugin> to list that
-                               plugin's options. Useful for shell tab-
-                               completion scripts.
+                               gadgets|plugins|formatters|options|
+                               outputs|values|value-options. Add -g <gadget> to
+                               list that gadget's formatters/options, or -p
+                               <plugin> to list that plugin's options. Useful
+                               for shell tab-completion scripts.
+                               Suggested values: gadgets, plugins, formatters,
+                               options, outputs, values, value-options.
+      --option=VALUE         Option name whose declared values to print with -
+                               -list values (combine with -g or -p).
       --category=VALUE       Find gadgets by category (repeatable): --
                                category=axis=value where axis is
                                kind|formatter|input|requirement| version.

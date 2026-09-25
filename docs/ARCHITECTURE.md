@@ -367,7 +367,7 @@ changed (probably out of date, check manually), or GitHub could not be reached
 unreachable/unparseable cases.
 
 `--list <category>` prints one name per line to stdout and exits (errors go to
-stderr). Categories: `gadgets`, `plugins`, `formatters`, `options`, `outputs`.
+stderr). Categories: `gadgets`, `plugins`, `formatters`, `options`, `outputs`, `values`, `value-options`.
 Adding `-g <gadget>` narrows `formatters`/`options` to that gadget; `-p <plugin>`
 narrows `options` to that plugin. It is stable, easy to parse, and backs the shell
 tab-completion scripts in `tools/completions/` (currently `ysonet.ps1` for
@@ -443,8 +443,14 @@ in `Helpers/CompletionCommand.cs`.
    converts `raw` (`string` or `byte[]`) to the requested output encoding
    (base64 / urlencode / hex / raw) and writes to console or appends to a file. It RETURNS
    success plus a reason instead of printing the failure, because run-all needs the reason
-   as data; the single-payload callers wrap it in `WriteOutputOrReportOnStdout`, which
-   prints that reason to stdout as before.
+   as data; single-payload callers use `WriteOutputOrFail`, which propagates a failed
+   write to the CLI's stderr/nonzero exception boundary. Debug lengths go to stderr,
+   outside payload bytes and files. CLI dispatch uses `WithDiagnostics` around the
+   shared gadget/plugin runner, restoring stdout before writing the returned data.
+   `ValidateKnownOptions` checks global and selected-module option metadata without
+   invoking module option callbacks again; plugin-owned selectors remain plugin-owned.
+   It resolves output encoding using that complete vocabulary so a module alias such
+   as `-of` cannot be mistaken for `-o f`.
    `GetDefaultOutputFormat()` picks base64 for BinaryFormatter/ObjectStateFormatter/
    MessagePackTypeless(+Lz4)/SharpSerializerBinary. LosFormatter is already base64.
 
@@ -572,12 +578,17 @@ itself sizes its list and preview to the window height (`Picker.FitSizes` via `C
 so the block never overflows a short console (which would desync the in-place redraw). Regression
 tests (real-cursor `VirtualTerminal`, some via the `DriveFallbackFrames` harness):
 `PickerFitsShortWindow`, `FallbackClearsTopMenuOnShortWindow`, `FallbackFormClearsModulePreview`,
-`FallbackFormClearsEditResidual`. Option choices/defaults/required are best-effort recovered
-from each option's help text (`EditableField` heuristics) since NDesk.Options records none
-of them; a Choice always allows a custom value so a wrong guess never blocks the user. A
-recovered DEFAULT is different: it is pre-filled and then emitted on the command line, so
-the rules for writing one (and for the period that ends it, which is one shared rule with
-the choice-list reader) are part of the module contract in `ysonet/Generators/README.md`.
+`FallbackFormClearsEditResidual`. Option choices/defaults/required come from explicit
+`OptionMetadata` attached to the owning `OptionSet` with `WithMetadata`. `OptionField`
+passes those facts to `ModuleEditor`; descriptions are display text only. Null defaults
+stay unset, including a plugin's mode-dependent gadget selection. `PrefillDefault`
+separately controls whether a known default is placed in the editor and emitted. Variant facts reuse
+`Variants()` through `OptionMetadata.ForVariants`. `HelpText` renders the same metadata
+(and explicit `{default}` presentation slots), so the generated full-help reference stays
+in sync. `--list values --option <alias>` returns declared suggestions for the selected
+module, and the PowerShell completer uses that query for module values. The legacy public
+`EditableField` parsing utilities remain for source compatibility; the editor never calls
+them. Authoring rules live in `ysonet/Generators/README.md`.
 `GadgetVariant.Input` lets a variant declare its own `-c` meaning (XamlImageInfo v1 = file,
 v2 = command). A variant can also declare `UnsupportedFormatters` (via `.Without(...)`, checked
 by `SupportsFormatter`) to opt out of a formatter the gadget lists across all variants; the

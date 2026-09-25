@@ -44,8 +44,9 @@ name when you want to keep an earlier result.
 | `-t` | Run a local deserialization test where supported; this may execute the payload's effect. |
 
 Plugins have their own options and output conventions. Check their help before
-reusing gadget arguments. If a command fails, inspect its message as well as its
-exit status; some incomplete invocations still exit 0.
+reusing gadget arguments. Invalid or incomplete commands and failed output writes
+exit nonzero. Check `$LASTEXITCODE`; diagnostics go to stderr and requested data goes
+to stdout (or `--outputpath`). See the [scripting contract](usage-and-examples.md#scripting-contract).
 
 ## Next steps
 

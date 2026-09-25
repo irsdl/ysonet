@@ -274,7 +274,10 @@ namespace ysonet.Generators
                         + "Culture=..., PublicKeyToken=...). Default: \"" + DefaultTargetAssembly + "\"",
                     v => target_assembly = v
                 }
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("target-type", new OptionMetadata(defaultValue: DefaultTargetType))
+            .WithMetadata("target-assembly", new OptionMetadata(defaultValue: DefaultTargetAssembly));
         }
 
         // The same three the DataTable carrier reaches, and for the same reason: the payload

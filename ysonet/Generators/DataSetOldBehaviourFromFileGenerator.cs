@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -82,7 +82,10 @@ namespace ysonet.Generators
                 {"spoofedAssembly=", "The assembly name you want to use in the generated serialized object (example: 'mscorlib' or use 'default' for System.Data)", v => spoofedAssembly = v },
                 {"var|variant=", "Payload variant number where applicable. Choices: 1 (default), 2", v => int.TryParse(v, out this.variant_number) },
                 {"compressed", "GZip-compress the embedded assembly bytes so the payload is much smaller for a large assembly. The payload decompresses them at deserialization time via a GZipStream in the XAML chain (works with both variants).", v => isCompressed = (v != null) }
-            };
+            }
+            .WithMetadata("spoofedAssembly", new OptionMetadata(choices: new[] { "mscorlib", "default" }))
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("compressed", new OptionMetadata(defaultValue: "false"));
 
             return options;
         }

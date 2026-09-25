@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel;
@@ -41,15 +41,24 @@ namespace ysonet.Plugins
         static OptionSet options = new OptionSet()
             {
                 {"c|command=", "the command to be executed e.g. \"cmd /c calc\"", v => command = v },
-                {"t|test", "In this scenario, the test mode should not be applied, as the sink point relies on the web environment. Default: false", v => test =  v != null },
-                {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
-                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
+                {"t|test", "In this scenario, the test mode should not be applied, as the sink point relies on the web environment. Default: {default}", v => test =  v != null },
+                {"minify", "Whether to minify the payloads where applicable (experimental). Default: {default}", v => minify =  v != null },
+                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: {default}", v => useSimpleType =  v != null },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
                 {"vk|validationkey=", "Enter the validationKey from the web.config", v => validationKey = v },
                 {"ek|decryptionkey=", "Enter the decryptionKey from the web.config", v => decryptionKey = v },
-                {"va|validationalg=", "Enter the validation from the web.config. Default: HMACSHA1. e.g: HMACSHA1/HMACSHA256/HMACSHA384/HMACSHA512", v => validationAlg = v },
-                {"da|decryptionalg=", "Enter the decryption from the web.config. Default: AES. e.g: AES/DES/3DES", v => decryptionAlg = v }
-            };
+                {"va|validationalg=", "Enter the validation from the web.config. Default: {default}. e.g: HMACSHA1/HMACSHA256/HMACSHA384/HMACSHA512", v => validationAlg = v },
+                {"da|decryptionalg=", "Enter the decryption from the web.config. Default: {default}. e.g: AES/DES/3DES", v => decryptionAlg = v }
+            }
+            .WithMetadata("command", new OptionMetadata(required: true))
+            .WithMetadata("test", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("minify", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("usesimpletype", new OptionMetadata(defaultValue: "true"))
+            .WithMetadata("rawcmd", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("validationkey", new OptionMetadata(required: true))
+            .WithMetadata("decryptionkey", new OptionMetadata(required: true))
+            .WithMetadata("validationalg", new OptionMetadata(defaultValue: "HMACSHA1"))
+            .WithMetadata("decryptionalg", new OptionMetadata(defaultValue: "AES"));
 
         public string Name()
         {

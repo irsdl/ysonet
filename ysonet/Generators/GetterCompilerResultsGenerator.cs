@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using ysonet.Helpers;
@@ -90,7 +90,8 @@ namespace ysonet.Generators
                 "\r\n2 - ComboBox getter-call gadget (may load DLL twice)" +
                 "\r\n3 - ListBox getter-call gadget" +
                 "\r\n4 - CheckedListBox getter-call gadget", v => int.TryParse(v, out variant_number) },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()));
 
             return options;
         }

@@ -294,6 +294,7 @@
     <Compile Include="Helpers\Cli\CompletionCommand.cs" />
     <Compile Include="Helpers\Cli\GadgetCategoryCommand.cs" />
     <Compile Include="Helpers\Cli\HelpText.cs" />
+    <Compile Include="Helpers\Cli\OptionMetadata.cs" />
     <Compile Include="Helpers\Cli\UpdateChecker.cs" />
     <Compile Include="Helpers\Core\DosPolicy.cs" />
     <Compile Include="Helpers\Core\Clr2SelfTest.cs" />

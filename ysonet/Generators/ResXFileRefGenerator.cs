@@ -294,7 +294,10 @@ namespace ysonet.Generators
                         + "windows-1252. Leave it out and the target uses Encoding.Default.",
                     v => encodingOption = v
                 },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("type", new OptionMetadata())
+            .WithMetadata("enc", new OptionMetadata());
 
             // The shared --rawinput switch, appended rather than re-declared, so its help
             // text stays in one place (GenericGenerator.HandWritten.cs).

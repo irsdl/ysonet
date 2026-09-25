@@ -7,7 +7,8 @@
 # The value lists (gadgets, plugins, formatters, output formats) are read live
 # from the tool itself via its `--list` flag and cached per exe, so they stay
 # correct as gadgets/plugins/formatters are added - no edits to this script
-# needed. Only the option table below (which flag expects which kind of value)
+# needed. Module option names, arity and suggestions also come from --list.
+# Only the global option table below (which flag expects which kind of value)
 # is maintained by hand; a test in ysonet.Tests fails if it drifts from the
 # tool's real options.
 #
@@ -28,7 +29,7 @@
 
 # Categories accepted by --list. These are part of the CLI contract, not a
 # growing list, so they are safe to keep here.
-$script:YsonetListCategories = @('gadgets', 'plugins', 'formatters', 'options', 'outputs')
+$script:YsonetListCategories = @('gadgets', 'plugins', 'formatters', 'options', 'outputs', 'values', 'value-options')
 
 # Every option, in both short and long form, with the kind of value it takes.
 # Kind: 'none' (flag), 'gadget', 'plugin', 'formatter', 'output', 'listcat',
@@ -52,6 +53,7 @@ $script:YsonetOptions = @(
     @{ Names = @('--raf', '--runallformatters');          Kind = 'none'      }
     @{ Names = @('--sf', '--searchformatter');            Kind = 'formatter' }
     @{ Names = @('--list');                               Kind = 'listcat'   }
+    @{ Names = @('--option');                            Kind = 'text'      }
     @{ Names = @('--category');                           Kind = 'text'      }
     @{ Names = @('--debugmode');                          Kind = 'none'      }
     @{ Names = @('--i-understand-dos');                   Kind = 'none'      }
@@ -108,7 +110,7 @@ function Get-YsonetExePath {
 }
 
 function Invoke-YsonetList {
-    param([string]$ExePath, [string]$Category)
+    param([string]$ExePath, [string]$Category, [string[]]$Context = @())
 
     if (-not $ExePath -or -not (Test-Path -LiteralPath $ExePath)) {
         return @()
@@ -116,7 +118,7 @@ function Invoke-YsonetList {
 
     # Cache on exe path + last write time + category so an updated build refreshes.
     $stamp = (Get-Item -LiteralPath $ExePath).LastWriteTimeUtc.Ticks
-    $key = "$ExePath|$stamp|$Category"
+    $key = "$ExePath|$stamp|$Category|$($Context -join [char]0)"
     if ($script:YsonetListCache.ContainsKey($key)) {
         return $script:YsonetListCache[$key]
     }
@@ -124,7 +126,7 @@ function Invoke-YsonetList {
     $items = @()
     try {
         # --list prints one name per line to stdout and exits 0.
-        $items = @(& $ExePath --list $Category 2>$null | Where-Object { $_ -ne '' })
+        $items = @(& $ExePath --list $Category @Context 2>$null | Where-Object { $_ -ne '' })
     }
     catch {
         # If the exe cannot be run, fall back to an empty list; option and
@@ -143,6 +145,36 @@ $script:YsonetCompleter = {
 
     $exe = Get-YsonetExePath -CommandAst $commandAst
 
+    # Read only literal selector arguments; never evaluate the command being edited.
+    $moduleContext = @()
+    $gadgetName = $null
+    $pluginName = $null
+    $tokens = @($commandAst.CommandElements | Select-Object -Skip 1 | ForEach-Object {
+        if ($_ -is [System.Management.Automation.Language.StringConstantExpressionAst]) { $_.Value }
+        else { $_.Extent.Text }
+    })
+    for ($i = 0; $i -lt $tokens.Count; $i++) {
+        $selector = $tokens[$i]
+        $raw = $commandAst.CommandElements[$i + 1].Extent.Text
+        if ($raw.StartsWith("'") -or $raw.StartsWith([string][char]34)) { continue }
+        $value = $null
+        if ($selector -cmatch '^(--?(?:g|gadget|p|plugin))=(.*)$') {
+            $selector = $Matches[1]; $value = $Matches[2]
+        } elseif ($selector -cin @('-g', '--gadget', '-p', '--plugin') -and $i + 1 -lt $tokens.Count) {
+            $value = $tokens[$i + 1]; $i++
+        }
+        if ($selector -cin @('-p', '--plugin')) { $pluginName = $value }
+        if ($selector -cin @('-g', '--gadget')) { $gadgetName = $value }
+        if (-not $value) {
+            $known = $script:YsonetOptions | Where-Object { $_.Names -ccontains $selector } | Select-Object -First 1
+            if ($known -and $known.Kind -ne 'none' -and $i + 1 -lt $tokens.Count) { $i++ }
+        }
+    }
+    if ($pluginName) { $moduleContext = @('-p', $pluginName) }
+    elseif ($gadgetName) { $moduleContext = @('-g', $gadgetName) }
+    $moduleOptions = if ($moduleContext.Count) { @(Invoke-YsonetList $exe 'options' $moduleContext) } else { @() }
+    $moduleValueOptions = if ($moduleContext.Count) { @(Invoke-YsonetList $exe 'value-options' $moduleContext) } else { @() }
+
     # Return CompletionResult values whose text starts with $filter.
     function New-Results {
         param([string[]]$Items, [string]$Filter, [string]$ToolTipKind)
@@ -151,7 +183,7 @@ $script:YsonetCompleter = {
             Sort-Object -Unique |
             ForEach-Object {
                 # Quote values that contain spaces so PowerShell inserts them safely.
-                $text = if ($_ -match '\s') { "'$_'" } else { $_ }
+                $text = if ($_ -match '[^a-zA-Z0-9_.:/\\-]') { "'" + $_.Replace("'", "''") + "'" } else { $_ }
                 [System.Management.Automation.CompletionResult]::new(
                     $text, $_, 'ParameterValue', "$ToolTipKind`: $_")
             }
@@ -174,6 +206,13 @@ $script:YsonetCompleter = {
     if ($wordToComplete -match '^(--?[\w-]+)=(.*)$') {
         $optName = $Matches[1]
         $partial = $Matches[2]
+        if ($moduleValueOptions -ccontains $optName) {
+            $values = @(Invoke-YsonetList $exe 'values' ($moduleContext + @('--option', $optName)))
+            return (New-Results $values $partial 'Value' | ForEach-Object {
+                [System.Management.Automation.CompletionResult]::new(
+                    "$optName=$($_.CompletionText)", $_.ListItemText, 'ParameterValue', $_.ToolTip)
+            })
+        }
         $opt = $script:YsonetOptions | Where-Object { $_.Names -contains $optName } | Select-Object -First 1
         if ($opt -and $opt.Kind -ne 'none') {
             return (New-ValueResults $opt.Kind $partial |
@@ -201,6 +240,10 @@ $script:YsonetCompleter = {
 
     # Case 2: previous token is an option that takes a value -> complete the value.
     if ($prevText) {
+        if ($moduleValueOptions -ccontains $prevText) {
+            $values = @(Invoke-YsonetList $exe 'values' ($moduleContext + @('--option', $prevText)))
+            return New-Results $values $wordToComplete 'Value'
+        }
         $opt = $script:YsonetOptions | Where-Object { $_.Names -contains $prevText } | Select-Object -First 1
         if ($opt -and $opt.Kind -ne 'none') {
             $res = New-ValueResults $opt.Kind $wordToComplete
@@ -218,7 +261,7 @@ $script:YsonetCompleter = {
     }
 
     # Case 4: default -> complete option names.
-    return New-Results $script:YsonetAllOptionNames $wordToComplete 'Option'
+    return New-Results ($script:YsonetAllOptionNames + $moduleOptions) $wordToComplete 'Option'
 }
 
 # Register for the common ways to name the tool.

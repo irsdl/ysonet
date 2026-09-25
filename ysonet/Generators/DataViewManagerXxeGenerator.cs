@@ -134,7 +134,8 @@ namespace ysonet.Generators
                         + "still is, and a broken one simply fetches nothing.",
                     v => { if (v != null) rawInput = true; }
                 },
-            };
+            }
+            .WithMetadata("rawinput", new OptionMetadata(defaultValue: "false"));
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)

@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -50,18 +50,31 @@ namespace ysonet.Plugins
             {
                 {"cve=", "the CVE reference: CVE-2026-50522, CVE-2025-53770, CVE-2025-49704, CVE-2024-38018, CVE-2020-1147, CVE-2019-0604, CVE-2018-8421", v => cve = v },
                 {"useurl", "to use the XAML url rather than using the direct command in CVE-2019-0604 and CVE-2018-8421", v => useurl = v != null },
-                {"g|gadget=", "a gadget chain for CVE-2020-1147 (LosFormatter) or CVE-2024-38018 / CVE-2026-50522 (BinaryFormatter). Default: TypeConfuseDelegate ", v => gadget = v },
+                {"g|gadget=", "a gadget chain for CVE-2020-1147 (LosFormatter) or CVE-2024-38018 / CVE-2026-50522 (BinaryFormatter). Default: {default} ", v => gadget = v },
                 {"c|command=", "the command to be executed e.g. \"cmd /c calc\" or the XAML url e.g. \"http://example.local/x\" to make the payload shorter with the `--useurl` argument", v => command = v },
                 {"target=", "for CVE-2026-50522: the absolute SharePoint base URL used as the wctx value. Required with --formbody; on the default token output it only fills the delivery comment's wctx example. It is NOT contacted.", v => target = v },
                 {"formbody", "CVE-2026-50522 only: emit the full URL-encoded wa/wctx/wresult form body ready to POST, instead of just the wresult token. Requires --target.", v => formBody = v != null },
-                {"minify", "Whether to minify the payloads where applicable (experimental). Applies to the BinaryFormatter/LosFormatter gadget CVEs. Default: false", v => minify = v != null },
-                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType = v != null },
+                {"minify", "Whether to minify the payloads where applicable (experimental). Applies to the BinaryFormatter/LosFormatter gadget CVEs. Default: {default}", v => minify = v != null },
+                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: {default}", v => useSimpleType = v != null },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
                 {"no-comment", "Output only the serialized payload or form body, without the trailing explanatory HTML comment.", v => noComment = v != null },
                 {"var|variant=", "Variant number for CVE-2025-49704 only. Choices: 1 (default, uses DataSetOldBehaviourGenerator variant 2), 2 (uses DataSetOldBehaviourFromFileGenerator variant 2)", v => int.TryParse(v, out variant) },
                 {"spver=", "CVE-2024-38018 only: which SharePoint generation to target. Choices: 2019 (default), 2016, 2013. 2016 and 2019 share the same assembly identity and produce the same payload; 2013 uses LosFormatter and the 15.0.0.0 assembly reference.", v => spver = v },
                 {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
-            };
+            }
+            .WithMetadata("cve", new OptionMetadata(choices: new[] { "CVE-2026-50522", "CVE-2025-53770", "CVE-2025-49704", "CVE-2024-38018", "CVE-2020-1147", "CVE-2019-0604", "CVE-2018-8421" }, required: true))
+            .WithMetadata("useurl", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("gadget", new OptionMetadata(defaultValue: "TypeConfuseDelegate", valueSource: OptionValueSource.Gadgets))
+            .WithMetadata("command", new OptionMetadata(required: true))
+            .WithMetadata("target", new OptionMetadata())
+            .WithMetadata("formbody", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("minify", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("usesimpletype", new OptionMetadata(defaultValue: "true"))
+            .WithMetadata("rawcmd", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("no-comment", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("variant", new OptionMetadata(defaultValue: "1", choices: new[] { "1", "2" }))
+            .WithMetadata("spver", new OptionMetadata(defaultValue: "2019", choices: new[] { "2019", "2016", "2013" }))
+            .WithMetadata("i-understand-dos", new OptionMetadata(defaultValue: "false"));
 
         public string Name()
         {

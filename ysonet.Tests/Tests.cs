@@ -58,6 +58,7 @@ namespace ysonet.Tests
         private const string StatusProbeVar = "YSONET_STATUS_PROBE";
         private const string ViewStateProbeVar = "YSONET_VIEWSTATE_PROBE";
         private const string TestLockProbeVar = "YSONET_TESTLOCK_PROBE";
+        private const string RecordlessSinkProbeVar = "YSONET_RECORDLESS_SINK_PROBE";
 
         // The job this process belongs to, whether it created it or inherited it from the
         // hidden-desktop parent. Null when containment is off or unavailable.
@@ -88,6 +89,31 @@ namespace ysonet.Tests
 
         private static int Main(string[] args)
         {
+            // A test-owned zero-exit program for the sink's missing-record check.
+            if (Environment.GetEnvironmentVariable(RecordlessSinkProbeVar) == "1") return 0;
+            if (Array.IndexOf(args, "--option-metadata") >= 0)
+            {
+                if (args.Length != 1) return 2;
+                TestEnvironment.Strict = true;
+                RunOptionMetadataTests();
+                Run("Discovery options are classified", OptionCompleteness);
+                Run("Optional container stays unset", EditorExposesTheXamlContainerOption);
+                Run("Editor defaults preserve generation", EveryGadgetEditorDefaultMatchesTheGadgetsOwnDefault);
+                Run("Editor defaults remain whole", EditorDefaultsAreCompleteValuesNotTruncations);
+                Run("Plugin field defaults and choices", EditorPluginFields);
+                Run("Clipboard choices", ChoiceDetection);
+                Run("Assembly identity stays whole", OptionHeuristics);
+                return FinishRun();
+            }
+            if (Array.IndexOf(args, "--cli-contract") >= 0)
+            {
+                if (args.Length != 1) return 2;
+                TestEnvironment.Strict = true;
+                RunCliContractTests();
+                Run("Resx CLI output-file alias preserves the runtime effect", CliResxRuntimeEffect);
+                Run("The sink probe requires the windowless backend and fails loudly", TestSinkProbeRequiresAvailableSink);
+                return FinishRun();
+            }
             // This standalone gate reads documentation and runs metadata queries only.
             if (Array.IndexOf(args, "--docs") >= 0)
             {
@@ -305,6 +331,8 @@ namespace ysonet.Tests
             Run("Completion policy classifier flags signing-required policies", CompletionPolicyClassifier);
             RunCompletionUxTests();
             RunDocumentationTests();
+            RunCliContractTests();
+            RunOptionMetadataTests();
             Run("Menu navigates with arrows and Enter", MenuNavigation);
             Run("Menu digit shortcut and Escape cancel", MenuDigitAndCancel);
             Run("Picker selects by typing and cancels on Esc", PickerShowSelectAndCancel);
@@ -20269,7 +20297,7 @@ namespace ysonet.Tests
             foreach (NDesk.Options.Option o in p.Options())
                 foreach (string name in o.GetNames())
                     if (string.Equals(name, optionName, StringComparison.Ordinal))
-                        return o.Description ?? "";
+                        return o.Describe();
             return "";
         }
 
@@ -28356,11 +28384,18 @@ namespace ysonet.Tests
                 FireBackend.Select(artifacts, notAProgram);
                 AssertSinkUnavailable("could not be launched");
 
-                // 3) A real program that is not the sink: it writes no valid record.
-                string ysonetExe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ysonet.exe");
-                AssertTrue(File.Exists(ysonetExe), "the record-less program fixture exists");
-                FireBackend.Select(artifacts, ysonetExe);
-                AssertSinkUnavailable("wrote no valid record");
+                // 3) A real zero-exit program that writes no valid record. The product
+                // CLI correctly refuses a bare sink tag, so it is not a success fixture.
+                string recordlessExe = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                AssertTrue(File.Exists(recordlessExe), "the record-less program fixture exists");
+                string savedProbe = Environment.GetEnvironmentVariable(RecordlessSinkProbeVar);
+                try
+                {
+                    Environment.SetEnvironmentVariable(RecordlessSinkProbeVar, "1");
+                    FireBackend.Select(artifacts, recordlessExe);
+                    AssertSinkUnavailable("wrote no valid record");
+                }
+                finally { Environment.SetEnvironmentVariable(RecordlessSinkProbeVar, savedProbe); }
 
                 // 4) A real sink path with no space-free form is refused before launch.
                 string spacedDir = Path.Combine(scratch, "sink path with spaces");
@@ -30056,8 +30091,7 @@ namespace ysonet.Tests
                 return;
             }
             AssertTrue(exit != 0, "the plugin exits non-zero on an empty stdin command");
-            // The plugin throws and the CLI prints the message, which the plugin path
-            // sends to stdout rather than stderr.
+            // The plugin throws and the CLI reports the empty input diagnostic.
             AssertTrue((so + se).Contains(StdinCommandReader.EmptyInputError),
                 "and reports the empty input: " + Excerpt(so + se));
 

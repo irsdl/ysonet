@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -57,7 +57,15 @@ namespace ysonet.Plugins
                     if (v != null) minify = true;
                 }
             }
-        };
+        }
+            .WithMetadata("l", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("input", new OptionMetadata(required: true))
+            .WithMetadata("gadget", new OptionMetadata(required: true))
+            .WithMetadata("formatter", new OptionMetadata(required: true))
+            .WithMetadata("rawinput", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("r", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("t", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("minify", new OptionMetadata(defaultValue: "false"));
 
         public string Name()
         {

@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -78,7 +78,8 @@ namespace ysonet.Generators
             {
                 {"var|variant=", "Variant number. Variant defines a different Stream delivery class. Choices: \r\n1 (default and GAC) - LazyFileStream for Stream delivery, file path has to be provided for -c argument (UNC or local) " +
                 "\r\n2 (non-GAC, requires Microsoft.Web.Deployment.dll) - ReadOnlyStreamFromStrings for Stream delivery, command to execute can be provided for -c argument", v => int.TryParse(v, out variant_number) },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()));
 
             return options;
         }

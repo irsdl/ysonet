@@ -196,7 +196,9 @@ namespace ysonet.Generators
                     + " The (2) formatter annotation counts DLL-path variants, not getter choices.",
                     v => int.TryParse(v, out getter_number)
                 },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("getter", new OptionMetadata(defaultValue: "1", choices: new[] { "1", "2", "3", "4", "5" }, prefillDefault: false));
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)

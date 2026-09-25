@@ -225,7 +225,10 @@ namespace ysonet.Generators
                         + "execution, or of any data returning to you.",
                     v => { if (v != null) rawInput = true; }
                 },
-            };
+            }
+            .WithMetadata("source-profile", new OptionMetadata(required: true))
+            .WithMetadata("destination-profile", new OptionMetadata(required: true))
+            .WithMetadata("rawinput", new OptionMetadata(defaultValue: "false"));
         }
 
         // ---- Generation --------------------------------------------------------

@@ -973,47 +973,45 @@ namespace ysonet.Interactive
             return new EditableField { Label = label, Kind = FieldKind.Flag, Help = help };
         }
 
-        // Build an editor field from a gadget/plugin option, recovering a default,
-        // a choice set and a required hint from the option's description text.
-        private static EditableField FromOption(OptionField f, bool gadgetPicker, bool includePrivate)
+        // Build an editor field from explicit option metadata. Help is display text only.
+        internal static EditableField FromOption(OptionField f, bool gadgetPicker, bool includePrivate)
         {
-            var ef = new EditableField { Label = f.DisplayName, Help = f.Description ?? "", ModuleOwn = true };
+            var ef = new EditableField { Label = f.DisplayName, Help = f.Description ?? "", ModuleOwn = true,
+                Required = f.TakesValue && f.Metadata != null && f.Metadata.Required };
 
             if (f.IsFlag)
             {
                 ef.Kind = FieldKind.Flag;
-                string def = EditableField.ParseDefault(f.Description);
+                string def = f.Metadata == null || !f.Metadata.PrefillDefault ? null : f.Metadata.DefaultValue;
                 f.Value = (def != null && def.Equals("true", StringComparison.OrdinalIgnoreCase)) ? "true" : "";
                 ef.Bind(() => f.Value, v => f.Value = OptionField.IsTruthy(v) ? "true" : "");
                 return ef;
             }
 
-            string dflt = EditableField.ParseDefault(f.Description);
+            string dflt = f.Metadata == null || !f.Metadata.PrefillDefault ? null : f.Metadata.DefaultValue;
             f.Value = dflt ?? "";
             ef.Bind(() => f.Value, v => f.Value = v ?? "");
             ef.BindExplicitEmpty(emit => f.ForceEmit = emit);
 
-            if (gadgetPicker)
+            if (gadgetPicker && f.Metadata != null && f.Metadata.ValueSource == OptionValueSource.Gadgets)
             {
                 ef.Kind = FieldKind.Pick;
                 ef.Choices = GadgetNames(includePrivate);
-                if (string.IsNullOrEmpty(f.Value))
-                    f.Value = "ActivitySurrogateSelector";
                 return ef;
             }
 
-            List<string> choices = EditableField.ParseChoices(f.Description);
-            if (choices != null)
+            List<string> choices = f.Choices == null ? null : new List<string>(f.Choices);
+            if (choices != null && choices.Count > 0)
             {
                 ef.Kind = FieldKind.Choice;
                 ef.Choices = choices;
-                ef.AllowCustom = true;
+                ef.AllowCustom = f.Metadata.AllowCustom;
             }
             else
             {
                 ef.Kind = FieldKind.Text;
             }
-            ef.Required = EditableField.LooksRequired(f.Description, true);
+            ef.Required = f.Metadata != null && f.Metadata.Required;
             return ef;
         }
 

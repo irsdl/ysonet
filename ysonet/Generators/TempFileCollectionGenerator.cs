@@ -207,7 +207,8 @@ namespace ysonet.Generators
                             extraFiles.Add(v);
                     }
                 },
-            };
+            }
+            .WithMetadata("extrafile", new OptionMetadata());
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)

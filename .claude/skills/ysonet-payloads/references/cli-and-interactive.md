@@ -173,7 +173,25 @@ It writes payloads to stdout, failures and a summary to stderr, and exits zero w
 least one payload was written. It excludes DoS gadgets and ignores `-o`, `-t`, and
 `--testclr2`.
 
+## Declared option values
+
+Use `-g <gadget> --list values --option <alias>` or
+`-p <plugin> --list values --option <alias>` for declared suggestions. An empty result
+means free text or no declared suggestions. The wizard, rendered help, full-help
+reference, and PowerShell module-value completion consume the same explicit metadata.
+Help prose does not determine defaults or required hints. Context-dependent defaults
+remain unset so the module resolves them; mode requirements still follow the chosen mode.
+
 ## Output and input rules
+
+For a one-shot gadget or plugin request, exit zero means generation and output writing
+succeeded. Invalid/incomplete arguments and failed writes exit nonzero; check
+`$LASTEXITCODE` and discard output after a failure. Stdout is the requested data;
+stderr carries diagnostics, warnings, and debug details. `--outputpath` writes only
+the result, including under `--debugmode`. Do not merge stderr into a payload file.
+No arguments, help, listings, and formatter searches exit zero when successful.
+`--raf` keeps the best-effort rule above, and a generation success is not proof of a
+successful local self-test or an effect in another application.
 
 Choose the output representation for the delivery channel, not for the formatter:
 

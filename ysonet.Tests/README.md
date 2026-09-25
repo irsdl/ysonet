@@ -61,3 +61,23 @@ compiled.**
 - **Nothing tracked here may name a private gadget or plugin.** Coverage for an
   unpublished module belongs in `Private\`, reached through the partial-method hooks. See
   `CLAUDE.md`, "Public and private content (the seam)".
+
+### CLI scripting contract
+
+`ysonet.Tests.exe --cli-contract` runs the same subprocess checks included in NORMAL:
+missing/invalid arguments, plugin errors, output failures, separate payload/diagnostic
+streams, plugin option aliases, and successful help/discovery. It generates inert command text without local
+deserialization. `CliContractTests.cs` owns these checks. The focused entry point also
+runs the sink-probe check, whose successful non-sink fixture is a test-runner child
+that returns zero without writing a record. It also runs the existing Resx subprocess
+runtime-effect check against the test-owned sink, covering the short `-of` alias.
+
+### Option metadata
+
+`ysonet.Tests.exe --option-metadata` runs the metadata checks included in NORMAL plus
+existing editor/default regression checks and generation-equality coverage. It audits
+every public option, changes help wording without changing argv, checks complete defaults
+and mode-dependent omissions, queries aliases through the CLI, and drives PowerShell
+`TabExpansion2` against the embedded completion script. `OptionMetadataTests.cs` owns the
+new checks. Legacy public parser utility tests remain as compatibility coverage; the
+editor no longer uses those utilities.

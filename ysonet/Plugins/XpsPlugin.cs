@@ -87,11 +87,17 @@ namespace ysonet.Plugins
             {
                 {"m|mode=", "which markup part carries the payload: 'fdseq' (default, the FixedDocumentSequence start part), 'fdoc' (the FixedDocument part), 'fpage' (the FixedPage part), or 'all'. The parts were patched at different times, so this chooses what a given target build still parses unrestricted.", v => { if (v != null) mode = v.Trim().ToLowerInvariant(); } },
                 {"c|command=", "the command to be executed", v => command = v },
-                {"t|test", "whether to run the payload locally. This opens the generated document twice: once with the patched default (must be blocked) and once with the legacy switches flipped FOR THIS PROCESS ONLY, which runs your command. Default: false", v => test = v != null },
-                {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify = v != null },
-                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType = v != null },
+                {"t|test", "whether to run the payload locally. This opens the generated document twice: once with the patched default (must be blocked) and once with the legacy switches flipped FOR THIS PROCESS ONLY, which runs your command. Default: {default}", v => test = v != null },
+                {"minify", "Whether to minify the payloads where applicable (experimental). Default: {default}", v => minify = v != null },
+                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: {default}", v => useSimpleType = v != null },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
-            };
+            }
+            .WithMetadata("mode", new OptionMetadata(defaultValue: "fdseq", choices: new[] { "fdseq", "fdoc", "fpage", "all" }))
+            .WithMetadata("command", new OptionMetadata(required: true))
+            .WithMetadata("test", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("minify", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("usesimpletype", new OptionMetadata(defaultValue: "true"))
+            .WithMetadata("rawcmd", new OptionMetadata(defaultValue: "false"));
 
         public string Name()
         {

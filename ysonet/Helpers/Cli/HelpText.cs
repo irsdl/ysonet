@@ -126,7 +126,7 @@ namespace ysonet.Helpers
         {
             var safe = new OptionSet();
             foreach (Option o in options)
-                safe.Add(o.Prototype, SoftBreak(o.Description), _ => { });
+                safe.Add(o.Prototype, SoftBreak(o.Describe()), _ => { });
             return safe;
         }
     }

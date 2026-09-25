@@ -393,7 +393,11 @@ namespace ysonet.Generators
                         + "receives the payload itself.",
                     v => dtdOutPath = v
                 },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("rawinput", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("file", new OptionMetadata())
+            .WithMetadata("dtd-out", new OptionMetadata());
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)

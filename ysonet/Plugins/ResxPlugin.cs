@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -42,18 +42,31 @@ namespace ysonet.Plugins
             {
                 {"M|mode=", "the payload mode: indirect_resx_file, CompiledDotResources (useful for CVE-2020-0932 for example), BinaryFormatter, SoapFormatter.", v => mode = v },
                 {"c|command=", "the command to be executed in BinaryFormatter and CompiledDotResources. If this is provided for SoapFormatter, it will be used as a file for ActivitySurrogateSelectorFromFile", v => command = v },
-                {"g|gadget=", "The gadget chain used for BinaryFormatter and CompiledDotResources (default: TextFormattingRunProperties).", v => gadget_name = v },
+                {"g|gadget=", "The gadget chain used for BinaryFormatter and CompiledDotResources (default: {default}).", v => gadget_name = v },
                 {"F|file=", "UNC file path location: this is used in indirect_resx_file mode.", v => file = v },
                 {"type=", "indirect_resx_file mode only: the type name the TARGET resolves with Type.GetType when it converts the file reference, which is what decides the effect. Default: " + DefaultFileRefTypeName + ", whose Stream constructor reads the file as a .resources document. System.String makes the target read the file back as text instead, and any other type with a public constructor taking one Stream is activated with the file's bytes.", v => filerefType = v },
                 {"enc=", "indirect_resx_file mode only: the encoding name the target passes to Encoding.GetEncoding, used only when --type is System.String. Omitted by default, which makes the target use Encoding.Default.", v => filerefEncoding = v },
-                {"of|outputfile=", "a file path location for CompiledDotResources to store the .resources file (default: payload.resources)", v => outputfile = v },
-                {"t|test", "Whether to run payload locally. Default: false", v => test =  v != null },
-                {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
-                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
+                {"of|outputfile=", "a file path location for CompiledDotResources to store the .resources file (default: {default})", v => outputfile = v },
+                {"t|test", "Whether to run payload locally. Default: {default}", v => test =  v != null },
+                {"minify", "Whether to minify the payloads where applicable (experimental). Default: {default}", v => minify =  v != null },
+                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: {default}", v => useSimpleType =  v != null },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
-                {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. This reaches the GADGET only. The .resx reader/writer headers remain at 4.0.0.0 because ResXResourceReader treats them as descriptive metadata; the complete document is tested on CLR v2. Default: false", v => legacyFx = v != null },
+                {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. This reaches the GADGET only. The .resx reader/writer headers remain at 4.0.0.0 because ResXResourceReader treats them as descriptive metadata; the complete document is tested on CLR v2. Default: {default}", v => legacyFx = v != null },
                 {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
-            };
+            }
+            .WithMetadata("mode", new OptionMetadata(choices: new[] { "indirect_resx_file", "CompiledDotResources", "BinaryFormatter", "SoapFormatter" }, required: true))
+            .WithMetadata("command", new OptionMetadata())
+            .WithMetadata("gadget", new OptionMetadata(defaultValue: "TextFormattingRunProperties", valueSource: OptionValueSource.Gadgets))
+            .WithMetadata("file", new OptionMetadata())
+            .WithMetadata("type", new OptionMetadata(defaultValue: DefaultFileRefTypeName))
+            .WithMetadata("enc", new OptionMetadata())
+            .WithMetadata("outputfile", new OptionMetadata(defaultValue: "payload.resources"))
+            .WithMetadata("test", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("minify", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("usesimpletype", new OptionMetadata(defaultValue: "true"))
+            .WithMetadata("rawcmd", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("legacyfx", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("i-understand-dos", new OptionMetadata(defaultValue: "false"));
 
         // What indirect_resx_file names as the converted type when --type is not given. It is
         // byte for byte what this mode has always emitted, so an existing command produces an

@@ -1,4 +1,4 @@
-﻿using Microsoft.VisualStudio.Text.Formatting;
+using Microsoft.VisualStudio.Text.Formatting;
 using NDesk.Options;
 using System;
 using System.Collections.Generic;
@@ -84,7 +84,9 @@ namespace ysonet.Generators
             {
                 {"xamlurl=", "This is to create a very short payload when the affected box can read the target XAML URL e.g. \"http://example.local/x\" (can be a UNC path on a shared drive or a path on the local system). It carries the ResourceDictionary gadget instead of ObjectDataProvider, so the target FETCHES and loads that URL rather than running a command, and the command parameter is ignored. The shorter the better!", v => xaml_url = v },
                 {HasRootDcsOptionName, "Include a root element with the DataContractSerializer payload. This option applies only to DataContractSerializer; other formatters are refused.", v => hasRootDCS = v != null },
-            };
+            }
+            .WithMetadata("xamlurl", new OptionMetadata())
+            .WithMetadata("hasRootDCS", new OptionMetadata(defaultValue: "false"));
 
             return options;
         }

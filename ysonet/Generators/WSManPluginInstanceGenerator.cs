@@ -235,10 +235,7 @@ namespace ysonet.Generators
             {
                 {
                     AssemblyOptionName + "=",
-                    // The default is QUOTED so the interactive editor can read it whole and
-                    // open the field already holding it (EditableField.ParseDefault). An
-                    // unquoted one would be cut at the first comma, which for an assembly
-                    // display name means a value that names nothing.
+                    // Metadata preserves this entire identity, including commas and spaces.
                     "The assembly display name written into the payload.\r\n"
                         + "Default: \"" + DefaultAssemblyName + "\"\r\n"
                         + "which is Windows PowerShell's GAC identity. The 3.0.0.0 assembly "
@@ -263,7 +260,8 @@ namespace ysonet.Generators
                         + "it at the moment of deserialization.",
                     v => { if (v != null) assemblyName = v; }
                 },
-            };
+            }
+            .WithMetadata("assembly", new OptionMetadata(defaultValue: DefaultAssemblyName));
         }
 
         // -t never deserializes this payload in the ysonet process: it would terminate the

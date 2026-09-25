@@ -47,7 +47,7 @@ namespace ysonet.Interactive
         public static readonly string[] NonPayloadGlobalOptions = new string[]
         {
             "runmytest", "stdin", "help", "fullhelp", "credit",
-            "searchformatter", "runallformatters", "list", "checkupdate",
+            "searchformatter", "runallformatters", "list", "option", "checkupdate",
             // category discovery is reached through the top menu, not as a payload
             // field.
             "category",

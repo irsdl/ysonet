@@ -1,4 +1,5 @@
-﻿using NDesk.Options;
+using ysonet.Helpers;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Remoting.Channels;
@@ -25,7 +26,10 @@ namespace ysonet.Plugins
                     if (v != null) secure = true;
                 }
             }
-        };
+        }
+            .WithMetadata("command", new OptionMetadata(required: true))
+            .WithMetadata("url", new OptionMetadata(required: true))
+            .WithMetadata("s", new OptionMetadata(defaultValue: "false"));
 
         public string Name()
         {

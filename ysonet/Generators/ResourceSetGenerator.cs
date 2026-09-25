@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -66,7 +66,8 @@ namespace ysonet.Generators
             OptionSet options = new OptionSet()
             {
                 {"ig|internalgadget=", "The numerical internal gadget choice to use: 1=TypeConfuseDelegate, 2=TextFormattingRunProperties (default: 1 [TypeConfuseDelegate])", v => int.TryParse(v, out internalgadget) }
-            };
+            }
+            .WithMetadata("internalgadget", OptionMetadata.ForVariants(Variants()));
 
             return options;
         }

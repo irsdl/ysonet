@@ -43,3 +43,9 @@ length before removing a trailing CRLF/LF - both call sites used to index `cmd[l
 closed or one-byte stdin crashed with an IndexOutOfRangeException. Empty input is now the
 defined error `Standard input did not contain a command.` A non-empty `-c` still wins over
 `-s` everywhere.
+
+2026-09-25 - One-shot CLI failures use stderr and nonzero status, including missing arguments and output-write failures. Dispatch routes module console messages to stderr and writes only the returned result to stdout or a file; debug lengths stay outside the payload. No-argument help and successful formatter searches exit zero. - A generator returning data is not enough for success when the final write fails, and module diagnostics must not contaminate a redirected result.
+
+2026-09-25 - A sink-probe test needs a dedicated zero-exit, record-less child, not the product CLI given a bare tag. The test runner owns that fixture through an early probe branch and preserves the missing-record assertion. - Correctly rejecting an invalid CLI invocation changes its exit status, so it cannot also stand in for a successful non-sink program.
+
+2026-09-25 - Resolve the global output encoding against the combined global and selected-module option metadata. NDesk short-option bundling otherwise reads Resx `-of` as `-o f` (and ViewState `-osf` as `-o sf`). - Strict encoding validation must not reject legitimate module aliases; the CLI regression gate covers both resource-file generation and its existing test-owned runtime effect.

@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -23,9 +23,15 @@ namespace ysonet.Plugins
                 {"c|command=", "the command to be executed in run_command mode.", v => command = v },
                 {"u|url=", "the url to fetch the file from in write_file mode.", v => url = v },
                 {"f|file=", "the file to read in read_file mode or the file to write to in write_file mode.", v => path = v },
-                {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
+                {"minify", "Whether to minify the payloads where applicable (experimental). Default: {default}", v => minify =  v != null },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
-            };
+            }
+            .WithMetadata("mode", new OptionMetadata(choices: new[] { "read_file", "write_file", "run_command" }, required: true))
+            .WithMetadata("command", new OptionMetadata())
+            .WithMetadata("url", new OptionMetadata())
+            .WithMetadata("file", new OptionMetadata())
+            .WithMetadata("minify", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("rawcmd", new OptionMetadata(defaultValue: "false"));
 
         public string Name()
         {

@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -103,7 +103,9 @@ namespace ysonet.Generators
             {TypeConfuseDelegateGenerator.XamlRootContainerOptionName + "=",
                 TypeConfuseDelegateGenerator.XamlRootContainerOptionHelp,
                 v => root_container_number = TypeConfuseDelegateGenerator.ParseXamlRootContainerOption(v) },
-         };
+         }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("rootcontainer", new OptionMetadata(defaultValue: "1", choices: new[] { "1", "2", "3" }, prefillDefault: false));
 
             return options;
         }

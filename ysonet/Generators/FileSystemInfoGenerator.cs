@@ -277,7 +277,9 @@ namespace ysonet.Generators
                         + "yours left to compare against.",
                     v => { if (v != null) rawInput = true; }
                 },
-            };
+            }
+            .WithMetadata("variant", OptionMetadata.ForVariants(Variants()))
+            .WithMetadata("rawinput", new OptionMetadata(defaultValue: "false"));
         }
 
         public override object Generate(string formatter, InputArgs inputArgs)

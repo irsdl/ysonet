@@ -114,7 +114,8 @@ namespace ysonet.Generators
                             setRawInput(true);
                     }
                 }
-            };
+            }
+            .WithMetadata("rawinput", new OptionMetadata(defaultValue: "false"));
         }
 
         /// <summary>

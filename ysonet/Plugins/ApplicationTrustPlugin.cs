@@ -1,4 +1,4 @@
-﻿using NDesk.Options;
+using NDesk.Options;
 using System;
 using System.Collections.Generic;
 using ysonet.Generators;
@@ -42,14 +42,23 @@ namespace ysonet.Plugins
             {
                 {"c|command=", "the command to be executed", v => command = v },
                 {"g|gadget=", "a gadget chain that supports BinaryFormatter. Default: " + DefaultGadget + ".", v => gadget = v },
-                {"t|test", "whether to run payload locally. Default: false", v => test =  v != null },
-                {"minify", "Whether to minify the payloads where applicable (experimental). Default: false", v => minify =  v != null },
-                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: true", v => useSimpleType =  v != null },
+                {"t|test", "whether to run payload locally. Default: {default}", v => test =  v != null },
+                {"minify", "Whether to minify the payloads where applicable (experimental). Default: {default}", v => minify =  v != null },
+                {"ust|usesimpletype", "This is to remove additional info only when minifying and FormatterAssemblyStyle=Simple. Default: {default}", v => useSimpleType =  v != null },
                 {"rawcmd", "Command will be executed as is without `cmd /c ` being appended (anything after the first space is an argument).", v => rawcmd = v != null },
-                {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. This reaches the GADGET only; this plugin's own XML envelope names no framework assembly, so it needs no rewriting. Default: false", v => legacyFx = v != null },
+                {"legacyfx", "Target the .NET Framework 2.0/3.0/3.5 (CLR v2) generation. This reaches the GADGET only; this plugin's own XML envelope names no framework assembly, so it needs no rewriting. Default: {default}", v => legacyFx = v != null },
                 {"no-comment", "Output only the serialized payload, without the explanatory XML comment.", v => noComment = v != null },
                 {Helpers.Core.DosPolicy.AckOptionName, Helpers.Core.DosPolicy.AckHelp, v => dosAcknowledged = v != null },
-            };
+            }
+            .WithMetadata("command", new OptionMetadata(required: true))
+            .WithMetadata("gadget", new OptionMetadata(defaultValue: "TextFormattingRunProperties", valueSource: OptionValueSource.Gadgets))
+            .WithMetadata("test", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("minify", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("usesimpletype", new OptionMetadata(defaultValue: "true"))
+            .WithMetadata("rawcmd", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("legacyfx", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("no-comment", new OptionMetadata(defaultValue: "false"))
+            .WithMetadata("i-understand-dos", new OptionMetadata(defaultValue: "false"));
 
         public string Name()
         {
