@@ -1,4 +1,5 @@
 using System.Threading;
+using System.Windows;
 
 namespace ysonet.Tests
 {
@@ -13,11 +14,14 @@ namespace ysonet.Tests
     /// document, resolved this type, and built it in the process that deserialized the
     /// payload.
     ///
+    /// It is the document ROOT, not an unused keyed resource: WPF can defer creating
+    /// resource values until lookup, but must construct the root to load a dictionary.
+    ///
     /// Deliberately does nothing but count. It runs inside the test runner, so an effect
     /// with any side effect on the machine would be paying for evidence twice; and unlike a
     /// marker file the count is synchronous, so a row needs no wall-clock budget.
     /// </summary>
-    public sealed class XamlLoadWitness
+    public sealed class XamlLoadWitness : ResourceDictionary
     {
         private static int _constructed;
 

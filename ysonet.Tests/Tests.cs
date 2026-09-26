@@ -25570,12 +25570,10 @@ namespace ysonet.Tests
             if (trace) { Console.Error.WriteLine("    [fire] ResourceDictionary remote markup load"); Console.Error.Flush(); }
 
             const string markupPath = "/witness.xaml";
+            // Observe the dictionary root itself. An unused keyed resource may remain
+            // deferred even after a successful load on the hosted WPF runtime.
             string document =
-                "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
-                + " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
-                + " xmlns:t=\"clr-namespace:ysonet.Tests;assembly=ysonet.Tests\">"
-                + "<t:XamlLoadWitness x:Key=\"w\"/>"
-                + "</ResourceDictionary>";
+                "<t:XamlLoadWitness xmlns:t=\"clr-namespace:ysonet.Tests;assembly=ysonet.Tests\"/>";
 
             using (var server = new LegacyXmlHttpServer())
             {
