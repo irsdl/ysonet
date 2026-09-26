@@ -55,7 +55,9 @@ not mean every catalogue cell fired on this platform.
 
 ## Testing the package
 
-The ZIP is extracted into a fresh temporary directory. Only the test runner, windowless sink, and test-only .NET 4.0 host/config are copied
+The ZIP is extracted into a fresh temporary directory, whose canonical path is
+used to launch the runner. Windows short-path aliases can make the CLR load a
+second copy of a test assembly, splitting its static witness counters. Only the test runner, windowless sink, and test-only .NET 4.0 host/config are copied
 from the Release test builds. NORMAL probes that host to prove it refuses a newer
 replacement CLR; this does not enable the separate NET40 VM tier. The test runner receives
 a copy of the *packaged* `ysonet.exe.config` for the same binding redirects. Product

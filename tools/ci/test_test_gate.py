@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+import ctypes
 import io
 import json
 import os
@@ -8,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 import zipfile
 
 import test_gate as gate
@@ -91,6 +93,28 @@ Passed: {passed}  Failed: {failed}  Environment-skipped: {skipped}
         archive = self.root / 'release.zip'
         gate.package(self.root / 'release', archive)
         return archive
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows short-path launch regression')
+    def test_package_launch_expands_short_path_before_loading_clr_assemblies(self):
+        folder = self.root / 'Package launch directory with a long name'
+        folder.mkdir()
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = ctypes.windll.kernel32.GetShortPathNameW(str(folder), buffer, len(buffer))
+        if not length or buffer.value.casefold() == str(folder).casefold():
+            self.skipTest('The test volume does not provide an 8.3 alias')
+        scratch = SimpleNamespace(name=buffer.value, cleanup=lambda: None)
+        args = argparse.Namespace(report=self.root / 'reports', package=self.make_package(), tier='full', timeout=10)
+        with patch.object(gate.tempfile, 'TemporaryDirectory', return_value=scratch), \
+             patch.object(gate, 'stage_harness'), \
+             patch.object(gate, 'execute', side_effect=RuntimeError('stop after recording launch')) as launch, \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(1, gate.run_gate(args))
+        self.assertEqual(1, launch.call_count)
+        command, cwd = launch.call_args.args[:2]
+        # Different names for the same EXE can load two CLR assembly instances,
+        # leaving the executing witness and the assertion with different statics.
+        self.assertEqual(str(folder.resolve() / 'ysonet.Tests.exe'), command[0])
+        self.assertEqual(folder.resolve(), cwd)
 
     def test_package_preserves_hidden_skill_and_staging_only_adds_harness(self):
         archive = self.make_package()

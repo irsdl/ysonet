@@ -142,7 +142,9 @@ def run_gate(args):
         if args.package:
             result['package_sha256'] = sha256(args.package)
             scratch = tempfile.TemporaryDirectory(prefix='ysonet-package-')
-            folder = Path(scratch.name)
+            # Windows TEMP may contain an 8.3 alias. Launching through it lets
+            # WPF load a second copy by its long path, splitting static witnesses.
+            folder = Path(scratch.name).resolve(strict=True)
             extract_package(args.package, folder)
             stage_harness(ROOT, folder)
         else:
