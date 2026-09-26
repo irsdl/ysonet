@@ -14,6 +14,10 @@ Adding or changing a gadget or plugin? Read [ysonet/Generators/README.md](ysonet
 
 Before sending a dependency upgrade, read [docs/dependency-security.md](docs/dependency-security.md). Several libraries are pinned to a vulnerable version on purpose, because that vulnerability is the gadget. That page records each pin, the advisory against it, and how to triage a new scanner alert.
 
+Website content comes from the existing docs and public CLI metadata. For changes to
+user-facing behavior or releases, follow [site maintenance](tools/site/README.md#maintain-one-source)
+to regenerate and verify it without keeping duplicate documents.
+
 ## Documentation and release review
 
 Keep introductory pages short; put detailed options and examples in their reference

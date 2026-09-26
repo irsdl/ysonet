@@ -8,9 +8,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version string like v2026.7.1 (vYEAR.MONTH.RELEASE)"
-        required: true
-        default: "v2026.7.1"
+        description: "Optional version confirmation; leave blank to use VERSION"
+        required: false
         type: string
       create_tag:
         description: "Create tag if it doesn't exist"
@@ -50,7 +49,7 @@ jobs:
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
-          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+          if ("${{ github.event_name }}" -eq "workflow_dispatch" -and -not [string]::IsNullOrWhiteSpace($env:REQUESTED_VERSION)) {
             $v = $env:REQUESTED_VERSION.Trim()
           } else {
             $v = (Get-Content VERSION -Raw).Trim()

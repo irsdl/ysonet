@@ -1,0 +1,88 @@
+name: Documentation site
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+  # Release publication uses GITHUB_TOKEN, so follow its successful workflow run.
+  workflow_run:
+    workflows: ['Tag, Build & Publish Release']
+    types: [completed]
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0 (2026-07-20)
+        with:
+          python-version: '3.14.7' # 2026-08-05
+      - uses: NuGet/setup-nuget@fd55a6f3b34392fa83fde1454582407d8c714123 # v4.0 (2026-04-15)
+      - uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3 (2026-03-20)
+      - name: Build public catalog source
+        shell: pwsh
+        run: |
+          nuget restore ysonet.sln
+          if ($LASTEXITCODE -ne 0) { throw 'Restore failed.' }
+          msbuild ysonet/ysonet.csproj -p:Configuration=Debug -p:RunYsonetTests=false -p:IncludePrivateModules=false
+          if ($LASTEXITCODE -ne 0) { throw 'Public CLI build failed.' }
+      - name: Build and verify site
+        shell: pwsh
+        env:
+          SITE_SOURCE_REF: ${{ github.sha }}
+        run: |
+          python -m pip install -r tools/site/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Site dependencies failed.' }
+          python -m unittest discover -s tools/site -v
+          if ($LASTEXITCODE -ne 0) { throw 'Site tests failed.' }
+          python tools/docs/check_docs.py links
+          if ($LASTEXITCODE -ne 0) { throw 'Documentation links failed.' }
+          python tools/site/build.py --executable ysonet/bin/Debug/ysonet.exe --base-path /ysonet/ --source-ref $env:SITE_SOURCE_REF
+          if ($LASTEXITCODE -ne 0) { throw 'Site build failed.' }
+          python tools/site/check.py dist/site --base-path /ysonet/
+          if ($LASTEXITCODE -ne 0) { throw 'Rendered site links failed.' }
+      - name: Check browser behavior
+        shell: pwsh
+        run: |
+          $edge = Join-Path ${env:ProgramFiles(x86)} 'Microsoft/Edge/Application/msedge.exe'
+          node tools/site/browser-check.mjs dist/site /ysonet/ $edge
+          if ($LASTEXITCODE -ne 0) { throw 'Browser checks failed.' }
+      - name: Audit every page in light and dark themes
+        shell: pwsh
+        run: |
+          npm ci --prefix tools/site --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Browser test dependencies failed.' }
+          node tools/site/visual-audit.mjs --site dist/site --base /ysonet/ --channel msedge --widths 390,1440
+          if ($LASTEXITCODE -ne 0) { throw 'Visual layout audit failed.' }
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0 (2026-04-10)
+        with:
+          path: dist/site
+
+  deploy:
+    # Forks and pull requests build for review; only this repository publishes.
+    if: github.repository == 'irsdl/ysonet' && github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0 (2026-03-25)

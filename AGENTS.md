@@ -13,6 +13,8 @@ Pointers:
   never in a helper or a shared payload builder) and readability (research material: the
   payload is fully visible in the source and never obfuscated, encoded, or hidden):
   `ysonet/Generators/README.md`, summarized in `CLAUDE.md`
+- Website source ownership and release synchronization: `tools/site/README.md`
+  (see "Maintain one source"); regenerate from canonical docs and the fresh public CLI.
 - Contributing workflow: `CONTRIBUTING.md`
 - Test environment verdict - a run prints one `ENVIRONMENT VERDICT:` line before the
   Passed/Failed summary. A skipped check is unverified, never passed, and on

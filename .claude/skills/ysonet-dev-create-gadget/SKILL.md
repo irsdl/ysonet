@@ -405,6 +405,10 @@ powershell -ExecutionPolicy Bypass -File .claude/skills/ysonet-dev-consistency-c
 Also update the skill's maintained selection or CLI guidance when the gadget adds
 a new decision rule, input type, effect, formatter behavior, or global workflow.
 
+Rebuild the website from the finished public catalog using
+[site maintenance](../../../tools/site/README.md#maintain-one-source). Do not add a
+second hand-written module page or count.
+
 Do not document an unregistered draft as supported.
 
 ### 12. Verify in a loop

@@ -242,6 +242,9 @@ For a plan, verify at least:
 - CLI, interactive UI, help, completion, docs, packaging, and generated files;
 - regeneration and semantic review of the shipped `ysonet-payloads` skill when
   any public YSoNet surface changes;
+- website regeneration from canonical sources under
+  [site maintenance](../../../tools/site/README.md#maintain-one-source) when docs,
+  public metadata, installation, or releases change;
 - focused positive, negative, boundary, regression, and matrix tests;
 - exact verification commands, working directories, and expected evidence;
 - risks, mitigations, checkpoints, escape hatch, and recoverable rollback;

@@ -1,5 +1,8 @@
 # YSoNet documentation
 
+[Browse the documentation site](https://irsdl.github.io/ysonet/) for search, module
+pages, and light or dark themes. These Markdown files remain the source.
+
 ## Start with your task
 
 | I want to... | Read |

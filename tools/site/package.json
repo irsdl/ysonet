@@ -1,0 +1,11 @@
+{
+  "name": "ysonet-site-checks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "visual-audit": "node visual-audit.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.0"
+  }
+}

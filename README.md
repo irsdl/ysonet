@@ -22,6 +22,7 @@ YSoNet is a fork of [ysoserial.net](https://github.com/pwntester/ysoserial.net),
 originally developed by Alvaro Muñoz (@pwntester), and is maintained by
 [Soroush Dalili (@irsdl)](https://github.com/irsdl).
 
+- Documentation: [website](https://irsdl.github.io/ysonet/) | [guides on GitHub](docs/README.md).
 - Sites: [ysonet.net](https://ysonet.net) or [ysonet.com](https://ysonet.com) (both open this repo).
 
 ---

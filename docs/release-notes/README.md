@@ -4,12 +4,15 @@ Read the notes for your destination release before replacing an installation.
 Extract the new ZIP into a separate folder so each version keeps its matching
 DLLs and configuration files.
 
-- [v2026.9.1](v2026.9.1.md): completion and console fixes, DataContractSerializer
-  output fixes, and a reorganized research archive.
-- [v2026.8.1](v2026.8.1.md): CLR2 targeting and local-test hosts, new gadgets, and
-  runtime evidence.
-- [Moving from ysoserial.net](../moving-from-ysoserial-net.md): changes when
-  switching projects rather than updating YSoNet.
+## Version notes
+
+<!-- site:release-index -->
+
+[Browse note sources](https://github.com/irsdl/ysonet/tree/master/docs/release-notes)
+or [published releases](https://github.com/irsdl/ysonet/releases). A note file may
+describe upcoming work; GitHub releases establish what has been published.
+
+Switching projects? Read [Moving from ysoserial.net](../moving-from-ysoserial-net.md).
 
 ## Required before publishing
 

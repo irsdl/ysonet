@@ -2164,3 +2164,32 @@ creates provenance and component inventories from the archive and dependency pin
 and writes/verifies `SHA256SUMS`. The publishing workflow signs those explicit subjects
 with GitHub Actions attestations before publication. See
 [release verification](release-verification.md) and [runtime evidence](runtime-evidence.md).
+
+## Documentation website
+
+`tools/site/` renders an explicit public Markdown list and the CLI's JSON catalog
+into static HTML in `dist/site/`. Source documents stay authoritative; module pages
+and filters come from a complete public export with the same `VERSION`. The build
+rejects filtered, private, and mismatched exports. `--executable` reads metadata
+straight from the freshly built CLI; `--catalog` accepts an offline export. The
+homepage reuses a marked installation section from Getting Started. Version-note
+pages and their index are discovered from existing release-note files and sorted
+numerically; adding a note needs no second list. The research archive stays on GitHub.
+
+Shared templates provide top navigation, a catalog index, and document reading
+layouts with section links. The browser uses local assets for search, theme
+preferences, mobile navigation, and catalog filters.
+Pages remain readable without JavaScript. A configurable base path supports GitHub
+project Pages and root-domain hosting. `--site-url` sets canonical URLs and the
+generated XML sitemap independently of the local preview path. Search and error
+pages are excluded from indexing; root-domain deployments include `robots.txt`.
+`check.py` validates rendered links, anchors, assets, search destinations, and
+sitemap/canonical agreement; `browser-check.mjs` exercises the UI in Chromium.
+`visual-audit.mjs` uses Playwright to measure every page in both themes at multiple
+widths and saves screenshots for review, with Chromium, Firefox, or WebKit.
+
+`.github/workflows/pages.yml` builds and checks pull requests, then publishes only
+`master` in the upstream repository through the `github-pages` environment. It
+also refreshes after a successful release workflow on master. It
+exports metadata without running payload generation or behavioral suites. See the
+[site guide](../tools/site/README.md) for preview, publication, and migration steps.

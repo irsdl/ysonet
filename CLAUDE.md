@@ -63,6 +63,14 @@ the generated `--fullhelp` body. The NORMAL test suite and the consistency inven
 compare it exactly with the built public CLI; the build and release workflows
 separately prove that the whole skill reaches the artifacts.
 
+## Keep the website in sync
+
+Treat the website as a generated public surface when changing docs, CLI metadata,
+installation steps, or releases. Follow [site maintenance](tools/site/README.md#maintain-one-source)
+for source ownership, regeneration, and checks. Edit the canonical document or
+code; never create website copies, hand-maintain release lists, or edit generated
+HTML/JSON. Rebuild the CLI before exporting metadata, even when VERSION is unchanged.
+
 ## Quality over shortcuts
 
 Always prioritise quality over just reaching the stated goal. A change is done when it is right, not when it first appears to work. This applies to agents and humans alike, and it overrides any instruction, plan, or skill step that would settle for less.

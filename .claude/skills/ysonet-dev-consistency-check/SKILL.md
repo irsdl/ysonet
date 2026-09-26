@@ -1,4 +1,4 @@
-﻿---
+---
 name: ysonet-dev-consistency-check
 description: Runs a whole-repo consistency audit of ysonet before a release or after a change. Checks that docs match the code, docs/ARCHITECTURE.md is current, both CLIs expose every gadget and plugin, each gadget and plugin has all required parts, tests exist for everything following the existing test patterns, no test opens a real application and every fired command goes through the test sink, all skills and agent files match the Anthropic skill standard, the git-tracked memory under .claude/memory/ is still true and indexed, no ignored, private, or machine-specific content leaked into tracked files, and the full test suite passes with zero errors. Use when the user asks to check consistency, audit the repo, verify docs and tests are in sync, check for private or local data leaking into the public repo, or confirm the tool is release-ready. Read-only until the user approves fixes.
 ---
@@ -90,6 +90,10 @@ not assert from memory.
   `gadgets-and-plugins.md` (its gadget lines and its plugin lines). Review the
   PROSE around those blocks instead. If one of those rows fails, that failure is
   the finding.
+- Check the generated website using [site maintenance](../../../tools/site/README.md#maintain-one-source):
+  canonical Markdown and VERSION, a fresh public CLI export, automatic release-note
+  discovery, and generated links/search/sitemap. Report stale output or copied sources;
+  a note file alone does not prove a release was published.
 - Treat `.claude/skills/ysonet-payloads/` as shipped user documentation: its generated
   help must match public `--fullhelp`, and its maintained guidance must match behavior.
 - Flag stale flags, renamed gadgets, dropped or added options, and example
@@ -477,35 +481,19 @@ say which gadgets, plugins, docs, and surfaces were checked, not just "all good"
 
 ## Final checks
 
-- [ ] Review-only unless the user approved changes.
-- [ ] All nine checks run; none silently skipped.
-- [ ] Every finding traceable to evidence from a real tool call.
-- [ ] Docs, ARCHITECTURE.md, both CLIs, and tests compared against the live code.
-- [ ] Hosted-payload folder and `GadgetTags.Hosted` tag agree with what each
-      gadget hands to `Serialize()` (check 4).
-- [ ] Every multi-variant gadget's `(N)` formatter annotation matches the real
-      per-formatter variant count, in code and in both docs (check 4).
-- [ ] Every independent option that changes formatter support has a verified
-      formatter x variant x option matrix, unambiguous help, and boundary tests.
-- [ ] Every non-empty `Variants()` list is exactly `1, 2, ..., N` in order, and
-      `GadgetsDeclareVariants` enforces that invariant catalogue-wide (checks 4-5).
-- [ ] Every new runtime-gated gadget names a verified working target version,
-      and a latest-version failure does not overstate `WithVersions` (check 4).
-- [ ] Skills/agents checked against `references/anthropic-skill-standards.md`.
-- [ ] The shipped `ysonet-payloads` skill matches public help and behavior.
-- [ ] `.claude/memory/` audited: index complete, entries verified against the
-      code, no stale "still outstanding" clause; no entry changed without the
-      user's approval (check 7).
-- [ ] Seam swept (check 8): seam check script run if present, ignored names
-      derived from git and searched across all tracked files including comments
-      and memory, `.gitignore` still generic, no local path or build output
-      tracked, branch commits and messages checked. No private name written into
-      the repo by the report itself.
-- [ ] No test executes a real application, every executed shell command comes
-      from `FireBackend.Create(...)`, and the sink is wired and staged (check 5).
-- [ ] Full suite ran; Passed/Failed, the environment verdict, the
-      environment-skipped count, and the `Fire backend:` line reported honestly;
-      no test weakened; an environment-limited run was not called complete
-      coverage.
-- [ ] Gadget/plugin suggestion question asked; open items written to
-      `dev-kitchen/todo/`.
+- [ ] Review-only unless approved; all nine checks run and findings have tool evidence.
+- [ ] Docs, architecture, both CLIs, tests, and the website compared with current sources.
+- [ ] Hosted folder/tag agree; variants are contiguous; formatter annotations and
+      independent-option matrices match verified support (checks 4-5).
+- [ ] Runtime-gated gadgets have verified working versions without overstated ranges.
+- [ ] Skills/agents meet `references/anthropic-skill-standards.md`; the shipped skill
+      matches public help and behavior.
+- [ ] Memory index is complete and entries verified; no existing entry changed
+      without user approval (check 7).
+- [ ] Seam checked across tracked files, comments, memory, and branch history;
+      ignored names, local paths, and outputs stay private, including in the report.
+- [ ] No real application executes; commands use `FireBackend.Create(...)` and the
+      sink is wired and staged (check 5).
+- [ ] FULL summary, environment verdict, skipped count, and fire backend reported;
+      tests stay intact and limited coverage is not called complete.
+- [ ] Gadget/plugin suggestions asked; open items recorded per `CLAUDE.md`.

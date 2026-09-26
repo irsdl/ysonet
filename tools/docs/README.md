@@ -5,7 +5,7 @@ Run from the repository root with Python 3.10 or newer (standard library only):
 ```powershell
 python -m unittest discover -s tools/docs -v
 python tools/docs/check_docs.py links
-python tools/docs/check_docs.py release v2026.9.1
+python tools/docs/check_docs.py release (Get-Content VERSION -Raw).Trim()
 ```
 
 The link checker reads public Markdown known to Git, including new, non-ignored
@@ -41,7 +41,7 @@ only if that version is selected for publication.
 The same validator assembles the body before publication:
 
 ```powershell
-python tools/docs/check_docs.py release v2026.9.1 --output temp/release-body.md
+python tools/docs/check_docs.py release (Get-Content VERSION -Raw).Trim() --output temp/release-body.md
 ```
 
 After publishing, `--published <downloaded-body.md>` verifies that the complete

@@ -10,28 +10,30 @@ for command compatibility and script changes.
 
 ## Installation
 
-YSoNet requires Windows and .NET Framework 4.7.2 or a newer 4.x runtime (4.8 or
-4.8.1). Running a downloaded build does not require Visual Studio or MSBuild.
-These are requirements for running YSoNet; each payload has separate target
-requirements documented in its module help. Using Linux or macOS? Follow the
-[Windows VM or WSL workflow](linux-and-macos.md).
-
 ### Release ZIP (recommended)
 
-1. Open the [latest YSoNet release](https://github.com/irsdl/ysonet/releases/latest).
-   Under **Assets**, download `ysonet-<version>.zip`. The **Source code** archives
-   contain source files, not a ready-to-run build. Release downloads do not require
-   GitHub sign-in.
-   The release also provides [checksums and signed build provenance](release-verification.md)
-   and a [runtime evidence matrix](runtime-evidence.md). Read the
-   [dependency security notes](dependency-security.md) for intentionally pinned research libraries.
-2. Extract the whole ZIP into a folder. Keep the DLLs, configuration files, and
-   subfolders beside `ysonet.exe`; copying only the executable is not enough.
-3. Open PowerShell in the extracted folder and launch the wizard:
+<!-- site:install:start -->
+Windows and .NET Framework 4.7.2 or newer 4.x are required.
+
+1. [Download the release ZIP](https://github.com/irsdl/ysonet/releases/latest).
+2. Extract the whole archive. Keep the DLLs, configuration files, and subfolders together.
+3. Open PowerShell in that folder and start the wizard:
 
    ```powershell
    .\ysonet.exe -i
    ```
+<!-- site:install:end -->
+
+Under **Assets**, choose `ysonet-<version>.zip`; the **Source code** archives are
+not ready-to-run builds. Release downloads do not require GitHub sign-in.
+The release provides [checksums and signed build provenance](release-verification.md)
+and a [runtime evidence matrix](runtime-evidence.md). Read the
+[dependency security notes](dependency-security.md) for intentionally pinned research libraries.
+
+.NET Framework 4.8 and 4.8.1 work too. Running a release does not require Visual
+Studio or MSBuild. These are YSoNet's requirements; payload targets have separate
+requirements in module help. On Linux or macOS, use the
+[Windows VM or WSL workflow](linux-and-macos.md).
 
 For command-line help, run `.\ysonet.exe -h` from the same folder.
 Older versions are on the [YSoNet releases page](https://github.com/irsdl/ysonet/releases).

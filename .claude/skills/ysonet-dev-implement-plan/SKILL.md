@@ -228,6 +228,8 @@ Apply the plan's documentation work and any newly discovered required updates:
   `Last reviewed` value consistent with the current `VERSION`;
 - update catalog, usage, credit, and reference pages;
 - update normal CLI, interactive UI, help, completion, and listings together;
+- follow [site maintenance](../../../tools/site/README.md#maintain-one-source) to
+  regenerate the website from the updated docs and freshly built public CLI;
 - after compiling Debug, regenerate `.claude/skills/ysonet-payloads/references/full-help.md`
   with the updater named in `CLAUDE.md`, review its diff, and update the skill's
   maintained guidance when behavior or operator decisions changed; and
