@@ -25657,7 +25657,17 @@ namespace ysonet.Tests
                     + (r.Success ? "not string" : r.ErrorMessage));
                 return;
             }
-            RunSTA(delegate { SerializersHelper.Xaml_deserialize((string)r.Raw); });
+            RunSTA(delegate
+            {
+                try { SerializersHelper.Xaml_deserialize((string)r.Raw); }
+                catch (Exception ex)
+                {
+                    // Keep the loader's inner exception: the witness assertion alone
+                    // cannot distinguish a bad fixture from a changed WPF loader.
+                    Console.Error.WriteLine("    [ResourceDictionary " + label + "] " + ex);
+                    throw;
+                }
+            });
         }
 
         // ---- ResXFileRef: three effects, two formatters ------------------------
