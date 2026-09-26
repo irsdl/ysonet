@@ -106,3 +106,32 @@ observations. Both workflows upload only named release files.
 
 [Release verification](../../docs/release-verification.md) explains consumer checks,
 component inventory scope, the Release transform and provenance limitations.
+
+## Follow up after a push
+
+After every authorized push, follow the Actions runs for the **full pushed commit
+SHA** until completion. Check CI Build and Documentation site, inspect failed logs,
+and report links and actual outcomes. Queued, skipped, or unrun checks are not passes.
+Do not finish at "pushed" or assume a local pass proves the hosted build passed.
+
+When the push includes a VERSION bump:
+
+1. Before pushing, validate that version's notes with
+   `python tools/docs/check_docs.py release <version>`. Review their accuracy as well
+   as structure; never invent test results. VERSION remains the version authority.
+2. Follow Tag, Build & Publish Release through its Debug NORMAL, packaged FULL,
+   attestation, and publication gates. Fix ordinary failures without weakening gates;
+   follow the environment-verdict policy for suspect results.
+3. If the fix does not change VERSION, dispatch `tag-build-release.yml` on the fixed
+   branch with `create_tag=true` after verifying the intended SHA. Re-running the old
+   failed run uses the old source. Check for an existing tag first; never move a
+   published tag to bypass its source-commit check.
+4. Verify the published release is not a draft, its tag resolves to the tested SHA,
+   and its version, notes, ZIP and all companion assets match
+   [release verification](../../docs/release-verification.md). Download the assets,
+   run the checksum verifier, and verify their signed attestation.
+5. Follow the release-triggered Documentation site deployment too. Confirm the live
+   release notes and latest-download link, then report the release and run URLs.
+
+This follow-up does not authorize an otherwise unrequested push or version bump.
+Keep one procedure here; agent instructions should link to it rather than copy it.

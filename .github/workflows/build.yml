@@ -26,6 +26,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Documentation tooling tests failed." }
           python tools/docs/check_docs.py links
           if ($LASTEXITCODE -ne 0) { throw "Documentation links are broken." }
+          python tools/docs/check_docs.py release (Get-Content VERSION -Raw).Trim()
+          if ($LASTEXITCODE -ne 0) { throw "Current version release notes are missing or incomplete." }
 
       - name: Setup NuGet
         uses: NuGet/setup-nuget@fd55a6f3b34392fa83fde1454582407d8c714123 # v4.0 (2026-04-15)

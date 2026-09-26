@@ -543,7 +543,8 @@ This exception covers plan files only. Everything else still follows the rule ab
 
 - Commits: NEVER commit without the user's approval. Do and verify the work, but do not commit on your own, even when the change looks finished. When a commit is needed, ask the user first and let them decide. This applies to agents and humans-with-agents alike; a skill step that says "commit" does not override this rule.
 - Version bumps: NEVER raise the version on your own. If a change looks like it needs a version increase (see Versioning below), ask the user and let them decide; do not edit the `VERSION` file without approval.
-- Push to remote: NEVER push automatically. This must always be done manually by the user to avoid leaking sensitive data.
+- Push to remote: require explicit user authorization and pass the public/private seam checks before pushing. A request to push or complete release publication authorizes the necessary push; unrelated work does not.
+- After every authorized push, follow [GitHub build and release follow-up](tools/ci/README.md#follow-up-after-a-push). A VERSION bump is not finished until the release, assets, and subsequent website deployment are verified.
 
 ## Versioning
 

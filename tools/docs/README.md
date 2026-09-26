@@ -31,7 +31,8 @@ the test runner remains outside the release artifact.
 
 ## Release notes gate
 
-The release workflow validates the selected version's notes before creating a tag.
+CI validates the current VERSION notes on pull requests and pushes. The release
+workflow validates the selected version's notes before creating a tag.
 It requires exactly one nonempty section for each heading in
 [the release template](../../docs/release-notes/template.md), rejects unfinished
 `TODO`/`TBD`/`FIXME` prompts, and requires absolute links that work on the GitHub release
