@@ -30,7 +30,9 @@ namespace ysonet.Tests
 
         public XamlLoadWitness()
         {
-            Interlocked.Increment(ref _constructed);
+            int count = Interlocked.Increment(ref _constructed);
+            System.Console.Error.WriteLine("    [XamlLoadWitness constructed] "
+                + typeof(XamlLoadWitness).Assembly.Location + "; count=" + count);
         }
     }
 }

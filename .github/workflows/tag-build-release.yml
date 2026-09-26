@@ -120,6 +120,12 @@ jobs:
       - name: Build (Debug)
         run: msbuild ysonet.sln -p:Configuration=Debug -p:RunYsonetTests=false -p:Net40ReferenceDir="$env:NET40_REFERENCE_DIR"
 
+      - name: Test remote XAML fixture in isolation
+        shell: pwsh
+        run: |
+          & .\ysonet\bin\Debug\ysonet.Tests.exe --resource-dictionary-tests
+          if ($LASTEXITCODE -ne 0) { throw "Remote XAML fixture failed in isolation." }
+
       - name: Test Debug (NORMAL)
         shell: pwsh
         run: |

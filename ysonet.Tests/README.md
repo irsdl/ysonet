@@ -99,3 +99,9 @@ HTML/CSV rendering. Unknown dimensions and phases remain unverified.
 Run `ysonet.Tests.exe --evidence-tests` for the isolated reporting checks in
 `RuntimeEvidenceTests.cs`; they are also in NORMAL. See the
 [runtime evidence guide](../docs/runtime-evidence.md) for interpretation.
+
+The focused `ysonet.Tests.exe --resource-dictionary-tests` check serves inert XAML
+on loopback and requires both valid content types to construct its witness, while
+an invalid content type must not. It reports loader exceptions, HTTP requests, and
+loaded witness assemblies to distinguish fixture resolution from a missing effect.
+The release workflow runs it in isolation before NORMAL; FULL repeats the same cells.

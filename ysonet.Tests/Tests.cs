@@ -91,6 +91,20 @@ namespace ysonet.Tests
         {
             // A test-owned zero-exit program for the sink's missing-record check.
             if (Environment.GetEnvironmentVariable(RecordlessSinkProbeVar) == "1") return 0;
+            if (Array.IndexOf(args, "--resource-dictionary-tests") >= 0)
+            {
+                if (args.Length != 1) return 2;
+                TestEnvironment.Strict = true;
+                Run("ResourceDictionary loads remote markup into an inert witness", delegate
+                {
+                    var failures = new FailureCollector();
+                    int fired = 0;
+                    FireResourceDictionaryLoadsRemoteMarkup(failures, ref fired, true);
+                    AssertEqual(0, failures.Count, string.Join("\n", failures.ToArray()));
+                    AssertEqual(2, fired, "both valid content types construct the witness");
+                });
+                return FinishRun();
+            }
             if (Array.IndexOf(args, "--evidence-tests") >= 0)
             {
                 if (args.Length != 1) return 2;
@@ -25569,7 +25583,9 @@ namespace ysonet.Tests
                 "fire ResourceDictionary (remote markup load)")) return;
             if (trace) { Console.Error.WriteLine("    [fire] ResourceDictionary remote markup load"); Console.Error.Flush(); }
 
-            const string markupPath = "/witness.xaml";
+            const string controlPath = "/control.xaml";
+            const string markupPath = "/markup.xaml";
+            const string plainPath = "/plain.xaml";
             // Observe the dictionary root itself. An unused keyed resource may remain
             // deferred even after a successful load on the hosted WPF runtime.
             string document =
@@ -25579,12 +25595,13 @@ namespace ysonet.Tests
             {
                 try
                 {
-                    // Control: same document, same path, a content type WPF maps to nothing.
+                    // Separate URLs prevent a cached response from replacing another MIME case.
+                    // Control: same document, a content type WPF maps to nothing.
                     // The response is fetched and dropped, so the witness must NOT be built.
-                    server.Serve(markupPath, document, "application/x-ysonet-not-markup");
+                    server.Serve(controlPath, document, "application/x-ysonet-not-markup");
                     int before = XamlLoadWitness.Constructed;
-                    FetchResourceDictionary(server.UrlFor(markupPath), failures, "control");
-                    if (server.WaitForRequest(markupPath, MarkerWaitMs) == null)
+                    FetchResourceDictionary(server.UrlFor(controlPath), failures, "control");
+                    if (server.WaitForRequest(controlPath, MarkerWaitMs) == null)
                     {
                         failures.AddCapability(TestEnvironment.LoopbackTcp,
                             "ResourceDictionary remote markup load (control)",
@@ -25619,9 +25636,9 @@ namespace ysonet.Tests
                     // GetContentType throws that header away and reads the extension instead.
                     // Worth an assertion rather than a comment - it decides whether an
                     // operator has to control the response headers at all.
-                    server.Serve(markupPath, document, "text/plain");
+                    server.Serve(plainPath, document, "text/plain");
                     before = XamlLoadWitness.Constructed;
-                    FetchResourceDictionary(server.UrlFor(markupPath), failures, "text/plain fallback");
+                    FetchResourceDictionary(server.UrlFor(plainPath), failures, "text/plain fallback");
                     if (XamlLoadWitness.Constructed > before) fired++;
                     else
                     {
@@ -25632,6 +25649,22 @@ namespace ysonet.Tests
                     }
                 }
                 catch (Exception ex) { failures.Add("fire ResourceDictionary markup load: " + ex.Message); }
+                finally
+                {
+                    if (server.Requests.Length != 3)
+                        failures.Add("fire ResourceDictionary markup load: expected three independent HTTP responses, got "
+                            + server.Requests.Length);
+                    Console.Error.WriteLine("    [ResourceDictionary requests] "
+                        + string.Join(", ", server.Requests));
+                    foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        if (assembly.IsDynamic || assembly.GetName().Name != "ysonet.Tests") continue;
+                        var witness = assembly.GetType("ysonet.Tests.XamlLoadWitness");
+                        Console.Error.WriteLine("    [ResourceDictionary witness assembly] "
+                            + assembly.Location + "; count="
+                            + (witness == null ? "type absent" : witness.GetProperty("Constructed").GetValue(null, null)));
+                    }
+                }
             }
         }
 
@@ -25657,7 +25690,12 @@ namespace ysonet.Tests
             }
             RunSTA(delegate
             {
-                try { SerializersHelper.Xaml_deserialize((string)r.Raw); }
+                try
+                {
+                    var loaded = SerializersHelper.Xaml_deserialize((string)r.Raw);
+                    Console.Error.WriteLine("    [ResourceDictionary " + label + " result] "
+                        + (loaded == null ? "null" : loaded.GetType().AssemblyQualifiedName));
+                }
                 catch (Exception ex)
                 {
                     // Keep the loader's inner exception: the witness assertion alone
