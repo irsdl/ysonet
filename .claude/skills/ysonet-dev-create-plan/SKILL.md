@@ -294,6 +294,14 @@ planned `WithVersions` token or range.
 Name architecture, catalog, help, completion, and other updates. When public CLI,
 interactive, gadget, plugin, option, variant, mode, facet, or runtime help changes,
 include regeneration and review of `.claude/skills/ysonet-payloads/`.
+For changes affecting the website, include generation from canonical sources,
+site checks, and the separate
+[maintainer publication](../../../tools/site/README.md#maintainer-publication)
+step. Identify missing tooling or destination details and the authorization
+needed for publication; plan to prepare reviewable output before asking. Use
+GitHub Pages through the existing Windows workflow from `master`, without a
+publishing branch. Keep website tooling and publication separate from ordinary
+local builds. Treat the custom-domain migration as pending until configured.
 
 ## 9. Verification
 List exact focused checks and trigger first, then smoke and optional Release

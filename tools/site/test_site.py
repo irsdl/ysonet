@@ -48,6 +48,29 @@ class SiteTests(unittest.TestCase):
                 self.assertFalse((output / 'obsolete.html').exists())
                 self.assertEqual(first, home.read_bytes())
 
+    def test_default_build_serves_the_custom_domain_at_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'site'
+            export = Path(tmp) / 'catalog.json'
+            export.write_text(json.dumps(catalog()), encoding='utf-8')
+            with patch('sys.argv', ['build.py', '--catalog', str(export), '--output', str(output)]):
+                main()
+            # Exercise defaults, so a correctly generated project site cannot mask
+            # broken links when the artifact is mounted at the custom-domain root.
+            self.assertEqual([], check(output, '/')[2])
+            self.assertEqual([], check_seo(output))
+            home = (output / 'index.html').read_text(encoding='utf-8')
+            self.assertIn('href="/guides/"', home)
+            self.assertIn('href="/assets/site.css"', home)
+            self.assertIn('rel="canonical" href="https://ysonet.com/"', home)
+            search = json.loads((output / 'search-index.json').read_text(encoding='utf-8'))
+            self.assertTrue(any(row['url'] == '/getting-started/' for row in search))
+            urls = [node.text for node in ET.parse(output / 'sitemap.xml').iter(
+                '{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
+            self.assertTrue(all(url.startswith('https://ysonet.com/') for url in urls))
+            self.assertIn('Sitemap: https://ysonet.com/sitemap.xml',
+                          (output / 'robots.txt').read_text(encoding='utf-8'))
+
     def test_sitemap_canonical_urls_and_root_host_migration(self):
         for base, public in (('/ysonet/', 'https://irsdl.github.io/ysonet/'),
                              ('/', 'https://docs.example.com/'),

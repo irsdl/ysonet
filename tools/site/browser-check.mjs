@@ -6,7 +6,7 @@ import {readFile, writeFile, mkdir, mkdtemp, rm, stat} from 'node:fs/promises';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 
-const [directory = 'dist/site', base = '/ysonet/', browser] = process.argv.slice(2);
+const [directory = 'dist/site', base = '/', browser] = process.argv.slice(2);
 if (!browser) throw new Error('Usage: node tools/site/browser-check.mjs OUTPUT BASE_PATH BROWSER');
 const output = path.resolve(directory);
 const artifacts = path.resolve('temp/site-browser');

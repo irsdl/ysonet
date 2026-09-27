@@ -7,7 +7,7 @@ import path from 'node:path';
 const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
 const site = path.resolve(args.site || 'dist/site');
-const base = args.base || '/ysonet/';
+const base = args.base || '/';
 const report = path.resolve(args.report || 'temp/site-visual');
 const engine = args.engine || 'chromium';
 const widths = (args.widths || '320,390,768,1440').split(',').map(Number);

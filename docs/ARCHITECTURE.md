@@ -2180,7 +2180,8 @@ Shared templates provide top navigation, a catalog index, and document reading
 layouts with section links. The browser uses local assets for search, theme
 preferences, mobile navigation, and catalog filters.
 Pages remain readable without JavaScript. A configurable base path supports GitHub
-project Pages and root-domain hosting. `--site-url` sets canonical URLs and the
+project Pages and root-domain hosting. Production and local defaults use `/`
+with `https://ysonet.com/`. `--site-url` sets canonical URLs and the
 generated XML sitemap independently of the local preview path. Search and error
 pages are excluded from indexing; root-domain deployments include `robots.txt`.
 `check.py` validates rendered links, anchors, assets, search destinations, and

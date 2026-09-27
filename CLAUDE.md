@@ -71,6 +71,23 @@ for source ownership, regeneration, and checks. Edit the canonical document or
 code; never create website copies, hand-maintain release lists, or edit generated
 HTML/JSON. Rebuild the CLI before exporting metadata, even when VERSION is unchanged.
 
+Website preparation is part of affected development work. Follow
+[maintainer publication](tools/site/README.md#maintainer-publication): the existing
+Windows GitHub Actions workflow builds and deploys from `master`. Do not introduce
+a publishing branch, a second repository, or Cloudflare deployment credentials.
+Normal local YSoNet builds must not generate or publish the website, install
+website tooling, or require hosting authentication.
+
+Before finishing changes to published docs, public CLI metadata, installation,
+releases, or site assets, regenerate and check the affected site when possible.
+Report preparation, checks, and live publication separately. State missing tools
+or access and pending updates explicitly. Prepare reviewable changes before asking
+for missing commit/push authorization; existing explicit authorization carries
+forward. After an authorized source push, monitor the Documentation site workflow
+and verify its live output at `https://ysonet.com/`. Build and check with base `/`;
+the old `/ysonet/` prefix breaks the custom-domain site. Verify secondary-domain
+redirects separately instead of assuming they are configured.
+
 ## Quality over shortcuts
 
 Always prioritise quality over just reaching the stated goal. A change is done when it is right, not when it first appears to work. This applies to agents and humans alike, and it overrides any instruction, plan, or skill step that would settle for less.

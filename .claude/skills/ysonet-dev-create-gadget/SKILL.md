@@ -407,7 +407,12 @@ a new decision rule, input type, effect, formatter behavior, or global workflow.
 
 Rebuild the website from the finished public catalog using
 [site maintenance](../../../tools/site/README.md#maintain-one-source). Do not add a
-second hand-written module page or count.
+second hand-written module page or count. Check the output, then follow
+[maintainer publication](../../../tools/site/README.md#maintainer-publication):
+publish when authorized, otherwise present the prepared output and ask. Report
+missing tooling/access and pending publication. Use the existing GitHub Pages
+workflow from `master`; no publishing branch. Keep website tooling and publishing
+separate from ordinary local YSoNet builds.
 
 Do not document an unregistered draft as supported.
 

@@ -93,7 +93,11 @@ not assert from memory.
 - Check the generated website using [site maintenance](../../../tools/site/README.md#maintain-one-source):
   canonical Markdown and VERSION, a fresh public CLI export, automatic release-note
   discovery, and generated links/search/sitemap. Report stale output or copied sources;
-  a note file alone does not prove a release was published.
+  a note file alone does not prove a release was published. Check the separate
+  [maintainer publication](../../../tools/site/README.md#maintainer-publication)
+  status: local generation, checks, and live deployment are distinct. Use the
+  existing GitHub Pages workflow from `master`; no publishing branch. Report
+  pending updates; publish only when authorized. Keep normal builds separate.
 - Treat `.claude/skills/ysonet-payloads/` as shipped user documentation: its generated
   help must match public `--fullhelp`, and its maintained guidance must match behavior.
 - Flag stale flags, renamed gadgets, dropped or added options, and example

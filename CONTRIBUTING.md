@@ -17,6 +17,10 @@ Before sending a dependency upgrade, read [docs/dependency-security.md](docs/dep
 Website content comes from the existing docs and public CLI metadata. For changes to
 user-facing behavior or releases, follow [site maintenance](tools/site/README.md#maintain-one-source)
 to regenerate and verify it without keeping duplicate documents.
+Website preparation and publication are separate maintainer tasks, never ordinary
+build or post-build steps. Building YSoNet does not require website dependencies,
+GitHub publishing access, or Cloudflare credentials. See
+[maintainer publication](tools/site/README.md#maintainer-publication).
 
 ## Documentation and release review
 

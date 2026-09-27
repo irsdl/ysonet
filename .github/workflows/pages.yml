@@ -49,22 +49,22 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Site tests failed.' }
           python tools/docs/check_docs.py links
           if ($LASTEXITCODE -ne 0) { throw 'Documentation links failed.' }
-          python tools/site/build.py --executable ysonet/bin/Debug/ysonet.exe --base-path /ysonet/ --source-ref $env:SITE_SOURCE_REF
+          python tools/site/build.py --executable ysonet/bin/Debug/ysonet.exe --base-path / --site-url https://ysonet.com/ --source-ref $env:SITE_SOURCE_REF
           if ($LASTEXITCODE -ne 0) { throw 'Site build failed.' }
-          python tools/site/check.py dist/site --base-path /ysonet/
+          python tools/site/check.py dist/site --base-path /
           if ($LASTEXITCODE -ne 0) { throw 'Rendered site links failed.' }
       - name: Check browser behavior
         shell: pwsh
         run: |
           $edge = Join-Path ${env:ProgramFiles(x86)} 'Microsoft/Edge/Application/msedge.exe'
-          node tools/site/browser-check.mjs dist/site /ysonet/ $edge
+          node tools/site/browser-check.mjs dist/site / $edge
           if ($LASTEXITCODE -ne 0) { throw 'Browser checks failed.' }
       - name: Audit every page in light and dark themes
         shell: pwsh
         run: |
           npm ci --prefix tools/site --ignore-scripts
           if ($LASTEXITCODE -ne 0) { throw 'Browser test dependencies failed.' }
-          node tools/site/visual-audit.mjs --site dist/site --base /ysonet/ --channel msedge --widths 390,1440
+          node tools/site/visual-audit.mjs --site dist/site --base / --channel msedge --widths 390,1440
           if ($LASTEXITCODE -ne 0) { throw 'Visual layout audit failed.' }
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0 (2026-04-10)
         with:

@@ -66,7 +66,8 @@ The build rejects private, filtered, empty, and version-mismatched catalogs.
 2. Commit and push the site changes to `master`.
 3. Run **Documentation site** if the push did not already start it.
 
-The site address is `https://irsdl.github.io/ysonet/`. The workflow builds the
+The site address is `https://ysonet.com/`. The workflow builds at `/` with
+canonical URLs under `https://ysonet.com/`. It builds the
 public CLI, exports metadata without generating payloads, checks links, and deploys.
 Pull requests build for review but cannot deploy. Deployment is restricted to this
 repository's `master` branch and the `github-pages` environment. It refreshes on
@@ -77,23 +78,53 @@ so publication by the release workflow's token does not need an extra token.
 
 These are development docs, labeled with `VERSION`; source links point to the
 workflow commit. Release notes are linked separately. The site does not claim to
-archive documentation for every release. The existing domains remain unchanged.
+archive documentation for every release. Domain settings are managed separately
+from the workflow.
 
 ## Search indexing
 
 Every build generates `sitemap.xml` and matching absolute canonical URLs for the
 published guides and module pages. Search and error pages are marked `noindex`.
-Submit `https://irsdl.github.io/ysonet/sitemap.xml` in Google Search Console after
-publication. Project Pages cannot control the host's root `robots.txt`; a deployment
-at a root domain also gets a `robots.txt` sitemap directive.
+Submit `https://ysonet.com/sitemap.xml` in Google Search Console after publication.
+The root-domain build includes a `robots.txt` sitemap directive.
+
+## Maintainer publication
+
+Use the existing Windows GitHub Actions workflow in `.github/workflows/pages.yml`.
+It builds the public CLI from the source revision, generates the static site,
+checks it, and deploys through GitHub Pages. An authorized push to `master`
+updates the website automatically. No publishing branch, second repository,
+Cloudflare Pages project, or Cloudflare API token is needed.
+
+Keep site preparation and dependencies out of normal local YSoNet builds. For
+changes to published docs, public metadata, installation, releases, or site assets,
+regenerate and check the website when possible. If local tools are unavailable,
+report the missing checks and use the authorized workflow run for validation.
+Prepare reviewable changes before asking for missing commit/push authorization;
+existing explicit authorization carries forward. Follow the workflow through
+completion and verify the live site. Report preparation, checks, and publication
+separately, including blockers or a pending deployment.
+
+### Custom domain
+
+The maintainer configured `ysonet.com` in GitHub Pages and pointed its DNS to
+GitHub. Build and check at `/`; the old `/ysonet/` prefix breaks navigation,
+assets, and search on this custom domain. Local builder and checker defaults
+match production. For another deployment, explicitly set both `--base-path`
+and `--site-url` on the builder and pass the same base to all checks.
+
+Use GitHub Pages' native custom-domain support. No response rewriting or proxy
+code is needed. Verify HTTPS, search, assets, canonicals, sitemap, and redirects
+after deploying. The recommended `ysonet.net` redirect to `ysonet.com` should
+preserve paths and query strings; its setup and verification are still pending.
+See GitHub's [custom-domain instructions](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site)
+and Cloudflare's [domain redirects](https://developers.cloudflare.com/fundamentals/manage-domains/redirect-domain/).
 
 ## Move to Cloudflare later
 
-Build with `--base-path / --site-url https://docs.example.com/` for a root domain
-(replace the example with your address), or your chosen path, and publish the
-contents of `dist/site/` to a static host. Keep generating the catalog on Windows
-from the same checkout; the rendered files need no .NET runtime. No content rewrite
-or hosting-specific runtime is required. Set up DNS and redirects when migrating.
+This anchor remains for existing links. A Cloudflare hosting migration is not
+planned; see [maintainer publication](#maintainer-publication) for the current
+GitHub Pages workflow and custom-domain configuration.
 
 ## Checks
 
@@ -105,7 +136,7 @@ node tools/site/browser-check.mjs dist/site / "C:\Program Files (x86)\Microsoft\
 
 The browser check needs Node 22+ and Edge or Chrome. It covers search, filters,
 themes, text contrast, mobile navigation, and reading without JavaScript. Screenshots go to
-`temp/site-browser/`. The site workflow also runs it against the project path.
+`temp/site-browser/`. The site workflow runs it against the same root path.
 
 For an all-page Playwright audit (Node 22+ and installed Edge):
 

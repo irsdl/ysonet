@@ -95,7 +95,7 @@ def check_seo(output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
-    parser.add_argument('--base-path', default='/ysonet/')
+    parser.add_argument('--base-path', default='/')
     args = parser.parse_args()
     pages, links, errors = check(args.output, args.base_path)
     errors.extend(check_seo(args.output))

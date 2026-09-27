@@ -14,7 +14,11 @@ Pointers:
   payload is fully visible in the source and never obfuscated, encoded, or hidden):
   `ysonet/Generators/README.md`, summarized in `CLAUDE.md`
 - Website source ownership and release synchronization: `tools/site/README.md`
-  (see "Maintain one source"); regenerate from canonical docs and the fresh public CLI.
+  (see "Maintain one source" and "Maintainer publication"); regenerate and check
+  affected content from canonical docs and the fresh public CLI. Use the existing
+  GitHub Pages workflow from `master`; no publishing branch or second repository.
+  Publish when authorized or ask, report blockers, and verify the live deployment.
+  Website tooling and publishing must never run in ordinary local builds.
 - After an authorized push, monitor GitHub through completion; for a VERSION bump,
   verify release publication and assets: `tools/ci/README.md` ("Follow up after a push").
 - Contributing workflow: `CONTRIBUTING.md`

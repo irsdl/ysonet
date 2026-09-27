@@ -134,6 +134,10 @@ When the push includes a VERSION bump:
    run the checksum verifier, and verify their signed attestation.
 5. Follow the release-triggered Documentation site deployment too. Confirm the live
    release notes and latest-download link, then report the release and run URLs.
+   Follow [maintainer publication](../site/README.md#maintainer-publication).
+   Publication uses this workflow from `master`, without a separate publishing
+   branch. Report pending updates or failed deployment explicitly; a local build
+   alone does not prove the website is live.
 
 This follow-up does not authorize an otherwise unrequested push or version bump.
 Keep one procedure here; agent instructions should link to it rather than copy it.

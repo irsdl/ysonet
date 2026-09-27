@@ -17,7 +17,7 @@ from markdown_it import MarkdownIt
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 REPO = 'https://github.com/irsdl/ysonet'
-SITE_URL = 'https://irsdl.github.io/ysonet/'
+SITE_URL = 'https://ysonet.com/'
 SITEMAP_NS = 'http://www.sitemaps.org/schemas/sitemap/0.9'
 # Publication is opt-in. Do not recursively publish the repository or docs tree.
 DOCUMENTS = {
@@ -335,7 +335,7 @@ def main():
     inputs.add_argument('--executable', type=Path, help='Freshly built CLI; exports public metadata without generating payloads')
     inputs.add_argument('--catalog', type=Path, help='Offline UTF-8 public --list catalog export from this checkout')
     parser.add_argument('--output', type=Path, default=ROOT / 'dist/site')
-    parser.add_argument('--base-path', default='/ysonet/')
+    parser.add_argument('--base-path', default='/')
     parser.add_argument('--source-ref', default='master')
     parser.add_argument('--site-url', default=SITE_URL, help='Public HTTPS site URL, including its trailing slash')
     args = parser.parse_args()

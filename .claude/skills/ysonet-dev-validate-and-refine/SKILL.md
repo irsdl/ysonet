@@ -244,7 +244,11 @@ For a plan, verify at least:
   any public YSoNet surface changes;
 - website regeneration from canonical sources under
   [site maintenance](../../../tools/site/README.md#maintain-one-source) when docs,
-  public metadata, installation, or releases change;
+  public metadata, installation, or releases change; include the separate
+  [maintainer publication](../../../tools/site/README.md#maintainer-publication)
+  step, existing authorization or a publication question, and explicit reporting
+  of blockers. Use GitHub Pages through the existing workflow from `master`;
+  no publishing branch or website tooling in ordinary local builds;
 - focused positive, negative, boundary, regression, and matrix tests;
 - exact verification commands, working directories, and expected evidence;
 - risks, mitigations, checkpoints, escape hatch, and recoverable rollback;
