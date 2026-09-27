@@ -2172,7 +2172,9 @@ into static HTML in `dist/site/`. Source documents stay authoritative; module pa
 and filters come from a complete public export with the same `VERSION`. The build
 rejects filtered, private, and mismatched exports. `--executable` reads metadata
 straight from the freshly built CLI; `--catalog` accepts an offline export. The
-homepage reuses a marked installation section from Getting Started. Version-note
+homepage reuses marked sections from Getting Started and Sponsors for installation
+and the sponsorship appeal. The shared footer links to Sponsors and
+[About the logo](logo.md). Version-note
 pages and their index are discovered from existing release-note files and sorted
 numerically; adding a note needs no second list. The research archive stays on GitHub.
 

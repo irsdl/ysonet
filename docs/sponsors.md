@@ -1,5 +1,6 @@
 <!--
-This page is the standing sponsor pointer, and it is also the first part of every
+This page is the standing sponsor pointer. Its marked support section also appears
+on the website homepage, so maintain the appeal here. It is the first part of every
 release-note preamble. tag-build-release.yml assembles the release body from this page
 plus docs/release-notes/<version>.md, and GitHub pre-pends that body to the notes it
 generates, so every release opens with this text.
@@ -18,10 +19,16 @@ Two rules when editing:
 
 ## Sponsors
 
+<!-- site:support:start -->
+If YSoNet helps your work, please consider sponsoring the project. Your support
+helps cover ongoing maintenance and AI-assisted security research.
+
+[Sponsor YSoNet on GitHub](https://github.com/sponsors/irsdl). Every contribution
+is appreciated. Thank you for supporting the project.
+<!-- site:support:end -->
+
 Thank you to the people funding this work, named in
 [Credits](https://github.com/irsdl/ysonet/blob/master/docs/credits.md#sponsors) and in the
 release note for the release their support paid for.
-
-You can support the project through [GitHub Sponsors](https://github.com/sponsors/irsdl).
 
 ---

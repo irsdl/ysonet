@@ -26,7 +26,7 @@ DOCUMENTS = {
         'getting-started', 'quick-reference', 'moving-from-ysoserial-net',
         'usage-and-examples', 'json-catalog', 'runtime-evidence',
         'release-verification', 'linux-and-macos', 'building-and-testing',
-        'source-without-archive', 'dependency-security', 'credits', 'sponsors')},
+        'source-without-archive', 'dependency-security', 'credits', 'sponsors', 'logo')},
     'docs/release-notes/README.md': 'releases',
     'SECURITY.md': 'security',
     'CONTRIBUTING.md': 'contributing',
@@ -131,6 +131,8 @@ class Site:
             return self.url(self.documents[name] + '/') + suffix
         if name == 'docs/schemas/catalog-v1.schema.json':
             return self.url('catalog/schema.json') + suffix
+        if name == 'docs/images/logo/transparent.svg':
+            return self.url('assets/logo.svg') + suffix
         # Detailed source and the research archive remain on GitHub.
         return self.source(name) + suffix
 
@@ -211,7 +213,7 @@ class Site:
 <div class="header-tools"><a class="search-link" href="{self.url('search/')}">Search <kbd>/</kbd></a><button id="theme" type="button" hidden aria-label="Change color theme">Theme: system</button><a class="github-link" href="{REPO}">GitHub &#8599;</a></div><a class="follow-link" href="https://x.com/irsdl">Follow @irsdl on X</a></div></header>
 <div class="nav-wrap"><details class="navigation" open><summary>Navigate</summary><nav aria-label="Documentation">{nav}<a class="nav-download" href="{REPO}/releases/latest">Download &#8599;</a></nav></details></div>
 <main id="main" tabindex="-1" class="{'home' if home else 'article catalog-page' if path == 'catalog/' else 'article module-page' if path.startswith('catalog/') else 'article'}">{crumb}<div class="content-grid{' has-contents' if aside else ''}"><div class="page-content">{body}</div>{aside}</div></main>
-<footer class="site-footer"><div><strong>YSoNet</strong><span>Development docs &middot; {esc(self.version)}</span><span>Authorized security research</span></div><div class="footer-links"><a class="follow-link" href="https://x.com/irsdl">Follow @irsdl on X</a><a href="{self.url('security/')}">Security guidance</a><a href="{self.url('sitemap.xml')}">Sitemap</a>{source_link}</div></footer></body></html>'''
+<footer class="site-footer"><div><strong>YSoNet</strong><span>Development docs &middot; {esc(self.version)}</span><span>Authorized security research</span></div><div class="footer-links"><a class="follow-link" href="https://x.com/irsdl">Follow @irsdl on X</a><a href="{self.url('logo/')}">About the logo</a><a href="{self.url('sponsors/')}">Sponsors</a><a href="{self.url('security/')}">Security guidance</a><a href="{self.url('sitemap.xml')}">Sitemap</a>{source_link}</div></footer></body></html>'''
         target = self.output / (path + 'index.html' if not path.endswith('.html') else path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(document, encoding='utf-8')
@@ -224,6 +226,7 @@ class Site:
                     if module['name'] in ('ObjectDataProvider', 'TypeConfuseDelegate', 'ViewState', 'SharePoint')]
         selected = selected or modules[:4]
         rows = ''.join(f'<a class="index-row" href="{self.url("catalog/" + kind + "/" + module["name"].lower() + "/")}"><span class="row-kind">{kind}</span><strong>{esc(module["name"])}</strong><span aria-hidden="true">&#8599;</span></a>' for kind, module in selected)
+        _, support, _ = self.render_markdown('docs/sponsors.md', fragment='support')
         _, install, _ = self.render_markdown('docs/getting-started.md', fragment='install')
         install = install.replace('<ol>', '<ol class="setup-steps">').replace('<p>', '<p class="requirements">', 1)
         self.page('', '.NET deserialization toolkit', f'''
@@ -236,7 +239,8 @@ class Site:
 <div class="catalog-sample" aria-label="Selected catalog entries">{rows}</div>
 <p class="caption">Catalog entries describe declarations. They are not runtime test results.</p>
 </section><section class="start-column"><div class="section-caption">First run</div><h2>Install &amp; run</h2>{install}<a class="text-link" href="{self.url('getting-started/')}">Full installation guide &#8594;</a></section></div>
-<section class="reading-list"><div class="section-caption">Before relying on a result</div><a href="{self.url('runtime-evidence/')}"><h2>Read the runtime evidence</h2><p>Observed effects, skipped checks, and environment limits.</p><span aria-hidden="true">&#8599;</span></a><a href="{self.url('release-verification/')}"><h2>Verify your download</h2><p>Checksums, source provenance, and release attestations.</p><span aria-hidden="true">&#8599;</span></a></section>''', home=True)
+<section class="reading-list"><div class="section-caption">Before relying on a result</div><a href="{self.url('runtime-evidence/')}"><h2>Read the runtime evidence</h2><p>Observed effects, skipped checks, and environment limits.</p><span aria-hidden="true">&#8599;</span></a><a href="{self.url('release-verification/')}"><h2>Verify your download</h2><p>Checksums, source provenance, and release attestations.</p><span aria-hidden="true">&#8599;</span></a></section>
+<section class="support-section" aria-labelledby="support-title"><h2 id="support-title">Support YSoNet</h2>{support}<a class="text-link" href="{self.url('credits/#sponsors')}">Thank you to our sponsors &#8594;</a></section>''', home=True)
 
     def module_source(self, module):
         symbols = [ref['reference'].rsplit('.', 1)[-1] for ref in module.get('evidence', {}).get('references', [])

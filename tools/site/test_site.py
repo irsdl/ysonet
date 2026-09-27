@@ -161,6 +161,8 @@ class SiteTests(unittest.TestCase):
             root = Path(tmp)
             (root / 'VERSION').write_text(catalog()['toolVersion'])
             (root / 'docs').mkdir()
+            (root / 'docs/sponsors.md').write_text(
+                (ROOT / 'docs/sponsors.md').read_text(encoding='utf-8'), encoding='utf-8')
             source = root / 'docs/getting-started.md'
             text = ('# Getting Started\n\n<!-- site:install:start -->\n'
                     'One canonical installation instruction.\n\n'
