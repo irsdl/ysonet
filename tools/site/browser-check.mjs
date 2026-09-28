@@ -22,6 +22,15 @@ const page = await context.newPage(); observe(page);
 const go = route => page.goto(server.origin + base + route, {waitUntil: 'networkidle'});
 const theme = () => page.locator('.project-header starlight-theme-select select');
 const screenshot = name => page.screenshot({path: `${artifacts}/${name}.png`, fullPage: true});
+async function checkSocialIcons(container) {
+  const follow = page.locator(container).getByRole('link', {name: 'Follow @irsdl on X', exact: true});
+  assert.ok(await follow.isVisible());
+  assert.equal(await follow.getAttribute('title'), 'Follow @irsdl on X');
+  assert.equal(await follow.getAttribute('href'), 'https://x.com/irsdl');
+  assert.equal(await follow.locator('svg').count(), 1);
+  assert.equal(await follow.evaluate(link => link.previousElementSibling?.getAttribute('href')), 'https://github.com/irsdl/ysonet');
+  await follow.hover();
+}
 try {
   if (liveOrigin) {
     const expected = JSON.parse(await readFile(path.join(directory, 'revision.json')));
@@ -30,6 +39,7 @@ try {
     assert.deepEqual(await response.json(), expected, 'Live deployment matches the tested checkout');
   }
   await go('');
+  await checkSocialIcons('.project-header');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
   await theme().selectOption('light');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
@@ -80,6 +90,7 @@ try {
   const menu = page.locator('starlight-menu-button');
   assert.notEqual(await menu.getAttribute('aria-expanded'), 'true');
   await menu.locator('button').click(); assert.equal(await menu.getAttribute('aria-expanded'), 'true');
+  await checkSocialIcons('.mobile-preferences');
   await page.keyboard.press('Escape'); assert.equal(await menu.getAttribute('aria-expanded'), 'false');
   for (const route of ['catalog/gadget/objectdataprovider/', 'getting-started/']) {
     await go(route);

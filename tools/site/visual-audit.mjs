@@ -52,7 +52,8 @@ const measure = () => {
   if (document.documentElement.scrollWidth > innerWidth + 1) issues.push(`Page overflows: ${document.documentElement.scrollWidth}px > ${innerWidth}px`);
   const h1s = [...document.querySelectorAll('h1')].filter(visible);
   if (h1s.length !== 1) issues.push(`Expected one visible page heading, got ${h1s.length}`);
-  for (const container of ['.project-header', '.project-footer']) {
+  const followContainers = innerWidth >= 800 ? ['.project-header', '.project-footer'] : ['.project-footer'];
+  for (const container of followContainers) {
     const links = [...document.querySelectorAll(container + ' a[href="https://x.com/irsdl"]')].filter(visible);
     if (links.length !== 1) issues.push(`Missing visible X follow link in ${container}`);
   }

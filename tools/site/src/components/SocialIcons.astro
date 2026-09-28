@@ -1,0 +1,13 @@
+---
+import config from 'virtual:starlight/user-config';
+import {Icon} from '@astrojs/starlight/components';
+---
+{(config.social || []).map(({label, href, icon}) => (
+  <a {href} rel="me" class="sl-flex" aria-label={label} title={label}>
+    <Icon name={icon} />
+  </a>
+))}
+<style>
+  a { color: var(--sl-color-text-accent); padding: .5em; margin: -.5em; }
+  a:hover { color: var(--sl-color-white); }
+</style>
