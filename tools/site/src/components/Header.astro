@@ -1,0 +1,11 @@
+---
+import Default from '@astrojs/starlight/components/Header.astro';
+---
+<div class="project-header">
+  <Default />
+  <a class="follow-link" href="https://x.com/irsdl">Follow @irsdl on X</a>
+</div>
+<style>
+  .project-header { display: grid; grid-template-rows: 1fr auto; height: 100%; }
+  .follow-link { font-size: .8125rem; min-height: 24px; width: fit-content; }
+</style>

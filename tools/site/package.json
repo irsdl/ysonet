@@ -1,11 +1,19 @@
 {
-  "name": "ysonet-site-checks",
+  "name": "ysonet-documentation",
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "python build.py --executable ../../ysonet/bin/Debug/ysonet.exe",
+    "dev": "astro dev --host 127.0.0.1",
+    "preview": "astro preview --host 127.0.0.1",
     "visual-audit": "node visual-audit.mjs"
   },
+  "engines": {"node": ">=24.20.0"},
   "devDependencies": {
+    "astro": "7.2.9",
+    "@astrojs/starlight": "0.41.9",
+    "@astrojs/markdown-remark": "7.2.4",
+    "parse5": "7.3.0",
     "playwright": "1.62.0"
   }
 }

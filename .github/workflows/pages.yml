@@ -26,6 +26,17 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
+        with:
+          # A release refresh documents current master, not the older release SHA.
+          ref: ${{ github.event_name == 'workflow_run' && 'master' || github.ref }}
+      - name: Record checked-out revision
+        shell: pwsh
+        run: '"SITE_SOURCE_REF=$(git rev-parse HEAD)" >> $env:GITHUB_ENV'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 (2026-07-14)
+        with:
+          node-version-file: tools/site/.node-version
+          cache: npm
+          cache-dependency-path: tools/site/package-lock.json
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0 (2026-07-20)
         with:
           python-version: '3.14.7' # 2026-08-05
@@ -40,11 +51,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Public CLI build failed.' }
       - name: Build and verify site
         shell: pwsh
-        env:
-          SITE_SOURCE_REF: ${{ github.sha }}
         run: |
+          npm ci --prefix tools/site --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Locked site dependencies failed.' }
           python -m pip install -r tools/site/requirements.txt
           if ($LASTEXITCODE -ne 0) { throw 'Site dependencies failed.' }
+          node --test tools/site/test-markdown.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Markdown conversion tests failed.' }
           python -m unittest discover -s tools/site -v
           if ($LASTEXITCODE -ne 0) { throw 'Site tests failed.' }
           python tools/docs/check_docs.py links
@@ -62,8 +75,6 @@ jobs:
       - name: Audit every page in light and dark themes
         shell: pwsh
         run: |
-          npm ci --prefix tools/site --ignore-scripts
-          if ($LASTEXITCODE -ne 0) { throw 'Browser test dependencies failed.' }
           node tools/site/visual-audit.mjs --site dist/site --base / --channel msedge --widths 390,1440
           if ($LASTEXITCODE -ne 0) { throw 'Visual layout audit failed.' }
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0 (2026-04-10)

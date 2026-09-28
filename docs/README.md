@@ -19,17 +19,37 @@ pages, and light or dark themes. These Markdown files remain the source.
 
 ## Detailed reference
 
+### Usage
+
 - [Usage and examples](usage-and-examples.md): all CLI options and detailed examples.
 - [JSON catalog](json-catalog.md): versioned discovery data and its schema for integrations.
 - [Gadgets and plugins](gadgets-and-plugins.md): the full catalog and plugin options.
 - [Minification savings](minification-savings.md): measured output sizes.
 - [PowerShell completion](../tools/completions/README.md): complete flags and module names.
-- [Security guidance](../SECURITY.md): why gadget blocklists are not a fix.
+
+### Catalog and evidence
+
+Use the [website catalog](https://ysonet.com/catalog/) to compare modules and filter
+by formatter. Its facts come from the public CLI and describe declarations.
+[Runtime evidence](runtime-evidence.md) explains observed results and limitations;
+a catalog entry is not proof that a chain works in your target environment.
+
+### Releases
+
+- [Release notes](release-notes/README.md): changes and upgrade advice by version.
+- [Release verification](release-verification.md): checksums, source and attestations.
+
+### Development
+
+- [Building and testing](building-and-testing.md): toolchain, build commands and test tiers.
+- [Contributing](../CONTRIBUTING.md): review and contribution workflow.
+- [Source without the archive](source-without-archive.md): smaller checkouts.
 - [Dependency security notes](dependency-security.md): deliberately pinned research libraries.
 - [Architecture](ARCHITECTURE.md): code map for contributors.
 
 ## Research and project background
 
+- [Security guidance](../SECURITY.md): why gadget blocklists are not a fix.
 - [About the logo](logo.md): the objects, portals, and deserialization behavior.
 - [References](references.md) and [.NET deserialization research](dotnet-deserialization-research.md): reading lists.
 - [Reference archive](archived-references/README.md): English Markdown/PDF reading

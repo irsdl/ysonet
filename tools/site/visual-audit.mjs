@@ -1,8 +1,8 @@
 // Playwright visual and layout audit. Screenshots are review artifacts, not a proof of design quality.
 import {chromium, firefox, webkit} from 'playwright';
-import {createServer} from 'node:http';
-import {readFile, writeFile, mkdir, readdir} from 'node:fs/promises';
+import {writeFile, mkdir, readdir} from 'node:fs/promises';
 import path from 'node:path';
+import {serve} from './serve.mjs';
 
 const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
@@ -34,21 +34,8 @@ if (args.routes) {
   routes.splice(0, routes.length, ...matches);
 }
 await mkdir(report, {recursive: true});
-const mime = {'.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.xml': 'application/xml'};
-const server = createServer(async (request, response) => {
-  try {
-    const url = new URL(request.url, 'http://localhost');
-    if (!url.pathname.startsWith(base)) throw new Error('Outside site');
-    let relative = decodeURIComponent(url.pathname.slice(base.length));
-    if (!relative || relative.endsWith('/')) relative += 'index.html';
-    const file = path.resolve(site, relative);
-    if (!file.startsWith(site + path.sep)) throw new Error('Outside site');
-    response.setHeader('Content-Type', mime[path.extname(file)] || 'application/octet-stream');
-    response.end(await readFile(file));
-  } catch { response.writeHead(404); response.end('Not found'); }
-});
-await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-const origin = `http://127.0.0.1:${server.address().port}`;
+const server = await serve(site, base);
+const {origin} = server;
 const measure = () => {
   const issues = [];
   const visible = el => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
@@ -65,7 +52,7 @@ const measure = () => {
   if (document.documentElement.scrollWidth > innerWidth + 1) issues.push(`Page overflows: ${document.documentElement.scrollWidth}px > ${innerWidth}px`);
   const h1s = [...document.querySelectorAll('h1')].filter(visible);
   if (h1s.length !== 1) issues.push(`Expected one visible page heading, got ${h1s.length}`);
-  for (const container of ['.site-header', '.site-footer']) {
+  for (const container of ['.project-header', '.project-footer']) {
     const links = [...document.querySelectorAll(container + ' a[href="https://x.com/irsdl"]')].filter(visible);
     if (links.length !== 1) issues.push(`Missing visible X follow link in ${container}`);
   }
@@ -84,7 +71,13 @@ const measure = () => {
     const threshold = size >= 24 || (size >= 18.66 && parseFloat(css.fontWeight) >= 700) ? 3 : 4.5;
     if (ratio + .01 < threshold) issues.push(`Text contrast ${ratio.toFixed(2)}:1: ${label(el)}`);
   }
-  const controls = [...document.querySelectorAll('.site-header a,.site-header button,.navigation a,.site-footer a')].filter(visible);
+  const controls = [...document.querySelectorAll('.project-header a,.project-header button,.sidebar-pane a,.project-footer a')].filter(visible);
+  for (const control of document.querySelectorAll('.filters input,.filters select,#search-query')) {
+    if (!visible(control)) continue;
+    const border = parse(getComputedStyle(control).borderColor), bg = background(control);
+    const [light, dark] = [luminance(border), luminance(bg)].sort((a, b) => b - a);
+    if ((light + .05) / (dark + .05) < 3) issues.push(`Control outline contrast below 3:1: ${label(control)}`);
+  }
   for (let i = 0; i < controls.length; i++) {
     const a = controls[i].getBoundingClientRect();
     if (a.width < 24 || a.height < 24) issues.push(`Small navigation target: ${label(controls[i])}`);
@@ -112,6 +105,10 @@ try {
       let network = [];
       page.on('pageerror', error => network.push('Script error: ' + error.message));
       page.on('response', response => { if (response.status() >= 400) network.push(`HTTP ${response.status()}: ${response.url()}`); });
+      page.on('request', request => {
+        if (!request.url().startsWith(origin + '/') && !request.url().startsWith('data:'))
+          network.push('External runtime request: ' + request.url());
+      });
       for (const route of routes) {
         network = [];
         const result = {engine, width, theme, route};
@@ -139,8 +136,13 @@ try {
             await page.evaluate(() => scrollTo(0, 0));
           }
           // Hidden variant/options tables must also fit when the reader opens them.
-          await page.locator('.page-content details').evaluateAll(nodes => nodes.forEach(node => { node.open = true; }));
+          await page.locator('.sl-markdown-content details').evaluateAll(nodes => nodes.forEach(node => { node.open = true; }));
           const expanded = await page.evaluate(measure);
+          if (await page.locator('.sl-markdown-content details').count()) {
+            result.expandedScreenshot = `${folder}/${name}-expanded.png`;
+            await page.screenshot({path: path.join(report, result.expandedScreenshot),
+              fullPage: expanded.height <= 30000, animations: 'disabled'});
+          }
           result.issues = [...new Set([...result.issues, ...expanded.issues, ...network])];
           if (result.issues.length) failures.push(result);
         } catch (error) { result.issues = [error.message]; failures.push(result); }
@@ -153,7 +155,7 @@ try {
     }
   }
   await Promise.all([worker(), worker()]);
-} finally { await browser.close(); server.closeAllConnections(); server.close(); }
+} finally { await browser.close(); server.close(); }
 const escape = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
 await writeFile(path.join(report, 'audit.json'), JSON.stringify({engine, browserVersion: browser.version(), routes: routes.length, cases: results.length, failures, results}, null, 2));
 const figures = results.map(result => `<article><h2>${escape(result.route || '/')}</h2><p>${result.width}px / ${result.theme} / ${result.issues.length ? result.issues.length + ' findings' : 'checks passed'}</p><a href="${escape(result.screenshot || '')}"><img loading="lazy" src="${escape(result.screenshot || '')}" alt="${escape(result.route || 'Home')} screenshot"></a>${(result.tiles || []).map(tile => `<a href="${escape(tile)}">Page segment</a> `).join('')}${result.issues.length ? '<pre>' + escape(result.issues.join('\n')) + '</pre>' : ''}</article>`).join('');

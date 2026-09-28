@@ -54,10 +54,19 @@ def check(output, base):
                 errors.append(f'{name}: missing target: {value}')
             elif target.fragment and path in pages and unquote(target.fragment) not in pages[path].ids:
                 errors.append(f'{name}: missing fragment: {value}')
-    for row in json.loads((output / 'search-index.json').read_text(encoding='utf-8')):
-        path = row['url']
-        if not path.startswith(base) or path[len(base):] + 'index.html' not in pages:
-            errors.append('Missing search target: ' + path)
+    # Pagefind owns its binary index. Browser checks query it and visit its results.
+    for name in ('pagefind/pagefind.js', 'pagefind/pagefind-entry.json'):
+        if not (output / name).is_file():
+            errors.append('Missing production search asset: ' + name)
+    entry = output / 'pagefind/pagefind-entry.json'
+    if entry.is_file():
+        try:
+            indexed = sum(language['page_count'] for language in json.loads(entry.read_text(encoding='utf-8'))['languages'].values())
+            expected = sum(not page.noindex for page in pages.values())
+            if indexed != expected:
+                errors.append(f'Pagefind page count differs from indexable HTML: {indexed} != {expected}')
+        except (ValueError, KeyError, TypeError) as error:
+            errors.append('Invalid Pagefind manifest: ' + str(error))
     return len(pages), count, errors
 
 

@@ -2167,32 +2167,35 @@ with GitHub Actions attestations before publication. See
 
 ## Documentation website
 
-`tools/site/` renders an explicit public Markdown list and the CLI's JSON catalog
-into static HTML in `dist/site/`. Source documents stay authoritative; module pages
-and filters come from a complete public export with the same `VERSION`. The build
-rejects filtered, private, and mismatched exports. `--executable` reads metadata
-straight from the freshly built CLI; `--catalog` accepts an offline export. The
-homepage reuses marked sections from Getting Started and Sponsors for installation
-and the sponsorship appeal. The shared footer links to Sponsors and
-[About the logo](logo.md). Version-note
-pages and their index are discovered from existing release-note files and sorted
-numerically; adding a note needs no second list. The research archive stays on GitHub.
+`tools/site/` builds Astro Starlight from canonical repository Markdown and the
+fresh public CLI catalog. `publication.json` is the opt-in source-to-route map and
+navigation grouping. `build.py` validates inputs, stages disposable content for
+`docsLoader()`/`docsSchema()`, generates module pages, and builds a candidate before
+replacing `dist/site/`. Populated generated directories need an ownership marker;
+cleanup rejects paths outside designated output areas and linked directories.
 
-Shared templates provide top navigation, a catalog index, and document reading
-layouts with section links. The browser uses local assets for search, theme
-preferences, mobile navigation, and catalog filters.
-Pages remain readable without JavaScript. A configurable base path supports GitHub
-project Pages and root-domain hosting. Production and local defaults use `/`
-with `https://ysonet.com/`. `--site-url` sets canonical URLs and the
-generated XML sitemap independently of the local preview path. Search and error
-pages are excluded from indexing; root-domain deployments include `robots.txt`.
-`check.py` validates rendered links, anchors, assets, search destinations, and
-sitemap/canonical agreement; `browser-check.mjs` exercises the UI in Chromium.
-`visual-audit.mjs` uses Playwright to measure every page in both themes at multiple
-widths and saves screenshots for review, with Chromium, Firefox, or WebKit.
+`markdown.mjs` converts links and images through syntax nodes, preserves historical
+heading anchors, and keeps literal examples unchanged. Canonical source/edit links
+point to the checked-out SHA and the original file on master. Staging is ignored;
+the repository documents remain the only authored prose. The homepage reuses the
+installation and sponsorship markers. Release pages are discovered from version
+filenames, with explicit slugs retaining their dots and leading v.
 
-`.github/workflows/pages.yml` builds and checks pull requests, then publishes only
-`master` in the upstream repository through the `github-pages` environment. It
-also refreshes after a successful release workflow on master. It
-exports metadata without running payload generation or behavioral suites. See the
-[site guide](../tools/site/README.md) for preview, publication, and migration steps.
+Starlight provides navigation, typography, code copying and Pagefind search.
+Small components handle source provenance, noindex pages, project links and theme
+selection when browser storage is blocked. Catalog filters retain shareable query
+parameters, reload and browser history. Core content remains readable without
+JavaScript. Module facts are declarations, not fresh runtime observations.
+
+Production uses base `/` and `https://ysonet.com/`. The checked sitemap is derived
+from rendered canonical URLs; search and error pages are excluded independently
+from Pagefind and search-engine indexing. `check.py` verifies links, fragments,
+assets and sitemap agreement. `browser-check.mjs` exercises production Pagefind,
+filters, exact copying, keyboard access, themes and reading without JavaScript.
+`visual-audit.mjs` audits every page in both themes and saves screenshots.
+
+The dedicated Windows Pages workflow builds the public CLI without payload tests,
+installs locked website dependencies, validates the site, and deploys only upstream
+master through the existing GitHub Pages environment. Successful release workflows
+refresh current master using its actual checkout SHA. Ordinary product builds do
+not install or invoke website tooling. See the [site guide](../tools/site/README.md).

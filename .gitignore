@@ -305,3 +305,9 @@ __pycache__/
 
 # Generated release archives, provenance and runtime evidence sidecars.
 /dist/
+
+# Disposable Starlight content, assets and build cache.
+/tools/site/src/content/docs/
+/tools/site/public/
+/tools/site/.astro/
+/tools/site/generated/

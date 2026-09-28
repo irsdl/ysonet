@@ -3,19 +3,21 @@ import copy
 import json
 import contextlib
 import io
+import os
+import html
 import subprocess
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from build import ROOT, Site, base_path, main
+from build import ROOT, HERE, Site, base_path, main, owned, MARKER
 from xml.etree import ElementTree as ET
 from check import check, check_seo
 
 
 def catalog():
-    return {'schemaVersion': '1.0', 'toolVersion': (ROOT / 'VERSION').read_text().strip(),
+    return {'schemaVersion': '1.0', 'toolVersion': (ROOT / 'VERSION').read_text(encoding='utf-8').strip(),
             'scope': {'includePrivate': False, 'gadget': None, 'plugin': None},
             'gadgets': [{'name': 'Example', 'description': '<script>alert("x")</script>',
                          'formatters': [{'name': 'A&B'}], 'options': [], 'targetCapabilities': [], 'credit': 'A&B'}],
@@ -24,80 +26,257 @@ def catalog():
 
 
 class SiteTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        (ROOT / 'temp').mkdir(exist_ok=True)
+        cls.tmp = tempfile.TemporaryDirectory(dir=ROOT / 'temp')
+        cls.output = Path(cls.tmp.name) / 'site'
+        cls.site = Site(cls.output, catalog(), source_ref='a' * 40)
+        cls.site.build()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
     def test_site_works_at_root_and_project_path(self):
         for base in ('/', '/ysonet/'):
-            with self.subTest(base=base), tempfile.TemporaryDirectory() as tmp:
-                output = Path(tmp) / 'site'
-                Site(output, catalog(), base).build()
+            with self.subTest(base=base), tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+                output = self.output if base == '/' else Path(tmp) / 'site'
+                if base != '/':
+                    Site(output, catalog(), base, site_url='https://example.com/ysonet/').build()
                 pages, links, errors = check(output, base)
                 self.assertGreater(pages, 20)
                 self.assertGreater(links, 100)
                 self.assertEqual([], errors)
-                module = (output / 'catalog/gadget/example/index.html').read_text()
-                self.assertIn('&lt;script&gt;', module)
+                self.assertEqual([], check_seo(output))
+                module = (output / 'catalog/gadget/example/index.html').read_text(encoding='utf-8')
+                self.assertIn('<script>alert("x")</script>', html.unescape(module))
                 self.assertNotIn('<script>alert', module)
                 self.assertIn('Structured formatter and requirement metadata is not declared',
-                              (output / 'catalog/plugin/example/index.html').read_text())
+                              (output / 'catalog/plugin/example/index.html').read_text(encoding='utf-8'))
                 self.assertFalse((output / 'docs/archived-references').exists())
                 self.assertFalse((output / '.claude').exists())
-                self.assertEqual(catalog(), json.loads((output / 'catalog/catalog.json').read_text()))
-                home = output / 'index.html'
-                first = home.read_bytes()
-                (output / 'obsolete.html').write_text('stale page')
-                Site(output, catalog(), base).build()
-                self.assertFalse((output / 'obsolete.html').exists())
-                self.assertEqual(first, home.read_bytes())
+                self.assertEqual(catalog(), json.loads((output / 'catalog/catalog.json').read_text(encoding='utf-8')))
 
     def test_default_build_serves_the_custom_domain_at_root(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / 'site'
-            export = Path(tmp) / 'catalog.json'
-            export.write_text(json.dumps(catalog()), encoding='utf-8')
-            with patch('sys.argv', ['build.py', '--catalog', str(export), '--output', str(output)]):
-                main()
-            # Exercise defaults, so a correctly generated project site cannot mask
-            # broken links when the artifact is mounted at the custom-domain root.
-            self.assertEqual([], check(output, '/')[2])
-            self.assertEqual([], check_seo(output))
-            home = (output / 'index.html').read_text(encoding='utf-8')
-            self.assertIn('href="/guides/"', home)
-            self.assertIn('href="/assets/site.css"', home)
-            self.assertIn('rel="canonical" href="https://ysonet.com/"', home)
-            search = json.loads((output / 'search-index.json').read_text(encoding='utf-8'))
-            self.assertTrue(any(row['url'] == '/getting-started/' for row in search))
-            urls = [node.text for node in ET.parse(output / 'sitemap.xml').iter(
-                '{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
-            self.assertTrue(all(url.startswith('https://ysonet.com/') for url in urls))
-            self.assertIn('Sitemap: https://ysonet.com/sitemap.xml',
-                          (output / 'robots.txt').read_text(encoding='utf-8'))
+        self.assertEqual([], check(self.output, '/')[2])
+        home = (self.output / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('href="/guides/"', home)
+        self.assertIn('href="/_astro/', home)
+        self.assertIn('rel="canonical" href="https://ysonet.com/"', home)
+        self.assertTrue((self.output / 'pagefind/pagefind.js').is_file())
+        urls = [node.text for node in ET.parse(self.output / 'sitemap.xml').iter(
+            '{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
+        self.assertIn('https://ysonet.com/getting-started/', urls)
+        self.assertTrue(all(url.startswith('https://ysonet.com/') for url in urls))
+        self.assertIn('Sitemap: https://ysonet.com/sitemap.xml', (self.output / 'robots.txt').read_text(encoding='utf-8'))
 
     def test_sitemap_canonical_urls_and_root_host_migration(self):
-        for base, public in (('/ysonet/', 'https://irsdl.github.io/ysonet/'),
-                             ('/', 'https://docs.example.com/'),
-                             ('/', 'https://irsdl.github.io/ysonet/')):
-            with self.subTest(base=base, public=public), tempfile.TemporaryDirectory() as tmp:
-                output = Path(tmp) / 'site'
-                site = Site(output, catalog(), base, site_url=public)
+        self.assertEqual([], check_seo(self.output))
+        urls = [node.text for node in ET.parse(self.output / 'sitemap.xml').iter(
+            '{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
+        self.assertEqual(sum(data['pagefind'] for data, _ in self.site.pages.values()), len(urls))
+        self.assertIn('https://ysonet.com/catalog/gadget/example/', urls)
+        self.assertNotIn('https://ysonet.com/search/', urls)
+        self.assertNotIn('https://ysonet.com/404.html', urls)
+        for name in ('search/index.html', '404.html'):
+            html = (self.output / name).read_text(encoding='utf-8')
+            self.assertIn('content="noindex, follow"', html)
+            self.assertNotIn('data-pagefind-body', html)
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            import shutil
+            output = Path(tmp) / 'site'
+            shutil.copytree(self.output, output)
+            sitemap = output / 'sitemap.xml'
+            sitemap.write_text(sitemap.read_text(encoding='utf-8').replace('catalog/gadget/example/', 'missing/'))
+            self.assertIn('Sitemap does not match the indexable HTML pages', check_seo(output))
+
+    def source_fixture(self, root):
+        import shutil
+        (root / 'VERSION').write_text(catalog()['toolVersion'])
+        from build import DOCUMENTS, ASSETS
+        for source in set(DOCUMENTS) | set(ASSETS):
+            target = root / source
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / source, target)
+
+    def test_new_release_notes_flow_into_index_search_and_sitemap(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            root = Path(tmp)
+            self.source_fixture(root)
+            notes = root / 'docs/release-notes'
+            (notes / 'README.md').write_text('# Notes\n\n<!-- site:release-index -->')
+            for name in ('v2026.9.9', 'v2026.10.1', 'v2026.9.10'):
+                (notes / (name + '.md')).write_text('## Highlights\nUnique release content: ' + name)
+            (notes / 'template.md').write_text('Unfinished template')
+            site = Site(root / 'output', catalog(), root=root)
+            title, body = site.document('docs/release-notes/README.md')
+            self.assertLess(body.index('v2026.10.1'), body.index('v2026.9.10'))
+            self.assertLess(body.index('v2026.9.10'), body.index('v2026.9.9'))
+            self.assertNotIn('template', body)
+            site.build()
+            output = root / 'output'
+            self.assertIn('Unique release content', (output / 'releases/v2026.10.1/index.html').read_text(encoding='utf-8'))
+            self.assertIn('data-pagefind-body', (output / 'releases/v2026.10.1/index.html').read_text(encoding='utf-8'))
+            self.assertIn('releases/v2026.10.1/', (output / 'sitemap.xml').read_text(encoding='utf-8'))
+            original = (output / 'index.html').read_bytes()
+            (notes / 'v2026.10.1.md').unlink()
+            (output / 'obsolete.html').write_text('stale page')
+            next_site = Site(output, catalog(), root=root)
+            next_site.build()
+            self.assertFalse((output / 'obsolete.html').exists())
+            self.assertFalse((output / 'releases/v2026.10.1').exists())
+            self.assertFalse((HERE / 'src/content/docs/releases/v2026.10.1.md').exists())
+            self.assertEqual(original, (output / 'index.html').read_bytes())
+
+    def test_installation_fragment_is_shared_and_required(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            root = Path(tmp)
+            self.source_fixture(root)
+            source = root / 'docs/getting-started.md'
+            text = source.read_text(encoding='utf-8').replace('Windows and .NET Framework 4.7.2 or newer 4.x are required.',
+                                                           'One canonical installation instruction.')
+            for instruction in ('One canonical installation instruction.', 'Changed in one place.'):
+                source.write_text(text.replace('One canonical installation instruction.', instruction))
+                site = Site(root / 'output', catalog(), root=root)
                 site.build()
-                urls = [node.text for node in ET.parse(output / 'sitemap.xml').iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
-                self.assertEqual([], check_seo(output))
-                self.assertEqual(len(site.search), len(urls))
-                self.assertIn(public, urls)
-                self.assertIn(public + 'catalog/gadget/example/', urls)
-                self.assertTrue(all(url.startswith(public) for url in urls))
-                self.assertNotIn(public + 'search/', urls)
-                self.assertNotIn(public + '404.html', urls)
-                self.assertFalse(any('?' in url or 'index.html' in url for url in urls))
-                home = (output / 'index.html').read_text()
-                self.assertIn('rel="canonical" href="' + public + '"', home)
-                for name in ('search/index.html', '404.html'):
-                    self.assertIn('content="noindex, follow"', (output / name).read_text())
-                self.assertEqual(public == 'https://docs.example.com/', (output / 'robots.txt').exists())
-                if (output / 'robots.txt').exists():
-                    self.assertIn('Sitemap: ' + public + 'sitemap.xml', (output / 'robots.txt').read_text())
-                # A stale sitemap must fail the deployment check.
-                (output / 'sitemap.xml').write_text((output / 'sitemap.xml').read_text().replace(public + 'catalog/gadget/example/', public + 'missing/'))
-                self.assertIn('Sitemap does not match the indexable HTML pages', check_seo(output))
+                self.assertIn(instruction, (root / 'output/index.html').read_text(encoding='utf-8'))
+                self.assertIn(instruction, (root / 'output/getting-started/index.html').read_text(encoding='utf-8'))
+            original = (root / 'output/index.html').read_bytes()
+            for broken in ('Missing markers', text.replace(':end', ':start'),
+                           '<!-- site:install:end --><!-- site:install:start -->',
+                           '<!-- site:install:start --><!-- site:install:end -->'):
+                source.write_text(broken)
+                with self.assertRaises(ValueError): Site(root / 'output', catalog(), root=root).build()
+                self.assertEqual(original, (root / 'output/index.html').read_bytes())
+
+    def test_live_cli_export_is_used_and_export_failure_stops_build(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            output = Path(tmp) / 'site'
+            output.mkdir()
+            (output / 'index.html').write_text('previous valid artifact')
+            args = ['build.py', '--executable', 'example.exe', '--output', str(output)]
+            export = subprocess.CompletedProcess([], 0, json.dumps(catalog()).encode(), b'')
+            revision = subprocess.CompletedProcess([], 0, 'a' * 40, '')
+            with patch('sys.argv', args), patch('build.subprocess.run', side_effect=[revision, export]) as run, patch.object(Site, 'build') as build:
+                main()
+                self.assertEqual(['--list', 'catalog'], run.call_args.args[0][1:])
+                build.assert_called_once()
+            with patch('sys.argv', args), patch('build.subprocess.run', side_effect=[revision, subprocess.CalledProcessError(1, 'example.exe')]):
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as failure: main()
+                self.assertEqual(1, failure.exception.code)
+            self.assertEqual('previous valid artifact', (output / 'index.html').read_text(encoding='utf-8'))
+
+    def test_refuses_to_delete_unowned_output(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            keep = Path(tmp) / 'valuable.txt'
+            keep.write_text('keep')
+            with self.assertRaises(ValueError): Site(tmp, catalog()).build()
+            self.assertEqual('keep', keep.read_text(encoding='utf-8'))
+        with self.assertRaises(ValueError): owned(ROOT / 'docs', (ROOT / 'dist',))
+
+    def test_linked_output_is_rejected_before_resolving_its_target(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            target, link = Path(tmp) / 'target', Path(tmp) / 'link'
+            target.mkdir()
+            (target / MARKER).write_text('Generated documentation')
+            (target / 'index.html').write_text('last valid artifact')
+            if os.name == 'nt':
+                subprocess.run(['cmd', '/c', 'mklink', '/J', str(link), str(target)],
+                               check=True, capture_output=True)
+            else:
+                link.symlink_to(target, target_is_directory=True)
+            try:
+                with self.assertRaisesRegex(ValueError, 'linked directory'):
+                    Site(link, catalog()).build()
+                self.assertEqual('last valid artifact', (target / 'index.html').read_text())
+            finally:
+                link.rmdir() if os.name == 'nt' else link.unlink()
+
+    def test_missing_or_invalid_source_preserves_previous_artifact(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            root = Path(tmp)
+            self.source_fixture(root)
+            output = root / 'output'
+            output.mkdir()
+            (output / MARKER).write_text('Generated documentation')
+            (output / 'index.html').write_text('last valid artifact')
+            source = root / 'docs/logo.md'
+            source.unlink()
+            with self.assertRaises(FileNotFoundError): Site(output, catalog(), root=root).build()
+            self.assertEqual('last valid artifact', (output / 'index.html').read_text(encoding='utf-8'))
+            source.write_text('# Logo\n\n[Broken](missing-document.md)')
+            with self.assertRaises(subprocess.CalledProcessError): Site(output, catalog(), root=root).build()
+            self.assertEqual('last valid artifact', (output / 'index.html').read_text(encoding='utf-8'))
+
+    def test_removing_publication_and_module_removes_stale_content(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            output = Path(tmp) / 'site'
+            data = catalog()
+            data['gadgets'].append(dict(data['gadgets'][0], name='Second'))
+            Site(output, data).build()
+            self.assertTrue((output / 'catalog/gadget/second/index.html').exists())
+            site = Site(output, catalog())
+            del site.documents['docs/dependency-security.md']
+            site.build()
+            for route in ('catalog/gadget/second', 'dependency-security'):
+                self.assertFalse((output / route).exists())
+                self.assertFalse((HERE / 'src/content/docs' / (route + '.md')).exists())
+
+    def test_route_collisions_fail_before_replacing_output(self):
+        site = Site(ROOT / 'temp/unused', catalog())
+        site.documents['docs/logo.md'] = 'catalog'
+        with self.assertRaisesRegex(ValueError, 'Route collision'): site.prepare()
+
+    def test_failed_compilation_preserves_previous_artifact(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            output = Path(tmp) / 'site'
+            output.mkdir()
+            (output / MARKER).write_text('Generated documentation')
+            (output / 'index.html').write_text('last valid artifact')
+            run = subprocess.run
+            def fail_build(args, **kwargs):
+                if 'build' in args and any('astro' in str(arg) for arg in args):
+                    raise subprocess.CalledProcessError(1, args)
+                return run(args, **kwargs)
+            with patch('build.subprocess.run', side_effect=fail_build), self.assertRaises(subprocess.CalledProcessError):
+                Site(output, catalog()).build()
+            self.assertEqual('last valid artifact', (output / 'index.html').read_text(encoding='utf-8'))
+
+    def test_unowned_staging_is_not_deleted(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            staging = Path(tmp) / 'staging'
+            staging.mkdir()
+            (staging / 'authored.md').write_text('keep')
+            with self.assertRaises(ValueError): owned(staging, (Path(tmp),))
+            self.assertEqual('keep', (staging / 'authored.md').read_text(encoding='utf-8'))
+
+    def test_actual_checkout_revision_is_required(self):
+        with patch('sys.argv', ['build.py', '--catalog', 'unused.json', '--source-ref', 'b' * 40]), \
+             patch('build.subprocess.run', return_value=subprocess.CompletedProcess([], 0, 'a' * 40, '')):
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit): main()
+
+    def test_nested_installation_command_is_a_copyable_code_block(self):
+        body = (self.output / 'getting-started/index.html').read_text(encoding='utf-8')
+        self.assertIn('expressive-code', body)
+        self.assertIn('data-code=".\\ysonet.exe -i"', html.unescape(body))
+        self.assertNotIn('data-code=".\\ysonet.exe -i\n', html.unescape(body))
+
+    def test_rewrites_authored_links_without_copying_source(self):
+        body = (self.output / 'guides/index.html').read_text(encoding='utf-8')
+        self.assertIn('href="/getting-started/"', body)
+        self.assertIn('href="/security/"', body)
+        self.assertIn('https://github.com/irsdl/ysonet/blob/' + 'a' * 40 + '/docs/ARCHITECTURE.md', body)
+        self.assertIn('https://github.com/irsdl/ysonet/edit/master/docs/README.md', body)
+        self.assertNotIn('/edit/master/tools/site/src/content', body)
+
+    def test_checker_detects_broken_links_fragments_and_search_entries(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            root = Path(tmp)
+            (root / 'index.html').write_text('<a href="/site/missing/">bad</a><a href="#absent">bad</a><a href="/outside">bad</a>')
+            errors = check(root, '/site/')[2]
+            self.assertEqual(5, len(errors))
+            self.assertTrue(any('Missing production search asset' in e for e in errors))
 
     def test_invalid_public_site_urls_are_rejected(self):
         for url in ('/relative/', 'http://example.com/', 'https://u:p@example.com/',
@@ -126,105 +305,6 @@ class SiteTests(unittest.TestCase):
             with self.subTest(data=data), self.assertRaises(ValueError):
                 Site(Path('unused'), data)
 
-    def test_new_release_notes_flow_into_index_search_and_sitemap(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / 'VERSION').write_text(catalog()['toolVersion'])
-            notes = root / 'docs/release-notes'
-            notes.mkdir(parents=True)
-            (notes / 'README.md').write_text('# Notes\n\n<!-- site:release-index -->')
-            for name in ('v2026.9.9', 'v2026.10.1', 'v2026.9.10'):
-                (notes / (name + '.md')).write_text('## Highlights\nUnique release content: ' + name)
-            (notes / 'template.md').write_text('Unfinished template')
-            (notes / 'v-draft.md').write_text('Unpublished draft')
-            site = Site(root / 'output', catalog(), '/project/', root=root)
-            title, body, toc = site.render_markdown('docs/release-notes/README.md')
-            self.assertLess(body.index('v2026.10.1'), body.index('v2026.9.10'))
-            self.assertLess(body.index('v2026.9.10'), body.index('v2026.9.9'))
-            self.assertNotIn('template', body)
-            self.assertNotIn('draft', body)
-            for source, route in site.documents.items():
-                if source.startswith('docs/release-notes/'):
-                    site.page(route + '/', *site.render_markdown(source), source=source)
-            site.write_sitemap()
-            self.assertIn('/project/releases/v2026.10.1/', body)
-            self.assertTrue(any(p['url'] == '/project/releases/v2026.10.1/' and
-                                'Unique release content' in p['text'] for p in site.search))
-            self.assertIn('releases/v2026.10.1/', (root / 'output/sitemap.xml').read_text())
-            # A deleted source must not remain in the next build's index.
-            (notes / 'v2026.10.1.md').unlink()
-            next_site = Site(root / 'next', catalog(), root=root)
-            self.assertNotIn('v2026.10.1', next_site.render_markdown('docs/release-notes/README.md')[1])
-
-    def test_installation_fragment_is_shared_and_required(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / 'VERSION').write_text(catalog()['toolVersion'])
-            (root / 'docs').mkdir()
-            (root / 'docs/sponsors.md').write_text(
-                (ROOT / 'docs/sponsors.md').read_text(encoding='utf-8'), encoding='utf-8')
-            source = root / 'docs/getting-started.md'
-            text = ('# Getting Started\n\n<!-- site:install:start -->\n'
-                    'One canonical installation instruction.\n\n'
-                    '[Details](quick-reference.md)\n<!-- site:install:end -->')
-            source.write_text(text)
-            for instruction in ('One canonical installation instruction.', 'Changed in one place.'):
-                source.write_text(text.replace('One canonical installation instruction.', instruction))
-                site = Site(root / 'output', catalog(), '/project/', root=root)
-                site.home()
-                home = (root / 'output/index.html').read_text()
-                guide = site.render_markdown('docs/getting-started.md')[1]
-                self.assertIn(instruction, home)
-                self.assertIn(instruction, guide)
-                self.assertIn('/project/quick-reference/', home)
-            for broken in ('Missing markers', text.replace(':end', ':start'),
-                           '<!-- site:install:end --><!-- site:install:start -->',
-                           '<!-- site:install:start --><!-- site:install:end -->'):
-                source.write_text(broken)
-                with self.assertRaises(ValueError): site.home()
-
-    def test_live_cli_export_is_used_and_export_failure_stops_build(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / 'site'
-            args = ['build.py', '--executable', 'example.exe', '--output', str(output)]
-            response = subprocess.CompletedProcess([], 0, json.dumps(catalog()).encode(), b'')
-            with patch('sys.argv', args), patch('build.subprocess.run', return_value=response) as run:
-                main()
-                self.assertEqual(catalog(), json.loads((output / 'catalog/catalog.json').read_text()))
-                self.assertEqual(['--list', 'catalog'], run.call_args.args[0][1:])
-            original = (output / 'index.html').read_bytes()
-            with patch('sys.argv', args), patch('build.subprocess.run', side_effect=subprocess.CalledProcessError(1, 'example.exe')):
-                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as failure:
-                    main()
-                self.assertEqual(1, failure.exception.code)
-            self.assertEqual(original, (output / 'index.html').read_bytes())
-
-    def test_refuses_to_delete_unowned_output(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            keep = Path(tmp) / 'valuable.txt'
-            keep.write_text('keep')
-            with self.assertRaises(ValueError):
-                Site(tmp, catalog()).build()
-            self.assertEqual('keep', keep.read_text())
-
-    def test_rewrites_authored_links_without_copying_source(self):
-        site = Site(Path('unused'), catalog(), '/project/', 'a' * 40)
-        self.assertEqual('/project/getting-started/#installation-diagnostics', site.rewrite('docs/README.md', 'getting-started.md#installation-diagnostics'))
-        self.assertEqual('/project/security/', site.rewrite('docs/README.md', '../SECURITY.md'))
-        self.assertEqual('/project/catalog/schema.json', site.rewrite('docs/README.md', 'schemas/catalog-v1.schema.json'))
-        self.assertEqual('#local', site.rewrite('docs/README.md', '#local'))
-        self.assertEqual('https://example.com/a', site.rewrite('docs/README.md', 'https://example.com/a'))
-        self.assertEqual('https://github.com/irsdl/ysonet/blob/' + 'a' * 40 + '/docs/ARCHITECTURE.md#test',
-                         site.rewrite('docs/README.md', 'ARCHITECTURE.md#test'))
-
-    def test_nested_installation_command_is_a_copyable_code_block(self):
-        site = Site(Path('unused'), catalog())
-        _, body, _ = site.render_markdown('docs/getting-started.md')
-        self.assertIn('<pre><code class="language-powershell">.\\ysonet.exe -i', body)
-        self.assertNotIn('<code>powershell', body)
-        self.assertIn('ysonet.exe -i</code>', body)
-        self.assertNotIn('ysonet.exe -i\n</code>', body)
-
     def test_module_source_resolves_public_subfolders_and_filename_differences(self):
         site = Site(Path('unused'), catalog())
         for symbol, expected in (
@@ -240,13 +320,6 @@ class SiteTests(unittest.TestCase):
                 base_path(value)
         with self.assertRaises(ValueError):
             Site(Path('unused'), catalog(), source_ref='../../bad')
-
-    def test_checker_detects_broken_links_fragments_and_search_entries(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / 'index.html').write_text('<a href="/site/missing/">bad</a><a href="#absent">bad</a><a href="/outside">bad</a>')
-            (root / 'search-index.json').write_text('[{"url":"/site/missing/"}]')
-            self.assertEqual(4, len(check(root, '/site/')[2]))
 
 
 if __name__ == '__main__':

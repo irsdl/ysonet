@@ -1,0 +1,21 @@
+---
+import Select from '@astrojs/starlight/components/Select.astro';
+---
+<starlight-theme-select>
+  <Select icon="laptop" label="Color theme" width="6.25em" options={[
+    {label: 'Dark', value: 'dark', selected: false},
+    {label: 'Light', value: 'light', selected: false},
+    {label: 'Auto', value: 'auto', selected: true},
+  ]} />
+</starlight-theme-select>
+<script is:inline>StarlightThemeProvider.updatePickers();</script>
+<script>
+  class ThemeSelect extends HTMLElement {
+    connectedCallback() {
+      this.querySelector('select')?.addEventListener('change', (event) => {
+        window.StarlightThemeProvider.select((event.target as HTMLSelectElement).value);
+      });
+    }
+  }
+  if (!customElements.get('starlight-theme-select')) customElements.define('starlight-theme-select', ThemeSelect);
+</script>

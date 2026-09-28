@@ -5,6 +5,9 @@ start with [Getting Started](getting-started.md).
 
 ## Build from source
 
+Requires Windows, Visual Studio MSBuild with the .NET desktop development
+workload, and NuGet. The projects target .NET Framework 4.7.2.
+
 The [lightweight checkout](source-without-archive.md) omits the optional research
 archive. Use that clone in place of the `git clone` step below if you want a
 smaller download.
@@ -86,31 +89,99 @@ Both CI workflows also run these checks against their Release build. See
 
 ### Watching a run
 
-An automated run stays off your screen: it relaunches itself once on a hidden Windows desktop, puts itself in a job object that suppresses Windows Error Reporting UI for the whole process tree, and starts a windowless sink instead of a shell for its command fire rows. All of that belongs to the test runner; `ysonet.exe` itself, including `ysonet.exe -t`, behaves exactly as before.
+An automated run keeps itself off your screen and out of another run's way. The
+runner controls isolation, error dialogs and concurrency, and requires a working
+fire sink. These controls belong to the test runner: `ysonet.exe`, including
+`ysonet.exe -t`, is unchanged.
 
-It prints its status file path first, then keeps that file current about once a second:
+- The runner relaunches itself once on a hidden Windows desktop, so a payload window never appears and never steals focus. Descendants inherit that desktop. Turn it off with `--ui-isolation=none` (or `YSONET_UI_ISOLATION=none`); it is off automatically under a debugger and on CI. There is no way to hide a window a process explicitly puts on another desktop, and this does not claim to.
+- The runner puts itself in a job object with `JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION`, which suppresses Windows Error Reporting UI for the whole process tree. Turn it off with `--wer-containment=off` (or `YSONET_WER_CONTAINMENT=off`).
+- Command fire rows run the required windowless `ysonet.TestSink.exe` and assert the exact argument it received. If that executable is missing or unusable, the suite records one ordinary failure with the probe reason and stops before any command-effect row can lose coverage.
+- Only one automated run at a time on the machine. A second run waits for the first, printing who holds the lock every 30 seconds, and starts when it finishes. Separate checkouts do not help here: the runs still share CPU, the loopback and RPC probes, and the short timeouts the fire rows wait on, and a competing run looks exactly like ordinary test failures. Turn it off with `--test-lock=off` (or `YSONET_TEST_LOCK=off`) when you deliberately want two runs at once. A killed run releases the lock automatically.
+
+Every run publishes one status file and prints its path as the first line. Poll it and REOPEN the path each time; every update replaces the whole file, so a retained handle is not promised to follow it and you always see a complete snapshot, never a half-written one. Open it allowing delete-sharing if you can (`FileShare.ReadWrite | FileShare.Delete`) - a reader that does not, such as `type` or `Get-Content`, can briefly block the replace and cost one update, though the writer retries around it:
 
 ```text
-Status file: D:\src\ysonet\temp\ysonet_testrun.txt
-UI isolation: desktop (hidden desktop ysonet-tests-12345-a1b2c3d4)
-WER containment: job (inherited by normal descendants)
-Fire backend: test-sink (D:\src\ysonet\ysonet\bin\Debug\ysonet.TestSink.exe)
+version=1
+state=running
+pid=12345
+tier=NORMAL+FULL
+isolation=desktop
+wer=job
+sink=test-sink
+started_utc=2026-07-27T13:03:11.0000000Z
+updated_utc=2026-07-27T13:07:52.0000000Z
+elapsed_s=281
+current=Payloads fire into test-owned sinks
+index=57
+passed=56
+failed=0
 ```
 
-Read it by polling and REOPENING the path, because every update replaces the whole file:
+`state=finished` (plus `ended_utc`, `duration_s` and `exit_code`) means the run completed, even if it failed. There is deliberately no `crashed` state: a run that is killed or fail-fasts cannot write anything, so it leaves `state=running` with a heartbeat that stops advancing. A `running` snapshot whose `updated_utc` is more than a few seconds old means interrupted. Disable the file with `--status-file=off`, or point it somewhere with `--status-file=<path>`.
+
+An invalid value for one of these switches is the one thing that stops a run before it starts (exit code 2). Unavailable desktop isolation, job containment or status-file writing reports a diagnostic. An unavailable fire sink records one failed check and stops the suite before any command-effect checks run.
+
+For a live view, paste the path printed by the runner:
 
 ```powershell
 $statusPath = Read-Host 'Paste the path printed after Status file:'
 while ($true) { Get-Content -LiteralPath $statusPath; Start-Sleep 2; Clear-Host }
 ```
 
-`state=finished` means the run completed (even if it failed - check `failed` and `exit_code`). `state=running` with an `updated_utc` more than a few seconds old means the run was interrupted; there is no `crashed` state, because a killed process cannot write one.
+### The environment verdict
 
-Only one automated run happens at a time on a machine: a second one waits for the first and says who is holding it. Separate checkouts do not change that, because the runs share CPU and the same local probes.
+Some checks need a machine or network capability that a laptop, a container, or a locked
+down network may not have: a loopback TCP bind/connect/accept, the local RPC endpoint
+mapper answering on `127.0.0.1:135`, or a usable out-of-band endpoint. The runner probes
+each prerequisite directly, before the row that needs it, and prints one block just above
+the Passed/Failed line:
 
-Isolation, containment, status, and locking have off switches: `--ui-isolation=none`, `--wer-containment=off`, `--status-file=off`, and `--test-lock=off`. The fire sink has no off switch because every command-effect row depends on it. If it cannot run, the suite reports one failed check with the reason and stops. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the details.
+```text
+---- ENVIRONMENT ----
+Capabilities
+  loopback-tcp                  PRESENT   bound 127.0.0.1:54725, connected, and accepted [2ms]
+  local-rpc-endpoint-mapper     PRESENT   connected to 127.0.0.1:135 [1ms]
+  ...
+Environment-skipped checks: 0
+Capability-dependent failures: 0
+Ordinary failure records: 0
+Strict-environment failures: 0
 
-Test policy and how to extend: never weaken a test to make it pass (investigate and fix the root cause; see the "Test integrity policy" in [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md)). A new gadget/formatter/variant is covered automatically by the generation matrix; a new gadget's runtime EFFECT and a new PLUGIN MODE must be added by hand. See [Architecture](ARCHITECTURE.md) (the `ysonet.Tests` section and "How to add things") for where each kind of coverage goes.
+ENVIRONMENT VERDICT: clean
+```
+
+Read that line first when something fails:
+
+- `clean` - every capability a check needed was probed and present.
+- `environment-limited` - a check did not run because its prerequisite was absent, or ran
+  with one that could not be proved either way.
+- `environment-suspect` - a check ran with its capability available and still missed its
+  network effect.
+- `mixed` - both an environment-suspect failure and an ordinary one.
+
+**A skip is unverified, not passed.** The report names every skipped check and the
+capability that was missing, and `Environment-skipped` is a third number beside
+Passed and Failed, never folded into either.
+
+By default an incomplete run still exits 0 when no test failed: the limitation lives in
+the verdict, not in the exit code. Add `--strict-env` (or `YSONET_STRICT_ENV=1`) when you
+need "all environment-dependent rows really ran" to be a hard requirement, for example
+before a release. Strict mode never runs a row whose prerequisite is absent; it only
+changes what the exit code requires.
+
+Before you change a failing test, read the verdict. On `environment-suspect` or `mixed`,
+the failure is about this machine, not the assertion: report the capability evidence and
+ask, rather than editing product code or loosening a check. An ordinary failure in the
+same run is still an ordinary bug.
+
+Every automated UNC touch in the OOB tier needs `YSONET_INTERACTSH_SERVER` pointing at a
+self-hosted server you own, because Windows sends authentication material when it opens
+an SMB session. On the default public endpoint all three UNC checks are named skips. That
+gates the test harness only; running `ysonet.exe ... -t` yourself is unchanged.
+
+For contribution policy, focused test order and extending coverage, see
+[CONTRIBUTING.md](../CONTRIBUTING.md#building-and-testing).
 
 ## v2 branch
 

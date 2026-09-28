@@ -1,0 +1,33 @@
+{
+  "Start here": {
+    "docs/README.md": "guides",
+    "docs/getting-started.md": "getting-started",
+    "docs/moving-from-ysoserial-net.md": "moving-from-ysoserial-net",
+    "docs/linux-and-macos.md": "linux-and-macos"
+  },
+  "Usage": {
+    "docs/quick-reference.md": "quick-reference",
+    "docs/usage-and-examples.md": "usage-and-examples",
+    "tools/completions/README.md": "completion",
+    "docs/json-catalog.md": "json-catalog"
+  },
+  "Catalog and evidence": {
+    "docs/runtime-evidence.md": "runtime-evidence"
+  },
+  "Releases": {
+    "docs/release-notes/README.md": "releases",
+    "docs/release-verification.md": "release-verification"
+  },
+  "Development": {
+    "docs/building-and-testing.md": "building-and-testing",
+    "CONTRIBUTING.md": "contributing",
+    "docs/source-without-archive.md": "source-without-archive",
+    "docs/dependency-security.md": "dependency-security"
+  },
+  "Project": {
+    "SECURITY.md": "security",
+    "docs/credits.md": "credits",
+    "docs/sponsors.md": "sponsors",
+    "docs/logo.md": "logo"
+  }
+}

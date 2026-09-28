@@ -1,0 +1,13 @@
+---
+import Default from '@astrojs/starlight/components/Head.astro';
+import manifest from '../../generated/manifest.json';
+const excluded = Astro.locals.starlightRoute.entry.data.pagefind === false;
+// Search and error pages have no canonical; noindex is independent of Pagefind.
+Astro.locals.starlightRoute.head = Astro.locals.starlightRoute.head.filter(
+  (tag) => !(tag.tag === 'link' && (tag.attrs?.rel === 'sitemap' ||
+    (excluded && tag.attrs?.rel === 'canonical'))));
+---
+<Default />
+<meta name="ysonet-revision" content={manifest.sourceRef} />
+<link rel="sitemap" type="application/xml" href={manifest.base + 'sitemap.xml'} />
+{excluded && <meta name="robots" content="noindex, follow" />}

@@ -1,166 +1,195 @@
 # Documentation site
 
-A static site built from existing Markdown and the public CLI catalog. No server,
-analytics, external fonts, or client-side libraries. Edit the source document once;
-`build.py` owns the publication list, navigation, and landing page.
-
-Keep starting guides short: lead with the task, show the next step, and link to
-exact details. Preserve requirements and limitations. Use diagrams only when they
-explain something more clearly than a short paragraph.
+Astro Starlight builds portable static documentation from canonical Markdown and a
+fresh public CLI catalog. The site uses local assets, system fonts and Pagefind;
+there are no analytics or external runtime services. Website tooling is independent
+of ordinary YSoNet builds.
 
 ## Maintain one source
 
-| Content | Edit here | Website output |
-|---|---|---|
-| Version | Root `VERSION`, with maintainer approval | Version labels and catalog validation |
-| Guides | Existing source Markdown in the publication list | Reading pages and search |
-| Logo explanation | [About the logo](../../docs/logo.md) | Logo page, linked from the homepage introduction, navigation, footer, and guides |
-| Homepage installation | `site:install` section in [Getting Started](../../docs/getting-started.md) | Shared setup steps |
-| Sponsor acknowledgements | [Credits](../../docs/credits.md#sponsors), grouped by monthly and one-time support | Credits page; release history stays in release notes |
-| Sponsorship appeal | `site:support` section in [Sponsors](../../docs/sponsors.md) | Homepage appeal, Sponsors page, and release preamble |
-| Module facts and counts | Public CLI metadata in code | Catalog pages, filters, and counts |
-| Release notes | `docs/release-notes/<VERSION>.md` | Version pages and a numerically sorted index |
-| Navigation and appearance | `build.py` and `assets/` | Shared page layout |
+| Content | Authoritative source |
+|---|---|
+| Version | Root `VERSION`; changes require maintainer approval |
+| Guides | Repository Markdown selected in `publication.json` |
+| Installation | `site:install` section in [Getting Started](../../docs/getting-started.md) |
+| Sponsorship appeal | `site:support` section in [Sponsors](../../docs/sponsors.md); also consumed by release tooling |
+| Permanent sponsor credits | [Credits](../../docs/credits.md#sponsors); historical release credits stay in their notes |
+| Logo | [Existing SVG](../../docs/images/logo/transparent.svg) and [explanation](../../docs/logo.md) |
+| Module facts | Fresh public CLI `--list catalog` export |
+| Release notes | `docs/release-notes/v*.md`; index at `site:release-index` in the existing README |
+| Navigation and routes | `publication.json`; release and module entries are derived |
+| Presentation | Starlight configuration and small components/styles under `src/` |
 
-Do not keep website copies of guides, release notes, catalogs, or version numbers.
-The build creates HTML, JSON, search, and sitemap files only in ignored output.
-Add a guide to `DOCUMENTS` when it should be published; release-note files are
-discovered automatically in their existing folder. Keep the shared-section markers.
-A missing or empty installation or support section fails the build.
+Publication is opt-in. Do not recursively publish `docs/`, research archives, or the
+repository. Add an approved document to the manifest without changing its public
+route when reorganizing navigation. `markdown.mjs` rewrites syntax-tree links,
+reference definitions and HTML attributes; code examples and literal URLs remain
+unchanged. Unpublished public sources link to GitHub at the actual checkout SHA.
+Images and downloads require an explicit `ASSETS` entry in `build.py`.
 
-After changing public behavior, edit its canonical guide or CLI metadata, rebuild
-the CLI from the same checkout, then rebuild and check the site. Version equality
-cannot detect an old binary built before a same-version code change. CI builds the
-CLI first. `--catalog` remains available for offline builds with a fresh public export;
-do not commit or hand-maintain that input.
-
-For a release, write its notes once and run the [release gate](../docs/README.md).
-No site version bump or manual release list is needed. A note file is not proof of
-publication: the site labels checkout documentation as development, and download
-links resolve GitHub's latest published release.
+Preparation stages Markdown/frontmatter in ignored `src/content/docs/`, assets in
+ignored `public/`, and the derived manifest in ignored `generated/`. These are
+disposable output, never second editable sources. Explicit slugs preserve release
+URLs such as `/releases/v2026.9.2/`. Canonical H1 headings become anchor aliases in
+staging; Starlight provides the one visible page title. Source links use the checkout
+SHA, edit links use the original file on master, and last-updated dates are disabled.
 
 ## Page design
 
-The home page pairs a generated catalog index with installation steps. Shared top
-navigation leads to guides, modules, evidence, and releases. Reference pages use a
-reading column and section navigation; catalog results use rows for comparison.
-Both themes use the same hierarchy, with color reserved for links and controls.
+Starlight supplies the sidebar, contents, typography, code copying and search modal.
+Navigation groups follow readers' tasks: Start here, Usage, Catalog and evidence,
+Releases, Development, and Project. The catalog keeps comparison rows and separate
+filters with `q`, `type`, and `formatter` query parameters, including browser history.
+`/search/?q=...` uses the same Pagefind index as the modal. Module declarations remain
+readable without JavaScript and are never described as runtime test results.
 
 ## Build and preview
 
-Requires Python 3.10+ and a current public Debug build (see
-[build instructions](../../docs/building-and-testing.md)). From the repository root
-in PowerShell:
+Requires Windows, Python 3.10+, the public Debug CLI toolchain, and Node pinned in
+`.node-version`. From the repository root in PowerShell:
 
 ```powershell
+nuget restore ysonet.sln
+msbuild ysonet/ysonet.csproj -p:Configuration=Debug -p:IncludePrivateModules=false -p:RunYsonetTests=false
 python -m pip install -r tools/site/requirements.txt
-python tools/site/build.py --executable ysonet/bin/Debug/ysonet.exe --base-path /
+npm ci --prefix tools/site --ignore-scripts
+python tools/site/build.py --executable ysonet/bin/Debug/ysonet.exe
 python tools/site/check.py dist/site --base-path /
 python -m http.server 8000 --bind 127.0.0.1 --directory dist/site
 ```
 
-Open `http://localhost:8000`. HTTP is needed for search; opening HTML files directly
-will not load its index. Generated output stays in ignored `dist/site/`.
-The build rejects private, filtered, empty, and version-mismatched catalogs.
+Open `http://localhost:8000`. Always rebuild the CLI before exporting metadata,
+even when VERSION has not changed. Exporting metadata runs no payloads or payload
+tests. `SITE_NODE` can select a local Node executable without changing the machine's
+PATH. The builder disables Astro build telemetry.
+`npm run build --prefix tools/site` invokes the same guarded builder with the
+default public Debug executable; it also requires that executable to be freshly built.
+
+`build.py` validates inputs before replacing staging, builds to a candidate directory,
+checks its links and SEO, then swaps it into `dist/site/`. Failed export, validation,
+or compilation preserves the previous valid artifact. Populated output needs the
+`.ysonet-site` ownership marker; cleanup rejects linked directories and paths outside
+repository `dist/` or `temp/`. Do not put authored files in generated directories.
+
+For an explicitly offline build:
+
+```powershell
+python tools/site/build.py --catalog temp/catalog.json
+```
+
+That export must come from a fresh public build of the same checkout. Record its
+source revision and build/export command when handing it off. Matching VERSION
+cannot detect a stale same-version export; the offline command reports this limit.
+CI and publication always use a freshly built executable. `--source-ref`, when
+provided, must match `git rev-parse HEAD`.
+
+For layout development, prepare first, then run `npm run dev --prefix tools/site`.
+Use `--prepare-only` with either input mode to stage content without building.
+Canonical source edits require rerunning preparation: the Astro watcher watches
+staging, not the original documents. Pagefind is produced only by a production
+build; validate search against the built output, not the dev server.
 
 ## Publish on GitHub Pages
 
-1. In **Settings > Pages > Build and deployment**, select **GitHub Actions**.
-2. Commit and push the site changes to `master`.
-3. Run **Documentation site** if the push did not already start it.
+The existing `.github/workflows/pages.yml` runs on Windows. It records the actual
+checkout SHA, installs pinned toolchains, builds the public CLI, installs locked
+site dependencies, prepares/builds Starlight, runs checks, and uploads `dist/site/`.
+Pull requests validate without deployment. Deployment requires upstream
+`irsdl/ysonet`, `master`, and the `github-pages` environment.
 
-The site address is `https://ysonet.com/`. The workflow builds at `/` with
-canonical URLs under `https://ysonet.com/`. It builds the
-public CLI, exports metadata without generating payloads, checks links, and deploys.
-Pull requests build for review but cannot deploy. Deployment is restricted to this
-repository's `master` branch and the `github-pages` environment. It refreshes on
-master pushes and after the release workflow succeeds on master, using a fresh
-checkout of the current default-branch revision. Failed releases do not trigger a
-refresh. This uses GitHub's [workflow completion event](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run),
-so publication by the release workflow's token does not need an extra token.
-
-These are development docs, labeled with `VERSION`; source links point to the
-workflow commit. Release notes are linked separately. The site does not claim to
-archive documentation for every release. Domain settings are managed separately
-from the workflow.
+A successful release workflow on upstream master refreshes a fresh checkout of
+current master, not the triggering release's older SHA or tag. Failed releases do
+not refresh the site. These are development docs with separate release notes;
+download links point to GitHub's latest published release. A note file is not proof
+that a release has been published.
 
 ## Search indexing
 
-Every build generates `sitemap.xml` and matching absolute canonical URLs for the
-published guides and module pages. Search and error pages are marked `noindex`.
-Submit `https://ysonet.com/sitemap.xml` in Google Search Console after publication.
-The root-domain build includes a `robots.txt` sitemap directive.
+Pagefind indexes guides, module pages and release notes. Search and error pages
+have no Pagefind body, carry `noindex`, and are excluded from the checked sitemap.
+The builder replaces Starlight's automatic sitemap with `sitemap.xml` derived from
+the rendered canonical URLs. Root-host builds include `robots.txt` with its HTTPS
+sitemap directive. `revision.json` and a page meta tag identify the actual checkout.
 
 ## Maintainer publication
 
-Use the existing Windows GitHub Actions workflow in `.github/workflows/pages.yml`.
-It builds the public CLI from the source revision, generates the static site,
-checks it, and deploys through GitHub Pages. An authorized push to `master`
-updates the website automatically. No publishing branch, second repository,
-Cloudflare Pages project, or Cloudflare API token is needed.
+Prepare and verify reviewable changes before requesting missing commit/push
+authorization. Follow [post-push monitoring](../ci/README.md#follow-up-after-a-push)
+through both CI Build and Documentation site. Verify live HTTPS, routes/anchors,
+assets, search, catalog query navigation, sitemap and `revision.json`. Report local
+checks, hosted CI and live publication separately. No publishing branch, second
+repository, Cloudflare credentials or hosting-specific runtime is involved.
 
-Keep site preparation and dependencies out of normal local YSoNet builds. For
-changes to published docs, public metadata, installation, releases, or site assets,
-regenerate and check the website when possible. If local tools are unavailable,
-report the missing checks and use the authorized workflow run for validation.
-Prepare reviewable changes before asking for missing commit/push authorization;
-existing explicit authorization carries forward. Follow the workflow through
-completion and verify the live site. Report preparation, checks, and publication
-separately, including blockers or a pending deployment.
+Before publication, record the current source SHA, successful deployment run, and
+download its unexpired `github-pages` artifact. If deployment fails, check whether
+the existing live site is healthy before taking recovery action. An authorized
+restoration can use a reviewed revert of only the migration on master, or a
+reviewed workflow change on master that uploads the retained artifact through the
+same upstream/branch/environment gates. Do not roll back unrelated product changes.
+Rerunning an old release-triggered workflow checks out current master, so it is not
+a way to rebuild the older source.
 
 ### Custom domain
 
-The maintainer configured `ysonet.com` in GitHub Pages and pointed its DNS to
-GitHub. Build and check at `/`; the old `/ysonet/` prefix breaks navigation,
-assets, and search on this custom domain. Local builder and checker defaults
-match production. For another deployment, explicitly set both `--base-path`
-and `--site-url` on the builder and pass the same base to all checks.
+Production uses base `/` and `https://ysonet.com/`. Keep GitHub Pages **Enforce HTTPS**
+enabled. Verify HTTP redirects and valid TLS on the root, guides, modules, releases
+and assets, including paths and queries. Check mixed content in actual browser
+requests. Canonical links alone do not prove transport enforcement. Check
+`ysonet.net` and other aliases separately; their configuration is independent.
 
-Use GitHub Pages' native custom-domain support. No response rewriting or proxy
-code is needed. Verify HTTPS, search, assets, canonicals, sitemap, and redirects
-after deploying. The recommended `ysonet.net` redirect to `ysonet.com` should
-preserve paths and query strings; its setup and verification are still pending.
-See GitHub's [custom-domain instructions](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site)
-and Cloudflare's [domain redirects](https://developers.cloudflare.com/fundamentals/manage-domains/redirect-domain/).
+For another deployment, set both `--base-path` and `--site-url`, and pass the same
+base to all checks. For example, a separate portability build can use
+`--output temp/site-project --base-path /project/ --site-url https://example.com/project/`.
+Serve its output mounted at `/project/` (the browser checker does this automatically).
+Rebuild the publication artifact with production defaults afterwards.
 
 ## Move to Cloudflare later
 
-This anchor remains for existing links. A Cloudflare hosting migration is not
-planned; see [maintainer publication](#maintainer-publication) for the current
-GitHub Pages workflow and custom-domain configuration.
+This anchor remains for existing links. A future hosting change can upload the
+validated portable static artifact from the Windows workflow. Reassess provider
+guidance then; this migration retains GitHub Pages.
 
 ## Checks
 
 ```powershell
+node --test tools/site/test-markdown.mjs
 python -m unittest discover -s tools/site -v
+python tools/docs/check_docs.py links
+python tools/site/build.py --executable ysonet/bin/Debug/ysonet.exe
 python tools/site/check.py dist/site --base-path /
-node tools/site/browser-check.mjs dist/site / "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-```
-
-The browser check needs Node 22+ and Edge or Chrome. It covers search, filters,
-themes, text contrast, mobile navigation, and reading without JavaScript. Screenshots go to
-`temp/site-browser/`. The site workflow runs it against the same root path.
-
-For an all-page Playwright audit (Node 22+ and installed Edge):
-
-```powershell
-npm ci --prefix tools/site --ignore-scripts
+node tools/site/browser-check.mjs dist/site /
 node tools/site/visual-audit.mjs --site dist/site --base / --channel msedge
 ```
 
-This captures every page at 320, 390, 768, and 1440px in both themes. It checks text
-size and contrast, overflow, page headings, follow links, and navigation targets,
-including expanded reference sections. Open `temp/site-visual/index.html` to review
-the screenshots; automated checks do not replace visual judgment. Long pages are
-captured in segments. CI runs every page at mobile and desktop widths.
+Unit tests rebuild small fixtures, so run the real build after tests. Browser checks
+use installed Edge by default; an optional third argument selects a Chromium
+executable. They query production search, exercise filters and history, copy exact
+commands, check themes/storage denial, and read pages without JavaScript.
+To repeat the same checks after deployment, pass the tested local artifact, base,
+browser executable and live origin:
 
-For Firefox or WebKit, install the Playwright browsers with
-`npm exec --prefix tools/site -- playwright install firefox webkit`, then use
-`--engine firefox` or `--engine webkit` without `--channel`.
+```powershell
+node tools/site/browser-check.mjs dist/site / "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" https://ysonet.com
+```
 
-Dependency pins follow the repository's stable-release policy:
-[markdown-it-py](https://github.com/executablebooks/markdown-it-py/releases/tag/v4.2.0)
-is build-time only. GitHub's [custom Pages workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
-handles publication.
+The live check requires `revision.json` to match the tested local artifact before
+exercising the deployed pages. Both browser tools share `serve.mjs` for local previews.
 
-Sitemap and canonical URL handling follows [Google Search Central guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap).
+The visual audit covers every page at 320, 390, 768 and 1440px, in both themes. It
+checks overflow, visible headings, text/control contrast, navigation targets and
+expanded tables, and saves screenshots under `temp/site-visual/`. Review the
+screenshots as well as the automated results. CI audits all pages at 390 and 1440px.
+Use `--engine firefox` or `--engine webkit` after installing those Playwright browsers
+when cross-engine validation is needed. Do not run gadget payload suites for a
+site/prose-only change.
+
+Dependency selection on 2026-09-28 follows the one-month release-age policy:
+Node 24.20.0 (2026-08-26), Astro 7.2.9 (2026-08-27), Starlight 0.41.9 (2026-08-25),
+and markdown-remark 7.2.4 (2026-08-19). The lockfile uses dependency releases before
+2026-08-28. Playwright 1.62.0 retains the existing pin; parse5 7.3.0 is the structural
+HTML parser. Python dependencies remain pinned in `requirements.txt`.
+
+The implementation follows the official [Starlight configuration](https://starlight.astro.build/reference/configuration/),
+[frontmatter](https://starlight.astro.build/reference/frontmatter/), and
+[search](https://starlight.astro.build/guides/site-search/) APIs. Hosting HTTPS follows
+[GitHub Pages guidance](https://docs.github.com/en/pages/getting-started-with-github-pages/securing-your-github-pages-site-with-https).

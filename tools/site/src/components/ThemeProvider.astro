@@ -1,0 +1,21 @@
+<script is:inline>
+  // Storage can be denied by browser policy. Theme selection must still work.
+  window.StarlightThemeProvider = (() => {
+    let selected = 'auto';
+    try { selected = localStorage.getItem('starlight-theme') || 'auto'; } catch {}
+    if (!['light', 'dark', 'auto'].includes(selected)) selected = 'auto';
+    function apply(value = selected) {
+      selected = value;
+      document.documentElement.dataset.theme = selected === 'auto'
+        ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : selected;
+      document.querySelectorAll('starlight-theme-select select').forEach(select => { select.value = selected; });
+    }
+    document.documentElement.dataset.hasJs = '';
+    apply();
+    matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => apply());
+    return {updatePickers: apply, select(value) {
+      apply(value);
+      try { localStorage.setItem('starlight-theme', value); } catch {}
+    }};
+  })();
+</script>

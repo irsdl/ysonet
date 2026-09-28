@@ -1,0 +1,18 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+import manifest from '../../generated/manifest.json';
+const source = Astro.locals.starlightRoute.entry.data.sourceUrl;
+---
+<Default />
+<footer class="project-footer" data-pagefind-ignore>
+  <p>Development documentation / {manifest.version}</p>
+  <nav aria-label="Project">
+    <a href="https://x.com/irsdl">Follow @irsdl on X</a>
+    <a href={manifest.base + 'logo/'}>About the logo</a>
+    <a href={manifest.base + 'sponsors/'}>Sponsors</a>
+    <a href={manifest.base + 'security/'}>Security guidance</a>
+    <a href={manifest.base + 'sitemap.xml'}>Sitemap</a>
+    {source && <a href={source}>View source</a>}
+  </nav>
+</footer>
+<script src="../scripts/site.ts"></script>

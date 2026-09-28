@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Render an explicit set of public documents and a public CLI catalog to static HTML."""
+"""Prepare canonical content and build the static Starlight site transactionally."""
 import argparse
+import os
 import html
 from html.parser import HTMLParser
 import json
 from pathlib import Path, PurePosixPath
-import posixpath
 import re
 import shutil
 import subprocess
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import quote, urlsplit
 from xml.etree import ElementTree as ET
 
 from markdown_it import MarkdownIt
@@ -19,23 +19,12 @@ HERE = Path(__file__).resolve().parent
 REPO = 'https://github.com/irsdl/ysonet'
 SITE_URL = 'https://ysonet.com/'
 SITEMAP_NS = 'http://www.sitemaps.org/schemas/sitemap/0.9'
-# Publication is opt-in. Do not recursively publish the repository or docs tree.
-DOCUMENTS = {
-    'docs/README.md': 'guides',
-    **{f'docs/{name}.md': name for name in (
-        'getting-started', 'quick-reference', 'moving-from-ysoserial-net',
-        'usage-and-examples', 'json-catalog', 'runtime-evidence',
-        'release-verification', 'linux-and-macos', 'building-and-testing',
-        'source-without-archive', 'dependency-security', 'credits', 'sponsors', 'logo')},
-    'docs/release-notes/README.md': 'releases',
-    'SECURITY.md': 'security',
-    'CONTRIBUTING.md': 'contributing',
-    'tools/completions/README.md': 'completion',
-}
-NAV = [('Start', 'getting-started/'), ('Guides', 'guides/'),
-       ('Catalog', 'catalog/'), ('Evidence', 'runtime-evidence/'), ('Releases', 'releases/'), ('About the logo', 'logo/')]
-
-
+# Publication is opt-in; categories do not determine public routes.
+GROUPS = json.loads((HERE / 'publication.json').read_text(encoding='utf-8'))
+DOCUMENTS = {source: route for group in GROUPS.values() for source, route in group.items()}
+ASSETS = {'docs/images/logo/transparent.svg': 'assets/logo.svg',
+          'docs/schemas/catalog-v1.schema.json': 'catalog/schema.json'}
+MARKER = '.ysonet-site'
 
 def esc(value):
     return html.escape(str(value), quote=True)
@@ -110,7 +99,7 @@ class Site:
             key=lambda path: tuple(map(int, path.stem[1:].split('.'))), reverse=True)
         for path in self.release_notes:
             self.documents[path.relative_to(self.root).as_posix()] = 'releases/' + path.stem
-        self.search = []
+        self.pages = {}
 
     def url(self, path=''):
         return self.base + path
@@ -118,129 +107,89 @@ class Site:
     def source(self, path):
         return REPO + '/blob/' + self.source_ref + '/' + quote(path, safe='/')
 
-    def rewrite(self, source, value):
-        value = html.unescape(value)
-        parsed = urlsplit(value)
-        if parsed.scheme or parsed.netloc or not parsed.path:
-            return value
-        name = posixpath.normpath(posixpath.join(posixpath.dirname(source), unquote(parsed.path)))
-        if parsed.path.startswith('/'):
-            name = posixpath.normpath(unquote(parsed.path)).lstrip('/')
-        suffix = ('?' + parsed.query if parsed.query else '') + ('#' + parsed.fragment if parsed.fragment else '')
-        if name in self.documents:
-            return self.url(self.documents[name] + '/') + suffix
-        if name == 'docs/schemas/catalog-v1.schema.json':
-            return self.url('catalog/schema.json') + suffix
-        if name == 'docs/images/logo/transparent.svg':
-            return self.url('assets/logo.svg') + suffix
-        # Detailed source and the research archive remain on GitHub.
-        return self.source(name) + suffix
-
-    def render_markdown(self, source, fragment=None):
-        md = MarkdownIt('commonmark').enable(['table', 'strikethrough'])
+    def fragment(self, source, name):
         text = (self.root / source).read_text(encoding='utf-8-sig')
-        if fragment:
-            start, end = f'<!-- site:{fragment}:start -->', f'<!-- site:{fragment}:end -->'
-            if text.count(start) != 1 or text.count(end) != 1 or text.index(start) >= text.index(end):
-                raise ValueError(f'{source}: expected one ordered {fragment} fragment')
-            text = text.split(start)[1].split(end)[0].strip()
-            if not text:
-                raise ValueError(f'{source}: empty {fragment} fragment')
+        start, end = f'<!-- site:{name}:start -->', f'<!-- site:{name}:end -->'
+        if text.count(start) != 1 or text.count(end) != 1 or text.index(start) >= text.index(end):
+            raise ValueError(f'{source}: expected one ordered {name} fragment')
+        body = text.split(start)[1].split(end)[0].strip()
+        if not body:
+            raise ValueError(f'{source}: empty {name} fragment')
+        return body
+
+    def document(self, source):
+        text = (self.root / source).read_text(encoding='utf-8-sig')
         if source == 'docs/release-notes/README.md':
             marker = '<!-- site:release-index -->'
             if text.count(marker) != 1:
                 raise ValueError('Release index needs exactly one site:release-index marker')
-            entries = '\n'.join(f'- [{path.stem}]({path.name})' for path in self.release_notes)
-            text = text.replace(marker, entries or 'No version notes yet.')
-        tokens = md.parse(text)
-        # Markdown requires a closing line break; copying a command does not.
-        for token in tokens:
-            if token.type in ('fence', 'code_block'):
-                token.content = token.content.removesuffix('\n')
-        # Source fragments (release notes, sponsor text) need a page-level title.
-        if not any(t.type == 'heading_open' and t.tag == 'h1' for t in tokens):
-            if source.startswith('docs/release-notes/'):
-                title = PurePosixPath(source).stem + ' release notes'
-                tokens = md.parse('# ' + title + '\n\n') + tokens
-            else:
-                first = next((i for i, t in enumerate(tokens) if t.type == 'heading_open'), None)
-                if first is not None:
-                    tokens[first].tag = tokens[first + 2].tag = 'h1'
-        used, contents = set(), []
-        for i, token in enumerate(tokens):
-            if token.type != 'heading_open':
-                continue
-            label = str(Text(md.renderer.renderInline(tokens[i + 1].children, md.options, {})))
-            anchor, number = slug(label), 0
-            candidate = anchor
-            while candidate in used:
-                number += 1
-                candidate = anchor + '-' + str(number)
-            used.add(candidate)
-            token.attrSet('id', candidate)
-            if token.tag in ('h2', 'h3'):
-                contents.append(f'<li class="toc-{token.tag}"><a href="#{esc(candidate)}">{esc(label)}</a></li>')
-        body = md.renderer.render(tokens, md.options, {})
-        def tag(match):
-            return re.sub(r'(\b(?:href|src)=["\'])(.*?)(["\'])',
-                          lambda m: m[1] + esc(self.rewrite(source, m[2])) + m[3], match[0])
-        body = re.sub(r'<(?:a|img)\b[^>]*>', tag, body)
-        title_match = re.search(r'<h1\b[^>]*>(.*?)</h1>', body, re.S)
-        title = str(Text(title_match[1])) if title_match else PurePosixPath(source).stem
-        return title, body, '<ul>' + ''.join(contents) + '</ul>'
+            text = text.replace(marker, '\n'.join(f'- [{p.stem}]({p.name})' for p in self.release_notes))
+        tokens = MarkdownIt('commonmark').parse(text)
+        headings = [(i, t) for i, t in enumerate(tokens) if t.type == 'heading_open']
+        if source.startswith('docs/release-notes/') and source.endswith('.md') and PurePosixPath(source).name != 'README.md':
+            title = PurePosixPath(source).stem + ' release notes'
+        elif headings:
+            first = next(((i, t) for i, t in headings if t.tag == 'h1'), headings[0])
+            title = str(Text(MarkdownIt().renderer.renderInline(tokens[first[0] + 1].children, {}, {})))
+            # Title promotion changes staging only and retains its historical anchor.
+            if first[1].tag != 'h1':
+                lines = text.splitlines()
+                lines[first[1].map[0]] = '# ' + title
+                text = '\n'.join(lines)
+        else:
+            raise ValueError(f'{source}: document has no title')
+        return title, text
 
-    def page(self, path, title, body, toc='', source='', home=False, searchable=True):
-        nav = ''.join(f'<a href="{self.url(dest)}"' +
-                      (' aria-current="page"' if path == dest or (dest == 'catalog/' and path.startswith(dest)) else '') +
-                      f'>{esc(label)}</a>' for label, dest in NAV)
-        source_link = f'<a href="{self.source(source)}">View source</a>' if source else f'<a href="{REPO}">GitHub repository</a>'
-        section = 'Module reference' if path.startswith('catalog/') and path != 'catalog/' else 'Documentation'
-        crumb = '' if home else f'<div class="page-label"><a href="{self.url()}">YSoNet</a><span>/</span>{section}<span class="page-version">{esc(self.version)} / development</span></div>'
-        contents = f'<details class="contents" open><summary>On this page</summary>{toc}</details>' if '<li' in toc else ''
-        aside = f'<aside class="page-aside">{contents}</aside>' if contents and not home else ''
-        description = str(Text(body))[:170]
-        seo = (f'<link rel="canonical" href="{esc(self.site_url + path)}">' if searchable
-               else '<meta name="robots" content="noindex, follow">')
-        document = f'''<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{esc(title)} | YSoNet</title><meta name="description" content="{esc(description)}">
-{seo}<link rel="sitemap" type="application/xml" href="{self.url('sitemap.xml')}">
-<meta name="color-scheme" content="light dark"><script src="{self.url('assets/theme.js')}"></script>
-<link rel="icon" href="{self.url('assets/logo.svg')}" type="image/svg+xml">
-<link rel="stylesheet" href="{self.url('assets/site.css')}"><script defer src="{self.url('assets/site.js')}"></script></head>
-<body data-base="{self.base}"><a class="skip" href="#main">Skip to content</a>
-<header class="site-header"><div class="header-inner"><a class="brand" href="{self.url()}"><img src="{self.url('assets/logo.svg')}" width="38" height="28" alt=""><strong>YSoNet</strong><span>Documentation</span></a>
-<div class="header-tools"><a class="search-link" href="{self.url('search/')}">Search <kbd>/</kbd></a><button id="theme" type="button" hidden aria-label="Change color theme">Theme: system</button><a class="github-link" href="{REPO}">GitHub &#8599;</a></div><a class="follow-link" href="https://x.com/irsdl">Follow @irsdl on X</a></div></header>
-<div class="nav-wrap"><details class="navigation" open><summary>Navigate</summary><nav aria-label="Documentation">{nav}<a class="nav-download" href="{REPO}/releases/latest">Download &#8599;</a></nav></details></div>
-<main id="main" tabindex="-1" class="{'home' if home else 'article catalog-page' if path == 'catalog/' else 'article module-page' if path.startswith('catalog/') else 'article'}">{crumb}<div class="content-grid{' has-contents' if aside else ''}"><div class="page-content">{body}</div>{aside}</div></main>
-<footer class="site-footer"><div><strong>YSoNet</strong><span>Development docs &middot; {esc(self.version)}</span><span>Authorized security research</span></div><div class="footer-links"><a class="follow-link" href="https://x.com/irsdl">Follow @irsdl on X</a><a href="{self.url('logo/')}">About the logo</a><a href="{self.url('sponsors/')}">Sponsors</a><a href="{self.url('security/')}">Security guidance</a><a href="{self.url('sitemap.xml')}">Sitemap</a>{source_link}</div></footer></body></html>'''
-        target = self.output / (path + 'index.html' if not path.endswith('.html') else path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(document, encoding='utf-8')
-        if searchable:
-            self.search.append({'title': title, 'url': self.url(path), 'text': str(Text(body))})
+    def page(self, path, title, body, source='', searchable=True):
+        route = path.rstrip('/')
+        if route in self.pages:
+            raise ValueError('Route collision: ' + route)
+        # Generated metadata is escaped HTML; shared prose stays Markdown.
+        if not source or source.endswith('.cs') or route.startswith('catalog'):
+            body = re.sub(r'<h1(?:\s[^>]*)?>.*?</h1>', '', body, flags=re.S)
+        if route.startswith('releases/'):
+            body = '<span id="' + esc(slug(title)) + '"></span>\n\n' + body
+        data = {'title': title, 'slug': route, 'editUrl': False,
+                'pagefind': searchable, 'lastUpdated': False, 'generated': route.startswith('catalog')}
+        if source:
+            data.update(source=source, sourceUrl=self.source(source),
+                        editUrl=REPO + '/edit/master/' + quote(source, safe='/'))
+        self.pages[route] = (data, body)
 
     def home(self):
-        modules = [(kind[:-1], module) for kind in ('gadgets', 'plugins') for module in self.catalog[kind]]
-        selected = [(kind, module) for kind, module in modules
-                    if module['name'] in ('ObjectDataProvider', 'TypeConfuseDelegate', 'ViewState', 'SharePoint')]
-        selected = selected or modules[:4]
-        rows = ''.join(f'<a class="index-row" href="{self.url("catalog/" + kind + "/" + module["name"].lower() + "/")}"><span class="row-kind">{kind}</span><strong>{esc(module["name"])}</strong><span aria-hidden="true">&#8599;</span></a>' for kind, module in selected)
-        _, support, _ = self.render_markdown('docs/sponsors.md', fragment='support')
-        _, install, _ = self.render_markdown('docs/getting-started.md', fragment='install')
-        install = install.replace('<ol>', '<ol class="setup-steps">').replace('<p>', '<p class="requirements">', 1)
-        self.page('', '.NET deserialization toolkit', f'''
-<section class="masthead"><div><p class="eyebrow">.NET deserialization toolkit</p><h1>YSoNet</h1><a class="text-link" href="{self.url('logo/')}">About the logo &#8594;</a></div>
-<div class="masthead-note"><p>Payload generation for .NET deserialization research.</p><p class="masthead-description">Configure interactively or use the command line.</p><div class="masthead-actions"><a class="text-link" href="{REPO}/releases/latest">Download release &#8599;</a><a class="text-link" href="{self.url('moving-from-ysoserial-net/')}">Migration guide &#8594;</a></div></div></section>
-<div class="edition-line"><span>Development documentation / {esc(self.version)}</span></div>
-<div class="home-workspace"><section class="catalog-intro"><div class="section-caption"><span>Reference</span><span>{len(self.catalog['gadgets'])} gadgets / {len(self.catalog['plugins'])} plugins</span></div>
-<h2>Gadgets &amp; plugins</h2><p>Search by module, formatter, or keyword. Then check the target requirements.</p>
-<a class="catalog-entry" href="{self.url('catalog/')}"><span>Browse the catalog</span><span aria-hidden="true">&#8594;</span></a>
-<div class="catalog-sample" aria-label="Selected catalog entries">{rows}</div>
-<p class="caption">Catalog entries describe declarations. They are not runtime test results.</p>
-</section><section class="start-column"><div class="section-caption">First run</div><h2>Install &amp; run</h2>{install}<a class="text-link" href="{self.url('getting-started/')}">Full installation guide &#8594;</a></section></div>
-<section class="reading-list"><div class="section-caption">Before relying on a result</div><a href="{self.url('runtime-evidence/')}"><h2>Read the runtime evidence</h2><p>Observed effects, skipped checks, and environment limits.</p><span aria-hidden="true">&#8599;</span></a><a href="{self.url('release-verification/')}"><h2>Verify your download</h2><p>Checksums, source provenance, and release attestations.</p><span aria-hidden="true">&#8599;</span></a></section>
-<section class="support-section" aria-labelledby="support-title"><h2 id="support-title">Support YSoNet</h2>{support}<a class="text-link" href="{self.url('credits/#sponsors')}">Thank you to our sponsors &#8594;</a></section>''', home=True)
+        install = self.fragment('docs/getting-started.md', 'install')
+        support = self.fragment('docs/sponsors.md', 'support')
+        self.page('', 'YSoNet', f""".NET deserialization research. Configure interactively or use the command line.
+
+Development documentation / **{self.version}**
+
+[Download the latest published release]({REPO}/releases/latest) | [About the logo]({self.url('logo/')})
+
+## Find a module
+
+[Browse {len(self.catalog['gadgets'])} gadgets and {len(self.catalog['plugins'])} plugins]({self.url('catalog/')}).
+Filter by name, formatter or keyword, then check the target requirements.
+Catalog entries describe declarations, not runtime test results.
+
+## Install and run
+
+{install}
+
+[Full installation guide]({self.url('getting-started/')}) | [Moving from ysoserial.net]({self.url('moving-from-ysoserial-net/')})
+
+## Before relying on a result
+
+- [Read the runtime evidence and limitations]({self.url('runtime-evidence/')}).
+- [Verify your download]({self.url('release-verification/')}).
+
+<span id="support-title"></span>
+
+## Support YSoNet
+
+{support}
+
+[Thank you to our sponsors]({self.url('credits/#sponsors')})
+""")
 
     def module_source(self, module):
         symbols = [ref['reference'].rsplit('.', 1)[-1] for ref in module.get('evidence', {}).get('references', [])
@@ -249,11 +198,13 @@ class Site:
             return 'docs/json-catalog.md'
         if not hasattr(self, 'source_paths'):
             self.source_paths = {}
-            for folder in ('ysonet/Generators', 'ysonet/Generators/Patched',
-                           'ysonet/Generators/HostedPayloads', 'ysonet/Plugins'):
-                for source in (self.root / folder).glob('*.cs'):
-                    for symbol in re.findall(r'\bclass\s+(\w+)', source.read_text(encoding='utf-8-sig')):
-                        self.source_paths.setdefault(symbol, []).append(source.relative_to(self.root).as_posix())
+            tracked = subprocess.run(['git', 'ls-files', '-z', 'ysonet/Generators', 'ysonet/Plugins'],
+                                     cwd=ROOT, check=True, capture_output=True).stdout.decode().split('\0')
+            for name in tracked:
+                if not name.endswith('.cs') or 'private' in [part.lower() for part in PurePosixPath(name).parts]:
+                    continue
+                for symbol in re.findall(r'\bclass\s+(\w+)', (self.root / name).read_text(encoding='utf-8-sig')):
+                    self.source_paths.setdefault(symbol, []).append(name)
         matches = [path for symbol in symbols for path in self.source_paths.get(symbol, [])]
         if len(matches) != 1:
             raise ValueError(f'Expected one public source file for {module["name"]}: {matches}')
@@ -272,8 +223,8 @@ class Site:
                 description = module['description']
                 search = ' '.join([name, description, singular, *formats])
                 cards.append(f'<a class="module-card" data-kind="{singular}" data-formatters="{esc(json.dumps(formats))}" data-search="{esc(search.lower())}" href="{self.url(path)}"><span class="eyebrow">{singular}</span><h2>{esc(name)}</h2><p>{esc(description)}</p><span class="module-formats">{esc(", ".join(formats) or "Formatter metadata not declared")}</span></a>')
-                option_rows = ''.join(f'<tr><td><code>{esc(o["prototype"])}</code></td><td>{esc(o["description"])}</td></tr>' for o in module['options'])
-                options = f'<details><summary>Options ({len(module["options"])})</summary><div class="table-scroll"><table><thead><tr><th>Option</th><th>Help</th></tr></thead><tbody>{option_rows}</tbody></table></div></details>' if option_rows else '<p>No module-specific options declared.</p>'
+                option_rows = ''.join(f'<tr><td><code>{esc(o["prototype"])}</code></td><td>{esc(o["description"])}</td><td>{esc(o.get("defaultValue") if o.get("defaultValue") is not None else "Not declared")}</td><td>{esc(str(o.get("required")).lower() if o.get("required") is not None else "Not declared")}</td></tr>' for o in module['options'])
+                options = f'<details><summary>Options ({len(module["options"])})</summary><div class="table-scroll"><table><thead><tr><th>Option</th><th>Help</th><th>Default</th><th>Required</th></tr></thead><tbody>{option_rows}</tbody></table></div></details>' if option_rows else '<p>No module-specific options declared.</p>'
                 capabilities = module.get('targetCapabilities')
                 if capabilities is not None:
                     rows = ''.join('<tr>' + ''.join(f'<td>{esc(", ".join(row.get(field, [])) if field != "variant" else (row[field] if row[field] is not None else "Default"))}</td>' for field in ('variant', 'formatters', 'inputs', 'requirements', 'runtimeVersions')) + '</tr>' for row in capabilities)
@@ -281,11 +232,11 @@ class Site:
                 else:
                     requirements = '<h2 id="requirements">Target declarations</h2><p>Runtime tokens: ' + esc(', '.join(module.get('targetRuntimeVersions') or []) or 'Not declared') + '.</p><p>Structured formatter and requirement metadata is not declared. Read the description and option help for conditions.</p>'
                 variants = module.get('variants') or []
-                variant_body = '<details><summary>Variants</summary><ul>' + ''.join(f'<li><strong>{v["number"]}</strong>: {esc(v["label"])}' + (' (default)' if v['isDefault'] else '') + '</li>' for v in variants) + '</ul></details>' if variants else ''
+                variant_body = '<details><summary>Variants</summary><ul>' + ''.join(f'<li><strong>{esc(v["number"])}</strong>: {esc(v["label"])}' + (' (default)' if v['isDefault'] else '') + '</li>' for v in variants) + '</ul></details>' if variants else ''
                 modes = module.get('modes') or []
                 mode_body = '<details><summary>Mode declarations</summary><pre><code>' + esc(json.dumps(modes, indent=2)) + '</code></pre></details>' if modes else ''
                 self.page(path, name, f'<p class="eyebrow">{singular}</p><h1>{esc(name)}</h1><p class="module-description">{esc(description)}</p><p class="notice">Declared metadata, not a runtime result. <a href="{self.url("runtime-evidence/")}">How to read evidence</a>.</p>' +
-                          f'<pre><code>.\\ysonet.exe -{"g" if singular == "gadget" else "p"} {esc(name)} -h</code></pre>' + requirements + variant_body + options + mode_body +
+                          f'\n\n```powershell\n.\\ysonet.exe -{"g" if singular == "gadget" else "p"} {name} -h\n```\n\n' + requirements + variant_body + options + mode_body +
                           f'<p class="quiet">Credit: {esc(module.get("credit") or "See source")}</p><p><a href="{self.url("catalog/")}">All modules</a> &middot; <a href="{self.url("catalog/catalog.json")}">Full catalog JSON</a></p>',
                           source=self.module_source(module))
         formatter_options = ''.join(f'<option>{esc(f)}</option>' for f in sorted(formatters))
@@ -295,62 +246,162 @@ class Site:
 <p id="catalog-count" role="status">{len(cards)} modules</p><noscript><p>Use your browser's Find command to search this list.</p></noscript><div class="module-grid">{''.join(cards)}</div><p id="catalog-empty" hidden>No matching modules. Try another keyword or clear the filters.</p>'''
         self.page('catalog/', 'Module catalog', body)
 
-    def write_sitemap(self):
-        ET.register_namespace('', SITEMAP_NS)
-        root = ET.Element(f'{{{SITEMAP_NS}}}urlset')
-        for page in self.search:
-            entry = ET.SubElement(root, f'{{{SITEMAP_NS}}}url')
-            ET.SubElement(entry, f'{{{SITEMAP_NS}}}loc').text = self.site_url + page['url'][len(self.base):]
-        ET.indent(root)
-        ET.ElementTree(root).write(self.output / 'sitemap.xml', encoding='utf-8', xml_declaration=True)
-        # Crawlers consult robots.txt only at the host root, never a project subpath.
+    def prepare(self):
+        self.pages = {}
+        self.home()
+        for source, route in self.documents.items():
+            self.page(route + '/', *self.document(source), source=source)
+        self.modules()
+        self.page('search/', 'Search the docs', '<p>Guides, options, and module declarations.</p><form id="search-form" role="search"><label for="search-query">Search terms</label><input id="search-query" name="q" type="search" autocomplete="off"><button type="submit">Search</button></form><p id="search-status" role="status"></p><ol id="search-results"></ol><noscript><p>Search needs JavaScript. Browse <a href="' + self.url('guides/') + '">all guides</a> or the <a href="' + self.url('catalog/') + '">module catalog</a>.</p></noscript>', searchable=False)
+        self.page('404', 'Page not found', f'<p>This link may have moved. <a href="{self.url("search/")}">Search the docs</a> or <a href="{self.url()}">return to the overview</a>.</p>', searchable=False)
+        public_files = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, check=True, capture_output=True).stdout.decode().split('\0')
+        # Refuse route/static collisions before touching any generated directory.
+        files = {('index.html' if not r else '404.html' if r == '404' else r + '/index.html') for r in self.pages}
+        static = {*ASSETS.values(), 'catalog/catalog.json', 'sitemap.xml', 'robots.txt', 'revision.json'}
+        if len(files) != len(self.pages) or files & static:
+            raise ValueError('Page/static route collision')
+        for name in files | static:
+            if not re.fullmatch(r'[A-Za-z0-9_.\-/]+', name) or '..' in PurePosixPath(name).parts or name.startswith('/'):
+                raise ValueError('Invalid generated route: ' + name)
+            if any(name.startswith(other + '/') for other in files | static if other != name):
+                raise ValueError('File/directory route collision: ' + name)
+        sidebar = []
+        for label, group in GROUPS.items():
+            items = [route for source, route in group.items() if source in self.documents]
+            if label == 'Catalog and evidence': items.insert(0, 'catalog')
+            sidebar.append({'label': label, 'items': items})
+        manifest = {'documents': self.documents, 'assets': ASSETS, 'publicFiles': public_files,
+                    'base': self.base, 'siteUrl': self.site_url, 'sourceRef': self.source_ref,
+                    'repository': REPO, 'version': self.version, 'sidebar': sidebar,
+                    'pages': [dict(data, route=route) for route, (data, _) in self.pages.items()]}
+        subprocess.run([os.environ.get('SITE_NODE', 'node'), str(HERE / 'validate-content.mjs')],
+                       input=json.dumps({'manifest': manifest, 'pages': list(self.pages.values())}).encode(),
+                       check=True, cwd=HERE)
+        staged = {}
+        for route, (data, body) in self.pages.items():
+            staged[(route or 'index') + '.md'] = '---\n' + '\n'.join(key + ': ' + json.dumps(value, ensure_ascii=True) for key, value in data.items()) + '\n---\n\n' + body + '\n'
+        assets = {target: (self.root / source).read_bytes() for source, target in ASSETS.items()}
+        assets['catalog/catalog.json'] = json.dumps(self.catalog, ensure_ascii=True).encode()
+        assets['revision.json'] = json.dumps({'sourceRef': self.source_ref, 'version': self.version}).encode()
+        assets['.nojekyll'] = b''
         if self.base == '/' and urlsplit(self.site_url).path == '/':
-            (self.output / 'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: ' + self.site_url + 'sitemap.xml\n', encoding='utf-8')
+            assets['robots.txt'] = ('User-agent: *\nAllow: /\nSitemap: ' + self.site_url + 'sitemap.xml\n').encode()
+        # All source reads and catalog validation precede generated-directory replacement.
+        for folder in (HERE / 'src/content/docs', HERE / 'public', HERE / 'generated'):
+            owned(folder, (HERE / 'src/content/docs', HERE / 'public', HERE / 'generated'))
+        replace_generated(HERE / 'src/content/docs', staged)
+        replace_generated(HERE / 'public', assets)
+        replace_generated(HERE / 'generated', {'manifest.json': json.dumps(manifest, indent=2)})
+        return manifest
 
     def build(self):
-        # Rebuild only a site-owned output directory, never an arbitrary populated folder.
-        marker = self.output / '.ysonet-site'
-        if self.output.exists() and any(self.output.iterdir()):
-            if not marker.is_file():
-                raise ValueError('Output must be empty or contain the .ysonet-site build marker.')
-            shutil.rmtree(self.output)
-        self.output.mkdir(parents=True, exist_ok=True)
-        marker.write_text('Generated documentation\n', encoding='utf-8')
-        shutil.copytree(HERE / 'assets', self.output / 'assets')
-        shutil.copyfile(self.root / 'docs/images/logo/transparent.svg', self.output / 'assets/logo.svg')
-        self.home()
-        for source, path in self.documents.items():
-            title, body, toc = self.render_markdown(source)
-            self.page(path + '/', title, body, toc, source)
-        self.modules()
-        self.page('search/', 'Search', '<h1>Search the docs</h1><p class="lead">Guides, options, and module declarations.</p><form id="search-form" role="search"><label for="search-query">Search terms</label><div class="search-row"><input id="search-query" name="q" type="search" placeholder="Try installation, ViewState, or runtime" autocomplete="off"><button class="button primary" type="submit">Search</button></div></form><p id="search-status" role="status"></p><ol id="search-results"></ol><noscript><p>Search needs JavaScript. Browse <a href="' + self.url('guides/') + '">all guides</a> or the <a href="' + self.url('catalog/') + '">module catalog</a>.</p></noscript>', searchable=False)
-        self.page('404.html', 'Page not found', f'<h1>Page not found</h1><p>This link may have moved. <a href="{self.url("search/")}">Search the docs</a> or <a href="{self.url()}">return to the overview</a>.</p>', searchable=False)
-        (self.output / 'search-index.json').write_text(json.dumps(self.search, ensure_ascii=True), encoding='utf-8')
-        (self.output / 'catalog/catalog.json').write_text(json.dumps(self.catalog, ensure_ascii=True), encoding='utf-8')
-        shutil.copyfile(self.root / 'docs/schemas/catalog-v1.schema.json', self.output / 'catalog/schema.json')
-        self.write_sitemap()
-        (self.output / '.nojekyll').touch()
-        print(f'Built {len(self.search) + 2} pages for {self.version} at {self.base}')
+        # Inspect the requested path before resolving away a symlink or junction.
+        output = self.output.absolute()
+        # Outputs must stay in a designated build area, including test-owned temp dirs.
+        allowed = (ROOT / 'dist', ROOT / 'temp')
+        owned(output, allowed)
+        self.prepare()
+        candidate = output.with_name(output.name + '-building')
+        owned(candidate, allowed)
+        replace_generated(candidate, {})
+        node = os.environ.get('SITE_NODE', 'node')
+        astro_package = HERE / 'node_modules/astro'
+        cli = json.loads((astro_package / 'package.json').read_text(encoding='utf-8'))['bin']['astro']
+        subprocess.run([node, str(astro_package / cli), 'build',
+                        '--outDir', str(candidate)], cwd=HERE, check=True,
+                       env={**os.environ, 'ASTRO_TELEMETRY_DISABLED': '1'})
+        # Starlight renders a content 404 as /404/. Pages requires /404.html.
+        error = candidate / '404/index.html'
+        error.replace(candidate / '404.html')
+        error.parent.rmdir()
+        write_sitemap(candidate)
+        # Starlight's automatic sitemap has no knowledge of our noindex pages.
+        # Publish only the checked sitemap derived from the rendered canonicals.
+        for extra in candidate.glob('sitemap-*.xml'):
+            extra.unlink()
+        from check import check, check_seo
+        errors = check(candidate, self.base)[2] + check_seo(candidate)
+        if errors:
+            raise ValueError('Output validation failed:\n' + '\n'.join(errors))
+        (candidate / MARKER).write_text('Generated documentation\n', encoding='utf-8')
+        # Keep the previous valid artifact until the complete candidate passes checks.
+        backup = output.with_name(output.name + '-previous')
+        owned(backup, allowed)
+        if backup.exists(): shutil.rmtree(backup)
+        if output.exists(): output.rename(backup)
+        try:
+            candidate.rename(output)
+        except OSError:
+            if backup.exists(): backup.rename(output)
+            raise
+        if backup.exists(): shutil.rmtree(backup)
+        print(f'Built {len(self.pages)} Starlight pages for {self.version} at {self.base}')
+
+
+def owned(path, allowed):
+    # Reject symlinks and Windows junctions anywhere below the repository root.
+    for ancestor in (path, *path.parents):
+        if ancestor == ROOT: break
+        if ancestor.is_symlink() or (hasattr(ancestor, 'is_junction') and ancestor.is_junction()):
+            raise ValueError('Refusing cleanup through a linked directory: ' + str(path))
+    resolved = path.resolve()
+    if path.is_symlink() or not any(resolved != root.resolve() and resolved.is_relative_to(root.resolve()) for root in allowed):
+        # Staging directories themselves are exact designated roots.
+        if path not in (HERE / 'src/content/docs', HERE / 'public', HERE / 'generated') or path.is_symlink():
+            raise ValueError('Refusing cleanup outside generated directories: ' + str(path))
+    if path.exists() and any(path.iterdir()) and not (path / MARKER).is_file():
+        raise ValueError('Output must be empty or contain the .ysonet-site build marker.')
+
+
+def replace_generated(folder, files):
+    if folder.exists(): shutil.rmtree(folder)
+    folder.mkdir(parents=True)
+    (folder / MARKER).write_text('Generated documentation\n', encoding='utf-8')
+    for name, value in files.items():
+        target = folder / name
+        if not target.resolve().is_relative_to(folder.resolve()):
+            raise ValueError('Generated path escapes its directory')
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(value if isinstance(value, bytes) else value.encode('utf-8'))
+
+
+def write_sitemap(output):
+    from check import Page
+    ET.register_namespace('', SITEMAP_NS)
+    root = ET.Element(f'{{{SITEMAP_NS}}}urlset')
+    for path in sorted(output.rglob('*.html')):
+        page = Page(path.read_text(encoding='utf-8'))
+        if not page.noindex:
+            for canonical in page.canonicals:
+                entry = ET.SubElement(root, f'{{{SITEMAP_NS}}}url')
+                ET.SubElement(entry, f'{{{SITEMAP_NS}}}loc').text = canonical
+    ET.indent(root)
+    ET.ElementTree(root).write(output / 'sitemap.xml', encoding='utf-8', xml_declaration=True)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     inputs = parser.add_mutually_exclusive_group(required=True)
-    inputs.add_argument('--executable', type=Path, help='Freshly built CLI; exports public metadata without generating payloads')
-    inputs.add_argument('--catalog', type=Path, help='Offline UTF-8 public --list catalog export from this checkout')
+    inputs.add_argument('--executable', type=Path, help='Fresh public CLI; metadata export only')
+    inputs.add_argument('--catalog', type=Path, help='Offline public export; caller must verify checkout provenance')
     parser.add_argument('--output', type=Path, default=ROOT / 'dist/site')
     parser.add_argument('--base-path', default='/')
-    parser.add_argument('--source-ref', default='master')
-    parser.add_argument('--site-url', default=SITE_URL, help='Public HTTPS site URL, including its trailing slash')
+    parser.add_argument('--source-ref', help='Actual checked-out full SHA (verified against git HEAD)')
+    parser.add_argument('--site-url', default=SITE_URL)
+    parser.add_argument('--prepare-only', action='store_true')
     args = parser.parse_args()
     try:
+        revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
+        if args.source_ref and args.source_ref != revision:
+            raise ValueError('Source ref differs from the actual checkout')
         if args.executable:
-            result = subprocess.run([str(args.executable.resolve()), '--list', 'catalog'],
-                                    check=True, capture_output=True, timeout=60)
+            result = subprocess.run([str(args.executable.resolve()), '--list', 'catalog'], check=True, capture_output=True, timeout=60)
             catalog = json.loads(result.stdout.decode('utf-8-sig'))
         else:
             catalog = json.loads(args.catalog.read_text(encoding='utf-8-sig'))
-        Site(args.output, catalog, args.base_path, args.source_ref, site_url=args.site_url).build()
+            print(f'Offline catalog: {args.catalog.name}; caller-provided provenance for {revision}. VERSION equality does not prove freshness.')
+        site = Site(args.output, catalog, args.base_path, revision, site_url=args.site_url)
+        site.prepare() if args.prepare_only else site.build()
     except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
         parser.exit(1, f'Site build failed: {error}\n')
 
