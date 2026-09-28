@@ -33,7 +33,7 @@ DOCUMENTS = {
     'tools/completions/README.md': 'completion',
 }
 NAV = [('Start', 'getting-started/'), ('Guides', 'guides/'),
-       ('Catalog', 'catalog/'), ('Evidence', 'runtime-evidence/'), ('Releases', 'releases/')]
+       ('Catalog', 'catalog/'), ('Evidence', 'runtime-evidence/'), ('Releases', 'releases/'), ('About the logo', 'logo/')]
 
 
 
@@ -230,7 +230,7 @@ class Site:
         _, install, _ = self.render_markdown('docs/getting-started.md', fragment='install')
         install = install.replace('<ol>', '<ol class="setup-steps">').replace('<p>', '<p class="requirements">', 1)
         self.page('', '.NET deserialization toolkit', f'''
-<section class="masthead"><div><p class="eyebrow">.NET deserialization toolkit</p><h1>YSoNet</h1></div>
+<section class="masthead"><div><p class="eyebrow">.NET deserialization toolkit</p><h1>YSoNet</h1><a class="text-link" href="{self.url('logo/')}">About the logo &#8594;</a></div>
 <div class="masthead-note"><p>Payload generation for .NET deserialization research.</p><p class="masthead-description">Configure interactively or use the command line.</p><div class="masthead-actions"><a class="text-link" href="{REPO}/releases/latest">Download release &#8599;</a><a class="text-link" href="{self.url('moving-from-ysoserial-net/')}">Migration guide &#8594;</a></div></div></section>
 <div class="edition-line"><span>Development documentation / {esc(self.version)}</span></div>
 <div class="home-workspace"><section class="catalog-intro"><div class="section-caption"><span>Reference</span><span>{len(self.catalog['gadgets'])} gadgets / {len(self.catalog['plugins'])} plugins</span></div>

@@ -7,7 +7,8 @@ generates, so every release opens with this text.
 
 It carries NO names on purpose. A sponsor is credited in the note for the release their
 support paid for (the "## New sponsors" section of that version's file under
-docs/release-notes/), and the permanent list lives in docs/credits.md. A name therefore
+docs/release-notes/), and the permanent list lives in docs/credits.md, grouped by monthly or one-time
+support rather than release version. A name therefore
 appears where it was earned instead of riding along on every future release.
 
 Two rules when editing:
@@ -23,12 +24,16 @@ Two rules when editing:
 If YSoNet helps your work, please consider sponsoring the project. Your support
 helps cover ongoing maintenance and AI-assisted security research.
 
+One-time donations and monthly sponsorships are both welcome. If your company
+uses or benefits from YSoNet, please consider a monthly sponsorship to help
+sustain this work.
+
 [Sponsor YSoNet on GitHub](https://github.com/sponsors/irsdl). Every contribution
 is appreciated. Thank you for supporting the project.
 <!-- site:support:end -->
 
-Thank you to the people funding this work, named in
-[Credits](https://github.com/irsdl/ysonet/blob/master/docs/credits.md#sponsors) and in the
-release note for the release their support paid for.
+Thank you to our supporters, acknowledged in
+[Credits](https://github.com/irsdl/ysonet/blob/master/docs/credits.md#sponsors).
+The credits distinguish monthly sponsors from one-time donors.
 
 ---

@@ -31,7 +31,6 @@ pages, and light or dark themes. These Markdown files remain the source.
 ## Research and project background
 
 - [About the logo](logo.md): the objects, portals, and deserialization behavior.
-
 - [References](references.md) and [.NET deserialization research](dotnet-deserialization-research.md): reading lists.
 - [Reference archive](archived-references/README.md): English Markdown/PDF reading
   copies under `md/` and `pdf/`, each divided into `research/` and `records/`.

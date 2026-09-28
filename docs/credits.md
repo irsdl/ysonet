@@ -20,19 +20,30 @@ Special thanks to all contributors:
 
 Various other people have also donated their time and contributed to this project. See the [contributors graph](https://github.com/irsdl/ysonet/graphs/contributors).
 
-The project is also funded by its [sponsors](sponsors.md), who are thanked at the top of every release note. The people credited so far are listed under [Sponsors](#sponsors) below.
+Thank you to the [sponsors](#sponsors) whose donations support YSoNet maintenance
+and AI-assisted security research.
 
 ## Sponsors
 
-Sponsorship pays for the time that goes into YSoNet. Each sponsor is listed under the
-release their support paid for, and is thanked in that release's note.
+Thank you to everyone who supports the project. Both one-time donations and monthly
+sponsorships help fund maintenance and AI-assisted security research.
 
-### v2026.8.1
+### Monthly sponsors
+
+YSoNet has no monthly sponsors yet. If you or your company benefits from the
+project, please consider becoming a monthly sponsor to support its ongoing work.
+
+[Become a monthly sponsor](https://github.com/sponsors/irsdl).
+
+### One-time sponsors
+
+Thank you for your one-time donations:
 
 - [@cjm00n](https://github.com/cjm00n)
 - [@sinsinology](https://github.com/sinsinology)
 
-To support the project, see [GitHub Sponsors](https://github.com/sponsors/irsdl).
+[Make a one-time donation](https://github.com/sponsors/irsdl). Every contribution
+is appreciated.
 
 ## Gadget and plugin credits
 

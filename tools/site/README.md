@@ -14,8 +14,9 @@ explain something more clearly than a short paragraph.
 |---|---|---|
 | Version | Root `VERSION`, with maintainer approval | Version labels and catalog validation |
 | Guides | Existing source Markdown in the publication list | Reading pages and search |
-| Logo explanation | [About the logo](../../docs/logo.md) | Logo page, linked from the footer and guides |
+| Logo explanation | [About the logo](../../docs/logo.md) | Logo page, linked from the homepage introduction, navigation, footer, and guides |
 | Homepage installation | `site:install` section in [Getting Started](../../docs/getting-started.md) | Shared setup steps |
+| Sponsor acknowledgements | [Credits](../../docs/credits.md#sponsors), grouped by monthly and one-time support | Credits page; release history stays in release notes |
 | Sponsorship appeal | `site:support` section in [Sponsors](../../docs/sponsors.md) | Homepage appeal, Sponsors page, and release preamble |
 | Module facts and counts | Public CLI metadata in code | Catalog pages, filters, and counts |
 | Release notes | `docs/release-notes/<VERSION>.md` | Version pages and a numerically sorted index |
