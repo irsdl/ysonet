@@ -45,6 +45,13 @@ The same validator assembles the body before publication:
 python tools/docs/check_docs.py release (Get-Content VERSION -Raw).Trim() --output temp/release-body.md
 ```
 
+Publication also supplies `--verification dist/release-verification.md`, generated
+by the release evidence packager after packaged FULL succeeds. It prepends the
+program download, measured test summary and collapsible verification instructions.
+Pass the same fragment to `--published` so read-back checks cover it as well as
+the complete sponsor and upgrade notes. Structural note validation alone never
+generates a passing test claim.
+
 After publishing, `--published <downloaded-body.md>` verifies that the complete
 validated sponsor and upgrade text survived, allowing only line-ending and trailing
 whitespace normalization and GitHub's additional generated notes. The tests exercise

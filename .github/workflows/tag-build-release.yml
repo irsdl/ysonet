@@ -265,6 +265,32 @@ jobs:
           ATTESTATION_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: Copy-Item -LiteralPath $env:ATTESTATION_BUNDLE -Destination dist/provenance-attestation.jsonl
 
+      - name: Bundle verification evidence
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.v.outputs.value }}
+        run: |
+          python tools/ci/release_evidence.py bundle --archive "dist/ysonet-$env:RELEASE_VERSION.zip" --summary temp/ci-reports/test-results.md --attestation dist/provenance-attestation.jsonl
+          if ($LASTEXITCODE -ne 0) { throw "Could not package the signed verification evidence." }
+          python tools/ci/release_evidence.py verify dist
+          if ($LASTEXITCODE -ne 0) { throw "Final release ZIP checksums failed." }
+
+      - name: Attest final release ZIPs
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2 (2026-08-04)
+        with:
+          subject-checksums: dist/SHA256SUMS
+
+      - name: Verify final build attestations
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.v.outputs.value }}
+        run: |
+          foreach ($name in @("ysonet-$env:RELEASE_VERSION.zip", "ysonet-$env:RELEASE_VERSION-verification.zip")) {
+            gh attestation verify "dist/$name" --repo "${{ github.repository }}" --signer-workflow "${{ github.repository }}/.github/workflows/tag-build-release.yml"
+            if ($LASTEXITCODE -ne 0) { throw "Build attestation verification failed for $name." }
+          }
+
       # Tag on a VERSION-change push, or on manual dispatch when asked and the tag is new.
       - name: Create annotated tag
         if: ${{ success() && steps.tagcheck.outputs.exists == 'false' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_tag == true)) }}
@@ -281,7 +307,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.v.outputs.value }}
         run: |
-          python tools/docs/check_docs.py release $env:RELEASE_VERSION --output dist/release-body.md
+          python tools/docs/check_docs.py release $env:RELEASE_VERSION --verification dist/release-verification.md --output dist/release-body.md
           if ($LASTEXITCODE -ne 0) { throw "Could not assemble the required release body." }
 
       - name: Publish GitHub Release
@@ -290,8 +316,11 @@ jobs:
           tag:  ${{ steps.v.outputs.tag }}
           name: "YSoNet ${{ steps.v.outputs.value }}"
           generateReleaseNotes: true
+          immutableCreate: true
+          artifactErrorsFailBuild: true
+          replacesArtifacts: false
           bodyFile: dist/release-body.md
-          artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip,dist/SHA256SUMS,dist/build-provenance.json,dist/component-inventory.json,dist/runtime-evidence.json,dist/runtime-evidence.csv,dist/runtime-evidence.html,dist/provenance-attestation.jsonl,temp/ci-reports/test-results.md"
+          artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip,dist/ysonet-${{ steps.v.outputs.value }}-verification.zip,dist/SHA256SUMS"
 
       # Read back the complete authored body, including optional new-sponsor credits.
       - name: Verify published sponsors and upgrade notes
@@ -304,5 +333,27 @@ jobs:
           $body = (gh api "repos/${{ github.repository }}/releases/tags/$env:RELEASE_TAG" --jq ".body") -join "`n"
           if ($LASTEXITCODE -ne 0) { throw "Could not read the published release." }
           Set-Content -Path dist/published-body.md -Value $body -Encoding utf8
-          python tools/docs/check_docs.py release $env:RELEASE_VERSION --published dist/published-body.md
+          python tools/docs/check_docs.py release $env:RELEASE_VERSION --verification dist/release-verification.md --published dist/published-body.md
           if ($LASTEXITCODE -ne 0) { throw "Published release omitted or changed the required notes." }
+
+      - name: Verify published assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.v.outputs.value }}
+          RELEASE_TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          $expected = @("ysonet-$env:RELEASE_VERSION.zip", "ysonet-$env:RELEASE_VERSION-verification.zip", 'SHA256SUMS')
+          $release = gh api "repos/${{ github.repository }}/releases/tags/$env:RELEASE_TAG" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "Could not read published assets." }
+          if ($release.draft -or (Compare-Object ($expected | Sort-Object) ($release.assets.name | Sort-Object))) { throw "Published release does not contain exactly the expected three assets." }
+          gh release download $env:RELEASE_TAG --repo "${{ github.repository }}" --dir dist/published
+          if ($LASTEXITCODE -ne 0) { throw "Could not download the published assets." }
+          if ((Get-FileHash dist/SHA256SUMS).Hash -cne (Get-FileHash dist/published/SHA256SUMS).Hash) { throw "Published checksum list differs from the verified build." }
+          python tools/ci/release_evidence.py verify dist/published
+          if ($LASTEXITCODE -ne 0) { throw "Published asset checksums failed." }
+          foreach ($name in $expected) {
+            if ($name -eq 'SHA256SUMS') { continue }
+            gh attestation verify "dist/published/$name" --repo "${{ github.repository }}" --signer-workflow "${{ github.repository }}/.github/workflows/tag-build-release.yml"
+            if ($LASTEXITCODE -ne 0) { throw "Published build attestation failed for $name." }
+          }

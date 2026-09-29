@@ -2161,8 +2161,10 @@ unverified. `RuntimeEvidenceTests.cs` checks phase isolation and passive reporti
 checkout identity (`source_identity.py`). `runtime_evidence.py` validates and renders
 JSON, CSV and standalone searchable HTML. `release_evidence.py` rejects stale reports,
 creates provenance and component inventories from the archive and dependency pins,
-and writes/verifies `SHA256SUMS`. The publishing workflow signs those explicit subjects
-with GitHub Actions attestations before publication. See
+and writes/verifies `SHA256SUMS`. The publishing workflow signs those explicit subjects,
+groups the reports and original attestation into a verification ZIP, then signs both
+final ZIPs. It publishes the unchanged program ZIP, verification ZIP and checksum list
+through a draft, and reads back and verifies the published assets. See
 [release verification](release-verification.md) and [runtime evidence](runtime-evidence.md).
 
 ## Documentation website

@@ -1,7 +1,9 @@
 # Runtime evidence for a release
 
-Download `runtime-evidence.html` from the same [release](https://github.com/irsdl/ysonet/releases)
-as your ZIP, then open it in a browser. It works offline. Search by module or formatter
+Download `ysonet-<version>-verification.zip` from the same
+[release](https://github.com/irsdl/ysonet/releases) as your program ZIP, extract it,
+then open `runtime-evidence.html` in a browser. Older releases offer these files as
+separate assets. The report works offline. Search by module or formatter
 and filter the generation, deserialization, or expected-effect column. JSON and CSV
 versions are available alongside it for scripts and spreadsheets.
 

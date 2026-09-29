@@ -1,25 +1,38 @@
 # Verify a release and inspect its provenance
 
-Download the ZIP and companion files from the **same**
+Download the program ZIP and verification files from the **same**
 [YSoNet release](https://github.com/irsdl/ysonet/releases). Releases produced by the
 current publishing workflow attach:
 
 | Asset | Purpose |
 |---|---|
-| `SHA256SUMS` | SHA-256 values for the ZIP and the five JSON/CSV/HTML sidecars below. |
-| `build-provenance.json` | Source commit and public checkout digest, version, workflow/run identity, Release transform configuration hash, test result, and hashes of every archive file. |
-| `component-inventory.json` | Exact NuGet pins, mapped shipped binaries and their hashes, bundled research assemblies, and pinning rationale. |
-| `runtime-evidence.html`, `.json`, `.csv` | Searchable [runtime evidence](runtime-evidence.md) and machine-readable observations for the tested ZIP. |
-| `provenance-attestation.jsonl` | Signed GitHub Actions build attestation for the ZIP and five sidecars. |
-| `test-results.md` | Human-readable Debug NORMAL and packaged FULL results, including unverified exclusions. |
+| `ysonet-<version>.zip` | The program and its dependencies, unchanged after packaged FULL testing. |
+| `ysonet-<version>-verification.zip` | Build provenance, component inventory, runtime evidence, test results, and the original signed attestation bundle. |
+| `SHA256SUMS` | SHA-256 values for those two ZIPs. |
 
-Older releases may lack these assets. Missing evidence means unverified provenance;
+GitHub also supplies its two source-code archives. Most users need only the program
+ZIP. The verification ZIP keeps all detailed evidence available in one download:
+
+- `build-provenance.json`: source commit and public checkout digest, workflow/run
+  identity, Release transform configuration hash, test result, and archive-file hashes.
+- `component-inventory.json`: exact NuGet pins, shipped binary hashes, bundled
+  research assemblies, and pinning rationale.
+- `runtime-evidence.html`, `.json`, `.csv`: searchable [runtime evidence](runtime-evidence.md)
+  and machine-readable observations for the tested program ZIP.
+- `test-results.md`: Debug NORMAL and packaged FULL results, including unverified exclusions.
+- `provenance-attestation.jsonl` and an internal `SHA256SUMS`: the original signed
+  evidence for the program ZIP and five JSON/CSV/HTML files.
+- `README.md`: how the outer and inner verification files relate.
+
+Older releases may publish the evidence as separate assets or lack some evidence.
+Their existing downloads remain valid; use the checksum list shipped with that release.
+Missing evidence means unverified provenance;
 it is not evidence of tampering. Local and ordinary CI builds produce unsigned
 sidecars, clearly marked `unattested-build`.
 
 ## Check download integrity
 
-Place the ZIP and five sidecars beside `SHA256SUMS`. From a trusted source checkout,
+Place both ZIPs beside the downloaded `SHA256SUMS`. From a trusted source checkout,
 run this standard-library Python verifier against the download directory:
 
 ```powershell
@@ -33,7 +46,9 @@ filenames. To compare a ZIP manually without Python:
 Get-FileHash .\ysonet-<version>.zip -Algorithm SHA256
 ```
 
-Compare the entire hash with its `SHA256SUMS` entry. Checksums detect changed bytes;
+Compare the entire hash with its `SHA256SUMS` entry. If you download only the program
+ZIP, this manual comparison does not require the optional verification ZIP.
+Checksums detect changed bytes;
 an attacker who replaces both files can replace the checksum too. Verify the signed
 attestation to establish the publishing workflow's identity.
 
@@ -44,18 +59,39 @@ the downloaded ZIP name:
 
 ```powershell
 gh attestation verify .\ysonet-<version>.zip --repo irsdl/ysonet --signer-workflow irsdl/ysonet/.github/workflows/tag-build-release.yml
-gh attestation verify .\build-provenance.json --repo irsdl/ysonet --signer-workflow irsdl/ysonet/.github/workflows/tag-build-release.yml
+gh attestation verify .\ysonet-<version>-verification.zip --repo irsdl/ysonet --signer-workflow irsdl/ysonet/.github/workflows/tag-build-release.yml
 ```
 
-Verify each sidecar you rely on the same way. To use the downloaded attestation bundle,
-add `--bundle .\provenance-attestation.jsonl`. The CLI may still need network access for
-trusted verification material. An unavailable attestation or a failed verification is
+The CLI retrieves attestations from GitHub. Verify the verification ZIP before
+extracting and relying on its reports; its attestation binds all the enclosed files,
+including the test summary. Keep the extracted files together so the HTML report's
+JSON and CSV links work.
+
+The enclosed `provenance-attestation.jsonl` separately covers the program ZIP and
+the five original JSON/CSV/HTML files, not the enclosing verification ZIP. To verify
+one of those original subjects with this bundle, add
+`--bundle .\provenance-attestation.jsonl` to its `gh attestation verify` command.
+The CLI may still need network access for trusted verification material. To check
+the internal `SHA256SUMS`, place the unchanged program ZIP beside the extracted
+files and run the Python verifier there. Do not replace the outer checksum list
+with the inner one: they check different sets of files.
+
+An unavailable attestation or a failed verification is
 **unverified**, not a successful check. Inspect the verified source commit and workflow
 identity and compare them with the intended release tag and `build-provenance.json`.
-The checksum list, bundle itself, and human-readable test summary are not subjects of
-that attestation; the ZIP and five sidecars are individually bound by their digests.
+The outer checksum list is not itself a build-attestation subject; both final ZIPs
+are individually bound by their digests. Attestations establish build identity,
+not universal safety or compatibility.
 See [GitHub's attestation documentation](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)
 for the trust model.
+
+## Immutable publication
+
+The workflow creates a draft, uploads all three assets, then publishes it. With
+[GitHub release immutability](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
+enabled for the repository, publication locks the assets and release tag and creates
+a separate GitHub release attestation. This supplements the build attestations.
+Older releases are not retroactively locked by enabling the setting.
 
 ## Inspect source correspondence and dependencies
 

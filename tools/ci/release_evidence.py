@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import sys
+from urllib.parse import quote
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -16,6 +17,8 @@ from runtime_evidence import render, validate
 from source_identity import sha256, source_identity
 
 ROOT = Path(__file__).resolve().parents[2]
+SIDECARS = ('build-provenance.json', 'component-inventory.json', 'runtime-evidence.json',
+            'runtime-evidence.html', 'runtime-evidence.csv')
 RESEARCH = {'YamlDotNet', 'fastJSON', 'FsPickler', 'FsPickler.CSharp', 'FsPickler.Json', 'FSharp.Core', 'SharpSerializer', 'Microsoft.IdentityModel'}
 
 
@@ -122,25 +125,114 @@ def generate(archive, report, output, version, official=False):
     write_json(output / 'component-inventory.json', inventory(files))
     render(evidence, output)
     # Explicit allowlist: never sign/publish an unrelated leftover file from dist.
-    subjects = [archive, *[output / n for n in ('build-provenance.json', 'component-inventory.json', 'runtime-evidence.json', 'runtime-evidence.html', 'runtime-evidence.csv')]]
+    subjects = [archive, *[output / n for n in SIDECARS]]
     (output / 'SHA256SUMS').write_text(''.join(sha256(p) + '  ' + p.name + '\n' for p in subjects), encoding='utf-8')
     return provenance
 
 
-def verify(directory):
+def checksums(directory):
     directory = Path(directory)
     lines = (directory / 'SHA256SUMS').read_text(encoding='utf-8-sig').splitlines()
     if not lines:
         raise ValueError('Empty checksum manifest')
-    seen = set()
+    seen, entries = set(), {}
     for line in lines:
         match = re.fullmatch(r'([0-9a-f]{64})  ([^/\\:]+)', line)
         if not match or match[2] in ('.', '..') or match[2].lower() in seen:
             raise ValueError('Invalid or duplicate checksum entry')
         seen.add(match[2].lower())
-        if sha256(directory / match[2]) != match[1]:
-            raise ValueError('Checksum mismatch: ' + match[2])
-    return len(seen)
+        entries[match[2]] = match[1]
+    return entries
+
+
+def verify(directory):
+    directory = Path(directory)
+    entries = checksums(directory)
+    for name, digest in entries.items():
+        if sha256(directory / name) != digest:
+            raise ValueError('Checksum mismatch: ' + name)
+    return len(entries)
+
+
+def bundle(archive, summary, attestation):
+    """Package existing signed evidence without changing the tested program archive."""
+    archive, summary, attestation = Path(archive), Path(summary), Path(attestation)
+    output = archive.parent
+    subjects = checksums(output)
+    if set(subjects) != {archive.name, *SIDECARS}:
+        raise ValueError('Evidence checksum subjects must be the program ZIP and five sidecars')
+    verify(output)
+    provenance = json.loads((output / 'build-provenance.json').read_text(encoding='utf-8'))
+    if provenance['artifact']['name'] != archive.name or provenance['artifact']['sha256'] != subjects[archive.name]:
+        raise ValueError('Provenance does not identify the checksummed program ZIP')
+    validation = provenance['validation']
+    if (validation['tier'] != 'full' or validation['failed'] != 0
+            or validation['passed'] <= 0 or validation['environmentVerdict'] != 'clean'):
+        raise ValueError('Verification bundle requires clean packaged FULL evidence')
+    version = provenance['version']
+    if not re.fullmatch(r'v\d+\.\d+\.\d+', version):
+        raise ValueError('Invalid release version')
+    # Preserve the action's bundle verbatim. Signature verification belongs to gh,
+    # not this packager; the workflow verifies the final ZIP attestations separately.
+    signed = attestation.read_bytes()
+    try:
+        bundles = [json.loads(signed.decode('utf-8-sig'))]
+    except json.JSONDecodeError:
+        bundles = [json.loads(line) for line in signed.decode('utf-8-sig').splitlines() if line.strip()]
+    if not bundles or any(not isinstance(item, dict) or not item for item in bundles):
+        raise ValueError('Missing or invalid attestation bundle')
+    test_results = summary.read_bytes()
+    if not test_results.strip():
+        raise ValueError('Missing test summary')
+    contents = {name: (output / name).read_bytes() for name in SIDECARS}
+    contents.update({'SHA256SUMS': (output / 'SHA256SUMS').read_bytes(),
+                     'test-results.md': test_results, 'provenance-attestation.jsonl': signed})
+    contents['README.md'] = (
+        '# Release verification evidence\n\n'
+        'Verify this ZIP with GitHub artifact attestations before relying on its contents.\n'
+        'The bundled attestation covers the program ZIP and five original sidecars;\n'
+        'the verification ZIP has its own attestation stored by GitHub.\n\n'
+        'Keep these files together so runtime-evidence.html can link to its JSON and CSV.\n'
+        'To use the internal SHA256SUMS, place the unchanged program ZIP beside the extracted files.\n'
+        'The outer SHA256SUMS checks the two release ZIPs; this internal one checks the original six subjects.\n\n'
+        'Instructions: https://ysonet.com/release-verification/\n'
+        'Checksums establish integrity; attestations establish build identity, not universal safety.\n'
+    ).encode()
+    target = archive.with_name(archive.stem + '-verification.zip')
+    with zipfile.ZipFile(target, 'x', compression=zipfile.ZIP_DEFLATED) as z:
+        for name, data in contents.items():
+            z.writestr(name, data)
+    (output / 'SHA256SUMS').write_text(
+        subjects[archive.name] + '  ' + archive.name + '\n' + sha256(target) + '  ' + target.name + '\n',
+        encoding='utf-8')
+    verify(output)
+    url = 'https://github.com/irsdl/ysonet/releases/download/' + quote('ysonet/' + version, safe='') + '/'
+    signer = '--repo irsdl/ysonet --signer-workflow irsdl/ysonet/.github/workflows/tag-build-release.yml'
+    (output / 'release-verification.md').write_text(f'''**[Download YSoNet {version}]({url}{quote(archive.name)})**
+
+Packaged FULL checks: **{validation['passed']} passed, 0 failed**; environment verdict: **clean**.
+Detailed coverage and unverified exclusions are retained in the verification download.
+
+<details>
+<summary>Verify this release</summary>
+
+Download [verification evidence]({url}{quote(target.name)}) and [SHA256SUMS]({url}SHA256SUMS).
+The verification ZIP contains build provenance, component inventory, runtime reports,
+test results, and the original attestation bundle.
+
+Verify both ZIPs against the publishing workflow:
+
+```powershell
+gh attestation verify .\\{archive.name} {signer}
+gh attestation verify .\\{target.name} {signer}
+```
+
+Checksums detect changed bytes. Attestations identify the build's origin; they do not
+establish universal safety or compatibility. [Full verification instructions](https://ysonet.com/release-verification/).
+
+</details>
+''', encoding='utf-8')
+    return target
 
 
 def main():
@@ -150,9 +242,12 @@ def main():
     for name in ('archive', 'report', 'output'): make.add_argument('--' + name, type=Path, required=True)
     make.add_argument('--version', required=True); make.add_argument('--official', action='store_true')
     check = sub.add_parser('verify'); check.add_argument('directory', type=Path)
+    pack = sub.add_parser('bundle', help='group signed evidence and write the two-ZIP checksum list')
+    for name in ('archive', 'summary', 'attestation'): pack.add_argument('--' + name, type=Path, required=True)
     args = parser.parse_args()
     try:
         if args.command == 'verify': print('Verified', verify(args.directory), 'artifact checksums (integrity only; verify the attestation separately).')
+        elif args.command == 'bundle': print('Created verification bundle:', bundle(args.archive, args.summary, args.attestation).name)
         else:
             generate(args.archive, args.report, args.output, args.version, args.official)
             print('Created release evidence for', args.archive.name)

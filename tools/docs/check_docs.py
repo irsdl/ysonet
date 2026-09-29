@@ -177,12 +177,18 @@ def release_notes(root, version):
     return text
 
 
-def release_body(root, version):
+def release_body(root, version, verification=None):
     notes = release_notes(root, version)
     sponsors = (root / 'docs' / 'sponsors.md').read_text(encoding='utf-8-sig')
     if not re.search(r'^##[ \t]+Sponsors[ \t]*$', prose(sponsors), re.M):
         raise ValueError('docs/sponsors.md must contain ## Sponsors')
-    return sponsors.rstrip() + '\n\n' + notes.strip() + '\n'
+    prefix = ''
+    if verification is not None:
+        prefix = verification.strip()
+        if not prefix:
+            raise ValueError('release verification section is empty')
+        prefix += '\n\n'
+    return prefix + sponsors.rstrip() + '\n\n' + notes.strip() + '\n'
 
 
 def normalize_body(text):
@@ -202,6 +208,7 @@ def main():
     release.add_argument('version')
     release.add_argument('--output', type=Path, help='write the validated complete release body')
     release.add_argument('--published', type=Path, help='verify a downloaded published body')
+    release.add_argument('--verification', type=Path, help='prepend the generated tested-release download and verification section')
     args = parser.parse_args()
     try:
         if args.command == 'links':
@@ -215,7 +222,8 @@ def main():
                 print(error, file=sys.stderr)
             print(f'Documentation: {files} files, {count} local links, {len(errors)} errors (external URLs not fetched).')
             return bool(errors)
-        body = release_body(ROOT, args.version)
+        verification = args.verification.read_text(encoding='utf-8-sig') if args.verification else None
+        body = release_body(ROOT, args.version, verification)
         if args.published:
             verify_published(body, args.published.read_text(encoding='utf-8-sig'))
         if args.output:

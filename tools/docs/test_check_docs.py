@@ -139,6 +139,19 @@ class ReleaseChecks(Fixture):
         with self.assertRaisesRegex(ValueError, 'Sponsors'):
             checks.release_body(self.root, 'v2026.9.1')
 
+    def test_download_and_verification_section_precedes_and_preserves_authored_notes(self):
+        self.install()
+        authored = checks.release_body(self.root, 'v2026.9.1')
+        verification = '**Download YSoNet**\n\n<details><summary>Verify this release</summary>\n\nChecks\n</details>'
+        body = checks.release_body(self.root, 'v2026.9.1', verification)
+        self.assertTrue(body.startswith(verification + '\n\n'))
+        self.assertTrue(body.endswith(authored))
+        checks.verify_published(body, body + '\nGenerated notes')
+        with self.assertRaisesRegex(ValueError, 'missing or changed'):
+            checks.verify_published(body, authored)
+        with self.assertRaisesRegex(ValueError, 'empty'):
+            checks.release_body(self.root, 'v2026.9.1', ' ')
+
 
 if __name__ == '__main__':
     unittest.main()

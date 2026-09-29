@@ -78,7 +78,7 @@ expected runs and labels absent reports **NOT RUN / UNVERIFIED**.
 
 Both workflows write that summary to the Actions job summary and upload the report
 folders with `if: always()`, including after a failed test. Releases also attach
-`test-results.md` beside the tested ZIP. A timeout kills the Windows test process tree;
+`test-results.md` inside the verification ZIP. A timeout kills the Windows test process tree;
 a job-level timeout leaves additional time for reporting and artifact upload.
 
 These checks establish behavior on the runner's installed runtime and capabilities.
@@ -103,6 +103,26 @@ Local sidecars are explicitly unsigned. The publishing workflow adds `--official
 which requires a clean checkout at `GITHUB_SHA`, a trusted release event and packaged
 FULL. It creates an attestation with the pinned `actions/attest` action only after
 verifying all six checksummed subjects; an attestation failure blocks publication.
+It then runs `release_evidence.py bundle --archive <program.zip> --summary
+<test-results.md> --attestation <action-bundle.jsonl>`. The packager verifies the
+original six subjects, preserves the evidence and original attestation in a
+`<program-stem>-verification.zip`, and replaces the outer `SHA256SUMS` with exactly
+the two final ZIPs. The original six-subject list lives inside the verification ZIP.
+The program ZIP is never rewritten. Existing verification ZIPs are not overwritten.
+
+The workflow attests both final ZIPs and verifies their workflow identity before
+publication. It uploads exactly the program ZIP, verification ZIP and `SHA256SUMS`,
+using a draft so an upload failure cannot publish an incomplete release. After
+publication it checks the exact asset names, downloads all three, compares the
+checksum list to the built one, and verifies both ZIP hashes and attestations.
+The repository's **Enable release immutability** setting locks future releases
+when published; the action's `immutableCreate` input only supplies the draft-first
+upload sequence and does not enable that repository setting.
+
+The packager also writes `release-verification.md` in the output directory. The
+release-body assembler prepends this generated download link, actual packaged-FULL
+counts and collapsible verification instructions to the complete sponsor and upgrade
+notes. Do not hand-edit this fragment or claim that provenance proves universal safety.
 The ordinary CI workflow has no signing permissions and publishes unsigned NORMAL
 observations. Both workflows upload only named release files.
 

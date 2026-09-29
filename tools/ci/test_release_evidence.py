@@ -87,6 +87,100 @@ class EvidenceTests(unittest.TestCase):
         with zipfile.ZipFile(self.archive, 'a') as z: z.writestr('extra.dll', 'changed')
         with self.assertRaisesRegex(ValueError, 'exact package'): self.generate()
 
+    def bundle(self):
+        summary = self.report / 'test-results.md'
+        summary.write_text('# Behavioral test results\n\nPassed: 3; unverified cells retained.\n')
+        attestation = self.report / 'attestation.jsonl'
+        attestation.write_text('{"fixture": "signed bundle bytes supplied by the workflow"}\n')
+        return release.bundle(self.archive, summary, attestation)
+
+    def test_verification_bundle_preserves_evidence_and_exact_tested_zip(self):
+        self.generate()
+        original = self.archive.read_bytes()
+        original_sums = (self.output / 'SHA256SUMS').read_bytes()
+        (self.output / 'unrelated.txt').write_text('must not ship')
+        verification = self.bundle()
+        self.assertEqual('release-verification.zip', verification.name)
+        self.assertEqual(original, self.archive.read_bytes())
+        self.assertEqual(2, release.verify(self.output))
+        with zipfile.ZipFile(verification) as z:
+            self.assertEqual(set(release.SIDECARS) | {'SHA256SUMS', 'test-results.md',
+                'provenance-attestation.jsonl', 'README.md'}, set(z.namelist()))
+            self.assertEqual(original_sums, z.read('SHA256SUMS'))
+            for name in release.SIDECARS:
+                self.assertEqual((self.output / name).read_bytes(), z.read(name))
+            self.assertIn(b'unverified cells retained', z.read('test-results.md'))
+            self.assertEqual((self.report / 'attestation.jsonl').read_bytes(), z.read('provenance-attestation.jsonl'))
+        body = (self.output / 'release-verification.md').read_text()
+        self.assertIn('3 passed, 0 failed', body)
+        self.assertIn('<summary>Verify this release</summary>', body)
+        self.assertIn('--signer-workflow', body)
+        self.assertIn('release-verification.zip', body)
+        self.assertNotIn('safe to run', body)
+
+    def test_bundle_rejects_modified_missing_or_extra_subjects_before_writing(self):
+        self.generate()
+        evidence_file = self.output / 'runtime-evidence.json'
+        saved = evidence_file.read_bytes()
+        evidence_file.write_bytes(b'changed')
+        with self.assertRaisesRegex(ValueError, 'mismatch'): self.bundle()
+        self.assertFalse((self.output / 'release-verification.zip').exists())
+        evidence_file.write_bytes(saved)
+        (self.output / 'SHA256SUMS').write_text(
+            release.sha256(self.archive) + '  ' + self.archive.name + '\n')
+        with self.assertRaisesRegex(ValueError, 'subjects'): self.bundle()
+        self.generate()
+        extra = self.output / 'unrelated.txt'; extra.write_text('do not include')
+        with (self.output / 'SHA256SUMS').open('a') as sums:
+            sums.write(release.sha256(extra) + '  ' + extra.name + '\n')
+        with self.assertRaisesRegex(ValueError, 'subjects'): self.bundle()
+
+    def test_bundle_refuses_overwrite_and_invalid_attestation(self):
+        self.generate()
+        summary = self.report / 'test-results.md'; summary.write_text('Summary')
+        attestation = self.report / 'attestation.jsonl'; attestation.write_text('')
+        with self.assertRaisesRegex(ValueError, 'attestation'): release.bundle(self.archive, summary, attestation)
+        verification = self.bundle()
+        saved = verification.read_bytes()
+        self.generate()
+        with self.assertRaises(FileExistsError): self.bundle()
+        self.assertEqual(saved, verification.read_bytes())
+
+    def test_bundle_preserves_pretty_json_and_jsonl_attestations(self):
+        summary = self.report / 'test-results.md'; summary.write_text('Summary')
+        attestation = self.report / 'attestation.jsonl'
+        for body in ('{\n  "fixture": true\n}\n', '{"fixture": 1}\n{"fixture": 2}\n'):
+            with self.subTest(body=body):
+                self.generate()
+                attestation.write_text(body)
+                verification = release.bundle(self.archive, summary, attestation)
+                with zipfile.ZipFile(verification) as z:
+                    self.assertEqual(attestation.read_bytes(), z.read('provenance-attestation.jsonl'))
+                verification.unlink()
+
+    def test_bundle_rejects_wrong_provenance_and_unverified_results(self):
+        for section, key, value in [('artifact', 'name', 'other.zip'),
+                                    ('artifact', 'sha256', '0' * 64),
+                                    ('validation', 'tier', 'normal'),
+                                    ('validation', 'environmentVerdict', 'environment-limited'),
+                                    ('validation', 'passed', 0), ('validation', 'failed', 1)]:
+            with self.subTest(section=section, key=key):
+                self.generate()
+                provenance = self.output / 'build-provenance.json'
+                body = json.loads(provenance.read_text()); body[section][key] = value
+                provenance.write_text(json.dumps(body))
+                subjects = release.checksums(self.output)
+                subjects[provenance.name] = release.sha256(provenance)
+                (self.output / 'SHA256SUMS').write_text(''.join(digest + '  ' + name + '\n' for name, digest in subjects.items()))
+                with self.assertRaises(ValueError): self.bundle()
+                self.assertFalse((self.output / 'release-verification.zip').exists())
+
+    def test_outer_checksum_verifier_detects_modified_verification_zip(self):
+        self.generate()
+        verification = self.bundle()
+        with verification.open('ab') as output: output.write(b'changed')
+        with self.assertRaisesRegex(ValueError, 'mismatch'): release.verify(self.output)
+
     def test_official_requires_clean_source_trusted_event_and_full(self):
         env = dict(GITHUB_SHA=self.source['commit'], GITHUB_EVENT_NAME='push')
         with patch.dict(os.environ, env):
@@ -175,6 +269,17 @@ class EvidenceTests(unittest.TestCase):
         self.assertIn('Requested version must match', workflow)
         self.assertIn('Existing tag points to another source commit', workflow)
         self.assertIn('Missing release tag; enable create_tag', workflow)
+        final_positions = [workflow.index(text) for text in ('Preserve signed attestation bundle',
+            'Bundle verification evidence', 'Attest final release ZIPs', 'Verify final build attestations',
+            'Publish GitHub Release', 'Verify published assets')]
+        self.assertEqual(sorted(final_positions), final_positions)
+        self.assertIn('immutableCreate: true', workflow)
+        self.assertIn('artifactErrorsFailBuild: true', workflow)
+        self.assertIn('replacesArtifacts: false', workflow)
+        assets = next(line.strip() for line in workflow.splitlines() if line.strip().startswith('artifacts:'))
+        self.assertEqual('artifacts: "dist/ysonet-${{ steps.v.outputs.value }}.zip,dist/ysonet-${{ steps.v.outputs.value }}-verification.zip,dist/SHA256SUMS"', assets)
+        self.assertEqual(2, workflow.count('subject-checksums: dist/SHA256SUMS'))
+        self.assertEqual(2, workflow.count('--verification dist/release-verification.md'))
         ci = (release.ROOT / '.github/workflows/build.yml').read_text()
         self.assertNotIn('id-token: write', ci)
         self.assertNotIn('actions/attest@', ci)
