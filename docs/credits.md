@@ -2,14 +2,20 @@
 
 Who built YSoNet and who found the gadgets and plugins it ships. If you want to learn more about .NET deserialization itself, see [References](references.md) and the wider [.NET deserialization research](dotnet-deserialization-research.md) list.
 
-YSoNet is the continuation and update of [YSoSerial.Net](https://github.com/pwntester/ysoserial.net), which was originally developed by Alvaro Munoz (@pwntester). YSoNet is now developed and maintained by Soroush Dalili (@irsdl). The original tool was inspired by [Chris Frohoff's ysoserial](https://github.com/frohoff/ysoserial) for Java.
+YSoNet continues the work of [YSoSerial.Net](https://github.com/pwntester/ysoserial.net),
+created by [Alvaro Munoz (@pwntester)](https://github.com/pwntester), and its
+contributors. YSoNet is developed and maintained by
+[Soroush Dalili (@irsdl)](https://github.com/irsdl). The original tool was inspired
+by [Chris Frohoff's ysoserial](https://github.com/frohoff/ysoserial) for Java.
 
 Back to [documentation index](README.md).
 
 ## Thanks
 
-Special thanks to all contributors:
+Special thanks to the creator and contributors of the original ysoserial.net,
+whose work YSoNet builds on, and to everyone contributing to YSoNet:
 
+- [Alvaro Munoz (@pwntester)](https://github.com/pwntester) - creator of ysoserial.net
 - [Oleksandr Mirosh](https://twitter.com/olekmirosh)
 - [irsdl](https://github.com/irsdl)
 - [JarLob](https://github.com/JarLob)
@@ -18,7 +24,9 @@ Special thanks to all contributors:
 - [yallie](https://github.com/yallie)
 - [paralax](https://github.com/paralax)
 
-Various other people have also donated their time and contributed to this project. See the [contributors graph](https://github.com/irsdl/ysonet/graphs/contributors).
+Many others have donated their time, added features, and fixed bugs. See the
+[original ysoserial.net contributors](https://github.com/pwntester/ysoserial.net/graphs/contributors)
+and [YSoNet contributors](https://github.com/irsdl/ysonet/graphs/contributors).
 
 Thank you to the [sponsors](#sponsors) whose donations support YSoNet maintenance
 and AI-assisted security research.

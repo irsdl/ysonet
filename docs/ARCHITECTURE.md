@@ -11,8 +11,10 @@
 
 ## 1. What this project is
 
-ysonet is the next version / fork of **ysoserial.net** (originally by Alvaro Munoz
-@pwntester), maintained by **Soroush Dalili (@irsdl)**. It is a proof-of-concept
+ysonet is a fork of [ysoserial.net](https://github.com/pwntester/ysoserial.net),
+created by [Alvaro Munoz (@pwntester)](https://github.com/pwntester), and builds on
+the work of its contributors. YSoNet is maintained by **Soroush Dalili (@irsdl)**;
+see [Credits](credits.md) for acknowledgements. It is a proof-of-concept
 command-line tool that generates payloads exploiting **unsafe .NET object
 deserialization**.
 

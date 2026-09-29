@@ -3,6 +3,10 @@
 [Browse the documentation site](https://ysonet.com/) for search, module
 pages, and light or dark themes. These Markdown files remain the source.
 
+YSoNet builds on [ysoserial.net](https://github.com/pwntester/ysoserial.net), created
+by [Alvaro Munoz (@pwntester)](https://github.com/pwntester), and the work of its
+contributors. See [Credits](credits.md) for the project history and acknowledgements.
+
 ## Start with your task
 
 | I want to... | Read |

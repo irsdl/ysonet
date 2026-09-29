@@ -1,5 +1,9 @@
 # Moving from ysoserial.net
 
+YSoNet is a fork of [ysoserial.net](https://github.com/pwntester/ysoserial.net),
+created by [Alvaro Munoz (@pwntester)](https://github.com/pwntester). It builds on
+the work of the original project's contributors; see [Credits](credits.md).
+
 Start by replacing `ysoserial.exe` with `ysonet.exe` in a copy of your script.
 The core `-g`, `-f`, `-c`, `-p`, `-o`, `--rawcmd`, `--minify`, and `--outputpath`
 options remain, but some module names, defaults, and output details changed.

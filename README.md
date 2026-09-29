@@ -19,7 +19,8 @@ with an interactive wizard and a command line for repeatable work.
   hosts to check payloads in your own environment.
 
 YSoNet is a fork of [ysoserial.net](https://github.com/pwntester/ysoserial.net),
-originally developed by Alvaro Muñoz (@pwntester), and is maintained by
+created by [Alvaro Munoz (@pwntester)](https://github.com/pwntester), and builds on
+the work of its contributors. YSoNet is maintained by
 [Soroush Dalili (@irsdl)](https://github.com/irsdl).
 
 - Documentation: [website](https://ysonet.com/) | [guides on GitHub](docs/README.md).
@@ -134,7 +135,12 @@ serializers. Never weaken a test to make it pass.
 
 ## Credits
 
-YSoNet is developed and maintained by Soroush Dalili (@irsdl). YSoSerial.Net was originally developed by Alvaro Muñoz (@pwntester). Run `ysonet.exe --credit` for the full gadget and plugin credits, or see [Credits](docs/credits.md). To learn more about the underlying issues, see [References](docs/references.md).
+Special thanks to [Alvaro Munoz (@pwntester)](https://github.com/pwntester), creator
+of [ysoserial.net](https://github.com/pwntester/ysoserial.net), and to the
+contributors of both projects. YSoNet is developed and maintained by
+[Soroush Dalili (@irsdl)](https://github.com/irsdl). See [Credits](docs/credits.md)
+for acknowledgements, or run `ysonet.exe --credit` for gadget and plugin credits.
+For the underlying research, see [References](docs/references.md).
 
 ## License
 

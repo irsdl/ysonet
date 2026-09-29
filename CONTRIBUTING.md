@@ -1,4 +1,9 @@
 ## Contributing
+
+YSoNet builds on [ysoserial.net](https://github.com/pwntester/ysoserial.net), created
+by [Alvaro Munoz (@pwntester)](https://github.com/pwntester), and the work of its
+contributors. See [Credits](docs/credits.md) for acknowledgements of both projects.
+
 - Fork it
 - Create your feature branch (`git checkout -b my-new-feature`)
 - Commit your changes (`git commit -am 'Add some feature'`)
