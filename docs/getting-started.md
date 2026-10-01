@@ -38,13 +38,10 @@ requirements in module help. On Linux or macOS, use the
 For command-line help, run `.\ysonet.exe -h` from the same folder.
 Older versions are on the [YSoNet releases page](https://github.com/irsdl/ysonet/releases).
 
-The extracted YSoNet folder includes an AI assistant skill at
-`.claude/skills/ysonet-payloads/`. Claude Code discovers it when opened from that
-folder. Other clients that support the Agent Skills standard can import the same skill
-directory. It teaches the agent the one-shot command line, interactive mode, public
-gadget and plugin catalogue, variants, options, and payload-selection rules. A separate
-`CLAUDE.md` is not required because the skill is already the portable instruction entry
-point.
+The release includes an AI assistant skill at `.claude/skills/ysonet-payloads/`
+for CLI usage and module selection. Open the extracted folder in Claude Code,
+or import that directory into another client that supports Agent Skills.
+For source-based research, see [Research with the archive](research-archive.md).
 
 ### Installation diagnostics
 
@@ -79,7 +76,8 @@ These are development snapshots, not published releases. You can also
 
 ## Interactive mode (beta) - the easy way to start
 
-New to this tool? Start here. Interactive mode is a menu-driven wizard: you pick a gadget or plugin from a list, fill in its settings (it shows what each one means, marks which are required, and remembers your last command), and it builds the payload for you - no need to memorize command-line flags first.
+Choose a gadget or plugin, fill in its settings, and generate a payload.
+The wizard explains each setting, marks required values, and remembers your last command.
 
 Launch it by passing `interactive` (or `-i`) as the first argument:
 
@@ -94,7 +92,7 @@ Inside the wizard:
 - **Type to filter** the gadget / plugin / setting lists. Arrow keys, `Home`/`End` and `PageUp`/`PageDown` move; `Enter` opens.
 - Each setting shows its **current value** and a short description; press `?` for the full help.
 - Required settings are marked with `*`; action buttons look like `[ Generate ]` and sit at the bottom.
-- Choose **`[ Generate ]`** to build the payload, or **`[ Show ysonet command ]`** to print the exact one-line `ysonet.exe` command it would run - a good way to learn the flags for later.
+- Choose **`[ Generate ]`** to build the payload, or **`[ Show ysonet command ]`** to see the equivalent command for scripts.
 
 If your terminal is very narrow or output is redirected, it falls back to a simple type-to-filter form with the same settings. The one-shot command line remains available for scripts; check the
 [migration guide](moving-from-ysoserial-net.md) when adapting ysoserial.net commands.

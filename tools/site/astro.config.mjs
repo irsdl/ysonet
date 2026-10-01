@@ -17,7 +17,7 @@ export default defineConfig({
   integrations: [starlight({
     title: 'YSoNet',
     description: '.NET deserialization research: installation, usage, module declarations and runtime evidence.',
-    logo: {src: '../../docs/images/logo/transparent.svg'},
+    logo: {src: './public/assets/logo-header.svg'},
     favicon: '/assets/logo.svg',
     social: [
       {icon: 'github', label: 'GitHub', href: 'https://github.com/irsdl/ysonet'},

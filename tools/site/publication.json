@@ -12,7 +12,8 @@
     "docs/json-catalog.md": "json-catalog"
   },
   "Catalog and evidence": {
-    "docs/runtime-evidence.md": "runtime-evidence"
+    "docs/runtime-evidence.md": "runtime-evidence",
+    "docs/research-archive.md": "research-archive"
   },
   "Releases": {
     "docs/release-notes/README.md": "releases",

@@ -2,12 +2,45 @@
 import Default from '@astrojs/starlight/components/Head.astro';
 import manifest from '../../generated/manifest.json';
 const excluded = Astro.locals.starlightRoute.entry.data.pagefind === false;
+const { entry, siteTitle } = Astro.locals.starlightRoute;
+const titleIsSiteName = entry.data.title === siteTitle;
 // Search and error pages have no canonical; noindex is independent of Pagefind.
 Astro.locals.starlightRoute.head = Astro.locals.starlightRoute.head.filter(
-  (tag) => !(tag.tag === 'link' && (tag.attrs?.rel === 'sitemap' ||
+  (tag) => !(titleIsSiteName && tag.tag === 'title') &&
+    !(tag.tag === 'link' && (tag.attrs?.rel === 'sitemap' ||
     (excluded && tag.attrs?.rel === 'canonical'))));
 ---
 <Default />
+{titleIsSiteName && <title>{siteTitle}</title>}
 <meta name="ysonet-revision" content={manifest.sourceRef} />
 <link rel="sitemap" type="application/xml" href={manifest.base + 'sitemap.xml'} />
 {excluded && <meta name="robots" content="noindex, follow" />}
+<script>
+  // Enhance the canonical SVG only when scripting and the animation are available.
+  for (const figure of document.querySelectorAll<HTMLElement>('.logo-animation')) {
+    const link = figure.querySelector<HTMLAnchorElement>('a');
+    const image = figure.querySelector<HTMLImageElement>('img');
+    if (!link || !image) continue;
+    const still = image.src;
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    const button = document.createElement('button');
+    button.type = 'button';
+    let playing = false;
+    let unavailable = false;
+    const show = (animate: boolean) => {
+      playing = animate && !unavailable;
+      image.src = playing ? link.href : still;
+      button.textContent = playing ? 'Pause logo animation' : 'Play logo animation';
+    };
+    image.addEventListener('error', () => {
+      if (!playing) return;
+      unavailable = true;
+      show(false);
+      button.remove();
+    });
+    button.addEventListener('click', () => show(!playing));
+    motion.addEventListener('change', () => { if (motion.matches) show(false); });
+    figure.append(button);
+    show(!motion.matches);
+  }
+</script>

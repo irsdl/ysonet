@@ -33,6 +33,7 @@ Read the [archive online](https://github.com/irsdl/ysonet/tree/master/docs/archi
 without downloading it. Its index links to English Markdown and PDF copies,
 original sources, and reports about missing or unreviewed material.
 Local archive links in documentation will be unavailable in a sparse checkout.
+See [Research with the archive](research-archive.md) for text search and AI-assisted reading.
 
 To include the whole archive in this checkout:
 

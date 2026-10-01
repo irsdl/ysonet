@@ -21,15 +21,10 @@ Two rules when editing:
 ## Sponsors
 
 <!-- site:support:start -->
-If YSoNet helps your work, please consider sponsoring the project. Your support
-helps cover ongoing maintenance and AI-assisted security research.
+Support YSoNet's maintenance and AI-assisted security research with a one-time
+donation or monthly sponsorship. Individuals and companies are welcome.
 
-One-time donations and monthly sponsorships are both welcome. If your company
-uses or benefits from YSoNet, please consider a monthly sponsorship to help
-sustain this work.
-
-[Sponsor YSoNet on GitHub](https://github.com/sponsors/irsdl). Every contribution
-is appreciated. Thank you for supporting the project.
+[Sponsor YSoNet on GitHub](https://github.com/sponsors/irsdl). Thank you for your support.
 <!-- site:support:end -->
 
 Thank you to our supporters, acknowledged in

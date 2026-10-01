@@ -1,5 +1,7 @@
 # Website publication
 
+2026-10-01 - Review expanded table screenshots as well as overflow checks: narrow columns can pass every automated layout check while splitting help text and making runtime rows excessively tall. Give prose and runtime-list columns readable minimum widths and retain horizontal scrolling. Keep archive/AI reading guidance in docs/research-archive.md and link to it from the homepage and guides. - Improves mobile reading without hiding metadata or duplicating the archive on the website.
+
 2026-09-28 - Starlight preparation keeps canonical Markdown in place and stages ignored docs with explicit slugs, including dotted release versions. Validate Markdown before invoking the content loader: a loader can log a parse failure while retaining a cached entry. Build to a candidate and validate links/SEO before replacing the valid artifact. Source links and revision markers use the actual checkout SHA; a successful release refresh checks out current master. - Preserves public links, single-source ownership and the last good site across failed exports or content builds.
 
 2026-09-28 - Starlight's default theme access can throw when local storage is blocked, and raw preformatted plugin mode declarations need their own horizontal overflow rule when expanded. Preserve storage-denial and expanded-content tests through a framework migration; query Pagefind from a production build at both root and non-root paths. - Default framework behavior does not automatically satisfy existing browser contracts.

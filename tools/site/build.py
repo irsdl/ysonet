@@ -23,8 +23,27 @@ SITEMAP_NS = 'http://www.sitemaps.org/schemas/sitemap/0.9'
 GROUPS = json.loads((HERE / 'publication.json').read_text(encoding='utf-8'))
 DOCUMENTS = {source: route for group in GROUPS.values() for source, route in group.items()}
 ASSETS = {'docs/images/logo/transparent.svg': 'assets/logo.svg',
+          'docs/images/logo/ysonet-symbol.gif': 'assets/ysonet-symbol.gif',
           'docs/schemas/catalog-v1.schema.json': 'catalog/schema.json'}
 MARKER = '.ysonet-site'
+
+def header_logo(source):
+    """Derive the header symbol from the canonical artwork without its wordmark."""
+    svg = ET.fromstring(source)
+    wordmark = svg.find("{http://www.w3.org/2000/svg}g[@id='wordmark']")
+    if wordmark is None:
+        raise ValueError('Canonical logo is missing its wordmark group')
+    svg.remove(wordmark)
+    # Tiny lettering stays crisper without the full-size artwork's drop shadows.
+    for group_id in ('binary', 'puzzle-labels'):
+        group = svg.find(f"{{http://www.w3.org/2000/svg}}g[@id='{group_id}']")
+        for element in group.iter():
+            element.attrib.pop('filter', None)
+    svg.set('viewBox', '32 350 960 500')
+    svg.set('height', '500')
+    ET.register_namespace('', 'http://www.w3.org/2000/svg')
+    return ET.tostring(svg, encoding='utf-8', xml_declaration=True)
+
 
 def esc(value):
     return html.escape(str(value), quote=True)
@@ -159,17 +178,17 @@ class Site:
     def home(self):
         install = self.fragment('docs/getting-started.md', 'install')
         support = self.fragment('docs/sponsors.md', 'support')
-        self.page('', 'YSoNet', f""".NET deserialization research. Configure interactively or use the command line.
+        self.page('', 'YSoNet', f"""A .NET deserialization research tool with an interactive wizard and command-line interface.
 
 Development documentation / **{self.version}**
 
-[Download the latest published release]({REPO}/releases/latest) | [About the logo]({self.url('logo/')})
+[Download YSoNet]({REPO}/releases/latest) | [Quick reference]({self.url('quick-reference/')}) | [About the logo]({self.url('logo/')})
 
 ## Find a module
 
 [Browse {len(self.catalog['gadgets'])} gadgets and {len(self.catalog['plugins'])} plugins]({self.url('catalog/')}).
-Filter by name, formatter or keyword, then check the target requirements.
-Catalog entries describe declarations, not runtime test results.
+Filter by name, formatter or keyword. Check module requirements and
+[runtime evidence]({self.url('runtime-evidence/')}) before use.
 
 ## Install and run
 
@@ -177,10 +196,15 @@ Catalog entries describe declarations, not runtime test results.
 
 [Full installation guide]({self.url('getting-started/')}) | [Moving from ysoserial.net]({self.url('moving-from-ysoserial-net/')})
 
-## Before relying on a result
+<span id="before-relying-on-a-result"></span>
 
-- [Read the runtime evidence and limitations]({self.url('runtime-evidence/')}).
-- [Verify your download]({self.url('release-verification/')}).
+[Verify your download]({self.url('release-verification/')}) and check the
+[runtime evidence]({self.url('runtime-evidence/')}) for tested results.
+
+## Research with the archive
+
+Use the archived Markdown to search sources, compare findings, and give an AI assistant
+focused reading material. [Read the research guide]({self.url('research-archive/')}).
 
 <span id="support-title"></span>
 
@@ -228,7 +252,7 @@ Catalog entries describe declarations, not runtime test results.
                 capabilities = module.get('targetCapabilities')
                 if capabilities is not None:
                     rows = ''.join('<tr>' + ''.join(f'<td>{esc(", ".join(row.get(field, [])) if field != "variant" else (row[field] if row[field] is not None else "Default"))}</td>' for field in ('variant', 'formatters', 'inputs', 'requirements', 'runtimeVersions')) + '</tr>' for row in capabilities)
-                    requirements = '<h2 id="requirements">Target declarations</h2><div class="table-scroll"><table><thead><tr><th>Variant</th><th>Formatters</th><th>Inputs</th><th>Requirements</th><th>Runtime tokens</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+                    requirements = '<h2 id="requirements">Target declarations</h2><div class="table-scroll"><table class="target-declarations"><thead><tr><th>Variant</th><th>Formatters</th><th>Inputs</th><th>Requirements</th><th>Runtime tokens</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
                 else:
                     requirements = '<h2 id="requirements">Target declarations</h2><p>Runtime tokens: ' + esc(', '.join(module.get('targetRuntimeVersions') or []) or 'Not declared') + '.</p><p>Structured formatter and requirement metadata is not declared. Read the description and option help for conditions.</p>'
                 variants = module.get('variants') or []
@@ -257,7 +281,7 @@ Catalog entries describe declarations, not runtime test results.
         public_files = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, check=True, capture_output=True).stdout.decode().split('\0')
         # Refuse route/static collisions before touching any generated directory.
         files = {('index.html' if not r else '404.html' if r == '404' else r + '/index.html') for r in self.pages}
-        static = {*ASSETS.values(), 'catalog/catalog.json', 'sitemap.xml', 'robots.txt', 'revision.json'}
+        static = {*ASSETS.values(), 'assets/logo-header.svg', 'catalog/catalog.json', 'sitemap.xml', 'robots.txt', 'revision.json'}
         if len(files) != len(self.pages) or files & static:
             raise ValueError('Page/static route collision')
         for name in files | static:
@@ -281,6 +305,7 @@ Catalog entries describe declarations, not runtime test results.
         for route, (data, body) in self.pages.items():
             staged[(route or 'index') + '.md'] = '---\n' + '\n'.join(key + ': ' + json.dumps(value, ensure_ascii=True) for key, value in data.items()) + '\n---\n\n' + body + '\n'
         assets = {target: (self.root / source).read_bytes() for source, target in ASSETS.items()}
+        assets['assets/logo-header.svg'] = header_logo(assets['assets/logo.svg'])
         assets['catalog/catalog.json'] = json.dumps(self.catalog, ensure_ascii=True).encode()
         assets['revision.json'] = json.dumps({'sourceRef': self.source_ref, 'version': self.version}).encode()
         assets['.nojekyll'] = b''

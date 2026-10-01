@@ -26,6 +26,12 @@ route when reorganizing navigation. `markdown.mjs` rewrites syntax-tree links,
 reference definitions and HTML attributes; code examples and literal URLs remain
 unchanged. Unpublished public sources link to GitHub at the actual checkout SHA.
 Images and downloads require an explicit `ASSETS` entry in `build.py`.
+The header symbol is derived from the canonical SVG during preparation, omitting
+its wordmark and trimming the viewport so the adjacent site title appears only once.
+Small lettering omits the full-size artwork's shadows to stay clear in the header.
+The About the logo page progressively enhances its SVG with the published GIF.
+Reduced motion, disabled scripting, or an unavailable GIF retain the SVG; a button
+lets readers pause or play the animation.
 
 Preparation stages Markdown/frontmatter in ignored `src/content/docs/`, assets in
 ignored `public/`, and the derived manifest in ignored `generated/`. These are
@@ -37,6 +43,10 @@ SHA, edit links use the original file on master, and last-updated dates are disa
 ## Page design
 
 Starlight supplies the sidebar, contents, typography, code copying and search modal.
+Keep introductory copy brief and put detailed guidance in canonical documents.
+`docs/research-archive.md` owns archive and AI reading guidance; the site links to
+the archive instead of republishing its source bodies. Tables keep readable
+column widths and scroll horizontally on narrow screens.
 Navigation groups follow readers' tasks: Start here, Usage, Catalog and evidence,
 Releases, Development, and Project. The catalog keeps comparison rows and separate
 filters with `q`, `type`, and `formatter` query parameters, including browser history.

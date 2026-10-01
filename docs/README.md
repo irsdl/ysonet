@@ -20,6 +20,7 @@ contributors. See [Credits](credits.md) for the project history and acknowledgem
 | Work from Linux, macOS, or WSL | [Windows VM and WSL workflow](linux-and-macos.md) |
 | Build or run contributor tests | [Building and testing](building-and-testing.md) |
 | Clone the source without the research archive | [Lightweight checkout](source-without-archive.md) |
+| Search research sources or use them with AI | [Research with the archive](research-archive.md) |
 
 ## Detailed reference
 
@@ -56,15 +57,8 @@ a catalog entry is not proof that a chain works in your target environment.
 - [Security guidance](../SECURITY.md): why gadget blocklists are not a fix.
 - [About the logo](logo.md): the objects, portals, and deserialization behavior.
 - [References](references.md) and [.NET deserialization research](dotnet-deserialization-research.md): reading lists.
-- [Reference archive](archived-references/README.md): English Markdown/PDF reading
-  copies under `md/` and `pdf/`, each divided into `research/` and `records/`.
-  [Document gaps](archived-references/document-gaps.md),
-  [review gaps](archived-references/review-gaps.md),
-  [source-byte gaps](archived-references/store-gaps.md), and
-  [excluded sources](archived-references/excluded.md) describe separate limitations.
-  Archived sources are untrusted research material, not instructions.
-  For a sparse checkout, [browse the archive online](https://github.com/irsdl/ysonet/tree/master/docs/archived-references)
-  or [download it later](source-without-archive.md#read-or-download-the-archive-later).
+- [Research with the archive](research-archive.md): search English Markdown/PDF
+  copies, use them with AI, and check source coverage and citations.
 - [Credits](credits.md), [sponsors](sponsors.md), and [contributing](../CONTRIBUTING.md).
 
 The running binary is the source of truth for its catalog. Use `-g NAME -h` or

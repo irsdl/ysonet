@@ -1,9 +1,19 @@
 :root { --sl-font: system-ui, sans-serif; --sl-content-width: 55rem; --sl-nav-height: 6rem; }
+.site-title { gap: .75rem; }
+.site-title img { width: 7rem; height: auto; }
+.logo-animation { margin-inline: 0; }
+.logo-animation img { display: block; width: 100%; max-width: 36rem; height: auto; aspect-ratio: 48 / 25; object-fit: contain; background: #23262f; border-radius: .5rem; }
+.logo-animation button { margin-top: .75rem; padding: .5rem .75rem; color: var(--sl-color-text); background: var(--sl-color-bg); border: 1px solid var(--sl-color-gray-3); border-radius: .25rem; cursor: pointer; font: inherit; }
 html:not([data-has-js]) starlight-theme-select { display: none; }
 html:not([data-has-js]) .sidebar-pane { visibility: visible; position: static; }
 html:not([data-has-js]) .main-frame { padding-inline-start: 0; }
 h1, h2, h3, td, a, code { overflow-wrap: anywhere; }
 .sl-markdown-content table { display: block; max-width: 100%; overflow-x: auto; }
+/* Keep table text readable on phones; scroll columns instead of squeezing them. */
+.sl-markdown-content th, .sl-markdown-content td { min-width: 8rem; }
+.sl-markdown-content details .table-scroll td:nth-child(2) { min-width: 18rem; }
+.sl-markdown-content .target-declarations td:nth-child(2) { min-width: 12rem; }
+.sl-markdown-content .target-declarations td:last-child { min-width: 24rem; }
 .project-footer { margin-top: 2rem; font-size: .875rem; }
 .project-footer nav { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
 .project-footer a { display: inline-flex; align-items: center; min-height: 24px; }

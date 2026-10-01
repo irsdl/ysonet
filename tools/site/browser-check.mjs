@@ -108,6 +108,29 @@ try {
   await denied.locator('.project-header starlight-theme-select select').selectOption('light');
   assert.equal(await denied.locator('html').getAttribute('data-theme'), 'light');
   await blocked.close();
+  await page.emulateMedia({reducedMotion: 'no-preference'});
+  await go('logo/');
+  const logoLoaded = extension => page.waitForFunction(extension => {
+    const image = document.querySelector('.logo-animation img');
+    return image?.src.endsWith(extension) && image.complete && image.naturalWidth > 0;
+  }, extension);
+  await logoLoaded('.gif');
+  await page.getByRole('button', {name: 'Pause logo animation', exact: true}).click();
+  await logoLoaded('.svg');
+  await page.getByRole('button', {name: 'Play logo animation', exact: true}).click();
+  await logoLoaded('.gif');
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  await logoLoaded('.svg');
+  await go('logo/');
+  await logoLoaded('.svg');
+  assert.ok(await page.getByRole('button', {name: 'Play logo animation', exact: true}).isVisible());
+  await page.emulateMedia({reducedMotion: 'no-preference'});
+  // A successful HTTP response can still contain an unsupported/corrupt image.
+  await page.route('**/assets/ysonet-symbol.gif', route => route.fulfill({status: 200, contentType: 'image/gif', body: 'invalid GIF'}));
+  await go('logo/');
+  await logoLoaded('.svg');
+  assert.equal(await page.locator('.logo-animation button').count(), 0);
+  await page.unroute('**/assets/ysonet-symbol.gif');
   const plain = await browser.newContext({javaScriptEnabled: false, viewport: {width: 390, height: 1000}});
   const nojs = await plain.newPage(); observe(nojs);
   await nojs.goto(server.origin + base + 'catalog/');
@@ -117,7 +140,11 @@ try {
   assert.equal(await nojs.locator('starlight-theme-select:visible').count(), 0);
   await nojs.goto(server.origin + base + 'catalog/gadget/objectdataprovider/');
   assert.ok(await nojs.locator('main').innerText().then(text => text.includes('Declared metadata')));
+  await nojs.goto(server.origin + base + 'logo/');
+  assert.ok((await nojs.locator('.logo-animation img').getAttribute('src')).endsWith('.svg'));
+  assert.ok(await nojs.locator('.logo-animation img').evaluate(image => image.complete && image.naturalWidth > 0));
+  assert.equal(await nojs.locator('.logo-animation button').count(), 0);
   await plain.close();
   assert.deepEqual(errors, [], 'Browser errors or external runtime requests');
-  console.log('PASS: themes, persistence, blocked storage, exact copy, keyboard/modal/guide/module/release search, empty states, catalog query/reload/back/forward, mobile menus/TOC, no-JavaScript reading; no browser errors or external runtime requests.');
+  console.log('PASS: themes, persistence, blocked storage, exact copy, keyboard/modal/guide/module/release search, empty states, catalog query/reload/back/forward, mobile menus/TOC, logo animation/pause/reduced-motion/error fallback, no-JavaScript reading; no browser errors or external runtime requests.');
 } finally { await browser.close(); server.close(); }

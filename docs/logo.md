@@ -1,6 +1,10 @@
 # About the logo
 
-![YSoNet logo: differently shaped puzzle pieces pass through two portals, with binary data between them.](images/logo/transparent.svg)
+<figure class="logo-animation">
+  <a href="images/logo/ysonet-symbol.gif"><img src="images/logo/transparent.svg" width="576" height="300" alt="YSoNet logo: differently shaped puzzle pieces pass through two portals, with binary data between them."></a>
+</figure>
+
+[Download the animated GIF](images/logo/ysonet-symbol.gif) · [View the static SVG](images/logo/transparent.svg)
 
 The YSoNet logo follows an object through serialization and deserialization:
 into the first portal as an object, across as data, and out of the second as a
