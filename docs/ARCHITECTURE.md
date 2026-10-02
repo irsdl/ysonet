@@ -1557,6 +1557,22 @@ compiled on demand, not built into `E.dll`.
 - **GhostWebShell.cs**: class `G` (Soroush Dalili). Base64-decodes an embedded `.aspx`
   webshell and registers a virtual path provider (`SamplePathProvider`) to serve it in
   memory - a webshell drop needing no file write.
+- **HttpModuleShell.cs**: class `E` (lupingQAQ). Memory shell #1: reflects into
+  `HttpApplicationFactory._freeList` to arm every pooled `HttpApplication`, appending a
+  reflected `SyncEventExecutionStep` to a live module container at
+  `RequestNotification.AcquireRequestState` (classic pools: splices
+  `ApplicationStepManager._execSteps` instead). Trigger: `MSH-Cmd` header. Usage:
+  `-c "HttpModuleShell.cs;System.dll;System.Web.dll"`.
+- **WsTakeoverShell.cs**: class `E` (lupingQAQ). Memory shell #2: takes over the
+  HTTP->WebSocket upgrade (`AcceptWebSocketRequest`, subprotocol `msh`) and answers
+  commands over the full-duplex connection; a strict no-op without the integrated
+  pipeline and the WebSocket feature. Usage:
+  `-c "WsTakeoverShell.cs;System.dll;System.Web.dll"`.
+- **RemotingUriShell.cs**: class `E` (lupingQAQ). Memory shell #3: registers the
+  well-known URI `msh` on an already-registered business remoting channel
+  (`RegisterWellKnownServiceType` + an `AssemblyResolve` bridge for the byte-loaded
+  payload assembly); a no-op when the AppDomain hosts no remoting receiver channel.
+  Usage: `-c "RemotingUriShell.cs;System.dll;System.Runtime.Remoting.dll"`.
 
 ### TestConsoleApp (`TestConsoleApp/`)
 .NET Framework 4.7.2 console EXE (`AssemblyName=TestConsoleApp_YSONET`). A harmless
