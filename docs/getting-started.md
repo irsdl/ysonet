@@ -123,4 +123,15 @@ See [test-run status and isolation](building-and-testing.md#watching-a-run).
 
 ## v2 branch
 
-See the [older v2 branch notes](building-and-testing.md#v2-branch).
+For most .NET Framework 2.0, 3.0 and 3.5 targets, use the current YSoNet release
+instead of the historical `v2` branch. Run `ysonet.exe` on a supported .NET
+Framework 4.7.2+ machine and add `--legacyfx` for a gadget or plugin that declares
+CLR v2 support. Release ZIPs also include an isolated CLR2 host for supported local
+tests through `--testclr2` or `--test --legacyfx`.
+
+Compatibility is measured per gadget, plugin and formatter; rewriting assembly
+identities alone cannot make a CLR4-only object graph run on CLR2. Check the
+selected module's help for its `Runtime versions` evidence and see
+[CLR v2 targeting](usage-and-examples.md#target-the-clr-v2-generation---legacyfx).
+The [older v2 branch notes](building-and-testing.md#v2-branch) remain relevant when
+the generator itself must run under CLR2 or when reproducing the historical tool.

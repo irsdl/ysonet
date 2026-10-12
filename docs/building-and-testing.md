@@ -185,4 +185,20 @@ For contribution policy, focused test order and extending coverage, see
 
 ## v2 branch
 
-The v2 branch is a copy of ysoserial.net (15/03/2018) changed to work with .NET Framework 2.0 by [irsdl](https://github.com/irsdl). Although it can be used with applications that use .NET Framework 2.0, it also requires .NET Framework 3.5 on the target box because the gadgets depend on it. This will be resolved if new gadgets in .NET Framework 2.0 are identified in the future.
+The historical `v2` branch is a copy of ysoserial.net from 15 March 2018, changed
+by [irsdl](https://github.com/irsdl) so the generator can run on .NET Framework
+2.0. Its included gadgets still require .NET Framework 3.5 on the target machine.
+
+Current YSoNet normally removes the need to use that branch merely because the
+target application runs on CLR v2. Run the current generator on its supported .NET
+Framework 4.7.2+ host, then use `--legacyfx` with a module that declares the needed
+runtime support. Release ZIPs include separate CLR2 self-test hosts, and
+`--testclr2` or `--test --legacyfx` can validate supported BinaryFormatter,
+LosFormatter and SoapFormatter payloads on an installed CLR 2.0.50727 runtime.
+See [CLR v2 targeting](usage-and-examples.md#target-the-clr-v2-generation---legacyfx)
+for commands, limitations and measured runtime evidence.
+
+The old branch is therefore mainly useful when the generator itself must run under
+CLR2, or when reproducing the historical 2018 behavior. It is not a shortcut around
+module compatibility: a CLR4-only carrier, formatter or object graph remains
+CLR4-only even if its assembly versions are rewritten.
