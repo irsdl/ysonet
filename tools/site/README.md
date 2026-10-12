@@ -14,7 +14,8 @@ of ordinary YSoNet builds.
 | Installation | `site:install` section in [Getting Started](../../docs/getting-started.md) |
 | Sponsorship appeal | `site:support` section in [Sponsors](../../docs/sponsors.md); also consumed by release tooling |
 | Permanent sponsor credits | [Credits](../../docs/credits.md#sponsors); historical release credits stay in their notes |
-| Logo | [Existing SVG](../../docs/images/logo/transparent.svg) and [explanation](../../docs/logo.md) |
+| Logo | [Existing SVG](../../docs/images/logo/transparent.svg), [square PNG](../../docs/images/logo/dark.png) for social previews, and [explanation](../../docs/logo.md) |
+| Help visuals | Privacy-safe SVG diagrams and captured-menu previews under `docs/images/help/`, referenced by their canonical guides |
 | Module facts | Fresh public CLI `--list catalog` export |
 | Release notes | `docs/release-notes/v*.md`; index at `site:release-index` in the existing README |
 | Navigation and routes | `publication.json`; release and module entries are derived |
@@ -29,6 +30,8 @@ Images and downloads require an explicit `ASSETS` entry in `build.py`.
 The header symbol is derived from the canonical SVG during preparation, omitting
 its wordmark and trimming the viewport so the adjacent site title appears only once.
 Small lettering omits the full-size artwork's shadows to stay clear in the header.
+Social previews use the existing square PNG with absolute Open Graph and X card
+metadata, so link cards show the project logo instead of a generic page icon.
 The About the logo page progressively enhances its SVG with the published GIF.
 Reduced motion, disabled scripting, or an unavailable GIF retain the SVG; a button
 lets readers pause or play the animation.

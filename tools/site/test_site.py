@@ -64,12 +64,33 @@ class SiteTests(unittest.TestCase):
         self.assertIn('href="/guides/"', home)
         self.assertIn('href="/_astro/', home)
         self.assertIn('rel="canonical" href="https://ysonet.com/"', home)
+        self.assertIn('name="twitter:card" content="summary"', home)
+        self.assertIn('property="og:image" content="https://ysonet.com/assets/logo-social.png"', home)
+        self.assertIn('property="og:image:type" content="image/png"', home)
+        self.assertIn('property="og:image:width" content="1254"', home)
+        self.assertIn('property="og:image:height" content="1254"', home)
+        self.assertIn('name="twitter:image" content="https://ysonet.com/assets/logo-social.png"', home)
+        self.assertIn('property="og:image:alt" content="YSoNet logo"', home)
+        self.assertIn('name="twitter:image:alt" content="YSoNet logo"', home)
+        self.assertEqual(1, home.count('name="twitter:card"'))
+        self.assertEqual(1, home.count('property="og:image"'))
+        self.assertEqual(1, home.count('name="twitter:image"'))
+        self.assertTrue((self.output / 'assets/logo-social.png').is_file())
         self.assertTrue((self.output / 'pagefind/pagefind.js').is_file())
         urls = [node.text for node in ET.parse(self.output / 'sitemap.xml').iter(
             '{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
         self.assertIn('https://ysonet.com/getting-started/', urls)
         self.assertTrue(all(url.startswith('https://ysonet.com/') for url in urls))
         self.assertIn('Sitemap: https://ysonet.com/sitemap.xml', (self.output / 'robots.txt').read_text(encoding='utf-8'))
+
+    def test_project_path_social_image_uses_the_public_absolute_url(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'temp') as tmp:
+            output = Path(tmp) / 'site'
+            Site(output, catalog(), '/ysonet/', site_url='https://example.com/ysonet/').build()
+            home = (output / 'index.html').read_text(encoding='utf-8')
+            image = 'https://example.com/ysonet/assets/logo-social.png'
+            self.assertIn(f'property="og:image" content="{image}"', home)
+            self.assertIn(f'name="twitter:image" content="{image}"', home)
 
     def test_sitemap_canonical_urls_and_root_host_migration(self):
         self.assertEqual([], check_seo(self.output))
@@ -261,6 +282,18 @@ class SiteTests(unittest.TestCase):
         self.assertIn('expressive-code', body)
         self.assertIn('data-code=".\\ysonet.exe -i"', html.unescape(body))
         self.assertNotIn('data-code=".\\ysonet.exe -i\n', html.unescape(body))
+
+    def test_help_guides_publish_their_visuals(self):
+        for route, image in (
+                ('getting-started', 'getting-started-flow.svg'),
+                ('getting-started', 'getting-started-flow-mobile.svg'),
+                ('getting-started', 'interactive-main-menu.png'),
+                ('quick-reference', 'choose-a-workflow.svg'),
+                ('quick-reference', 'choose-a-workflow-mobile.svg')):
+            with self.subTest(route=route):
+                body = (self.output / route / 'index.html').read_text(encoding='utf-8')
+                self.assertIn(f'src="/assets/{image}"', body)
+                self.assertTrue((self.output / 'assets' / image).is_file())
 
     def test_rewrites_authored_links_without_copying_source(self):
         body = (self.output / 'guides/index.html').read_text(encoding='utf-8')

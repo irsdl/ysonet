@@ -29,4 +29,10 @@ h1, h2, h3, td, a, code { overflow-wrap: anywhere; }
 .notice { border-inline-start: 3px solid var(--sl-color-text-accent); padding-inline-start: 1rem; }
 .table-scroll { max-width: 100%; overflow: auto; }
 .sl-markdown-content pre { max-width: 100%; overflow-x: auto; }
+.help-visual-wide, .help-visual-narrow { display: block; }
+.help-visual-narrow { display: none; }
+.help-visual-wide img, .help-visual-narrow img { display: block; width: 100%; height: auto; }
+.command-capture { max-width: 100%; overflow-x: auto; }
+.command-capture img { display: block; width: 55rem; max-width: none; height: auto; }
 @media (max-width: 50rem) { .filters { grid-template-columns: 1fr; } .module-card { grid-template-columns: minmax(0, 1fr); } .module-card p, .module-card .module-formats { grid-column: 1; } }
+@media (max-width: 40rem) { .help-visual-wide { display: none; } .help-visual-narrow { display: block; } }

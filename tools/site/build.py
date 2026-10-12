@@ -23,7 +23,13 @@ SITEMAP_NS = 'http://www.sitemaps.org/schemas/sitemap/0.9'
 GROUPS = json.loads((HERE / 'publication.json').read_text(encoding='utf-8'))
 DOCUMENTS = {source: route for group in GROUPS.values() for source, route in group.items()}
 ASSETS = {'docs/images/logo/transparent.svg': 'assets/logo.svg',
+          'docs/images/logo/dark.png': 'assets/logo-social.png',
           'docs/images/logo/ysonet-symbol.gif': 'assets/ysonet-symbol.gif',
+          'docs/images/help/getting-started-flow.svg': 'assets/getting-started-flow.svg',
+          'docs/images/help/getting-started-flow-mobile.svg': 'assets/getting-started-flow-mobile.svg',
+          'docs/images/help/choose-a-workflow.svg': 'assets/choose-a-workflow.svg',
+          'docs/images/help/choose-a-workflow-mobile.svg': 'assets/choose-a-workflow-mobile.svg',
+          'docs/images/help/interactive-main-menu.png': 'assets/interactive-main-menu.png',
           'docs/schemas/catalog-v1.schema.json': 'catalog/schema.json'}
 MARKER = '.ysonet-site'
 

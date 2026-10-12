@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="390" viewBox="0 0 1200 390" role="img" aria-labelledby="title desc">
+  <title id="title">From download to a first YSoNet payload</title>
+  <desc id="desc">Five steps: download the release ZIP, extract every file, run installation diagnostics, open the interactive wizard, then save a payload or copy its command.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07121e"/>
+      <stop offset="0.55" stop-color="#102433"/>
+      <stop offset="1" stop-color="#101c3f"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#123a46"/>
+      <stop offset="1" stop-color="#132b58"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000814" flood-opacity="0.45"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#57dce0"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="390" rx="24" fill="url(#background)"/>
+  <text x="54" y="52" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700">From download to your first payload</text>
+  <text x="54" y="80" fill="#b9d6df" font-family="Segoe UI, Arial, sans-serif" font-size="17">A safe first run keeps the complete release together and checks it before generation.</text>
+
+  <g fill="none" stroke="#57dce0" stroke-width="3" marker-end="url(#arrow)">
+    <path d="M238 205 H256"/>
+    <path d="M468 205 H486"/>
+    <path d="M698 205 H716"/>
+    <path d="M928 205 H946"/>
+  </g>
+
+  <g filter="url(#shadow)" font-family="Segoe UI, Arial, sans-serif">
+    <g transform="translate(34 108)">
+      <rect width="200" height="194" rx="18" fill="url(#card)" stroke="#2ebfc6" stroke-width="2"/>
+      <circle cx="34" cy="34" r="19" fill="#18aeb8"/>
+      <text x="34" y="41" text-anchor="middle" fill="#07121e" font-size="19" font-weight="800">1</text>
+      <text x="24" y="88" fill="#ffffff" font-size="22" font-weight="700">Download</text>
+      <text x="24" y="119" fill="#c7e7ec" font-size="17">Release ZIP</text>
+      <text x="24" y="149" fill="#93bec8" font-size="15">Choose the built asset,</text>
+      <text x="24" y="172" fill="#93bec8" font-size="15">not a source archive.</text>
+    </g>
+    <g transform="translate(264 108)">
+      <rect width="200" height="194" rx="18" fill="url(#card)" stroke="#2ebfc6" stroke-width="2"/>
+      <circle cx="34" cy="34" r="19" fill="#18aeb8"/>
+      <text x="34" y="41" text-anchor="middle" fill="#07121e" font-size="19" font-weight="800">2</text>
+      <text x="24" y="88" fill="#ffffff" font-size="22" font-weight="700">Extract all</text>
+      <text x="24" y="119" fill="#c7e7ec" font-size="17">Keep DLLs, config,</text>
+      <text x="24" y="144" fill="#c7e7ec" font-size="17">and subfolders</text>
+      <text x="24" y="172" fill="#93bec8" font-size="15">in one folder.</text>
+    </g>
+    <g transform="translate(494 108)">
+      <rect width="200" height="194" rx="18" fill="url(#card)" stroke="#2ebfc6" stroke-width="2"/>
+      <circle cx="34" cy="34" r="19" fill="#18aeb8"/>
+      <text x="34" y="41" text-anchor="middle" fill="#07121e" font-size="19" font-weight="800">3</text>
+      <text x="24" y="88" fill="#ffffff" font-size="22" font-weight="700">Diagnose</text>
+      <rect x="24" y="108" width="162" height="34" rx="7" fill="#050b14" stroke="#365465"/>
+      <text x="105" y="131" text-anchor="middle" fill="#70e6ea" font-family="Consolas, monospace" font-size="15">.\ysonet.exe doctor</text>
+      <text x="24" y="172" fill="#93bec8" font-size="15">Read-only checks.</text>
+    </g>
+    <g transform="translate(724 108)">
+      <rect width="200" height="194" rx="18" fill="url(#card)" stroke="#4b7ef0" stroke-width="2"/>
+      <circle cx="34" cy="34" r="19" fill="#3875ef"/>
+      <text x="34" y="41" text-anchor="middle" fill="#ffffff" font-size="19" font-weight="800">4</text>
+      <text x="24" y="88" fill="#ffffff" font-size="22" font-weight="700">Open wizard</text>
+      <rect x="24" y="108" width="162" height="34" rx="7" fill="#050b14" stroke="#365465"/>
+      <text x="105" y="131" text-anchor="middle" fill="#70a9ff" font-family="Consolas, monospace" font-size="16">.\ysonet.exe -i</text>
+      <text x="24" y="172" fill="#a9c7ff" font-size="15">Configure step by step.</text>
+    </g>
+    <g transform="translate(954 108)">
+      <rect width="200" height="194" rx="18" fill="url(#card)" stroke="#4b7ef0" stroke-width="2"/>
+      <circle cx="34" cy="34" r="19" fill="#3875ef"/>
+      <text x="34" y="41" text-anchor="middle" fill="#ffffff" font-size="19" font-weight="800">5</text>
+      <text x="24" y="88" fill="#ffffff" font-size="22" font-weight="700">Generate</text>
+      <text x="24" y="119" fill="#d4e2ff" font-size="17">Save the payload</text>
+      <text x="24" y="144" fill="#d4e2ff" font-size="17">or copy its command.</text>
+      <text x="24" y="172" fill="#a9c7ff" font-size="15">Review requirements first.</text>
+    </g>
+  </g>
+  <text x="600" y="352" text-anchor="middle" fill="#b9d6df" font-family="Segoe UI, Arial, sans-serif" font-size="16">Use payloads only in systems and test environments you are authorized to assess.</text>
+</svg>

@@ -3,6 +3,9 @@
 Run these commands in PowerShell from the extracted release folder.
 Need the executable? See [Getting Started](getting-started.md).
 
+<span class="help-visual-wide"><img src="images/help/choose-a-workflow.svg" alt="Three ways to begin: use the guided wizard, open help for a known module, or filter the catalog by a target constraint. Every path leads to reviewing requirements and runtime evidence before generation."></span>
+<span class="help-visual-narrow"><img src="images/help/choose-a-workflow-mobile.svg" alt="Three ways to begin: use the guided wizard, open help for a known module, or filter the catalog by a target constraint. Every path leads to reviewing requirements and runtime evidence before generation."></span>
+
 ## Choose a task
 
 | I want to... | Command |

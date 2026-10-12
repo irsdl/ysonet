@@ -8,6 +8,9 @@ Back to [documentation index](README.md).
 Already use ysoserial.net? Read [Moving from ysoserial.net](moving-from-ysoserial-net.md)
 for command compatibility and script changes.
 
+<span class="help-visual-wide"><img src="images/help/getting-started-flow.svg" alt="Five steps from downloading the release ZIP to checking the installation, opening the wizard, and generating a payload."></span>
+<span class="help-visual-narrow"><img src="images/help/getting-started-flow-mobile.svg" alt="Five steps from downloading the release ZIP to checking the installation, opening the wizard, and generating a payload."></span>
+
 ## Installation
 
 ### Release ZIP (recommended)
@@ -86,6 +89,12 @@ Launch it by passing `interactive` (or `-i`) as the first argument:
 ```
 
 `wizard` and `--interactive` work too. Run the command from the extracted folder.
+
+The interactive start screen groups building, discovery, help, and appearance tools.
+This is actual output captured from `.\ysonet.exe -i` in v2026.9.2; only the
+machine-specific terminal frame was cropped:
+
+<div class="command-capture"><a href="images/help/interactive-main-menu.png"><img src="images/help/interactive-main-menu.png" alt="Actual output from the YSoNet interactive-mode command, showing its main menu with gadget and plugin builders, formatter discovery, help, appearance, updates, and quit."></a></div>
 
 Inside the wizard:
 

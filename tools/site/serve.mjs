@@ -18,6 +18,26 @@ export async function serve(directory, base = '/') {
       response.end(await readFile(file));
     } catch { response.writeHead(404); response.end('Not found'); }
   });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  // Chromium blocks some ports even on loopback (including 10080, which an
+  // ephemeral bind can receive on this test host). Use a small known-safe range
+  // and move to the next port when another local check already owns one.
+  let listening = false;
+  for (let port = 18080; port < 18180; port++) {
+    try {
+      await new Promise((resolve, reject) => {
+        const failed = error => reject(error);
+        server.once('error', failed);
+        server.listen(port, '127.0.0.1', () => {
+          server.off('error', failed);
+          resolve();
+        });
+      });
+      listening = true;
+      break;
+    } catch (error) {
+      if (error.code !== 'EADDRINUSE') throw error;
+    }
+  }
+  if (!listening) throw new Error('No local preview port is available.');
   return {origin: `http://127.0.0.1:${server.address().port}`, close() { server.closeAllConnections(); server.close(); }};
 }
