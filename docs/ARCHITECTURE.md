@@ -1557,22 +1557,28 @@ compiled on demand, not built into `E.dll`.
 - **GhostWebShell.cs**: class `G` (Soroush Dalili). Base64-decodes an embedded `.aspx`
   webshell and registers a virtual path provider (`SamplePathProvider`) to serve it in
   memory - a webshell drop needing no file write.
-- **HttpModuleShell.cs**: class `E` (lupingQAQ). Memory shell #1: reflects into
+- **HttpModuleShell.cs**: class `E` (lupingQAQ). Memory-shell template #1: reflects into
   `HttpApplicationFactory._freeList` to arm every pooled `HttpApplication`, appending a
   reflected `SyncEventExecutionStep` to a live module container at
   `RequestNotification.AcquireRequestState` (classic pools: splices
-  `ApplicationStepManager._execSteps` instead). Trigger: `MSH-Cmd` header. Usage:
+  `ApplicationStepManager._execSteps` instead). Trigger: a request carrying the
+  `MSH-Check` header. The default `Handle` is inert and answers with a fixed verification
+  message; replace the marked `USER CODE` method to add your own handling. Usage:
   `-c "HttpModuleShell.cs;System.dll;System.Web.dll"`.
-- **WsTakeoverShell.cs**: class `E` (lupingQAQ). Memory shell #2: takes over the
-  HTTP->WebSocket upgrade (`AcceptWebSocketRequest`, subprotocol `msh`) and answers
-  commands over the full-duplex connection; a strict no-op without the integrated
-  pipeline and the WebSocket feature. Usage:
-  `-c "WsTakeoverShell.cs;System.dll;System.Web.dll"`.
-- **RemotingUriShell.cs**: class `E` (lupingQAQ). Memory shell #3: registers the
+- **WsTakeoverShell.cs**: class `E` (lupingQAQ). Memory-shell template #2: takes over the
+  HTTP->WebSocket upgrade (`AcceptWebSocketRequest`, subprotocol `msh`) and answers every
+  complete message through its default `Handle`, which is inert and returns a fixed
+  verification message; a strict no-op without the integrated pipeline and the WebSocket
+  feature. Usage: `-c "WsTakeoverShell.cs;System.dll;System.Web.dll"`.
+- **RemotingUriShell.cs**: class `E` (lupingQAQ). Memory-shell template #3: registers the
   well-known URI `msh` on an already-registered business remoting channel
-  (`RegisterWellKnownServiceType` + an `AssemblyResolve` bridge for the byte-loaded
-  payload assembly); a no-op when the AppDomain hosts no remoting receiver channel.
-  Usage: `-c "RemotingUriShell.cs;System.dll;System.Runtime.Remoting.dll"`.
+  (`RegisterWellKnownServiceType`); the `AssemblyResolve` bridge is installed only after a
+  receiver channel exists and resolves only this payload's own assembly. The default
+  `Svc.Handle` is inert and returns a fixed verification message; a no-op when the
+  AppDomain hosts no remoting receiver channel. Inert defaults and the bridge guards are
+  pinned by `ysonet.Tests` (`MemshellTemplateTests.cs`), which compiles each source with
+  the in-box compiler. Usage:
+  `-c "RemotingUriShell.cs;System.dll;System.Runtime.Remoting.dll"`.
 
 ### TestConsoleApp (`TestConsoleApp/`)
 .NET Framework 4.7.2 console EXE (`AssemblyName=TestConsoleApp_YSONET`). A harmless

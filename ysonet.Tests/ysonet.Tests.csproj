@@ -117,6 +117,7 @@
     <Compile Include="FileSystemInfoTimeSetterTests.cs" />
     <Compile Include="HashPEFileHandleTests.cs" />
     <Compile Include="XamlTypeConverterFetchTests.cs" />
+    <Compile Include="MemshellTemplateTests.cs" />
 
     <Compile Include="Runner\RunStatus.cs" />
     <Compile Include="Runner\RuntimeBuild.cs" />
@@ -347,6 +348,17 @@
     <Copy SourceFiles="$(YsonetOutDir)\GhostWebShell.cs" DestinationFolder="$(OutDir)"
           OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
           Condition="Exists('$(YsonetOutDir)\GhostWebShell.cs')" />
+    <!-- The three memory-shell template sources: the runner compiles them from beside
+         itself, so a direct run from this bin directory needs them here too. -->
+    <Copy SourceFiles="$(YsonetOutDir)\HttpModuleShell.cs" DestinationFolder="$(OutDir)"
+          OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
+          Condition="Exists('$(YsonetOutDir)\HttpModuleShell.cs')" />
+    <Copy SourceFiles="$(YsonetOutDir)\WsTakeoverShell.cs" DestinationFolder="$(OutDir)"
+          OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
+          Condition="Exists('$(YsonetOutDir)\WsTakeoverShell.cs')" />
+    <Copy SourceFiles="$(YsonetOutDir)\RemotingUriShell.cs" DestinationFolder="$(OutDir)"
+          OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true"
+          Condition="Exists('$(YsonetOutDir)\RemotingUriShell.cs')" />
     <!-- The required windowless fire sink. Without it the runner reports one ordinary
          failure with the probe reason and stops before any command fire row can run. -->
     <Copy SourceFiles="$(TestSinkExe)" DestinationFolder="$(OutDir)"
