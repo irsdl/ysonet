@@ -815,6 +815,9 @@ namespace ysonet.Tests
             // tier. Its wire rows build a payload and so run only under the --dos gate; its
             // safety and metadata rows always run.
             RunHashPEFileHandleTests(options);
+            // The memory-shell template sources under ExploitClass\ are compiled on demand
+            // (never built into E.dll), so they carry their own compile + inert-default rows.
+            RunMemshellTemplateTests();
 
             // ---- LEGACY tier support, checked without needing CLR 2 ----
             // The table, the classifier and the version-evidence rule are pure logic, so they
